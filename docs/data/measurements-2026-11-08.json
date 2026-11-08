@@ -1,0 +1,1274 @@
+{
+ "measured_on": "2026-11-08",
+ "tools": {
+  "oscar64": "v1.32.273 (-Os)",
+  "cc65": "2.19 (-O -Os)",
+  "vice": "3.7.1",
+  "host": "Ubuntu 24.04, gcc 13"
+ },
+ "source": "NetHack 3.4.3 after tools/ansi_manual_fixes.py + kr2ansi.py (+ oscar_normalize.py for oscar64)",
+ "method": "see docs/NETHACK-SURVEY.md; oscar64 numbers from tools/measure/measure_oscar64.py harness",
+ "cc65_per_file": [
+  {
+   "file": "allmain.c",
+   "lines": 633,
+   "code": 5329,
+   "rodata": 325,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "alloc.c",
+   "lines": 135,
+   "code": 84,
+   "rodata": 53,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "attrib.c",
+   "lines": 719,
+   "code": 7536,
+   "rodata": 1003,
+   "data": 4,
+   "bss": 0
+  },
+  {
+   "file": "ball.c",
+   "lines": 794,
+   "code": 13393,
+   "rodata": 727,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "botl.c",
+   "lines": 301,
+   "code": 3753,
+   "rodata": 366,
+   "data": 2,
+   "bss": 0
+  },
+  {
+   "file": "dbridge.c",
+   "lines": 910,
+   "code": 12952,
+   "rodata": 881,
+   "data": 0,
+   "bss": 96
+  },
+  {
+   "file": "decl.c",
+   "lines": 281,
+   "code": 1,
+   "rodata": 648,
+   "data": 8002,
+   "bss": 19586
+  },
+  {
+   "file": "display.c",
+   "lines": 2160,
+   "code": 26478,
+   "rodata": 922,
+   "data": 16,
+   "bss": 5256
+  },
+  {
+   "file": "dlb.c",
+   "lines": 511,
+   "code": 0,
+   "rodata": 0,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "dog.c",
+   "lines": 924,
+   "code": 14337,
+   "rodata": 516,
+   "data": 2,
+   "bss": 0
+  },
+  {
+   "file": "drawing.c",
+   "lines": 895,
+   "code": 939,
+   "rodata": 2447,
+   "data": 565,
+   "bss": 0
+  },
+  {
+   "file": "exper.c",
+   "lines": 240,
+   "code": 2822,
+   "rodata": 76,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "explode.c",
+   "lines": 574,
+   "code": 10036,
+   "rodata": 562,
+   "data": 18,
+   "bss": 0
+  },
+  {
+   "file": "extralev.c",
+   "lines": 341,
+   "code": 7307,
+   "rodata": 239,
+   "data": 0,
+   "bss": 72
+  },
+  {
+   "file": "light.c",
+   "lines": 604,
+   "code": 4795,
+   "rodata": 592,
+   "data": 2,
+   "bss": 0
+  },
+  {
+   "file": "lock.c",
+   "lines": 914,
+   "code": 14188,
+   "rodata": 2308,
+   "data": 48,
+   "bss": 10
+  },
+  {
+   "file": "makemon.c",
+   "lines": 1768,
+   "code": 23029,
+   "rodata": 170,
+   "data": 351,
+   "bss": 80
+  },
+  {
+   "file": "mapglyph.c",
+   "lines": 238,
+   "code": 1388,
+   "rodata": 0,
+   "data": 14,
+   "bss": 0
+  },
+  {
+   "file": "minion.c",
+   "lines": 314,
+   "code": 4326,
+   "rodata": 416,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "mkmap.c",
+   "lines": 461,
+   "code": 7413,
+   "rodata": 64,
+   "data": 32,
+   "bss": 12
+  },
+  {
+   "file": "mkmaze.c",
+   "lines": 1397,
+   "code": 16601,
+   "rodata": 577,
+   "data": 65,
+   "bss": 16
+  },
+  {
+   "file": "mkroom.c",
+   "lines": 756,
+   "code": 8593,
+   "rodata": 74,
+   "data": 16,
+   "bss": 2
+  },
+  {
+   "file": "mondata.c",
+   "lines": 717,
+   "code": 7342,
+   "rodata": 966,
+   "data": 56,
+   "bss": 0
+  },
+  {
+   "file": "monmove.c",
+   "lines": 1346,
+   "code": 28599,
+   "rodata": 644,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "monst.c",
+   "lines": 3477,
+   "code": 1,
+   "rodata": 3721,
+   "data": 21065,
+   "bss": 0
+  },
+  {
+   "file": "monstr.c",
+   "lines": 39,
+   "code": 1,
+   "rodata": 764,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "mplayer.c",
+   "lines": 330,
+   "code": 3561,
+   "rodata": 429,
+   "data": 118,
+   "bss": 0
+  },
+  {
+   "file": "music.c",
+   "lines": 740,
+   "code": 9125,
+   "rodata": 1296,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "o_init.c",
+   "lines": 417,
+   "code": 4768,
+   "rodata": 215,
+   "data": 874,
+   "bss": 0
+  },
+  {
+   "file": "objects.c",
+   "lines": 991,
+   "code": 1,
+   "rodata": 7041,
+   "data": 13454,
+   "bss": 0
+  },
+  {
+   "file": "pline.c",
+   "lines": 437,
+   "code": 4392,
+   "rodata": 972,
+   "data": 5,
+   "bss": 0
+  },
+  {
+   "file": "polyself.c",
+   "lines": 1329,
+   "code": 17574,
+   "rodata": 3980,
+   "data": 380,
+   "bss": 0
+  },
+  {
+   "file": "priest.c",
+   "lines": 706,
+   "code": 10413,
+   "rodata": 1374,
+   "data": 6,
+   "bss": 0
+  },
+  {
+   "file": "quest.c",
+   "lines": 380,
+   "code": 2923,
+   "rodata": 195,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "questpgr.c",
+   "lines": 428,
+   "code": 3064,
+   "rodata": 321,
+   "data": 0,
+   "bss": 342
+  },
+  {
+   "file": "rect.c",
+   "lines": 188,
+   "code": 1730,
+   "rodata": 26,
+   "data": 0,
+   "bss": 206
+  },
+  {
+   "file": "region.c",
+   "lines": 943,
+   "code": 12169,
+   "rodata": 75,
+   "data": 8,
+   "bss": 2
+  },
+  {
+   "file": "rip.c",
+   "lines": 171,
+   "code": 1221,
+   "rodata": 419,
+   "data": 32,
+   "bss": 2
+  },
+  {
+   "file": "role.c",
+   "lines": 1473,
+   "code": 9384,
+   "rodata": 4723,
+   "data": 186,
+   "bss": 5
+  },
+  {
+   "file": "shk.c",
+   "lines": 3979,
+   "code": 50138,
+   "rodata": 7060,
+   "data": 32,
+   "bss": 11
+  },
+  {
+   "file": "shknam.c",
+   "lines": 519,
+   "code": 4609,
+   "rodata": 3852,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "sit.c",
+   "lines": 451,
+   "code": 6024,
+   "rodata": 1509,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "sounds.c",
+   "lines": 1023,
+   "code": 13439,
+   "rodata": 3747,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "spell.c",
+   "lines": 1246,
+   "code": 12252,
+   "rodata": 2722,
+   "data": 0,
+   "bss": 3
+  },
+  {
+   "file": "steed.c",
+   "lines": 634,
+   "code": 10010,
+   "rodata": 1332,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "teleport.c",
+   "lines": 1261,
+   "code": 14422,
+   "rodata": 1972,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "track.c",
+   "lines": 67,
+   "code": 433,
+   "rodata": 0,
+   "data": 0,
+   "bss": 104
+  },
+  {
+   "file": "u_init.c",
+   "lines": 1058,
+   "code": 5146,
+   "rodata": 612,
+   "data": 866,
+   "bss": 0
+  },
+  {
+   "file": "vault.c",
+   "lines": 815,
+   "code": 14897,
+   "rodata": 1273,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "version.c",
+   "lines": 177,
+   "code": 920,
+   "rodata": 207,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "vis_tab.c",
+   "lines": 8,
+   "code": 0,
+   "rodata": 0,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "vision.c",
+   "lines": 2624,
+   "code": 22924,
+   "rodata": 116,
+   "data": 152,
+   "bss": 8711
+  },
+  {
+   "file": "weapon.c",
+   "lines": 1290,
+   "code": 15880,
+   "rodata": 1457,
+   "data": 0,
+   "bss": 2
+  },
+  {
+   "file": "wield.c",
+   "lines": 789,
+   "code": 10569,
+   "rodata": 1647,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "windows.c",
+   "lines": 140,
+   "code": 354,
+   "rodata": 56,
+   "data": 8,
+   "bss": 88
+  },
+  {
+   "file": "wizard.c",
+   "lines": 623,
+   "code": 5971,
+   "rodata": 1138,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "worm.c",
+   "lines": 723,
+   "code": 5539,
+   "rodata": 189,
+   "data": 256,
+   "bss": 0
+  },
+  {
+   "file": "worn.c",
+   "lines": 774,
+   "code": 13273,
+   "rodata": 795,
+   "data": 0,
+   "bss": 0
+  },
+  {
+   "file": "write.c",
+   "lines": 239,
+   "code": 2428,
+   "rodata": 763,
+   "data": 0,
+   "bss": 0
+  }
+ ],
+ "oscar64_per_file": {
+  "allmain.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 6
+  },
+  "alloc.c": {
+   "status": "placement",
+   "code": 104,
+   "funcs_found": 2,
+   "funcs_defined": 5
+  },
+  "apply.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 47
+  },
+  "artifact.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 34
+  },
+  "attrib.c": {
+   "status": "placement",
+   "code": 4330,
+   "funcs_found": 16,
+   "funcs_defined": 19
+  },
+  "ball.c": {
+   "status": "placement",
+   "code": 4283,
+   "funcs_found": 8,
+   "funcs_defined": 10
+  },
+  "bones.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 7
+  },
+  "botl.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 11
+  },
+  "cmd.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 58
+  },
+  "dbridge.c": {
+   "status": "placement",
+   "code": 8474,
+   "funcs_found": 21,
+   "funcs_defined": 24
+  },
+  "decl.c": {
+   "status": "placement",
+   "code": 1,
+   "funcs_found": 1,
+   "funcs_defined": 1
+  },
+  "detect.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 25
+  },
+  "dig.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 28
+  },
+  "display.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 45
+  },
+  "dlb.c": {
+   "status": "placement",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 22
+  },
+  "do.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 29
+  },
+  "do_name.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 27
+  },
+  "do_wear.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 51
+  },
+  "dog.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 14
+  },
+  "dogmove.c": {
+   "status": "placement",
+   "code": 7923,
+   "funcs_found": 7,
+   "funcs_defined": 11
+  },
+  "dokick.c": {
+   "status": "compile-error",
+   "code": 12328,
+   "funcs_found": 9,
+   "funcs_defined": 13
+  },
+  "dothrow.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 25
+  },
+  "drawing.c": {
+   "status": "placement",
+   "code": 640,
+   "funcs_found": 5,
+   "funcs_defined": 5
+  },
+  "dungeon.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 62
+  },
+  "eat.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 49
+  },
+  "end.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 17
+  },
+  "engrave.c": {
+   "status": "compile-error",
+   "code": 8117,
+   "funcs_found": 19,
+   "funcs_defined": 19
+  },
+  "exper.c": {
+   "status": "placement",
+   "code": 2333,
+   "funcs_found": 8,
+   "funcs_defined": 8
+  },
+  "explode.c": {
+   "status": "compile-error",
+   "code": 3024,
+   "funcs_found": 3,
+   "funcs_defined": 3
+  },
+  "extralev.c": {
+   "status": "placement",
+   "code": 3254,
+   "funcs_found": 6,
+   "funcs_defined": 6
+  },
+  "files.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 51
+  },
+  "fountain.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 12
+  },
+  "hack.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 34
+  },
+  "hacklib.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 34
+  },
+  "invent.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 77
+  },
+  "light.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 18
+  },
+  "lock.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 14
+  },
+  "mail.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 7
+  },
+  "makemon.c": {
+   "status": "hang",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 0
+  },
+  "mapglyph.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 1
+  },
+  "mcastu.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 9
+  },
+  "mhitm.c": {
+   "status": "ok",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 17
+  },
+  "mhitu.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 24
+  },
+  "minion.c": {
+   "status": "placement",
+   "code": 2579,
+   "funcs_found": 9,
+   "funcs_defined": 9
+  },
+  "mklev.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 36
+  },
+  "mkmap.c": {
+   "status": "placement",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 13
+  },
+  "mkmaze.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 26
+  },
+  "mkobj.c": {
+   "status": "compile-error",
+   "code": 11092,
+   "funcs_found": 44,
+   "funcs_defined": 45
+  },
+  "mkroom.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 26
+  },
+  "mon.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 63
+  },
+  "mondata.c": {
+   "status": "compile-error",
+   "code": 5053,
+   "funcs_found": 30,
+   "funcs_defined": 30
+  },
+  "monmove.c": {
+   "status": "compile-error",
+   "code": 13245,
+   "funcs_found": 13,
+   "funcs_defined": 16
+  },
+  "monst.c": {
+   "status": "placement",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 1
+  },
+  "monstr.c": {
+   "status": "placement",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 1
+  },
+  "mplayer.c": {
+   "status": "placement",
+   "code": 2160,
+   "funcs_found": 4,
+   "funcs_defined": 6
+  },
+  "mthrowu.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 12
+  },
+  "muse.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 22
+  },
+  "music.c": {
+   "status": "placement",
+   "code": 4670,
+   "funcs_found": 5,
+   "funcs_defined": 12
+  },
+  "o_init.c": {
+   "status": "compile-error",
+   "code": 3504,
+   "funcs_found": 10,
+   "funcs_defined": 13
+  },
+  "objects.c": {
+   "status": "placement",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 23
+  },
+  "objnam.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 38
+  },
+  "options.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 43
+  },
+  "pager.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 13
+  },
+  "pickup.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 37
+  },
+  "pline.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 8
+  },
+  "polyself.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 24
+  },
+  "potion.c": {
+   "status": "compile-error",
+   "code": 16943,
+   "funcs_found": 23,
+   "funcs_defined": 24
+  },
+  "pray.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 29
+  },
+  "priest.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 18
+  },
+  "quest.c": {
+   "status": "placement",
+   "code": 1271,
+   "funcs_found": 13,
+   "funcs_defined": 20
+  },
+  "questpgr.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 20
+  },
+  "read.c": {
+   "status": "compile-error",
+   "code": 12715,
+   "funcs_found": 19,
+   "funcs_defined": 25
+  },
+  "rect.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 8
+  },
+  "region.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 30
+  },
+  "restore.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 22
+  },
+  "rip.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 2
+  },
+  "rnd.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 6
+  },
+  "role.c": {
+   "status": "placement",
+   "code": 6666,
+   "funcs_found": 28,
+   "funcs_defined": 30
+  },
+  "rumors.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 8
+  },
+  "save.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 25
+  },
+  "shk.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 93
+  },
+  "shknam.c": {
+   "status": "ok",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 7
+  },
+  "sit.c": {
+   "status": "compile-error",
+   "code": 1967,
+   "funcs_found": 4,
+   "funcs_defined": 4
+  },
+  "sounds.c": {
+   "status": "compile-error",
+   "code": 5969,
+   "funcs_found": 9,
+   "funcs_defined": 12
+  },
+  "sp_lev.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 38
+  },
+  "spell.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 23
+  },
+  "steal.c": {
+   "status": "placement",
+   "code": 1423,
+   "funcs_found": 7,
+   "funcs_defined": 12
+  },
+  "steed.c": {
+   "status": "placement",
+   "code": 5335,
+   "funcs_found": 11,
+   "funcs_defined": 11
+  },
+  "teleport.c": {
+   "status": "compile-error",
+   "code": 9312,
+   "funcs_found": 23,
+   "funcs_defined": 25
+  },
+  "timeout.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 40
+  },
+  "topten.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 15
+  },
+  "track.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 3
+  },
+  "trap.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 51
+  },
+  "u_init.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 5
+  },
+  "uhitm.c": {
+   "status": "compile-error",
+   "code": 22964,
+   "funcs_found": 15,
+   "funcs_defined": 26
+  },
+  "vault.c": {
+   "status": "compile-error",
+   "code": 7525,
+   "funcs_found": 11,
+   "funcs_defined": 13
+  },
+  "version.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 10
+  },
+  "vis_tab.c": {
+   "status": "placement",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 0
+  },
+  "vision.c": {
+   "status": "compile-error",
+   "code": 13405,
+   "funcs_found": 11,
+   "funcs_defined": 23
+  },
+  "weapon.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 27
+  },
+  "were.c": {
+   "status": "placement",
+   "code": 1976,
+   "funcs_found": 5,
+   "funcs_defined": 6
+  },
+  "wield.c": {
+   "status": "placement",
+   "code": 3172,
+   "funcs_found": 15,
+   "funcs_defined": 19
+  },
+  "windows.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 4
+  },
+  "wizard.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 19
+  },
+  "worm.c": {
+   "status": "placement",
+   "code": 2946,
+   "funcs_found": 17,
+   "funcs_defined": 20
+  },
+  "worn.c": {
+   "status": "placement",
+   "code": 8190,
+   "funcs_found": 14,
+   "funcs_defined": 15
+  },
+  "write.c": {
+   "status": "compile-error",
+   "code": 1642,
+   "funcs_found": 1,
+   "funcs_defined": 2
+  },
+  "zap.c": {
+   "status": "compile-error",
+   "code": 0,
+   "funcs_found": 0,
+   "funcs_defined": 49
+  }
+ },
+ "oscar64_vs_cc65_common": [
+  {
+   "file": "attrib.c",
+   "lines": 719,
+   "cc65": 7536,
+   "oscar64": 4330
+  },
+  {
+   "file": "ball.c",
+   "lines": 794,
+   "cc65": 13393,
+   "oscar64": 4283
+  },
+  {
+   "file": "dbridge.c",
+   "lines": 910,
+   "cc65": 12952,
+   "oscar64": 8474
+  },
+  {
+   "file": "decl.c",
+   "lines": 281,
+   "cc65": 1,
+   "oscar64": 1
+  },
+  {
+   "file": "drawing.c",
+   "lines": 895,
+   "cc65": 939,
+   "oscar64": 640
+  },
+  {
+   "file": "exper.c",
+   "lines": 240,
+   "cc65": 2822,
+   "oscar64": 2333
+  },
+  {
+   "file": "explode.c",
+   "lines": 574,
+   "cc65": 10036,
+   "oscar64": 3024
+  },
+  {
+   "file": "extralev.c",
+   "lines": 341,
+   "cc65": 7307,
+   "oscar64": 3254
+  },
+  {
+   "file": "minion.c",
+   "lines": 314,
+   "cc65": 4326,
+   "oscar64": 2579
+  },
+  {
+   "file": "mondata.c",
+   "lines": 717,
+   "cc65": 7342,
+   "oscar64": 5053
+  },
+  {
+   "file": "monmove.c",
+   "lines": 1346,
+   "cc65": 28599,
+   "oscar64": 13245
+  },
+  {
+   "file": "role.c",
+   "lines": 1473,
+   "cc65": 9384,
+   "oscar64": 6666
+  },
+  {
+   "file": "sit.c",
+   "lines": 451,
+   "cc65": 6024,
+   "oscar64": 1967
+  },
+  {
+   "file": "steed.c",
+   "lines": 634,
+   "cc65": 10010,
+   "oscar64": 5335
+  },
+  {
+   "file": "teleport.c",
+   "lines": 1261,
+   "cc65": 14422,
+   "oscar64": 9312
+  },
+  {
+   "file": "vault.c",
+   "lines": 815,
+   "cc65": 14897,
+   "oscar64": 7525
+  },
+  {
+   "file": "worm.c",
+   "lines": 723,
+   "cc65": 5539,
+   "oscar64": 2946
+  },
+  {
+   "file": "worn.c",
+   "lines": 774,
+   "cc65": 13273,
+   "oscar64": 8190
+  }
+ ],
+ "struct_sizes_oscar64": {
+  "rm": 6,
+  "dlevel_t": 16813,
+  "obj": 48,
+  "monst": 80,
+  "permonst": [
+   55,
+   382
+  ],
+  "objclass": [
+   26,
+   433
+  ],
+  "you": 1381,
+  "trap": 11,
+  "flag": 127,
+  "int": 2,
+  "long": 4,
+  "ptr": 2
+ },
+ "runtime_data_files_bytes": {
+  "special_levels_113_lev": 213139,
+  "text_data_total": 415173,
+  "data_encyclopedia": 209153,
+  "quest_dat": 103071,
+  "rumors": 42816,
+  "oracles": 5938,
+  "help_files": "~50000"
+ }
+}

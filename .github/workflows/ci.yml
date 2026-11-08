@@ -1,0 +1,41 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  c64:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: toolchain (Oscar64 pinned, VICE + ROMs, xvfb)
+        run: tools/setup-ubuntu.sh
+      - name: build
+        run: PATH=$HOME/.local/bin:$PATH make ef prg
+      - name: self-tests in VICE
+        run: PATH=$HOME/.local/bin:$PATH make test
+      - name: oscar64 repro status (informational)
+        run: PATH=$HOME/.local/bin:$PATH make repros || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: c64-build
+          path: |
+            build/*.crt
+            build/*.prg
+            build/*.map
+            build/test-*.png
+
+  port-tree:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libncurses-dev bison flex
+          python3 -m pip install --break-system-packages -q pexpect
+      - name: port tree (generate if not committed yet)
+        run: |
+          if [ ! -d port ]; then tools/prepare-port-tree.sh; fi
+          tools/check_ansi.sh port   # regenerates makedefs headers if missing
+      - name: host build + smoke (behaviour oracle)
+        run: tools/host-build.sh && python3 tests/host_smoke.py

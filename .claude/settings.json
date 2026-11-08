@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make:*)",
+      "Bash(oscar64:*)",
+      "Bash(x64sc:*)",
+      "Bash(x128:*)",
+      "Bash(xvfb-run:*)",
+      "Bash(python3 tools/vice.py:*)",
+      "Bash(python3 tools/measure/measure_oscar64.py:*)",
+      "Bash(python3 tools/memmap.py:*)",
+      "Bash(python3 tools/crtinfo.py:*)",
+      "Bash(python3 tests/run_selftests.py:*)",
+      "Bash(python3 tests/host_smoke.py:*)",
+      "Bash(python3 tests/oscar64-repros/run.py:*)",
+      "Bash(tools/vice.py:*)",
+      "Bash(tools/check_ansi.sh:*)",
+      "Bash(tools/host-build.sh:*)",
+      "Bash(tests/host_smoke.py:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git worktree list:*)"
+    ],
+    "deny": [
+      "Edit(upstream/**)",
+      "Write(upstream/**)"
+    ],
+    "ask": [
+      "Bash(tools/prepare-port-tree.sh --force:*)",
+      "Bash(rm -rf port:*)",
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)"
+    ]
+  }
+}
