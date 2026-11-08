@@ -9,8 +9,8 @@ Add new tasks at the bottom of the right section.
 - [ ] T0.1 Run `tools/setup-arch.sh` (or `setup-ubuntu.sh`), then `make && make test` → 5/5 PASS
 - [ ] T0.2 `make repros` → 11 repros, all BROKEN on v1.32.273 (baseline)
 - [x] T0.3 Commit the bundle — github.com/jolyonbrown/nethack64 (old 2020 import kept as tag `upstream-3.4.3`), 2026-11-08 Claude
-- [ ] T0.4 `make port-tree`, `tools/host-build.sh`, `tests/host_smoke.py` → all ok;
-      commit `port/` as "baseline: upstream 3.4.3 converted by tools/prepare-port-tree.sh"
+- [x] T0.4 `make port-tree`, `tools/host-build.sh`, `tests/host_smoke.py` → all ok;
+      `port/` committed as the baseline, 2026-11-08 Claude
 
 ## Phase 1 — compile everything
 

@@ -21,10 +21,15 @@
 - Oscar64 compiles 36/107 files after normalisation (220 KB of code measured);
   68 stop on errors, `mhitm.c`/`shknam.c` crash it, `makemon.c` hangs it.
 
+## Repository
+- Pushed to github.com/jolyonbrown/nethack64 (default branch `master`). The 2020
+  "Initial commit" was an exact copy of NetHack 3.4.3 and is tagged `upstream-3.4.3`;
+  the scaffold and the converted `port/` baseline are separate commits on top.
+
 ## Next
-- TASKS.md setup items T0.1-T0.4 on Jolyon's machine, then T1.1 (C64 platform config).
+- TASKS.md T0.1-T0.2 on Jolyon's machine (toolchain + `make test`), then T1.1 (C64 platform config).
 
 ## Questions for Jolyon
-- Is an Ultimate (U2+/U64/C64U) available for the sub-type-1 test? Which real REU?
-- OK to file Oscar64 issues upstream under your GitHub account?
-- Repo hosting/visibility (GitHub private?) and whether CI should run there.
+- No Ultimate or real REU yet (Jolyon, 2026-11-08): VICE is the only target until one is bought.
+- Oscar64 upstream issues: Jolyon is deciding.
+- CI runs on GitHub Actions from the first push; check the first run.
