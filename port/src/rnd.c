@@ -8,7 +8,7 @@
 extern int NDECL(rand);
 #define RND(x)	(rand() % x)
 #else /* LINT */
- #if defined(UNIX) || defined(RANDOM)
+ #if defined(UNIX) || defined(RANDOM) || defined(C64)
 #define RND(x)	(int)(Rand() % (long)(x))
  #else
 /* Good luck: the bottom order bits are cyclic. */

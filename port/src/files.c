@@ -1472,7 +1472,7 @@ fopen_config_file(const char *filename)
 		}
 	}
 
-#if defined(MICRO) || defined(MAC) || defined(__BEOS__) || defined(WIN32)
+#if defined(MICRO) || defined(MAC) || defined(__BEOS__) || defined(WIN32) || defined(C64)
 	if ((fp = fopenp(fqname(configfile, CONFIGPREFIX, 0), "r"))
 								!= (FILE *)0)
 		return(fp);
@@ -2028,7 +2028,7 @@ fopen_wizkit_file(void)
 #endif
 	}
 
-#if defined(MICRO) || defined(MAC) || defined(__BEOS__) || defined(WIN32)
+#if defined(MICRO) || defined(MAC) || defined(__BEOS__) || defined(WIN32) || defined(C64)
 	if ((fp = fopenp(fqname(wizkit, CONFIGPREFIX, 0), "r"))
 								!= (FILE *)0)
 		return(fp);

@@ -1399,7 +1399,7 @@ fprefx(struct obj_s *otmp)
 			  Hallucination ? "primo" : "yummy",
 			  singular(otmp, xname));
 		else
-#ifdef UNIX
+#if defined(UNIX) || defined(C64)	/* C64: keep the host game (ADR-0006) */
 		if (otmp->otyp == APPLE || otmp->otyp == PEAR) {
 		    if (!Hallucination) pline("Core dumped.");
 		    else {
