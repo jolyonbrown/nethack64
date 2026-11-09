@@ -8,10 +8,13 @@ import os, re, subprocess, sys
 inc, srcdir, target, out = sys.argv[1:5]
 also = sys.argv[5:]
 base = os.path.dirname(os.path.abspath(inc))
+# the configuration's defines, as oscar64 sees them; measure_oscar64.py sets
+# MKSTUBS_DEFS for configs other than the 2026-11-08 UNIX one (the default)
+cfg = os.environ["MKSTUBS_DEFS"].split() if "MKSTUBS_DEFS" in os.environ else \
+    ["-DSYSTEM_H", "-DNHSTDC", "-DUNWIDENED_PROTOTYPES", "-Dregister="]
 pp = subprocess.run(
     ["gcc", "-E", "-P", "-nostdinc", "-I", inc, "-I", os.path.join(base, "stub"),
-     "-I", os.path.join(base, "fakelibc"),
-     "-DSYSTEM_H", "-DNHSTDC", "-DUNWIDENED_PROTOTYPES", "-Dregister=", "-D__attribute__(x)=",
+     "-I", os.path.join(base, "fakelibc")] + cfg + ["-D__attribute__(x)=",
      os.path.join(inc, "hack.h")],
     capture_output=True, text=True, encoding="latin-1")
 if pp.returncode:

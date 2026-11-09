@@ -15,26 +15,48 @@ files that compile goes up as port/ is fixed, and the byte totals feed the
 ROM budget in docs/ARCHITECTURE.md.  It also prints sizeof() of the core
 structs as Oscar64 lays them out (struct_sizes.c, run in Oscar64's emulator).
 
-The libc/Unix shim (c64meas.h, stub/) exists only so files parse; it is NOT
-the port's system layer.
+The libc/Unix shims (c64meas.h, c64meas-c64.h, stub/) exist only so files
+parse; they are NOT the port's system layer.
 
-usage: tools/measure/measure_oscar64.py [file.c ...]   (default: all)
-writes build/measure/report.json and prints a table
+usage: tools/measure/measure_oscar64.py [--config unix|c64] [file.c ...]
+  unix (default): the host configuration (UNIX), exactly as measured for the
+                  2026-11-08 baseline (docs/data/oscar64-baseline-2026-11-08.json)
+  c64:            the C64 configuration (port/include/c64conf.h, -dC64, ADR-0006)
+writes build/measure[-c64]/report.json and prints a table
 """
+import argparse
+import collections
 import glob
+import hashlib
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import time
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(ROOT, "build", "measure")
 OSCAR64 = os.environ.get("OSCAR64") or shutil.which("oscar64") or "oscar64"
 BASE = ["decl.c", "role.c", "monst.c", "objects.c", "drawing.c"]
-DEFS = ["-dSYSTEM_H", "-dNHSTDC", "-dUNWIDENED_PROTOTYPES", "-dregister="]
+CONFIGS = {
+    # unchanged since the 2026-11-08 baseline, so that run stays reproducible
+    "unix": dict(out="measure", shim="c64meas.h", stubs=None, cpp=None,
+                 defs=["-dSYSTEM_H", "-dNHSTDC", "-dUNWIDENED_PROTOTYPES", "-dregister="]),
+    # c64conf.h never includes system.h, NHSTDC follows from __STDC__ and
+    # config1.h sets UNWIDENED_PROTOTYPES for C64; -dregister= is compat #2.
+    # mkstubs.py's gcc -E gets the same defines plus oscar64's predefines, so
+    # both see one configuration.  Only errno.h is stubbed: files.c includes
+    # it unconditionally; any other Unix header the C64 view reaches is an error.
+    "c64": dict(out="measure-c64", shim="c64meas-c64.h", stubs=["errno.h"],
+                cpp=["-DC64", "-Dregister=", "-D__OSCAR64C__=1", "-D__C64__=1", "-D__CBM__=1",
+                     "-DOSCAR_TARGET_PRG=1"],
+                defs=["-dC64", "-dregister="]),
+}
+CONFIG = "unix"
+OUT = os.path.join(ROOT, "build", CONFIGS[CONFIG]["out"])
+DEFS = CONFIGS[CONFIG]["defs"]
 TIMEOUT = int(os.environ.get("MEASURE_TIMEOUT", "150"))
 
 
@@ -45,8 +67,14 @@ def setup():
     for d in ("src", "inc"):
         shutil.copytree(os.path.join(ROOT, "port", "src" if d == "src" else "include"),
                         os.path.join(OUT, d))
-    shutil.copytree(os.path.join(HERE, "stub"), os.path.join(OUT, "stub"))
-    shutil.copy(os.path.join(HERE, "c64meas.h"), os.path.join(OUT, "inc"))
+    stubs = CONFIGS[CONFIG]["stubs"]
+    if stubs is None:
+        shutil.copytree(os.path.join(HERE, "stub"), os.path.join(OUT, "stub"))
+    else:
+        os.makedirs(os.path.join(OUT, "stub"))
+        for h in stubs:
+            shutil.copy(os.path.join(HERE, "stub", h), os.path.join(OUT, "stub", h))
+    shutil.copy(os.path.join(HERE, CONFIGS[CONFIG]["shim"]), os.path.join(OUT, "inc", "c64meas.h"))
     # gcc -E (used by mkstubs.py) needs Oscar64's libc headers minus #pragmas
     osc_inc = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(OSCAR64))), "include")
     fl = os.path.join(OUT, "fakelibc")
@@ -80,8 +108,12 @@ def measure(f):
     names = set(re.findall(r"^([A-Za-z_]\w*)\s*\(", src, re.M))
     base = [x for x in BASE if x != f]
     h = os.path.join(OUT, "h_%s.c" % b)
+    env = {k: v for k, v in os.environ.items() if k != "MKSTUBS_DEFS"}
+    if CONFIGS[CONFIG]["cpp"] is not None:
+        env["MKSTUBS_DEFS"] = " ".join(CONFIGS[CONFIG]["cpp"])
     g = subprocess.run([sys.executable, os.path.join(HERE, "mkstubs.py"), os.path.join(OUT, "inc"),
-                        os.path.join(OUT, "src"), f, h] + base, capture_output=True, text=True)
+                        os.path.join(OUT, "src"), f, h] + base, capture_output=True, text=True,
+                       env=env)
     if g.returncode:
         return {"status": "stubgen-fail"}
     out = os.path.join(OUT, "m_%s.prg" % b)
@@ -118,12 +150,51 @@ def struct_sizes():
     r = subprocess.run([OSCAR64, "-e", "-i=" + os.path.join(OUT, "inc"), "-i=" + os.path.join(OUT, "stub"),
                         "-o=" + os.path.join(OUT, "sizes.prg"), os.path.join(HERE, "struct_sizes.c")] + DEFS,
                        capture_output=True, text=True, cwd=OUT, timeout=TIMEOUT)
-    return [l for l in r.stdout.splitlines() if re.match(r"^[a-z_]+ \d", l)]
+    sizes = [l for l in r.stdout.splitlines() if re.match(r"^[a-z_]+ \d", l)]
+    if not sizes:
+        errs = [l for l in (r.stdout + r.stderr).splitlines() if "error" in l]
+        print("struct_sizes.c failed (rc %d): %s" % (r.returncode, errs[0] if errs else "no output"),
+              file=sys.stderr)
+    return sizes
+
+
+def provenance():
+    """Where the numbers came from; tools that compare reports skip '_' keys."""
+    def out(cmd):
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            return (r.stdout + r.stderr).strip()
+        except (OSError, subprocess.SubprocessError):
+            return ""
+    def ver(s):
+        m = re.search(r"\d+\.\d+\.\d+", s)
+        return m.group(0) if m else "unknown"
+    gen = hashlib.sha256()
+    for p in ("include/pm.h", "include/onames.h", "include/vis_tab.h", "src/vis_tab.c"):
+        with open(os.path.join(ROOT, "port", p), "rb") as fh:
+            gen.update(fh.read())
+    return {"config": CONFIG, "oscar64_defs": DEFS, "mkstubs_defs": CONFIGS[CONFIG]["cpp"],
+            "oscar64": ver(out([OSCAR64, "-v"])), "gcc": ver(out(["gcc", "-dumpfullversion"])),
+            "git": out(["git", "-C", ROOT, "describe", "--always", "--dirty"]) or "unknown",
+            "generated_tables_sha256": gen.hexdigest()[:16],
+            "date": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())}
 
 
 def main():
+    global CONFIG, OUT, DEFS
+    ap = argparse.ArgumentParser(description="Oscar64 compile status and code size per port/src file")
+    ap.add_argument("--config", choices=sorted(CONFIGS), default="unix")
+    ap.add_argument("files", nargs="*", help="port/src files (default: all)")
+    args = ap.parse_args()
+    # check names before setup() deletes the previous run's output
+    bad = [f for f in args.files if not os.path.isfile(os.path.join(ROOT, "port", "src", f))]
+    if bad:
+        ap.error("not in port/src: " + " ".join(bad))
+    CONFIG = args.config
+    OUT = os.path.join(ROOT, "build", CONFIGS[CONFIG]["out"])
+    DEFS = CONFIGS[CONFIG]["defs"]
     setup()
-    files = sys.argv[1:] or sorted(os.path.basename(p) for p in glob.glob(os.path.join(OUT, "src", "*.c")))
+    files = args.files or sorted(os.path.basename(p) for p in glob.glob(os.path.join(OUT, "src", "*.c")))
     report = {}
     for f in files:
         res = measure(f)
@@ -132,10 +203,13 @@ def main():
                                           res.get("error", "")), flush=True)
     sizes = struct_sizes()
     report["_struct_sizes"] = sizes
+    report["_meta"] = provenance()
     json.dump(report, open(os.path.join(OUT, "report.json"), "w"), indent=1)
     good = [r for k, r in report.items() if not k.startswith("_") and r.get("code")]
     print("\nfiles measured: %d of %d, native code in those: %d bytes" %
           (len(good), len(files), sum(r["code"] for r in good)))
+    status = collections.Counter(r["status"] for k, r in report.items() if not k.startswith("_"))
+    print("status (%s config):" % CONFIG, ", ".join("%d %s" % (n, s) for s, n in sorted(status.items())))
     print("struct sizes (Oscar64):", "; ".join(sizes))
 
 
