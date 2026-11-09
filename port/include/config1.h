@@ -129,6 +129,20 @@
 
 #endif
 
+/*
+ * Commodore 64 (Oscar64, ADR-0006): opt-in, nothing defines C64 by itself,
+ * so every existing build (gcc host build, UNIX-config measurement) is
+ * unchanged.  The C64 build, its measurement and host tools that must see
+ * the C64 configuration pass -DC64 (oscar64 -dC64).  UNWIDENED_PROTOTYPES
+ * (ADR-0005) is read by tradstdc.h and global.h before c64conf.h.
+ */
+#ifdef C64
+ #undef UNIX
+ #ifndef UNWIDENED_PROTOTYPES
+  #define UNWIDENED_PROTOTYPES
+ #endif
+#endif
+
 
 #if defined(__linux__) && defined(__GNUC__) && !defined(_GNU_SOURCE)
 /* ensure _GNU_SOURCE is defined before including any system headers */
