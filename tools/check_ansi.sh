@@ -8,6 +8,9 @@
 #   -DUNWIDENED_PROTOTYPES            extern.h prototypes use char/xchar/
 #                                     boolean, so any definition whose types
 #                                     differ is a hard "conflicting types" error
+# No -w: gcc's -w also silences warnings promoted with -Werror=, which made
+# all three checks pass vacuously (gcc 13.3: a K&R definition calling an
+# undeclared function compiled clean).  Other warnings stay in the log only.
 #
 # usage: tools/check_ansi.sh [tree]   (default: port)
 set -euo pipefail
@@ -19,7 +22,7 @@ fi
 cd "$T/src"
 fail=0
 for f in *.c; do
-  if ! gcc -c -o /dev/null -std=gnu89 -w \
+  if ! gcc -c -o /dev/null -std=gnu89 \
       -Werror=old-style-definition -Werror=implicit-int \
       -Werror=implicit-function-declaration \
       -DUNWIDENED_PROTOTYPES -I../include "$f" 2> /tmp/check_ansi.$$; then
