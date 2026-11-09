@@ -38,6 +38,9 @@ Source tarball: `upstream/nethack_3.4.3.orig.tar.gz`, sha256
   mismatch with `extern.h` is an error) passes on all 107 files (106 + `vis_tab.c`), and the
   converted tree builds as Linux tty NetHack that plays, saves and restores a
   game (`tests/host_smoke.py`).
+  (2026-11-09: the script also passed `-w`, which silences even `-Werror=`
+  checks, so this check could not fail. Without `-w` it still passes on all
+  107 files: the claim holds.)
 
 ## It was built for small machines once already
 
@@ -136,3 +139,81 @@ measured with `tools/measure/measure_oscar64.py` on `port/` (107 files =
 Per-file results: `docs/data/oscar64-baseline-2026-11-08.json`. The error
 classes and their status are tracked in `docs/OSCAR64-COMPAT.md`. Driving
 this to 107/107 is Phase 1.
+
+## Oscar64 compile status under the C64 configuration (2026-11-09)
+
+T1.1 added the C64 platform configuration (`port/include/c64conf.h`, selected
+with `-dC64`; ADR-0006). `tools/measure/measure_oscar64.py --config c64`
+measures the tree under it:
+- Oscar64 gets only `-dC64 -dregister=`;
+- `stub/` supplies only `errno.h`;
+- `tools/measure/c64meas-c64.h` stands in for the Phase 2/3 file and system
+  layers (time, file descriptors, `errno`, `getenv`, `qsort`, `fseek`).
+
+Tools: Oscar64 v1.32.273, gcc 13.3.0; port and harness at `7812bf8`. Per-file
+results are in `docs/data/oscar64-c64conf-2026-11-09.json`.
+
+| Result | UNIX config (baseline) | C64 config |
+|---|---|---|
+| compile through to placement | 36 (220,535 B) | **41 (230,622 B)** |
+| stop on a compile error | 68 | 63 |
+| crash the compiler (`mhitm.c`, `shknam.c`) | 2 | 2 |
+| hang the compiler (`makemon.c`, killed after 150 s) | 1 | 1 |
+
+- **Control:** the default `--config unix` run on the same tree reproduces
+  `docs/data/oscar64-baseline-2026-11-08.json` record for record, struct
+  sizes included (`tools/measure/compare_reports.py`: 0 of 107 records differ).
+- **Unchanged:** the 36 files that placed before are byte-identical. Oscar64's
+  struct sizes match the UNIX configuration's (the table further up).
+- **17 files changed.** The last column says why:
+  - *config*: the C64 configuration removed a Unix-only dependency or
+    declares the interface;
+  - *shim*: the C64 shim declares a system-layer function `extern`, so the
+    harness stubs it (the UNIX shim's prototypes are not `extern`);
+  - *harness*: a measurement artefact (T1.10);
+  - *compiler*: an Oscar64 gap with a repro;
+  - *port*: needs a portability fix in `port/`.
+
+| File | UNIX first error | C64 result | Why |
+|---|---|---|---|
+| `hacklib.c` | `srand48` unknown | placed, 2,975 B | config (RNG interface declared) |
+| `rnd.c` | `lrand48` unknown | placed, 798 B | config |
+| `rumors.c` | `lrand48` unknown | placed, 2,153 B | config |
+| `mapglyph.c` | `has_color()` (tty) | placed, 1,026 B | config (no `TTY_GRAPHICS`) |
+| `u_init.c` | `time()` undefined | placed, 3,135 B | shim |
+| `allmain.c` | `signal()` parse error | `decl.h(193)` 3008 Non constant initializer | config, then compiler (r12: `occtxt = DUMMY`) |
+| `mail.c` | `mail.c(109)`, Unix mailbox code | `mail.c(439)` 3008 Incompatible constant initializer | config, then compiler (r13) |
+| `windows.c` | `win_tty_init` (tty) | `windows.c(113)` 3013 Incompatible pointer types | config, then port |
+| `do.c` | `close()` undefined | `do.c(688)` 3012 incompatible types | shim, then port |
+| `pager.c` | `fseek()` undefined | `pager.c(907)` 3012 `const union any_s *` | shim, then port (T1.8) |
+| `questpgr.c` | `fseek()` undefined | `questpgr.c(95)` 3017 Too many arguments | shim, then harness (r14) |
+| `topten.c` | `getuid()` undefined | `topten.c(854)` 3017 Too many arguments | config, then harness (r14) |
+| `files.c` | `SIG_IGN` | `close()` not stubbed | config, then harness; with a `close()` stub Oscar64 segfaults at `-Os` (T1.11) |
+| `save.c` | `SIG_IGN` | `decl.h(22)` 3010 `SAVEF` | config, then harness (the array is defined in `files.c`) |
+| `end.c` | `SIG_IGN` | duplicate stub `panic` | config, then harness |
+| `cmd.c` | `clearerr` | duplicate stub `get_adjacent_loc` | config, then harness |
+| `mkmaze.c` | duplicate stub `waterbody_name` | the same, at another line | harness |
+
+The configuration alone accounts for 4 of the 5 newly placed files
+(6,952 B). The shim accounts for `u_init.c` (3,135 B).
+
+**Caveats:**
+- Sizes are lower bounds. They depend on the harness's stub bodies and are
+  comparable only within one harness version.
+- These first errors are harness artefacts in both configurations. The fix is
+  T1.10, which re-measures both configurations together:
+  - definitions found by a regex on raw source: `files.c` `close()`
+    (a compiled-out wrapper), `mon.c` `impossible(`, and the duplicate stubs
+    in `cmd.c`, `end.c` and `mkmaze.c`;
+  - empty variadic stubs (error 3017: `fountain.c`, `questpgr.c`,
+    `topten.c`; repro r14);
+  - arrays defined in files outside the harness (error 3010: `botl.c`,
+    `do_name.c`, `light.c`, `mcastu.c`, `rip.c`, `save.c`, `wizard.c`).
+    These are not a compiler gap: with the defining file in the program they
+    compile;
+  - five files that compile but have no referenced code, counted as
+    compile-error ("Cannot place"): `dlb.c` (DLB off), `mkmap.c` (its
+    `extern.h` prototypes lack `E`, so the harness references nothing), and
+    the tables `monst.c`, `objects.c` and `vis_tab.c`.
+- Measurement only: nothing here links or runs, and the shim is not the
+  system layer.

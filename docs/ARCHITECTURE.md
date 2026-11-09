@@ -102,7 +102,7 @@ Inputs to the decision, all already in the tree:
 
 Spike plan: put 3 real files (e.g. `hack.c`, `apply.c`, `zap.c`) into separate
 banks with trampolines, measure call overhead and resident cost; repeat with
-REU overlays; pick. Write ADR-0006.
+REU overlays; pick. Write ADR-0007 (ADR-0006 is the C64 platform config).
 
 ## Data and files: an REU RAM disk under NetHack's own file layer
 
@@ -141,11 +141,17 @@ gives agents a text view of the game for free (`tools/vice.py screen`).
 
 ## System layer
 
-`random()` -> NetHack's own RNG; time from the CIA TOD clock (or a turn
-counter — NetHack only uses it for seeding, moon phase, Friday 13th, and
-playtime); `getenv` -> fixed options; `panic`/`exit` -> message + wait + reset.
-Signals, `fork`, user ids: compiled out (`#define` the platform as a new
-`C64` system in `config.h`/`c64conf.h`, modelled on `pcconf.h`).
+RNG: the C64 config keeps the host's contract (`Rand()` = `lrand48()`, seeded
+by `srand48`), so a C64 game can be replayed seed for seed against the host
+build; which generator implements it (NetHack's own `sys/share/random.c` is the
+other candidate) and how it is seeded is an ADR due before Phase 3 first light.
+Time from the CIA TOD clock, an RTC (Ultimate) or a turn counter: NetHack uses
+it for seeding, moon phase, Friday 13th, `night()`/`midnight()` (the hour of day
+changes lycanthropy, undead, dogs and gremlins) and playtime, so the clock
+source is a gameplay decision for the same ADR. `getenv` -> fixed options;
+`panic`/`exit` -> message + wait + reset. Signals, `fork`, user ids: compiled
+out by the `C64` platform (`-DC64`, `port/include/c64conf.h`, ADR-0006; not
+MICRO, which would change mazes, scores and panic saves).
 
 ## Things we deliberately do not decide yet
 

@@ -27,9 +27,10 @@ Exit evidence: `make test` 5/5; `tools/prepare-port-tree.sh` +
 
 Goal: every file in `port/src` compiles under Oscar64 (link/placement aside).
 
-- [ ] Commit `port/` as generated (baseline commit, so every later diff is ours)
-- [ ] Add a `C64` platform config (`c64conf.h`, modelled on `pcconf.h`):
-      no signals/fork/uid, our file layer, fixed options
+- [x] Commit `port/` as generated (baseline commit, so every later diff is ours) — `daa1621`, 2026-11-08
+- [x] Add a `C64` platform config (`c64conf.h`, modelled on `pcconf.h`):
+      no signals/fork/uid — 2026-11-09, ADR-0006 (the file layer and fixed
+      options come with T2.4 and the Phase 3 system layer)
 - [ ] Work down the error classes in OSCAR64-COMPAT.md; each compiler bug gets
       a repro + workaround, each real portability issue a fix in `port/`
 - [ ] Solve the `makemon.c` hang and the `mhitm.c`/`shknam.c` crashes (bisect -> repro -> upstream issue)
