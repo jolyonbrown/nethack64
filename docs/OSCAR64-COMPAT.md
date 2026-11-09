@@ -22,15 +22,21 @@ upstream issues using the repro files verbatim (they are self-contained).
 | 10 | `-Os` segfaults the compiler on a switch-based helper called with an inline-asm result | found in our `src/hal/sys.c` | table lookup instead of `switch`; `-O2` also works | r9 |
 | 11 | Compiler does not terminate on `makemon.c` (> 150 s at 100% CPU, killed) | `makemon.c` | open: bisect the file, make a repro | — |
 | 11b | Compiler aborts (`mhitm.c`, SIGABRT) or segfaults (`shknam.c`) with no error message, with or without `-rmp` | `mhitm.c`, `shknam.c` | open: bisect each file, make repros | — |
+| 11c | Compiler segfaults on `files.c` in the C64 view at `-Os`, with or without `-rmp`, once the harness stubs `close()`; `-O0` compiles it through to placement (2026-11-09) | `files.c` (hidden in the C64 measurement behind the missing `close()` stub) | open: bisect, make a repro (T1.11) | — |
 | 12 | Comments inside the very long multi-line `MON(...)` / `OBJECT(...)` macro invocations break expansion ("Invalid define expansion closing argument") | `monst.c`, `objects.c` | measurement strips comments from those two files (`gcc -fpreprocessed -dD -E -P`); simple cases do not reproduce — needs a real repro | — |
 | 13 | `-tf=crt` default "main" region runs to `$A000`, under the EasyFlash ROM window | our cartridge build | `#pragma region(main, 0x0900, 0x8000, ...)` in `src/main.c` (as in Oscar64's own EasyFlash sample) | — (usage, not a bug) |
 | 14 | Header `-csub` writes the CRT sub-type byte but leaves CRT version 1.0 (sub-type field is 1.1) | REU-aware EasyFlash flag | `tools/crtinfo.py` sets version 1.1 | — |
 | 15 | `-rmp` (write error map on link failure) segfaults when the compilation also had ordinary errors | measurement tooling only | `tools/measure` reports such files as compile-error | — |
+| 16 | A braced initializer for a scalar (`const char *p = { 0 };`, `int n = { 3 };`: valid C89) gives "Non constant initializer" once the variable is referenced | `decl.c` `occtxt = DUMMY` (`hack.h`: `DUMMY` is `{ 0 }`); first error of `allmain.c` under the C64 config | open: `= 0` for that scalar in `port/` (T1.12) | r12 |
+| 17 | A string literal cannot initialise a `char *` element of an array or struct ("Incompatible constant initializer"), even unreferenced; `const char *` elements and a scalar `char *q = "a"` work | `mail.c` `static char *junk[]`; first error of `mail.c` under the C64 config | open: `const char *` where the strings are never written (T1.12) | r13 |
+| 18 | At `-Os`, a call with extra arguments to a variadic function whose body is empty gives "Too many arguments for function call"; `-O0`, or a body using `va_start`, is fine | measurement harness only: its empty stubs for `You()`, `pline()` etc. (`fountain.c`, and `questpgr.c` and `topten.c` under the C64 config) | harness stubs get a `va_start` body (T1.10) | r14 |
 
 ## Remaining error classes (baseline: 68 files with compile errors)
 
 From `tools/measure/measure_oscar64.py` on the normalised tree. First error per
-file only, so counts shift as fixes land. To triage: run the tool on one
+file only, so counts shift as fixes land. Since 2026-11-09, work from the C64
+configuration (`--config c64`: 63 files with compile errors; NETHACK-SURVEY.md
+lists what moved); the UNIX run stays as the reference. To triage: run the tool on one
 file, read the error, reduce to a repro, decide: compiler bug (repro +
 upstream issue + workaround) or genuine portability problem (fix in `port/`).
 
@@ -40,11 +46,11 @@ upstream issue + workaround) or genuine portability problem (fix in `port/`).
 | "Pointer expected" at column 227 (display, invent, pickup, zap, mthrowu ...) | long macro expansions (`glyph_is_*`, `canspotmon`) | probably another precedence/cast case like #7 |
 | "Incompatible pointer types" / "Incompatible conditional types" (dig, do_wear, eat, lock, dog, mhitu, muse, polyself, rect, track) | `cond ? ptr : 0`, `const` mismatches | stricter type checking than C89 compilers; fix in `port/` |
 | "Cannot assign incompatible types 'const union any_s*'" (apply, spell) | `const anything *` vs `anything *` | const-correctness, fix in `port/` |
-| "Undefined variable type for X" (botl `hu_stat`, light `circle_data`, rip `killed_by_prefix`, wizard `monstr`, mcastu, do_name) | `extern const char *x[];` then definition with a size | incomplete array declarations completed later; possibly an Oscar64 gap — make a repro |
+| "Undefined variable type for X" (botl `hu_stat`, light `circle_data`, rip `killed_by_prefix`, wizard `monstr`, mcastu `flash_types`, do_name, and save `SAVEF` under the C64 config) | `extern const char *x[];` used, no definition in the program | **harness artefact, not a compiler gap** (checked 2026-11-09): each array is defined in a file the harness does not compile (`eat.c`, `vision.c`, `topten.c`, generated `monstr.c`, `zap.c`, `pager.c`, `files.c`). With the definition anywhere in the program, in another file or later in the same one, it compiles. The real build is unaffected; the harness needs data definitions (T1.10) |
 | "Declaration starts with invalid token 'static'" (version, weapon) | `STATIC_OVL` / `STATIC_DCL` placement | check the macro expansion |
 | "Ambiguous function call" (mkroom `mkshop`) | `STATIC_DCL` vs `STATIC_OVL` mismatch produces two declarations | Oscar64 overloads (C++ feature) where C would merge |
-| "Too many arguments for function call" (fountain) | | check prototype vs call |
-| libc gaps: `SIG_IGN`, `srand48/lrand48`, `clearerr`, `fseek`, `getuid`, `time`, `close` | | expected — these belong to the C64 system layer, not compiler bugs |
+| "Too many arguments for function call" (fountain; questpgr, topten under the C64 config) | `You("...", x)` against the harness's empty variadic stub | harness artefact, #18 (r14) |
+| libc gaps: `SIG_IGN`, `srand48/lrand48`, `clearerr`, `fseek`, `getuid`, `time`, `close` | | expected: these belong to the C64 system layer, not compiler bugs. Under the C64 config (ADR-0006) the Unix-only ones are gone (`SIG_IGN`, `clearerr`, `getuid`), the RNG interface is declared by `c64conf.h`, and the rest (time, file descriptors, `fseek`, `getenv`, `qsort`, `errno`) are stood in by `tools/measure/c64meas-c64.h` until the Phase 2/3 layers exist |
 | "Cannot place stack section" | file + base data exceed 64 KB in the measurement harness | not an error for the port; sizes are still measured |
 
 ## Notes on using Oscar64 for this project
