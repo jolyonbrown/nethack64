@@ -18,8 +18,8 @@
  * the termcap tty port.  So the options the host build gets from unixconf.h
  * rather than config.h are re-stated here, and the few places where
  * "#ifdef UNIX" selects game behaviour rather than a service also test C64
- * (rnd.c, hacklib.c setrandom, eat.c).  Changing any of that is a gameplay
- * decision and needs an ADR first (AGENTS.md).
+ * (rnd.c, hacklib.c setrandom, eat.c, files.c check_recordfile).  Changing
+ * any of that is a gameplay decision and needs an ADR first (AGENTS.md).
  *
  * Deliberately not MICRO: that profile also changes maze generation, panic
  * save, score keeping and several UI defaults relative to the host build.
