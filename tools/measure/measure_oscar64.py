@@ -158,19 +158,26 @@ def struct_sizes():
     return sizes
 
 
+# git-ignored makedefs output (tools/host-build.sh --generate-only)
+GENERATED = ("include/pm.h", "include/onames.h", "include/date.h", "include/vis_tab.h", "src/vis_tab.c")
+
+
 def provenance():
     """Where the numbers came from; tools that compare reports skip '_' keys."""
     def out(cmd):
         try:
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-            return (r.stdout + r.stderr).strip()
         except (OSError, subprocess.SubprocessError):
             return ""
+        # a failing command (git outside a checkout) records nothing, not its error text
+        return (r.stdout + r.stderr).strip() if r.returncode == 0 else ""
     def ver(s):
         m = re.search(r"\d+\.\d+\.\d+", s)
         return m.group(0) if m else "unknown"
     gen = hashlib.sha256()
-    for p in ("include/pm.h", "include/onames.h", "include/vis_tab.h", "src/vis_tab.c"):
+    for p in GENERATED:
+        if p == "include/date.h":
+            continue    # build timestamp; the tables are what matters
         with open(os.path.join(ROOT, "port", p), "rb") as fh:
             gen.update(fh.read())
     return {"config": CONFIG, "oscar64_defs": DEFS, "mkstubs_defs": CONFIGS[CONFIG]["cpp"],
@@ -187,9 +194,15 @@ def main():
     ap.add_argument("files", nargs="*", help="port/src files (default: all)")
     args = ap.parse_args()
     # check names before setup() deletes the previous run's output
-    bad = [f for f in args.files if not os.path.isfile(os.path.join(ROOT, "port", "src", f))]
+    bad = [f for f in args.files if os.path.basename(f) != f or not f.endswith(".c")
+           or not os.path.isfile(os.path.join(ROOT, "port", "src", f))]
     if bad:
-        ap.error("not in port/src: " + " ".join(bad))
+        ap.error("not a port/src/*.c file name: " + " ".join(bad))
+    # without makedefs' output every file would fail; say so instead of measuring
+    missing = [p for p in GENERATED if not os.path.isfile(os.path.join(ROOT, "port", p))]
+    if missing:
+        sys.exit("missing generated port/%s: run tools/host-build.sh --generate-only"
+                 % ", port/".join(missing))
     CONFIG = args.config
     OUT = os.path.join(ROOT, "build", CONFIGS[CONFIG]["out"])
     DEFS = CONFIGS[CONFIG]["defs"]
