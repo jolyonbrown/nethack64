@@ -2113,7 +2113,7 @@ check_recordfile(const char *dir)
 	const char *fq_record;
 	int fd;
 
-#if defined(UNIX) || defined(VMS)
+#if defined(UNIX) || defined(VMS) || defined(C64)	/* C64: keep the host game (ADR-0006) */
 	fq_record = fqname(RECORD, SCOREPREFIX, 0);
 	fd = open(fq_record, O_RDWR, 0);
 	if (fd >= 0) {

@@ -34,7 +34,8 @@
  * getenv, qsort, fseek/ftell/rewind).  It belongs to the Phase 2 file layer
  * and the Phase 3 system layer; until then tools/measure/c64meas-c64.h
  * supplies measurement-only stand-ins.  DEFAULT_WINDOW_SYS stays config.h's
- * "tty" (port/src never reads it) until the Phase 3 c64 window port sets it.
+ * "tty" until the Phase 3 c64 window port sets it; only makedefs reads it,
+ * for the #version text (dat/options), which a C64 build must regenerate.
  */
 
 #ifndef C64CONF_H
