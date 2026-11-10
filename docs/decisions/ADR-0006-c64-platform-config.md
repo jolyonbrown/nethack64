@@ -52,7 +52,12 @@ terminal. Nothing selects it except `-DC64`, so the host build is untouched.
    OS service, the code also tests C64:
    - `rnd.c:11`: the `RND(x) = Rand() % x` formula;
    - `hacklib.c:452`: seeding with `srand48`;
-   - `eat.c:1402`: the apple/pear message and its `rnd(100)`.
+   - `eat.c:1402`: the apple/pear message and its `rnd(100)`;
+   - `files.c:2116`: `check_recordfile()` creates the score file `record`
+     when it is missing, as every other port does. Without this its body is
+     empty under C64, and `topten()` then prints "Cannot open record file!"
+     and never keeps a score (`topten.c:361-368`). Added 2026-11-10, after
+     review.
 
    `files.c:1475` and `files.c:2031` take the non-Unix lookup of the config and
    wizkit files, because the Unix branch uses buffers that are declared only
@@ -77,8 +82,8 @@ terminal. Nothing selects it except `-DC64`, so the host build is untouched.
    before Phase 3 first light. `RANDOM` is not used: it would switch the game
    to `random()` and to a 16-bit `srandom((unsigned) time)` seed.
 6. **Save format:** INTERNAL_COMP is on (RLECOMP + ZEROCOMP), as on every
-   non-Unix port. It is lossless and changes only the save and level file
-   format (VERSION_FEATURES bits 27 and 28).
+   non-Unix port. It is lossless and changes only the save, level and bones
+   file formats (VERSION_FEATURES bits 27 and 28).
 7. **System-layer interface:** `c64conf.h` does not declare file descriptor
    I/O, `errno`, `time_t`/`struct tm`, `getenv`, `qsort`, `fseek` or the
    like. That interface belongs to the Phase 2 file layer and the Phase 3
@@ -98,9 +103,12 @@ differences in 15 files. All of them are platform plumbing:
 - **Wizard mode:** no "Dump core?" prompt, and no `abort()` on panic
   (`end.c`).
 - **Files:** the config file is `NetHack.cnf` through the generic lookup.
+  A config or wizkit file that cannot be opened is skipped silently: there is
+  no setuid `access()` check, and none of the host's "Couldn't open ... file"
+  messages (`files.c:1448-1469`, `1523-1536`, `2007-2027`, `2051-2057`).
   There are no lock files (`files.c`, `decl.c`) and no external compression
-  (`files.c`). Saves and levels go through the ZEROCOMP buffering (`save.c`,
-  `restore.c`).
+  (`files.c`). Saves, levels and bones go through the ZEROCOMP buffering
+  (`save.c`, `restore.c`, `bones.c`).
 - **tty only:**
   - the TERM-based graphics auto-detect is gone (`options.c`);
   - `msg_window` and `extmenu` become config-file no-ops;
@@ -111,8 +119,10 @@ differences in 15 files. All of them are platform plumbing:
   (PERSMAX) applies to the whole machine (`topten.c`).
 - **Timing:** no `sleep(1)` in `shk.c`.
 - **Mail:** in normal play no mail ever arrives, because `mustgetmail` stays
-  -1. A mail scroll can only come from a wizard-mode mail daemon. Reading it
-  shows a junk line (`mail.c` readmail, one `rn2`) where the host would run
+  -1. Mail scrolls from wishes or bones (`spe` 1) show the same fixed message
+  on both builds (`read.c:642`). Only a scroll dropped by a killed mail daemon
+  (`spe` 0), which only wizard mode can create, reaches `readmail()`. There
+  the C64 shows a junk line (one `rn2`, `mail.c:452`) where the host would run
   `$MAILREADER`.
 - **`mklev.c`:** only the argument cast of `qsort` differs.
 
@@ -127,9 +137,17 @@ differences in 15 files. All of them are platform plumbing:
 - `-DC64` must reach every tool that should see the C64 configuration.
   Oscar64 fails loudly without it (`system.h` wants `<sys/types.h>`); gcc
   silently gives the UNIX view.
-- `date.h` has VERSION_FEATURES `0x181e0cc6` and VERSION_ID "C64 NetHack".
-  The C64 build needs its own `makedefs -DC64` output before it saves
-  anything (Phase 3); the tables can stay shared.
+- `makedefs -DC64` output that differs from the host's:
+  - `date.h`: VERSION_FEATURES `0x181e0cc6` and VERSION_ID "C64 NetHack";
+  - `dat/options`, the `#version` text: it drops data file compression,
+    shell, suspend, terminal info and tty graphics, and adds zero-compressed
+    save files. It lists no window system yet still says "with a default of
+    tty".
+
+  The C64 build needs both from a C64 `makedefs` before it saves anything or
+  shows `#version` (Phase 3). `pm.h`, `onames.h`, `vis_tab.*` and `monstr.c`
+  can stay shared. The c64 window port must add itself to makedefs'
+  `window_opts` and set DEFAULT_WINDOW_SYS.
 - `host_smoke` never runs the ZEROCOMP/RLECOMP save code, because the host
   uses COMPRESS. A COMPRESS-off host variant is needed before Phase 5 saves.
 - Host tools built with `-DC64` against glibc: in flex output
@@ -151,7 +169,9 @@ differences in 15 files. All of them are platform plumbing:
 ## Evidence / how to re-check
 
 Measured 2026-11-09 with gcc 13.3.0 and Oscar64 v1.32.273, on branch
-`task/T1.1-c64conf`.
+`task/T1.1-c64conf`. Rechecked 2026-11-10 after the two reviews (Codex and
+Claude), which added the `check_recordfile` edit and the `dat/options`,
+bones and config-file points.
 
 - **The UNIX build is unchanged.**
   - Extract the master tree with `git archive master port`. For every
@@ -166,12 +186,13 @@ Measured 2026-11-09 with gcc 13.3.0 and Oscar64 v1.32.273, on branch
     `strip -s -R .note.gnu.build-id`.
   - `tests/host_smoke.py`: 4/4 ok. `tools/check_ansi.sh`: 107 clean.
 - **What Oscar64 sees.**
-  - A probe that includes `hack.h` and `tcap.h` under `oscar64 -dC64` gives 0
-    errors. It `#error`s if UNIX, MICRO, COMPRESS, TTY_GRAPHICS, SHELL,
-    SUSPEND, RANDOM or TERMINFO is defined, if C64, UNWIDENED_PROTOTYPES,
-    NO_SIGNAL, MAIL, TEXTCOLOR, WIZARD, TEXT_TOMBSTONE, ZEROCOMP, RLECOMP,
-    INSURANCE, NEWS, LOGFILE, TERMLIB or ASCIIGRAPH is missing, or if
-    `FILENAME != 45`.
+  - `tests/c64conf_probe.c` includes the measurement shim (for `time_t`),
+    `hack.h` and `tcap.h`. It `#error`s if a Unix-only option such as UNIX,
+    MICRO, COMPRESS, TTY_GRAPHICS, SHELL, SUSPEND, RANDOM or TERMINFO is
+    defined, if an expected one such as C64, UNWIDENED_PROTOTYPES,
+    NO_SIGNAL, MAIL, TEXTCOLOR, WIZARD, ZEROCOMP, RLECOMP or ASCIIGRAPH is
+    missing, or if `FILENAME != 45`. The command is in its header; it
+    gives 0 errors and emulation result 0.
   - A gcc type-check of all 107 files against Oscar64's own headers, with
     `-DC64` and the measurement shim, passes 107/107. Without the `files.c`
     edit it fails at `files.c:1505` ('envp' undeclared).

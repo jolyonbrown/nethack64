@@ -142,9 +142,12 @@ gives agents a text view of the game for free (`tools/vice.py screen`).
 ## System layer
 
 RNG: the C64 config keeps the host's contract (`Rand()` = `lrand48()`, seeded
-by `srand48`), so a C64 game can be replayed seed for seed against the host
-build; which generator implements it (NetHack's own `sys/share/random.c` is the
-other candidate) and how it is seeded is an ADR due before Phase 3 first light.
+by `srand48`). A C64 game can then be replayed seed for seed against the host
+build, provided the generator is an exact `lrand48`/`srand48` and the
+`walkfrom` and `qsort` items in ADR-0006's Watch list are met. NetHack's own
+`sys/share/random.c` is BSD `random()`/`srandom()`, not `lrand48`: using it
+means `RANDOM` and no replay. Which generator, and how it is seeded, is an ADR
+due before Phase 3 first light (T2.7).
 Time from the CIA TOD clock, an RTC (Ultimate) or a turn counter: NetHack uses
 it for seeding, moon phase, Friday 13th, `night()`/`midnight()` (the hour of day
 changes lycanthropy, undead, dogs and gremlins) and playtime, so the clock

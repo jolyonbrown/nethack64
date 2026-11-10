@@ -9,7 +9,7 @@ Add new tasks at the bottom of the right section.
 - [x] T0.1 Run `tools/setup-arch.sh` (or `setup-ubuntu.sh`), then `make && make test` → 5/5 PASS
       — 2026-11-09 Claude (toolchain already installed and checked instead: Oscar64 v1.32.273, VICE 3.7.1, gcc 13.3)
 - [x] T0.2 `make repros` → 11 repros, all BROKEN on v1.32.273 (baseline) — 2026-11-09 Claude
-      (r12-r14 added since: 14, all BROKEN)
+      (r12-r18 added since: 18, all BROKEN)
 - [x] T0.3 Commit the bundle — github.com/jolyonbrown/nethack64 (old 2020 import kept as tag `upstream-3.4.3`), 2026-11-08 Claude
 - [x] T0.4 `make port-tree`, `tools/host-build.sh`, `tests/host_smoke.py` → all ok;
       `port/` committed as the baseline, 2026-11-08 Claude
@@ -34,18 +34,38 @@ Add new tasks at the bottom of the right section.
 - [ ] T1.6 `makemon.c` compiler hang, `mhitm.c` abort, `shknam.c` segfault: bisect by
       deleting functions until each compiles; repro; upstream issue.
 - [ ] T1.7 Parenthesise the nested `?:` sites (r2) — list them with a grep first.
-- [ ] T1.8 Const-correctness fixes (`const anything *`) in `port/`.
+- [ ] T1.8 Work around r15 (`union T *` does not convert to `const union T *`), which
+      stops every `add_menu(..., &any, ...)`: NetHack is const-correct here, so this is a
+      compiler workaround, not const-correctness fixes. One cast in `winprocs.h`'s
+      `add_menu` macro would cover all 87 calls (the 2026-11-09 review saw `apply.c`,
+      `pager.c` and `spell.c` reach placement with it in a scratch copy). check_ansi +
+      host_smoke; re-measure.
 - [ ] T1.9 File upstream Oscar64 issues for r1-r10 (one per issue, repro attached);
-      record issue numbers in OSCAR64-COMPAT.md. (Now also r12-r14.)
+      record issue numbers in OSCAR64-COMPAT.md. (Now also r12-r18; r18 first, it is
+      wrong code.)
 - [ ] T1.10 Measurement harness fixes, then re-measure both configs and re-baseline both:
       find definitions in preprocessed text (`files.c` `close()`, `mon.c` `impossible(`,
-      duplicate stubs in `cmd.c`/`end.c`/`mkmaze.c`); variadic stubs with a `va_start` body
-      (r14); definitions for referenced extern arrays (error 3010); count files that compile
+      duplicate stubs in `cmd.c`/`end.c`/`mkmaze.c`); variadic stubs with a body that has a
+      side effect, e.g. `nh_vl = 0;` (r14: an empty or `va_start`/`va_end`-only body still
+      fails); definitions for referenced extern arrays (error 3010); count files that compile
       without referenced code (`dlb.c`, `mkmap.c`, data tables) as compiled, not as errors.
 - [ ] T1.11 `files.c` (C64 config) segfaults Oscar64 at `-Os` once `close()` is stubbed
-      (`-O0` places it): bisect by deleting functions; repro; upstream issue.
+      (`-O0` places it): bisect by deleting functions; repro; upstream issue. Same for
+      `questpgr.c` (C64 config), which crashes Oscar64 once the r14 stubs get a body
+      (scratch harness, 2026-11-10).
 - [ ] T1.12 Work around r12 (`decl.c` `occtxt = DUMMY` → `= 0`) and r13 (`mail.c`
       `junk[]` → `const char *`) in `port/`; check_ansi + host_smoke; re-measure.
+- [ ] T1.13 **r18, wrong code:** Oscar64 reads the `char`/`boolean` result of a call
+      through a function pointer from `ACCU` while the callee leaves it in A, with no
+      diagnostic: at `-Os`/`-O2` once the target is unknown at compile time, at `-O0`
+      always. Every `yn(...) == 'y'` (`win_yn_function` returns `char`) and every
+      `boolean` callback is at risk. Before game code runs: file upstream (T1.9), check
+      whether a newer Oscar64 fixes it, then decide between a fixed or patched compiler
+      and a port-side workaround (an ADR if it changes window-proc signatures).
+- [ ] T1.14 Work around r16 (`windows.c:113` function pointer `==` function name) and r17
+      (`do.c:688` `?:` over two functions), with repro-backed changes in `port/`. The
+      obvious r17 workaround, a pointer variable, runs into r18 for `boolean` functions,
+      so do it after T1.13.
 
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 
