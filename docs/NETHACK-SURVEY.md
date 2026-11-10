@@ -152,7 +152,10 @@ measures the tree under it:
   layers (time, file descriptors, `errno`, `getenv`, `qsort`, `fseek`).
 
 Tools: Oscar64 v1.32.273, gcc 13.3.0; port and harness at `7812bf8`. Per-file
-results are in `docs/data/oscar64-c64conf-2026-11-09.json`.
+results are in `docs/data/oscar64-c64conf-2026-11-09.json`. Re-run 2026-11-10
+at `16b7ca7`, after the review fixes (uncommitted edits: comments only): both
+configurations reproduce their recorded files, 0 of 107 records differ in
+each (`tools/measure/compare_reports.py`).
 
 | Result | UNIX config (baseline) | C64 config |
 |---|---|---|

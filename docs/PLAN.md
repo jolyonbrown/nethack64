@@ -89,6 +89,8 @@ Exit: FEATURES.md checklist ticked by scripted or manual play.
 1. **RAM for dynamic state** (45-60 KB needed, 30 KB resident) — Phase 2.
 2. **Code size vs 1 MB flash** (~0.85 MB code + data) — compression, REU.
 3. **Oscar64 maturity on 130K lines** — repros, upstream issues, pinned version.
+   Not only compile errors: r18 (2026-11-10) is silent wrong code, so game
+   code needs run-time checks, not just a clean compile.
 4. **EF + REU bus conflict on real hardware** — sub-type 1 on Ultimate; REU-only fallback.
 5. **Speed** — NetHack waits for input; vision recalculation and level
    creation are the hot spots to profile (Oscar64 `-ep` profiler, VICE).
