@@ -1,0 +1,224 @@
+From f0b9ee6fcc3e51edfb04e2592276a0dabed328d4 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 09:44:44 +0000
+Subject: [PATCH 7/7] Fix function pointer members of global structs
+
+Backport of the GlobalAnalyzer part of
+3efe094c8e941d600cd13e0fd50c7557287d95ad (branch fix/fnptr-member, on
+upstream main 4da3147) to v1.32.273.
+
+Only the missing call edge is ported.  The rest of the upstream commit
+(Declaration::RefDeclaration and its use in InterCodeGenerator and
+FunctionSets) fixes a regression of 349b10a, which takes a function
+pointer's type from its declaration; v1.32.273 has neither FunctionSets
+nor that regression, and RefDeclaration is not needed here: the folded
+expression's own type (exp->mDecType) is the member's type, nothing
+rewrites it later.  Upstream's IsFunctionType() does not exist in
+v1.32.273, so the condition is written out.
+
+v1.32.273 has the same unwrapping: GlobalAnalyzer::Analyze's EX_VARIABLE
+case walks a DT_VARIABLE_REF (the parser's constant fold of w.fn, s[1].fn,
+o.in.fn, w.arr[1] and tab[1] for global aggregates) to the root variable
+and returns that, so EX_CALL's RegisterCall(procDec, w) finds a struct
+type and records no call, and the parameter walk that follows runs over
+the struct's members instead of the parameters.  Without the edge the
+native code generator treats the caller as a leaf and places the callee's
+frame over the caller's live locals: wrong code at every native level,
+-O0 included, which nethack64 hits with every window call
+((*windowprocs.win_putstr)(...), 44 macros in winprocs.h).  The variable's
+own analysis (aliasing, DTF_ANALYZED, AnalyzeGlobalVariable) is unchanged
+and the function type is returned only for function (pointer) members, so
+every other EX_VARIABLE keeps returning the variable.
+
+Upstream's funcptrmembertest.c and funcptrmemberaddrtest.c both crash
+v1.32.273's compiler (a call through an array member with a variable
+index, and a pointer to a function pointer, both fixed upstream
+separately), so autotest/funcptrmembercalltest.c is a reduced test with
+the call edge part of funcptrmembertest.c: calls through a global struct
+member, (*w.fn)(), an element of a global array of structs, a nested
+member, an array member with a constant index and a constant index into a
+global array of function pointers, with a plain global function pointer
+and p->fn as controls.  It fails with v1.32.273 in the five native
+configurations and passes with this change, as do nethack64's
+tests/oscar64-repros/r23_call_through_global_struct_member.c and the
+probes cg01 and cg04-cg07 of the upstream review (cg02 and cg03 are the
+controls and pass before and after).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+---
+ autotest/autotest.bat            |   3 +
+ autotest/funcptrmembercalltest.c | 128 +++++++++++++++++++++++++++++++
+ oscar64/GlobalAnalyzer.cpp       |   9 +++
+ 3 files changed, 140 insertions(+)
+ create mode 100644 autotest/funcptrmembercalltest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 41895d9..be31d07 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -261,6 +261,9 @@ rem @echo off
+ @call :test funcptrcharrettest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test funcptrmembercalltest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test variadic_macros.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/funcptrmembercalltest.c b/autotest/funcptrmembercalltest.c
+new file mode 100644
+index 0000000..9d095c9
+--- /dev/null
++++ b/autotest/funcptrmembercalltest.c
+@@ -0,0 +1,128 @@
++#include <assert.h>
++
++// A call through a function pointer member of a global struct (w.fn(...)),
++// an element of a global array of structs (s[1].fn(...)), a nested member
++// (o.in.fn(...)), an array member with a constant index (w.arr[1](...)) or
++// a constant index into a global array of function pointers (tab[1](...))
++// must be registered as a call: the caller keeps locals live across it,
++// and the callee uses a helper with its own locals, so a missing call
++// edge lets the helper's frame overlap the caller's live locals.
++// A plain global function pointer and p->fn are the controls.
++
++struct procs { int (*fn)(int a, int b); } w;
++
++struct procs s[3];
++
++struct in { int pad; int (*fn)(int a, int b); };
++struct outer { char c; struct in in; } o;
++
++struct procs_arr { int (*arr[2])(int a, int b); } wa;
++
++int (*tab[2])(int a, int b);
++
++int (*g)(int a, int b);
++
++struct procs * volatile pw = &w;
++
++__noinline int helper(int a, int b, int c, int d)
++{
++	int t[4];
++	t[0] = a * 3; t[1] = b * 5; t[2] = c * 7; t[3] = d * 11;
++	return t[0] + t[1] + t[2] + t[3];
++}
++
++__noinline int callee(int a, int b)
++{
++	int u = a + 100, v = b + 200, s = u * v;
++	return helper(u, v, s, a ^ b) + s;
++}
++
++__noinline int call_member(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int r = w.fn(x, y);
++	return l1 + l2 + l3 + l4 + r;
++}
++
++__noinline int call_member_deref(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int r = (*w.fn)(x, y);
++	return l1 + l2 + l3 + l4 + r;
++}
++
++__noinline int call_array_of_structs(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int r = s[1].fn(x, y);
++	return l1 + l2 + l3 + l4 + r;
++}
++
++__noinline int call_nested(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int r = o.in.fn(x, y);
++	return l1 + l2 + l3 + l4 + r;
++}
++
++__noinline int call_array_member(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int r = wa.arr[1](x, y);
++	return l1 + l2 + l3 + l4 + r;
++}
++
++__noinline int call_table(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int r = tab[1](x, y);
++	return l1 + l2 + l3 + l4 + r;
++}
++
++__noinline int call_plain(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int r = g(x, y);
++	return l1 + l2 + l3 + l4 + r;
++}
++
++__noinline int call_through_pointer(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int r = pw->fn(x, y);
++	return l1 + l2 + l3 + l4 + r;
++}
++
++int ref_caller(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int u = x + 100, v = y + 200, s = u * v;
++	int r = (u * 3 + v * 5 + s * 7 + (x ^ y) * 11) + s;
++	return l1 + l2 + l3 + l4 + r;
++}
++
++int main(void)
++{
++	w.fn = callee;
++	s[1].fn = callee;
++	o.in.fn = callee;
++	wa.arr[1] = callee;
++	tab[1] = callee;
++	g = callee;
++
++	for (int i = 0; i < 5; i++)
++	{
++		int x = i, y = 2 * i + 1, r = ref_caller(x, y);
++
++		assert(call_member(x, y) == r);
++		assert(call_member_deref(x, y) == r);
++		assert(call_array_of_structs(x, y) == r);
++		assert(call_nested(x, y) == r);
++		assert(call_array_member(x, y) == r);
++		assert(call_table(x, y) == r);
++		assert(call_plain(x, y) == r);
++		assert(call_through_pointer(x, y) == r);
++	}
++
++	return 0;
++}
+diff --git a/oscar64/GlobalAnalyzer.cpp b/oscar64/GlobalAnalyzer.cpp
+index 260b184..e01976c 100644
+--- a/oscar64/GlobalAnalyzer.cpp
++++ b/oscar64/GlobalAnalyzer.cpp
+@@ -955,6 +955,15 @@ Declaration * GlobalAnalyzer::Analyze(Expression* exp, Declaration* procDec, uin
+ 				vdec->mFlags |= DTF_ANALYZED;
+ 			}
+ 		}
++
++		if (exp->mDecValue->mType == DT_VARIABLE_REF)
++		{
++			// function pointer in a global aggregate, so a call through it registers
++			Declaration* ftype = exp->mDecType;
++			if (ftype->mType == DT_TYPE_FUNCTION || ftype->mType == DT_TYPE_POINTER && ftype->mBase->mType == DT_TYPE_FUNCTION)
++				return ftype;
++		}
++
+ 		return vdec;
+ 	}
+ 	case EX_INITIALIZATION:

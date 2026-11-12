@@ -1,0 +1,133 @@
+From 37bc12618e514bbaa4ed8a549f4850e45c3fcd46 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 10:46:41 +0000
+Subject: [PATCH 2/7] autotest: char and bool results of calls through function
+ pointers
+
+Regression test for the previous commit (upstream 1169268), which has no
+test upstream: signed char, unsigned char, char and bool results of
+calls through function pointers chosen at run time, also through a
+struct member.  It fails with v1.32.273 in the five native
+configurations (Emulation result -1) and passes with the fix, as does
+nethack64's tests/oscar64-repros/r18_char_result_of_indirect_call.c.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+---
+ autotest/autotest.bat         |  3 ++
+ autotest/funcptrcharrettest.c | 91 +++++++++++++++++++++++++++++++++++
+ 2 files changed, 94 insertions(+)
+ create mode 100644 autotest/funcptrcharrettest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index fbf4b5e..f600e67 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -252,6 +252,9 @@ rem @echo off
+ @call :test funcvartest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test funcptrcharrettest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test variadic_macros.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/funcptrcharrettest.c b/autotest/funcptrcharrettest.c
+new file mode 100644
+index 0000000..207d6ce
+--- /dev/null
++++ b/autotest/funcptrcharrettest.c
+@@ -0,0 +1,91 @@
++#include <assert.h>
++#include <stdbool.h>
++
++// A function whose address is taken may be called through a pointer, so its
++// 8 bit return value must be left where an indirect call expects it (the
++// zero page accu), not only in the A register, which the direct call
++// optimization of the native code generator is allowed to assume.
++
++signed char z0(void) { return 0; }
++signed char z1(void) { return 1; }
++signed char zm(void) { return -5; }
++
++unsigned char u0(void) { return 0; }
++unsigned char u200(void) { return 200; }
++
++char c0(void) { return 0; }
++char cy(void) { return 'y'; }
++
++bool b0(void) { return false; }
++bool b1(void) { return true; }
++
++signed char add3(signed char a) { return a + 3; }
++signed char sub3(signed char a) { return a - 3; }
++
++struct procs { char (*yn)(void); signed char (*sc)(signed char a); } w;
++
++volatile int k;
++
++int main(void)
++{
++	signed char (*fp)(void) = z0;
++	unsigned char (*up)(void) = u0;
++	char (*cp)(void) = c0;
++	bool (*bp)(void) = b0;
++	signed char (*ap)(signed char) = add3;
++
++	// selected at run time, so the targets are not known to the optimizer
++	if (k)
++	{
++		fp = zm;
++		up = u0;
++		cp = c0;
++		bp = b1;
++		ap = sub3;
++	}
++
++	assert(fp() == 0);
++	assert(!fp());
++	assert((fp() ? 1 : 0) == 0);
++	assert(up() == 0);
++	assert(cp() == 0);
++	assert(!bp());
++	assert(ap(4) == 7);
++
++	fp = z1; up = u200; cp = cy; bp = b1; ap = sub3;
++	if (k)
++	{
++		fp = zm;
++		up = u0;
++		cp = c0;
++		bp = b0;
++		ap = add3;
++	}
++
++	assert(fp() == 1);
++	assert((fp() ? 1 : 0) == 1);
++	assert(up() == 200);
++	assert(cp() == 'y');
++	assert(bp());
++	assert(ap(10) == 7);
++
++	fp = zm;
++	if (k)
++		fp = z0;
++	assert(fp() == -5);
++	assert(fp() < 0);
++
++	w.yn = cy;
++	w.sc = add3;
++	if (k)
++	{
++		w.yn = c0;
++		w.sc = sub3;
++	}
++	assert((*w.yn)() == 'y');
++	assert(w.yn() == 'y');
++	assert(w.sc(-3) == 0);
++	assert(!w.sc(-3));
++
++	return 0;
++}

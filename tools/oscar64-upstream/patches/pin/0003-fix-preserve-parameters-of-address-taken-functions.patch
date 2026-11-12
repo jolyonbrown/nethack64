@@ -1,0 +1,74 @@
+From d2ea285fe41ec45fb1c5d90abe26e63d923a67b2 Mon Sep 17 00:00:00 2001
+From: Arkadiusz Bronowicki <arek@bronowicki.com>
+Date: Sat, 24 Oct 2026 08:59:33 +0200
+Subject: [PATCH 3/7] fix: preserve parameters of address-taken functions
+
+(cherry picked from commit bf42402c53097b8625f5cac5063c3369adeda426)
+---
+ autotest/autotest.bat               |  3 +++
+ autotest/functionpointerparamtest.c | 28 ++++++++++++++++++++++++++++
+ oscar64/GlobalAnalyzer.cpp          |  2 +-
+ 3 files changed, 32 insertions(+), 1 deletion(-)
+ create mode 100644 autotest/functionpointerparamtest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index f600e67..20f98c3 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -249,6 +249,9 @@ rem @echo off
+ @call :test structsplittest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test functionpointerparamtest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test funcvartest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/functionpointerparamtest.c b/autotest/functionpointerparamtest.c
+new file mode 100644
+index 0000000..c291f6c
+--- /dev/null
++++ b/autotest/functionpointerparamtest.c
+@@ -0,0 +1,28 @@
++#include <assert.h>
++
++typedef int (*BinaryFunction)(int, int);
++
++__noinline int add(int a, int b)
++{
++	return a + b;
++}
++
++__noinline int subtract(int a, int b)
++{
++	return a - b;
++}
++
++int main(void)
++{
++	// Taking the address first must prevent later constant specialization.
++	BinaryFunction sum = add;
++	assert(add(3, 4) == 7);
++	assert(sum(10, 20) == 30);
++
++	// Taking the address later must also clear previously recorded constants.
++	assert(subtract(9, 2) == 7);
++	BinaryFunction difference = &subtract;
++	assert(difference(50, 8) == 42);
++
++	return 0;
++}
+diff --git a/oscar64/GlobalAnalyzer.cpp b/oscar64/GlobalAnalyzer.cpp
+index 415f0a3..2ea0dfc 100644
+--- a/oscar64/GlobalAnalyzer.cpp
++++ b/oscar64/GlobalAnalyzer.cpp
+@@ -1394,7 +1394,7 @@ void GlobalAnalyzer::RegisterProc(Declaration* to)
+ 		{
+ 			to->mFlags |= DTF_FUNC_VARIABLE;
+ 			mVariableFunctions.Push(to);
+-			Declaration* pdec = to->mParams;
++			Declaration* pdec = to->mBase->mParams;
+ 			while (pdec)
+ 			{
+ 				pdec->mFlags |= DTF_FPARAM_NOCONST;

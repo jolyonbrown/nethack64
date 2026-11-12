@@ -1,0 +1,73 @@
+From 9f59f411dd8138c7a6c072b3fbc9892fbe0912ce Mon Sep 17 00:00:00 2001
+From: drmortalwombat <90205530+drmortalwombat@users.noreply.github.com>
+Date: Mon, 21 Sep 2026 14:53:41 +0200
+Subject: [PATCH 1/7] Fix return value accu propagation for functions used as
+ function pointers
+
+(cherry picked from commit 116926842d83f18657c5744853a38ac1c5fbc696)
+
+Backport to v1.32.273 for nethack64: the compiler change applies as is; the
+two debugging CHECK_FUNC defines the upstream commit also changed are left
+at their v1.32.273 values.
+---
+ oscar64/InterCode.cpp           | 2 +-
+ oscar64/InterCode.h             | 2 +-
+ oscar64/InterCodeGenerator.cpp  | 5 ++++-
+ oscar64/NativeCodeGenerator.cpp | 2 +-
+ 4 files changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index 1154fc2..f0fe9e3 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -27645,7 +27645,7 @@ InterCodeProcedure::InterCodeProcedure(InterCodeModule * mod, const Location & l
+ 	mSaveTempsLinkerObject(nullptr), mValueReturn(false), mFramePointer(false),
+ 	mCheckUnreachable(true), mReturnType(IT_NONE), mCheapInline(false), mNoInline(false),
+ 	mDeclaration(nullptr), mGlobalsChecked(false), mDispatchedCall(false),
+-	mIntrinsicFunction(false),
++	mIntrinsicFunction(false), mFuncVariable(false),
+ 	mNumRestricted(1)
+ {
+ 	mID = mModule->mProcedures.Size();
+diff --git a/oscar64/InterCode.h b/oscar64/InterCode.h
+index 6ea6f8a..755af4d 100644
+--- a/oscar64/InterCode.h
++++ b/oscar64/InterCode.h
+@@ -790,7 +790,7 @@ public:
+ 	GrowingIntArray						mTempOffset, mTempSizes;
+ 	int									mTempSize, mCommonFrameSize, mCallerSavedTemps, mFreeCallerSavedTemps, mFastCallBase, mNumRestricted;
+ 	bool								mLeafProcedure, mNativeProcedure, mCallsFunctionPointer, mHasDynamicStack, mHasInlineAssembler, mCallsByteCode, mFastCallProcedure;
+-	bool								mInterrupt, mHardwareInterrupt, mCompiled, mInterruptCalled, mValueReturn, mFramePointer, mDynamicStack, mAssembled;
++	bool								mInterrupt, mHardwareInterrupt, mCompiled, mInterruptCalled, mValueReturn, mFramePointer, mDynamicStack, mAssembled, mFuncVariable;
+ 	bool								mDispatchedCall;
+ 	bool								mCheckUnreachable, mIntrinsicFunction;
+ 	GrowingInterCodeProcedurePtrArray	mCalledFunctions;
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index 463f29b..8c4fff3 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -6378,7 +6378,10 @@ InterCodeProcedure* InterCodeGenerator::TranslateProcedure(InterCodeModule * mod
+ 
+ 	if (dec->mFlags & DTF_FUNC_INTRCALLED)
+ 		proc->mInterruptCalled = true;
+-	
++
++	if (dec->mFlags & DTF_FUNC_VARIABLE)
++		proc->mFuncVariable = true;
++
+ 	if ((dec->mFlags & DTF_DYNSTACK) || (dec->mFlags & DTF_FUNC_RECURSIVE))
+ 		proc->mDynamicStack = true;
+ 
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index a48a93b..7f10fa6 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -69210,7 +69210,7 @@ void NativeCodeProcedure::Compile(InterCodeProcedure* proc)
+ 		mExitBlock->mIns.Push(NativeCodeInstruction(mExitBlock->mBranchIns, ASMIT_RTS, ASMIM_IMPLIED));
+ 
+ 
+-	if (mExitBlock->mIns.Size() == 1 && rflags == NCIF_LOWER && !mExitBlock->mExitRegA && (mGenerator->mCompilerOptions & COPT_NATIVE))
++	if (mExitBlock->mIns.Size() == 1 && rflags == NCIF_LOWER && !mExitBlock->mExitRegA && (mGenerator->mCompilerOptions & COPT_NATIVE) && !proc->mFuncVariable)
+ 	{
+ 		if (mExitBlock->mEntryBlocks.Size() == 1)
+ 		{

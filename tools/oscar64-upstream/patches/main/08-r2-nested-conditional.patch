@@ -1,0 +1,388 @@
+From 8dec0b60a0f42b189c38bf051bfb730adae964bb Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 01:20:18 +0000
+Subject: [PATCH] Fix nested conditional in the middle operand of ?:
+
+The middle operand of a conditional expression was parsed as a
+logical-OR expression, so an unparenthesised nested ?: (or an
+assignment or comma expression) between '?' and ':' failed with
+"':' expected". Both C and C++ define that operand as a full
+expression: a ? b ? x : y : z means a ? (b ? x : y) : z.
+
+Parse the middle operand with ParseExpression and build EX_COMMA
+nodes for any comma operators that follow. EX_COMMA rather than
+EX_LIST, because a ?: with a constant condition folds to its middle
+operand, and both the call argument walker and the global
+optimizer's comma hoisting treat an EX_LIST in an argument position
+as several arguments.
+
+The tests cover ?: nested in the middle and last operands, a comma
+and an assignment in the middle operand with side-effect checks,
+a middle-operand comma (two and three operands) as the only, first
+and last argument of a call with a run-time and with a constant
+condition, constant expressions, that only the selected branch is
+evaluated, and that the precedence of the first operand is
+unchanged. The C++ test adds class and template cases.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+---
+ autotest/autotest.bat                 |   6 +
+ autotest/nestedconditionalcpptest.cpp |  82 ++++++++++
+ autotest/nestedconditionaltest.c      | 214 ++++++++++++++++++++++++++
+ oscar64/Parser.cpp                    |  15 +-
+ 4 files changed, 316 insertions(+), 1 deletion(-)
+ create mode 100644 autotest/nestedconditionalcpptest.cpp
+ create mode 100644 autotest/nestedconditionaltest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index ff4124e..8182d60 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -462,6 +462,12 @@ rem @echo off
+ @call :test mixedwidthternary.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test nestedconditionaltest.c
++@if %errorlevel% neq 0 goto :error
++
++@call :test nestedconditionalcpptest.cpp
++@if %errorlevel% neq 0 goto :error
++
+ @call :test signedbytestructreturn.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/nestedconditionalcpptest.cpp b/autotest/nestedconditionalcpptest.cpp
+new file mode 100644
+index 0000000..869b465
+--- /dev/null
++++ b/autotest/nestedconditionalcpptest.cpp
+@@ -0,0 +1,82 @@
++#include <assert.h>
++
++// C++ shares the parser: the middle operand of ?: is a full expression here too
++
++struct V
++{
++	int v;
++	V(int x) : v(x) {}
++};
++
++static volatile int vz;
++
++static const char * pick(int a, int b, int c)
++{
++	return a ? b ? "x" : "y" : c ? "z" : "w";
++}
++
++static V pickv(int a, int b, const V & x, const V & y, const V & z)
++{
++	return a ? b ? x : y : z;
++}
++
++static int one(int x)
++{
++	return x;
++}
++
++static int folded_comma_only_argument(void)
++{
++	return one(1 ? vz, 2 : 3);
++}
++
++template<int N> int tf(void)
++{
++	return N ? N > 1 ? 2 : 1 : 0;
++}
++
++constexpr int ce(int a, int b)
++{
++	return a ? b ? 1 : 2 : 3;
++}
++
++template<int N> struct T
++{
++	static const int value = N;
++};
++
++int main(void)
++{
++	volatile int va = 1, vb = 0;
++	int x = 1, y = 2;
++
++	// nested conditional in the middle operand
++	assert(pick(1, 1, 1)[0] == 'x');
++	assert(pick(1, 0, 1)[0] == 'y');
++	assert(pick(0, 1, 1)[0] == 'z');
++	assert(pick(0, 1, 0)[0] == 'w');
++
++	V a(1), b(2), c(3);
++	assert(pickv(1, 1, a, b, c).v == 1);
++	assert(pickv(1, 0, a, b, c).v == 2);
++	assert(pickv(0, 1, a, b, c).v == 3);
++
++	// assignment and comma in the middle operand
++	int w = va ? x = 4, y : 0;
++	assert(w == 2 && x == 4);
++	w = vb ? x = 5, y : 0;
++	assert(w == 0 && x == 4);
++
++	assert(folded_comma_only_argument() == 2);
++
++	// constant expressions
++	assert(tf<0>() == 0 && tf<1>() == 1 && tf<5>() == 2);
++	assert(T<ce(0, 1)>::value == 3);
++	assert(T<ce(1, 0)>::value == 2);
++	assert(T<ce(1, 1)>::value == 1);
++
++	bool bb = va ? vb ? false : true : false;
++	assert(bb);
++
++	return 0;
++}
+diff --git a/autotest/nestedconditionaltest.c b/autotest/nestedconditionaltest.c
+new file mode 100644
+index 0000000..56ddae8
+--- /dev/null
++++ b/autotest/nestedconditionaltest.c
+@@ -0,0 +1,214 @@
++#include <assert.h>
++
++// The middle operand of ?: is a full expression (C99 6.5.15, C++ [expr.cond]),
++// so a nested unparenthesised ?: , an assignment or a comma expression is
++// allowed there without parentheses.
++
++static const char * pick(int a, int b, int c)
++{
++	return a ? b ? "x" : "y" : c ? "z" : "w";
++}
++
++// char parameters: an int-typed ?: nested in the last operand is miscompiled
++// with -n -O0 on its own, independently of how it is parenthesised
++static int pick3(char a, char b, char c, char d)
++{
++	return a ? b ? 1 : 2 : c ? 3 : d ? 4 : 5;
++}
++
++static int middle_comma(int a, int * p)
++{
++	return a ? *p = 7, 11 : 13;
++}
++
++// the comma operands are evaluated left to right
++static int middle_comma_sequence(int a, int * p)
++{
++	return a ? *p = 7, *p + 4 : 13;
++}
++
++static int middle_comma3(int a, int * p)
++{
++	return a ? *p = 1, *p += 2, *p * 10 : 13;
++}
++
++static int middle_assign(int a, int * p)
++{
++	return a ? *p = 21 : 23;
++}
++
++// only the selected branch is evaluated
++static int nested_side_effects(int a, int b, int * p, int * q)
++{
++	return a ? b ? (*p)++ : (*q)++ : b ? (*p)-- : (*q)--;
++}
++
++static int two(int x, int y)
++{
++	return 10 * x + y;
++}
++
++static int one(int x)
++{
++	return x;
++}
++
++static int first(int a, ...)
++{
++	return a;
++}
++
++static volatile int vz;
++
++static int comma_in_argument(int a)
++{
++	// one argument, not two: the comma belongs to the middle operand
++	return two(a ? 1, 2 : 3, a ? 4, 5 : 6);
++}
++
++static int folded_comma_in_argument(void)
++{
++	return two(1 ? 1, 2 : 3, 0 ? 4, 5 : 6);
++}
++
++// a ?: with a constant condition folds to its middle operand, which then
++// stands in place of the call argument
++static int folded_comma_only_argument(void)
++{
++	return one(1 ? vz, 2 : 3);
++}
++
++static int folded_comma_last_argument(void)
++{
++	return two(9, 1 ? vz, 5 : 6);
++}
++
++static int folded_comma3_only_argument(void)
++{
++	return one(1 ? vz, 2, 3 : 4);
++}
++
++static int folded_comma3_variadic(void)
++{
++	return first(1 ? vz, 2, 3 : 0);
++}
++
++static int first_precedence(int a, int b)
++{
++	// ?: binds weaker than || and relational operators
++	return a || b ? 1 : 2;
++}
++
++static int relational_first(int a)
++{
++	return a >= 5 ? a > 10 ? 2 : 1 : 0;
++}
++
++enum
++{
++	CE1 = 1 ? 0 ? 3 : 4 : 5,
++	CE2 = 0 ? 0 ? 3 : 4 : 5,
++	CE3 = 1 ? 1 ? 3 : 4 : 5
++};
++
++static int gi = 1 ? 2 ? 10 : 20 : 30;
++static const char * gs = 0 ? 1 ? "a" : "b" : 1 ? "c" : "d";
++
++int main(void)
++{
++	volatile int va = 1, vb = 0, vc = 1;
++
++	// nested conditional in the middle operand
++	assert(pick(1, 1, 1)[0] == 'x');
++	assert(pick(1, 0, 1)[0] == 'y');
++	assert(pick(0, 1, 1)[0] == 'z');
++	assert(pick(0, 1, 0)[0] == 'w');
++
++	// nested conditional in the last operand (right associative)
++	assert(pick3(1, 1, 0, 0) == 1);
++	assert(pick3(1, 0, 0, 0) == 2);
++	assert(pick3(0, 0, 1, 0) == 3);
++	assert(pick3(0, 0, 0, 1) == 4);
++	assert(pick3(0, 0, 0, 0) == 5);
++
++	// comma expression in the middle operand
++	int t = 0;
++	assert(middle_comma(1, &t) == 11);
++	assert(t == 7);
++	t = 0;
++	assert(middle_comma(0, &t) == 13);
++	assert(t == 0);
++
++	t = 0;
++	assert(middle_comma_sequence(1, &t) == 11);
++	assert(t == 7);
++	t = 0;
++	assert(middle_comma_sequence(0, &t) == 13);
++	assert(t == 0);
++
++	t = 0;
++	assert(middle_comma3(1, &t) == 30);
++	assert(t == 3);
++	t = 0;
++	assert(middle_comma3(0, &t) == 13);
++	assert(t == 0);
++
++	// assignment in the middle operand
++	t = 0;
++	assert(middle_assign(1, &t) == 21);
++	assert(t == 21);
++	t = 0;
++	assert(middle_assign(0, &t) == 23);
++	assert(t == 0);
++
++	// only the selected branch has its side effect
++	int p = 10, q = 20;
++	assert(nested_side_effects(1, 1, &p, &q) == 10);
++	assert(p == 11 && q == 20);
++	assert(nested_side_effects(1, 0, &p, &q) == 20);
++	assert(p == 11 && q == 21);
++	assert(nested_side_effects(0, 1, &p, &q) == 11);
++	assert(p == 10 && q == 21);
++	assert(nested_side_effects(0, 0, &p, &q) == 21);
++	assert(p == 10 && q == 20);
++
++	// comma in the middle operand inside an argument list
++	assert(comma_in_argument(1) == 25);
++	assert(comma_in_argument(0) == 36);
++	assert(folded_comma_in_argument() == 26);
++	assert(folded_comma_only_argument() == 2);
++	assert(folded_comma_last_argument() == 95);
++	assert(folded_comma3_only_argument() == 3);
++	assert(folded_comma3_variadic() == 3);
++
++	// precedence of the first operand is unchanged
++	assert(first_precedence(0, 0) == 2);
++	assert(first_precedence(0, 1) == 1);
++	assert(first_precedence(1, 0) == 1);
++	assert(relational_first(3) == 0);
++	assert(relational_first(7) == 1);
++	assert(relational_first(12) == 2);
++
++	// a ? b : c , d parses as (a ? b : c), d
++	int u = (va ? 1 : 2, 3);
++	assert(u == 3);
++
++	// non-constant operands, folded at runtime
++	const char * s = va ? vb ? "x" : "y" : vc ? "z" : "w";
++	assert(s[0] == 'y');
++	s = vb ? va ? "x" : "y" : vc ? "z" : "w";
++	assert(s[0] == 'z');
++	int n = va ? vb ? 1 : 2 : vc ? 3 : 4;
++	assert(n == 2);
++	n = vb ? vc ? 1 : 2 : va ? 3 : 4;
++	assert(n == 3);
++
++	// constant expressions
++	assert(CE1 == 4);
++	assert(CE2 == 5);
++	assert(CE3 == 3);
++	assert(gi == 10);
++	assert(gs[0] == 'c');
++
++	return 0;
++}
+diff --git a/oscar64/Parser.cpp b/oscar64/Parser.cpp
+index 55d93e8..03cece9 100644
+--- a/oscar64/Parser.cpp
++++ b/oscar64/Parser.cpp
+@@ -10761,7 +10761,20 @@ Expression* Parser::ParseConditionalExpression(bool lhs)
+ 		Expression* texp = new Expression(mScanner->mLocation, EX_SEQUENCE);
+ 		nexp->mRight = texp;
+ 
+-		texp->mLeft = ParseLogicOrExpression(false);
++		// The middle operand is a full expression, including nested ?:, assignment and comma.
++		// Commas become EX_COMMA nodes, not EX_LIST, so that a constant folded ?: does
++		// not leave an argument list where a single argument is expected
++		texp->mLeft = ParseExpression(false);
++		while (mScanner->mToken == TK_COMMA)
++		{
++			Expression* cexp = new Expression(mScanner->mLocation, EX_COMMA);
++			cexp->mToken = TK_COMMA;
++			mScanner->NextToken();
++			cexp->mLeft = texp->mLeft;
++			cexp->mRight = ParseExpression(false);
++			cexp->mDecType = cexp->mRight->mDecType;
++			texp->mLeft = cexp;
++		}
+ 		ConsumeToken(TK_COLON);
+ 		texp->mRight = ParseConditionalExpression(false);
+ 		

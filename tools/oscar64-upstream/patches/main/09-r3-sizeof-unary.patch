@@ -1,0 +1,199 @@
+From 64ffa3a722ebf6ba52a9e70654a9ead9a3c359e8 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 01:29:10 +0000
+Subject: [PATCH] Fix sizeof applied to a unary expression without parentheses
+
+The parser always demanded '(' after sizeof, so the standard form
+sizeof unary-expression (sizeof arr, sizeof *p, sizeof s.m,
+sizeof a / sizeof a[0]) failed with error 3006 "'(' expected".
+Parse the operand with ParsePrefixExpression when it does not start
+with '(', so prefix and postfix operators belong to the operand and
+binary operators do not. A parenthesised operand that is an expression
+now also keeps its postfix operators (sizeof (arr)[0], sizeof (p)->m),
+as ParseCastExpression already does for a cast operand. sizeof (type),
+sizeof (expr) and sizeof...(pack) are parsed as before; a bare type or
+a brace list after sizeof is still rejected with "'(' expected",
+reported at the operand.
+
+The test stores each value before comparing it, or writes the constant
+first, so a parser that let the operand swallow the rest of the
+expression fails it. It covers plain objects, array elements, members,
+dereferences, unary operators, nested sizeof, precedence against binary
+and conditional operators, the parenthesised forms with and without
+postfix operators, non-evaluation of the operand (n++, ++n, arr[n++],
+a call of a function that is never defined) and the
+memset(x, 0, sizeof x) idiom.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+---
+ autotest/autotest.bat      |   3 +
+ autotest/sizeofunarytest.c | 117 +++++++++++++++++++++++++++++++++++++
+ oscar64/Parser.cpp         |  16 ++++-
+ 3 files changed, 135 insertions(+), 1 deletion(-)
+ create mode 100644 autotest/sizeofunarytest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index ff4124e..5b9fffd 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -3,6 +3,9 @@ rem @echo off
+ @call :test selectorzerofallthrough.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test sizeofunarytest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test funcvaropt.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/sizeofunarytest.c b/autotest/sizeofunarytest.c
+new file mode 100644
+index 0000000..8482b2d
+--- /dev/null
++++ b/autotest/sizeofunarytest.c
+@@ -0,0 +1,117 @@
++/* sizeof applied to a unary expression (C89 3.3.3.4, C99 6.5.3) */
++#include <assert.h>
++#include <string.h>
++
++struct S { char a; int b; long c; };
++
++int arr[10];
++char buf[32];
++struct S s, sa[5], *sp = sa;
++int *p = arr;
++long l;
++char c;
++int n;
++
++/* only ever mentioned inside sizeof: must not be called and needs no definition */
++extern long never_defined(void);
++
++__noinline int paramsize(int a[10])
++{
++	/* an array parameter is a pointer */
++	return sizeof a;
++}
++
++int main(void)
++{
++	int i;
++
++	/* The constant comes first in each comparison: a parser that let the
++	   operand swallow the rest of the expression would make assert(sizeof x == 20)
++	   pass as sizeof (x == 20), which is never zero. */
++
++	/* plain object */
++	assert(20 == sizeof arr);
++	assert(32 == sizeof buf);
++	assert(4 == sizeof l);
++	assert(1 == sizeof c);
++
++	/* postfix operators belong to the operand */
++	assert(2 == sizeof arr[0]);
++	assert(sizeof (struct S) == sizeof sa[1]);
++	assert(2 == sizeof s.b);
++	assert(4 == sizeof sa[2].c);
++	assert(4 == sizeof sp->c);
++
++	/* prefix operators belong to the operand */
++	assert(2 == sizeof *p);
++	assert(sizeof s == sizeof *sp);
++	assert(2 == sizeof &arr);
++	assert(4 == sizeof -l);
++	assert(2 == sizeof -c);
++	assert(2 == sizeof +c);
++	assert(2 == sizeof ~c);
++	assert(sizeof (!l) == sizeof !l);
++	assert(sizeof (sizeof arr) == sizeof sizeof arr);
++
++	/* sizeof binds tighter than any binary operator; the value is stored
++	   before it is compared so that a too greedy operand cannot hide */
++	i = sizeof arr / sizeof arr[0];
++	assert(i == 10);
++	i = sizeof buf - 1;
++	assert(i == 31);
++	i = sizeof l * 2;
++	assert(i == 8);
++	i = sizeof c + sizeof l;
++	assert(i == 5);
++	i = sizeof arr == 20 ? 3 : 4;
++	assert(i == 3);
++
++	/* a parenthesised operand followed by postfix operators */
++	i = sizeof (arr)[0];
++	assert(i == 2);
++	i = sizeof (s).c;
++	assert(i == 4);
++	i = sizeof (sp)->c;
++	assert(i == 4);
++	i = sizeof (arr) / sizeof (arr)[0];
++	assert(i == 10);
++
++	/* the parenthesised forms are unchanged */
++	i = sizeof (arr);
++	assert(i == 20);
++	i = sizeof (arr) + 1;
++	assert(i == 21);
++	i = sizeof (int) * 3;
++	assert(i == 6);
++	assert(sizeof s == sizeof (struct S));
++	i = sizeof (arr) / sizeof (arr[0]);
++	assert(i == 10);
++
++	/* the operand is not evaluated */
++	n = 0;
++	i = sizeof n++;
++	assert(i == 2);
++	i = sizeof ++n;
++	assert(i == 2);
++	i = sizeof arr[n++];
++	assert(i == 2);
++	i = sizeof (n)++;
++	assert(i == 2);
++	i = sizeof never_defined();
++	assert(i == 4);
++	i = sizeof (never_defined)();
++	assert(i == 4);
++	assert(n == 0);
++
++	assert(2 == paramsize(arr));
++
++	/* the memset idiom */
++	memset(buf, 0x55, sizeof buf);
++	for (i = 0; i < 32; i++)
++		assert(buf[i] == 0x55);
++	memset(arr, 0, sizeof arr);
++	for (i = 0; i < 10; i++)
++		assert(arr[i] == 0);
++
++	return 0;
++}
+diff --git a/oscar64/Parser.cpp b/oscar64/Parser.cpp
+index 55d93e8..33a7197 100644
+--- a/oscar64/Parser.cpp
++++ b/oscar64/Parser.cpp
+@@ -8339,7 +8339,21 @@ Expression* Parser::ParseSimpleExpression(bool lhs, bool tid)
+ 		}
+ 		else
+ 		{
+-			rexp = ParseParenthesisExpression();
++			if (mScanner->mToken == TK_OPEN_PARENTHESIS)
++			{
++				rexp = ParseParenthesisExpression();
++				// sizeof (expr)[0], sizeof (p)->m: postfix operators belong to an expression operand
++				if (rexp->mType != EX_TYPE)
++					rexp = ParsePostfixExpression(false, rexp);
++			}
++			else
++			{
++				// sizeof unary-expression: binds tighter than any binary operator
++				Location	loc(mScanner->mLocation);
++				rexp = ParsePrefixExpression(false);
++				if (rexp->mType == EX_TYPE || rexp->mType == EX_AGGREGATE)
++					mErrors->Error(loc, EERR_SYNTAX, "'(' expected");
++			}
+ 			Declaration* btype;
+ 			if (rexp->mDecType->IsReference())
+ 				btype = rexp->mDecType->mBase;

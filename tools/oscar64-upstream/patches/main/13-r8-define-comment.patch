@@ -1,0 +1,251 @@
+From 9dfa87d84165c7df468831350d2505d5f48c1c7d Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 03:13:49 +0000
+Subject: [PATCH] Fix block comment continuing past the end of a #define line
+
+The body of a #define was taken as the rest of the physical line, so a
+block comment that starts on the line and closes on a later one left its
+continuation to be scanned as code ("Identifier not defined"). Comments
+are replaced before directives are processed (C 5.1.1.2 phases 3 and 4),
+so the directive ends at the end of the line the comment closes on.
+
+While collecting the body, skip closed block comments (so a // inside
+one no longer ends the body) and, when one is still open at the end of
+the line, append the next line to the line buffer with NextLine(true)
+and go on scanning. The comment text read so far is dropped before each
+appended line, so a long comment cannot fill the buffer. Track string
+and character constants with their escapes, as the macro argument
+collector does, so that a comment delimiter inside a constant ("\"/*",
+'"') is not taken for one.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+---
+ autotest/autotest.bat               |   3 +
+ autotest/prep_define_comment_test.c | 111 ++++++++++++++++++++++++++++
+ oscar64/Preprocessor.cpp            |   4 +-
+ oscar64/Preprocessor.h              |   2 +-
+ oscar64/Scanner.cpp                 |  47 +++++++++++-
+ 5 files changed, 161 insertions(+), 6 deletions(-)
+ create mode 100644 autotest/prep_define_comment_test.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index ff4124e..47b225c 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -27,6 +27,9 @@ rem @echo off
+ @call :test block_comment_test.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test prep_define_comment_test.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test anonymousstructtest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/prep_define_comment_test.c b/autotest/prep_define_comment_test.c
+new file mode 100644
+index 0000000..fbb6533
+--- /dev/null
++++ b/autotest/prep_define_comment_test.c
+@@ -0,0 +1,111 @@
++/* Comments are replaced by one space before directives are processed
++ * (C89 2.1.1.2 / C99 5.1.1.2, translation phases 3 and 4), so a block
++ * comment that starts on a #define line and ends on a later line belongs
++ * to the directive; its continuation is not code. A comment delimiter
++ * inside a string or character constant is not a delimiter.
++ */
++#include <assert.h>
++
++#define A 1 /* a comment that
++               carries on here */
++#define B 2 /* closed on the line */ + 10
++#define C 3 // line comment
++#define D 4 /* contains // inside */ + 10
++#define E 5 /* first */ /* the second one
++               runs on */
++#define F(x) ((x) /* inner */ + 1) /* trailer
++   over two
++   more lines */
++#define G "a/*b" /* the string holds a comment opener
++   */
++#define H /* nothing but a comment
++   */
++#define I 6	/* tab before the comment, like NetHack's
++		 * global.h: PL_PSIZ */
++#define J 7 /* the directive ends at the end of the line
++   the comment closes on, so this tail belongs to it */ + 10
++#define K 8 /* spans
++   three
++   lines */ // and a line comment after it
++#define L 9
++
++/* A star at the end of one line and a slash at the start of the next do
++ * not close the comment; a backslash-newline between them does.
++ */
++#define M 10 /* ends with a star *
++/ still inside the comment */ + 1
++#define N 11 /* closed by a spliced delimiter *\
++/ + 1
++#define O 12 /\
++* opened by a spliced delimiter
++   */ + 1
++#define P 13 /* it's "quoted" and 'c' inside the comment
++   ' " */ + 1 // and a line comment
++
++/* Quotes: a '"' character constant, an escaped quote and a string that
++ * holds a comment opener neither open nor close a comment.
++ */
++#define Q '"' /* a double quote in a character constant does not
++   open a string */
++#define R "a\"b" /* an escaped quote does not close the string
++   either */
++#define S "\"/*" /* so the opener in the string is still inside it */
++#define T(c) ((c) == '"' ? "/*" : "") /* nor is this one */
++#define BS "\\" /* two backslashes end the escape, the string is closed
++   and the comment is seen */
++#define UNUSED "\"/*"
++#define FLAG 1
++#define CLOSE "*/"
++
++/* A directive inside the continued comment is not processed */
++#define U 1 /* a directive inside the comment is not processed
++#define V 2 */
++
++#define W 3 /* used in #if
++   below */ + 4
++
++#ifdef V
++#error "V must not be defined"
++#endif
++#ifndef FLAG
++#error "FLAG must be defined"
++#endif
++#if W != 7
++#error "W must be 7"
++#endif
++
++int main(void)
++{
++	int	h = H 8;
++
++	assert(A == 1);
++	assert(B == 12);
++	assert(C == 3);
++	assert(D == 14);
++	assert(E == 5);
++	assert(F(1) == 2);
++	assert(G[0] == 'a');
++	assert(G[1] == '/');
++	assert(G[2] == '*');
++	assert(G[3] == 'b');
++	assert(h == 8);
++	assert(I == 6);
++	assert(J == 17);
++	assert(K == 8);
++	assert(L == 9);
++	assert(M == 11);
++	assert(N == 12);
++	assert(O == 13);
++	assert(P == 14);
++	assert(Q == '"');
++	assert(R[1] == '"' && R[3] == 0);
++	assert(S[1] == '/' && S[2] == '*' && S[3] == 0);
++	assert(T('"')[0] == '/');
++	assert(T('a')[0] == 0);
++	assert(BS[0] == '\\' && BS[1] == 0);
++	assert(CLOSE[0] == '*' && CLOSE[1] == '/' && CLOSE[2] == 0);
++	assert(U == 1);
++	assert(W == 7);
++
++	return 0;
++}
+diff --git a/oscar64/Preprocessor.cpp b/oscar64/Preprocessor.cpp
+index 8d94d2a..39107f3 100644
+--- a/oscar64/Preprocessor.cpp
++++ b/oscar64/Preprocessor.cpp
+@@ -890,9 +890,9 @@ bool SourceFile::DropSource(void)
+ 		return false;
+ }
+ 
+-bool Preprocessor::NextLine(void)
++bool Preprocessor::NextLine(bool append)
+ {
+-	ptrdiff_t	s = 0;
++	ptrdiff_t	s = append ? strlen(mLine) : 0;
+ 	while (s < 32768 && mSource->ReadLine(mLine + s, 32768 - s))
+ 	{
+ 		mLocation.mLine++;
+diff --git a/oscar64/Preprocessor.h b/oscar64/Preprocessor.h
+index bf10d48..9d54f3e 100644
+--- a/oscar64/Preprocessor.h
++++ b/oscar64/Preprocessor.h
+@@ -104,7 +104,7 @@ public:
+ 	uint64		mCompilerOptions;
+ 
+ 	void AddPath(const char* path);
+-	bool NextLine(void);
++	bool NextLine(bool append = false);
+ 
+ 	bool OpenSource(const char* reason, const char* name, bool local);
+ 	bool CloseSource(void);
+diff --git a/oscar64/Scanner.cpp b/oscar64/Scanner.cpp
+index cf2558a..0ecc532 100644
+--- a/oscar64/Scanner.cpp
++++ b/oscar64/Scanner.cpp
+@@ -808,11 +808,52 @@ void Scanner::NextPreToken(void)
+ 				}
+ 
+ 				int		slen = mOffset;
+-				bool	quote = false;
++				char	quote = 0;
+ 				while (mLine[slen] && (quote || mLine[slen] != '/' || mLine[slen + 1] != '/'))
+ 				{
+-					if (mLine[slen] == '"')
+-						quote = !quote;
++					if (quote)
++					{
++						// inside a string or character constant: skip escaped characters
++						if (mLine[slen] == '\\' && mLine[slen + 1])
++							slen++;
++						else if (mLine[slen] == quote)
++							quote = 0;
++					}
++					else if (mLine[slen] == '"' || mLine[slen] == '\'')
++						quote = mLine[slen];
++					else if (mLine[slen] == '/' && mLine[slen + 1] == '*')
++					{
++						// A block comment belongs to the directive up to its end, so one
++						// still open at the end of the line continues the directive on
++						// the next line
++						slen += 2;
++						int		ctext = slen;
++						while (mLine[slen] != '*' || mLine[slen + 1] != '/')
++						{
++							if (mLine[slen])
++								slen++;
++							else if (mLine != mPreprocessor->mLine)
++							{
++								Error("Multiline comment not closed");
++								break;
++							}
++							else
++							{
++								// Drop the comment text read so far, so that a long
++								// comment cannot fill the line buffer
++								mPreprocessor->mLine[ctext] = 0;
++								slen = ctext;
++								if (!mPreprocessor->NextLine(true) || !mLine[slen])
++								{
++									Error("Multiline comment not closed");
++									break;
++								}
++							}
++						}
++						if (!mLine[slen])
++							break;
++						slen++;
++					}
+ 					slen++;
+ 				}
+ 

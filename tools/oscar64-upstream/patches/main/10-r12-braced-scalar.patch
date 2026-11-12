@@ -1,0 +1,286 @@
+From 76841d2efdbf3adad9436b6fca598975818f95e3 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 01:09:33 +0000
+Subject: [PATCH] Fix braced initializer for scalar variables
+
+C allows the initializer of a scalar to be a single expression enclosed
+in braces (C89 3.5.7, C99 6.7.8p11), e.g. `const char *p = { 0 };` or
+`int n = { 3 };`.  The parser handed the brace to the expression parser,
+which built an EX_AGGREGATE node that nothing could consume: a static or
+global variable gave "Non constant initializer" once it was referenced,
+a local gave "Unexpected aggregate", and a braced scalar inside a struct
+or array initializer gave "Constant initializer expected".
+
+The scalar branches of ParseConstInitExpression and ParseVarInitExpression
+now accept an optional pair of braces around the initializer, with an
+optional trailing comma.  More than one expression is reported once as
+"Too many initializers for scalar" and the rest of the list is skipped;
+a missing closing brace is reported as "'}' expected".  Braced and
+unbraced declaration initializers generate identical code (checked byte
+for byte on the tested forms); C++ braced call arguments and functional
+casts go through a temporary, as they did before for aggregates, so their
+code can differ from the plain form at low optimization levels.
+
+The same two functions are reached by scalar compound literals and by
+C++ braced initialization (default member initializers, member
+initializer lists, braced call arguments, functional casts), so those
+forms are accepted too.
+
+Two new autotests: scalarbraceinittest.c (global, static, static-local
+and local scalars of several types, trailing comma, run-time and
+side-effecting initializers, compound literals, braced scalar members
+of structs and arrays with and without brace elision) and
+scalarbraceinitcpp.cpp (the C++ forms above).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+---
+ autotest/autotest.bat           |   6 ++
+ autotest/scalarbraceinitcpp.cpp |  50 ++++++++++++++
+ autotest/scalarbraceinittest.c  | 116 ++++++++++++++++++++++++++++++++
+ oscar64/Parser.cpp              |  26 +++++++
+ 4 files changed, 198 insertions(+)
+ create mode 100644 autotest/scalarbraceinitcpp.cpp
+ create mode 100644 autotest/scalarbraceinittest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index ff4124e..beb8169 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -420,6 +420,12 @@ rem @echo off
+ @call :test ptrinittest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test scalarbraceinittest.c
++@if %errorlevel% neq 0 goto :error
++
++@call :test scalarbraceinitcpp.cpp
++@if %errorlevel% neq 0 goto :error
++
+ @call :test memberpointerarray.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/scalarbraceinitcpp.cpp b/autotest/scalarbraceinitcpp.cpp
+new file mode 100644
+index 0000000..45fd3aa
+--- /dev/null
++++ b/autotest/scalarbraceinitcpp.cpp
+@@ -0,0 +1,50 @@
++#include <assert.h>
++
++// Braced initialization of a scalar in C++ goes through the same two parser
++// paths as the C form: default member initializers, member initializer
++// lists, braced call arguments, functional casts and static const members.
++
++struct A
++{
++	int		x = { 3 };
++	char	c;
++	long	l;
++
++	A(int v) : c{'q'}, l{v + 1L} {}
++};
++
++struct B
++{
++	static const int	s = { 4 };
++};
++
++int f(int a, long b)
++{
++	return a + (int)b;
++}
++
++template<class T> T make(T v)
++{
++	T	x = { v };
++	return x;
++}
++
++int		g = { 7 };
++int		gk = 6;
++
++int main(void)
++{
++	A		a(41);
++	int		k = { 5 };
++	int		m = int{gk} + 1;
++	long	n = long{7};
++
++	assert(a.x == 3 && a.c == 'q' && a.l == 42L);
++	assert(B::s == 4);
++	assert(f({3}, {4L}) == 7);
++	assert(make<int>(3) == 3 && make<long>(70000L) == 70000L && make<char>('a') == 'a');
++	assert(g == 7);
++	assert(k == 5 && m == 7 && n == 7);
++
++	return 0;
++}
+diff --git a/autotest/scalarbraceinittest.c b/autotest/scalarbraceinittest.c
+new file mode 100644
+index 0000000..1c575fb
+--- /dev/null
++++ b/autotest/scalarbraceinittest.c
+@@ -0,0 +1,116 @@
++#include <assert.h>
++
++// A scalar initializer may be a single expression enclosed in braces
++// (C89 3.5.7, C99 6.7.8p11), with an optional trailing comma.  The same
++// parser paths handle scalar compound literals (C99 6.5.2.5).
++
++int		gi = { 3 };
++char	gc = { 'A' };
++long	gl = { 100000L };
++float	gf = { 1.5 };
++int		garr[4] = { 1, 2, 3, 4 };
++int	*	gp = { garr + 1 };
++const char* gs = { 0 };
++int		gtc = { 4, };
++static int	sgi = { -7 };
++static const char* sgs = { 0 };
++static long	sgl = { 123456L };
++int	*	gcl = &(int){ 5 };
++
++struct S { int a; char b; long c; };
++struct T { int a[2]; int b; };
++
++struct S	gst = { { 3 }, { 'x' }, { 70000L } };
++struct S	gse = { 1, { 2 }, 3 };
++struct T	gtt = { 1, 2, { 3 } };
++int			gba[3] = { { 1 }, { 2 }, { 3 } };
++
++volatile int	source = 7;
++
++int counter(void)
++{
++	static int	sl = { 11 };
++	return sl++;
++}
++
++long lcounter(void)
++{
++	static long	sl = { -5L };
++	return sl--;
++}
++
++int twice(int a)
++{
++	return 2 * a;
++}
++
++int main(void)
++{
++	int		li = { 5 };
++	char	lc = { 'z' };
++	long	ll = { -300000L };
++	float	lf = { 2.5 };
++	int	*	lp = { garr + 2 };
++	const char* ls = { 0 };
++	int		ltc = { 6, };
++	int		k = twice(li);
++	int		lr = { twice(k) };
++	int		lcm = { (1, 2) }, lcm2 = { 3, };
++	int		lonce = { source++ };
++	int		lcl = (int){ k + 1 };
++	int	*	lclp = &(int){ 3 };
++	struct S	lst = { { 9 }, { 'q' }, { 123456L } };
++	struct S	lse = { 1, { 2 }, 3 };
++	struct T	ltt = { { 1, 2 }, { 3 } };
++	int			lba[3] = { { 7 }, { 8 }, { 9 } };
++	const char* t;
++
++	assert(gi == 3);
++	assert(gc == 'A');
++	assert(gl == 100000L);
++	assert(gf == 1.5);
++	assert(gp == garr + 1 && *gp == 2);
++	// Compared through a local copy: a file-scope pointer initialized to 0
++	// and compared with 0 directly is a separate, pre-existing problem at
++	// -O2/-Os/-O3 that this test does not cover.
++	t = gs;
++	assert(t == 0);
++	t = sgs;
++	assert(t == 0);
++	assert(gtc == 4);
++	assert(sgi == -7);
++	assert(sgl == 123456L);
++	assert(*gcl == 5);
++	assert(gst.a == 3 && gst.b == 'x' && gst.c == 70000L);
++	assert(gse.a == 1 && gse.b == 2 && gse.c == 3);
++	assert(gtt.a[0] == 1 && gtt.a[1] == 2 && gtt.b == 3);
++	assert(gba[0] == 1 && gba[1] == 2 && gba[2] == 3);
++
++	assert(counter() == 11);
++	assert(counter() == 12);
++	assert(lcounter() == -5L);
++	assert(lcounter() == -6L);
++
++	assert(li == 5);
++	assert(lc == 'z');
++	assert(ll == -300000L);
++	assert(lf == 2.5);
++	assert(lp == garr + 2 && *lp == 3);
++	t = ls;
++	assert(t == 0);
++	assert(ltc == 6);
++	assert(k == 10);
++	assert(lr == 20);
++	assert(lcm == 2 && lcm2 == 3);
++	assert(lonce == 7 && source == 8);
++	assert(lcl == 11);
++	assert(*lclp == 3);
++	*lclp = 4;
++	assert(*lclp == 4);
++	assert(lst.a == 9 && lst.b == 'q' && lst.c == 123456L);
++	assert(lse.a == 1 && lse.b == 2 && lse.c == 3);
++	assert(ltt.a[0] == 1 && ltt.a[1] == 2 && ltt.b == 3);
++	assert(lba[0] == 7 && lba[1] == 8 && lba[2] == 9);
++
++	return 0;
++}
+diff --git a/oscar64/Parser.cpp b/oscar64/Parser.cpp
+index 55d93e8..e4c7ab1 100644
+--- a/oscar64/Parser.cpp
++++ b/oscar64/Parser.cpp
+@@ -2613,7 +2613,20 @@ Expression* Parser::ParseVarInitExpression(Expression* vexp, bool inner, Express
+ 	}
+ 	else		
+ 	{		
++		// The initializer for a scalar may be a single expression enclosed in braces
++		bool	braced = !prefix && ConsumeTokenIf(TK_OPEN_BRACE);
+ 		Expression* rexp = prefix ? prefix : ParseExpression(false);
++		if (braced)
++		{
++			if (ConsumeTokenIf(TK_COMMA) && mScanner->mToken != TK_CLOSE_BRACE)
++			{
++				mErrors->Error(mScanner->mLocation, EERR_CONSTANT_INITIALIZER, "Too many initializers for scalar");
++				do {
++					ParseExpression(false);
++				} while (ConsumeTokenIf(TK_COMMA) && mScanner->mToken != TK_CLOSE_BRACE);
++			}
++			ConsumeToken(TK_CLOSE_BRACE);
++		}
+ 		rexp = CoerceExpression(rexp, dtype);
+ 		exp = new Expression(rexp->mLocation, EX_INITIALIZATION);
+ 		exp->mToken = TK_ASSIGN;
+@@ -2864,7 +2877,20 @@ Expression* Parser::ParseConstInitExpression(Declaration* dtype, bool inner)
+ 	}
+ 	else
+ 	{
++		// The initializer for a scalar may be a single expression enclosed in braces
++		bool	braced = ConsumeTokenIf(TK_OPEN_BRACE);
+ 		exp = ParseRExpression();
++		if (braced)
++		{
++			if (ConsumeTokenIf(TK_COMMA) && mScanner->mToken != TK_CLOSE_BRACE)
++			{
++				mErrors->Error(mScanner->mLocation, EERR_CONSTANT_INITIALIZER, "Too many initializers for scalar");
++				do {
++					ParseRExpression();
++				} while (ConsumeTokenIf(TK_COMMA) && mScanner->mToken != TK_CLOSE_BRACE);
++			}
++			ConsumeToken(TK_CLOSE_BRACE);
++		}
+ 		if (dtype->mType == DT_TYPE_POINTER && exp->mDecType && exp->mDecType->mType == DT_TYPE_ARRAY && exp->mType == EX_CONSTANT)
+ 		{
+ 			Declaration* ndec = new Declaration(exp->mDecValue->mLocation, DT_CONST_POINTER);

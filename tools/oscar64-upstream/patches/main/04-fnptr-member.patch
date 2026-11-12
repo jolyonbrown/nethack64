@@ -1,0 +1,1097 @@
+From 66975d6f0ecbf8bd1a6ce57ce455104ef1e54774 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 01:50:49 +0000
+Subject: [PATCH] Fix function pointer members of global structs
+
+Since the function pointer optimizations (349b10a) the code generator and
+the -Ofp analysis take a function pointer's type from its declaration, so
+that the type rewritten by FunctionSets::CompleteAnalyze is seen. A member
+access to a global struct variable is constant folded to a DT_VARIABLE_REF
+of the variable plus an offset, and the variable itself was then used as
+the type: assigning w.fn = f failed with "Cannot assign incompatible types
+'w' != ...", calling w.fn() with "Not a simple type", and -Ofp crashed.
+Members of local structs and p->fn were not affected. The same unwrapping
+in GlobalAnalyzer registered no call edge for a call through such a member
+(also through a constant index into a global array of function pointers,
+or a variable index into an array member), so in native code the callee
+could overwrite parameters the caller still needed.
+
+Add Declaration::RefDeclaration, which finds the variable or struct member
+a DT_VARIABLE_REF designates by walking the aggregate type to its offset
+(arrays, nested structs, bit fields, base classes), and use it where the
+type or the slot of a function pointer is taken from a DT_VARIABLE_REF: the
+code generator, FunctionSets::Analyze and GlobalAnalyzer::Analyze. The
+constant folding itself is unchanged. GlobalAnalyzer falls back to the
+expression's type when the member cannot be resolved (a union), so the call
+is registered in any case. Keep the const and volatile qualifiers of the
+expression's type when the type is taken from the declaration, so assigning
+to a function pointer member of a const struct is rejected again.
+
+funcptrmembertest.c covers assignment and calls through s.m(), (*s.m)() and
+p->m for global, static and initialized globals, a struct declared with its
+variable, nested structs, array members, arrays of structs, bit field
+neighbours, a static local, an initialized struct reassigned in one
+function and called from another, the call edge of calls through a member,
+a constant array index and a variable index into an array member, and -Ofp.
+funcptrmemberaddrtest.c covers &w.fn, &w.arr[1], w.arr and w.arr + 1 as
+static initializers, two dimensional arrays and an anonymous union member.
+funcptrmemberconsttest.c with the funcptrmemberconstconstraints rule checks
+that assignments to const members are rejected. funcptrmemberbasetest.cpp
+covers a member inherited from a base class.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+---
+ autotest/autotest.bat              |  41 ++++
+ autotest/funcptrmemberaddrtest.c   | 180 +++++++++++++++
+ autotest/funcptrmemberbasetest.cpp |  87 +++++++
+ autotest/funcptrmemberconsttest.c  |  76 ++++++
+ autotest/funcptrmembertest.c       | 360 +++++++++++++++++++++++++++++
+ autotest/makefile                  |  34 ++-
+ oscar64/Declaration.cpp            |  50 ++++
+ oscar64/Declaration.h              |   1 +
+ oscar64/FunctionSets.cpp           |   3 +-
+ oscar64/GlobalAnalyzer.cpp         |  40 ++++
+ oscar64/InterCodeGenerator.cpp     |  28 ++-
+ 11 files changed, 893 insertions(+), 7 deletions(-)
+ create mode 100644 autotest/funcptrmemberaddrtest.c
+ create mode 100644 autotest/funcptrmemberbasetest.cpp
+ create mode 100644 autotest/funcptrmemberconsttest.c
+ create mode 100644 autotest/funcptrmembertest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index ff4124e..33752f0 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -12,6 +12,24 @@ rem @echo off
+ @call :testf funcvaropt.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test funcptrmembertest.c
++@if %errorlevel% neq 0 goto :error
++
++@call :testf funcptrmembertest.c
++@if %errorlevel% neq 0 goto :error
++
++@call :test funcptrmemberaddrtest.c
++@if %errorlevel% neq 0 goto :error
++
++@call :test funcptrmemberconsttest.c
++@if %errorlevel% neq 0 goto :error
++
++@call :testfuncptrmemberconstconstraints
++@if %errorlevel% neq 0 goto :error
++
++@call :test funcptrmemberbasetest.cpp
++@if %errorlevel% neq 0 goto :error
++
+ @call :test warningstacktest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+@@ -581,6 +599,29 @@ exit /b %errorlevel%
+ @del c23enumtest.log
+ @exit /b 0
+ 
++:testfuncptrmemberconstconstraints
++@for %%M in (-n -bc) do @for %%C in (GLOBAL LOCAL STATIC_LOCAL POINTER ARRAY NESTED ARRAY_OF_STRUCTS) do (
++	@call :testfuncptrmemberconstinvalid %%M %%C
++	@if errorlevel 1 @exit /b 1
++)
++@exit /b 0
++
++:testfuncptrmemberconstinvalid
++..\bin\oscar64 -g %~1 -dFUNCPTR_CONST_%~2 -o=funcptrmemberconstinvalid.prg funcptrmemberconsttest.c > funcptrmemberconsttest.log 2>&1
++@if %errorlevel% neq 20 (
++	@type funcptrmemberconsttest.log
++	@del funcptrmemberconsttest.log
++	@exit /b 1
++)
++@findstr /c:"error 3014: Cannot assign to const type" funcptrmemberconsttest.log > nul
++@if %errorlevel% neq 0 (
++	@type funcptrmemberconsttest.log
++	@del funcptrmemberconsttest.log
++	@exit /b 1
++)
++@del funcptrmemberconsttest.log
++@exit /b 0
++
+ :testenumrangeconstraints
+ @for %%M in (-n -bc) do @for %%C in (EXPLICIT UPPER LOWER IMPLICIT WIDE) do @for %%P in (warning promoted) do (
+ 	@call :testenuminvalid %%M %%C %%P
+diff --git a/autotest/funcptrmemberaddrtest.c b/autotest/funcptrmemberaddrtest.c
+new file mode 100644
+index 0000000..20554d1
+--- /dev/null
++++ b/autotest/funcptrmemberaddrtest.c
+@@ -0,0 +1,180 @@
++#include <assert.h>
++
++// Function pointer members of global struct variables, cases not run with -Ofp:
++// the address of a member or of an element of an array member is a constant,
++// usable in a static initializer, multi dimensional arrays of function
++// pointers (-Ofp tracks only one array level), and members of anonymous
++// unions (not tracked by -Ofp)
++
++int add1(int x)
++{
++	return x + 1;
++}
++
++int add2(int x)
++{
++	return x + 2;
++}
++
++struct procs
++{
++	int		pad;
++	int		(*fn)(int x);
++	int		(*arr[2])(int x);
++};
++
++struct procs		gp;
++static struct procs	sp;
++
++struct nested
++{
++	char			c;
++	struct procs	p;
++}	np;
++
++struct t2
++{
++	int		pad;
++	int		(*fn[2][2])(int x);
++}	w2;
++
++int	(*tab[2][2])(int x);
++
++// a call through a member of an anonymous union, or through a variable index
++// into a two dimensional array member, must be registered as a call: the
++// caller keeps locals live across it, and the callee uses a helper with its
++// own locals. The operands stay small so that no intermediate result
++// overflows an int
++struct procsu
++{
++	int		pad;
++	union
++	{
++		int		(*fn)(int a, int b);
++		void *	vp;
++	};
++}	cwu;
++
++struct procs2
++{
++	int		pad;
++	int		(*fn[2][2])(int a, int b);
++}	cw2;
++
++__noinline int helper(int a, int b, int c, int d)
++{
++	int t[4];
++	t[0] = a * 3; t[1] = b * 5; t[2] = c * 7; t[3] = d * 11;
++	return t[0] + t[1] + t[2] + t[3];
++}
++
++__noinline int callee(int a, int b)
++{
++	int u = a + 10, v = b + 20, s = u * v;
++	return helper(u, v, s, a ^ b) + s;
++}
++
++__noinline int caller_union(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int r = cwu.fn(x, y);
++	return l1 + l2 + l3 + l4 + r;
++}
++
++__noinline int caller_2d(int i, int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int r = cw2.fn[i][1 - i](x, y);
++	return l1 + l2 + l3 + l4 + r;
++}
++
++int ref_caller(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int u = x + 10, v = y + 20, s = u * v;
++	int r = (u * 3 + v * 5 + s * 7 + (x ^ y) * 11) + s;
++	return l1 + l2 + l3 + l4 + r;
++}
++
++int	(**gpp)(int) = &gp.fn;
++int	(**spp)(int) = &sp.fn;
++int	(**npp)(int) = &np.p.fn;
++
++int	(**ap0)(int) = gp.arr;
++int	(**ap1)(int) = &gp.arr[1];
++int	(**ap2)(int) = sp.arr + 1;
++int	(*(*app)[2])(int) = &gp.arr;
++int	(**ap10)(int) = &w2.fn[1][0];
++
++int main(void)
++{
++	gp.fn = add1;
++	sp.fn = add2;
++	np.p.fn = add2;
++
++	assert((*gpp)(1) == 2);
++	assert((*spp)(1) == 3);
++	assert((*npp)(1) == 3);
++
++	assert(gpp == &gp.fn);
++	assert(npp == &np.p.fn);
++	assert((char *)gpp == (char *)&gp + sizeof(int));
++
++	*gpp = add2;
++	assert(gp.fn(1) == 3);
++
++	int	(**lpp)(int) = &sp.fn;
++	*lpp = add1;
++	assert(sp.fn(1) == 2);
++
++	// elements of an array member
++	assert(ap0 == &gp.arr[0]);
++	assert(ap1 == ap0 + 1);
++	assert(ap2 == &sp.arr[1]);
++	assert((char *)ap1 == (char *)&gp + sizeof(int) + 2 * sizeof(gp.fn));
++	*ap0 = add1;
++	*ap1 = add2;
++	assert(gp.arr[0](1) == 2 && gp.arr[1](1) == 3);
++	assert((*app)[1](1) == 3);
++	*ap2 = add2;
++	assert(sp.arr[1](1) == 3);
++
++	// static local
++	static struct procs		ls;
++	static int (**lsp)(int) = &ls.fn;
++	static int (**lsa)(int) = &ls.arr[1];
++	ls.fn = add1;
++	ls.arr[1] = add2;
++	assert((*lsp)(1) == 2);
++	assert((*lsa)(1) == 3);
++	assert(ls.fn(2) == 3 && ls.arr[1](2) == 4);
++
++	// two dimensional arrays
++	w2.fn[0][0] = add1;
++	w2.fn[1][1] = add2;
++	assert(w2.fn[0][0](1) == 2);
++	assert(w2.fn[1][1](1) == 3);
++	*ap10 = add2;
++	assert(w2.fn[1][0](1) == 3 && ap10 == &w2.fn[1][0]);
++	for (int i = 0; i < 2; i++)
++		assert(w2.fn[i][i](1) == 2 + i);
++
++	tab[0][0] = add1;
++	tab[1][1] = add2;
++	assert(tab[0][0](1) == 2);
++	assert(tab[1][1](1) == 3);
++
++	// call edge through a member of an anonymous union and through a variable
++	// index into a two dimensional array member
++	cwu.fn = callee;
++	cw2.fn[0][1] = callee;
++	cw2.fn[1][0] = callee;
++	for (int i = 0; i < 5; i++)
++	{
++		assert(caller_union(i, 2 * i + 1) == ref_caller(i, 2 * i + 1));
++		assert(caller_2d(i & 1, i, 2 * i + 1) == ref_caller(i, 2 * i + 1));
++	}
++	assert(cwu.fn(1, 2) == callee(1, 2));
++
++	return 0;
++}
+diff --git a/autotest/funcptrmemberbasetest.cpp b/autotest/funcptrmemberbasetest.cpp
+new file mode 100644
+index 0000000..62035c0
+--- /dev/null
++++ b/autotest/funcptrmemberbasetest.cpp
+@@ -0,0 +1,87 @@
++#include <assert.h>
++
++// Function pointer members inherited from a base class, in a global object:
++// assignment, call, and the call being registered (the caller keeps locals
++// live across it, the callee uses a helper with its own locals; the operands
++// stay small so that no intermediate result overflows an int)
++
++__noinline int helper(int a, int b, int c, int d)
++{
++	int t[4];
++	t[0] = a * 3; t[1] = b * 5; t[2] = c * 7; t[3] = d * 11;
++	return t[0] + t[1] + t[2] + t[3];
++}
++
++__noinline int callee(int a, int b)
++{
++	int u = a + 10, v = b + 20, s = u * v;
++	return helper(u, v, s, a ^ b) + s;
++}
++
++__noinline int leaf(int a, int b)
++{
++	return a * 2 + b;
++}
++
++struct Base
++{
++	int		pad;
++	int		(*fn)(int a, int b);
++};
++
++struct Middle : Base
++{
++	char	c;
++};
++
++struct Derived : Middle
++{
++	int		extra;
++	int		(*fn2)(int a, int b);
++};
++
++Derived	gd;
++
++__noinline int caller(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int r = gd.fn(x, y);
++	return l1 + l2 + l3 + l4 + r;
++}
++
++__noinline int caller2(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int r = gd.fn2(x, y);
++	return l1 + l2 + l3 + l4 + r;
++}
++
++int ref_caller(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int u = x + 10, v = y + 20, s = u * v;
++	int r = (u * 3 + v * 5 + s * 7 + (x ^ y) * 11) + s;
++	return l1 + l2 + l3 + l4 + r;
++}
++
++int main(void)
++{
++	gd.fn = leaf;
++	gd.fn2 = leaf;
++	gd.pad = 1; gd.c = 'c'; gd.extra = 2;
++	assert(gd.fn(3, 4) == 10 && (*gd.fn2)(3, 4) == 10);
++	assert(gd.pad == 1 && gd.c == 'c' && gd.extra == 2);
++
++	Base * b = &gd;
++	assert(b->fn(3, 4) == 10);
++	b->fn = callee;
++
++	gd.fn2 = callee;
++	for (int i = 0; i < 5; i++)
++	{
++		assert(caller(i, 2 * i + 1) == ref_caller(i, 2 * i + 1));
++		assert(caller2(i, 2 * i + 1) == ref_caller(i, 2 * i + 1));
++	}
++
++	return 0;
++}
+diff --git a/autotest/funcptrmemberconsttest.c b/autotest/funcptrmemberconsttest.c
+new file mode 100644
+index 0000000..fcd07b4
+--- /dev/null
++++ b/autotest/funcptrmemberconsttest.c
+@@ -0,0 +1,76 @@
++#include <assert.h>
++
++// Function pointer members of const structs: a call through the member
++// compiles, an assignment to it is rejected with "Cannot assign to const
++// type". Each FUNCPTR_CONST_* selector adds one invalid assignment, for the
++// funcptrmemberconstconstraints rule
++
++int add1(int x)
++{
++	return x + 1;
++}
++
++int add2(int x)
++{
++	return x + 2;
++}
++
++struct procs
++{
++	int		pad;
++	int		(*fn)(int x);
++	int		(*arr[2])(int x);
++};
++
++struct outer
++{
++	char				c;
++	const struct procs	in;
++};
++
++const struct procs	cw = { 0, add1, { add1, add2 } };
++struct procs		w;
++struct outer		ow = { 'o', { 1, add2, { add2, add1 } } };
++const struct procs	tab[2] = { { 0, add1, { add1, add1 } }, { 1, add2, { add2, add2 } } };
++
++__noinline int call_ptr(const struct procs * p, int x)
++{
++	return p->fn(x) + p->arr[1](x);
++}
++
++int main(void)
++{
++	static const struct procs	ls = { 0, add2, { add1, add2 } };
++	const struct procs			lc = { 0, add1, { add2, add1 } };
++
++	assert(cw.fn(1) == 2 && cw.arr[1](1) == 3);
++	assert(ow.in.fn(1) == 3 && ow.in.arr[0](1) == 3);
++	assert(tab[1].fn(1) == 3 && tab[0].arr[1](1) == 2);
++	assert(ls.fn(1) == 3 && lc.fn(1) == 2);
++	assert(call_ptr(&cw, 1) == 2 + 3);
++	assert(call_ptr(&lc, 1) == 2 + 2);
++
++	w.fn = add2;
++	w.arr[0] = add1;
++	w.arr[1] = add1;
++	assert(w.fn(1) == 3 && call_ptr(&w, 1) == 3 + 2);
++
++#if defined(FUNCPTR_CONST_GLOBAL)
++	cw.fn = add2;
++#elif defined(FUNCPTR_CONST_LOCAL)
++	lc.fn = add2;
++#elif defined(FUNCPTR_CONST_STATIC_LOCAL)
++	ls.fn = add2;
++#elif defined(FUNCPTR_CONST_POINTER)
++	const struct procs *	p = &w;
++	p->fn = add2;
++#elif defined(FUNCPTR_CONST_ARRAY)
++	cw.arr[1] = add2;
++#elif defined(FUNCPTR_CONST_NESTED)
++	ow.in.fn = add2;
++#elif defined(FUNCPTR_CONST_ARRAY_OF_STRUCTS)
++	tab[1].fn = add2;
++#endif
++
++	return 0;
++}
+diff --git a/autotest/funcptrmembertest.c b/autotest/funcptrmembertest.c
+new file mode 100644
+index 0000000..5ac9aab
+--- /dev/null
++++ b/autotest/funcptrmembertest.c
+@@ -0,0 +1,360 @@
++#include <assert.h>
++
++// Function pointer members of global struct variables: assignment, call
++// through s.m(...), (*s.m)(...) and p->m(...), with and without -Ofp
++
++int add1(int x)
++{
++	return x + 1;
++}
++
++int add2(int x)
++{
++	return x + 2;
++}
++
++int add3(int x)
++{
++	return x + 3;
++}
++
++int mul(int x, int y)
++{
++	return x * y;
++}
++
++int sub(int x, int y)
++{
++	return x - y;
++}
++
++static int called;
++
++void setcalled(void)
++{
++	called = 1;
++}
++
++void setcalled_str(const char * s)
++{
++	called = s[0];
++}
++
++struct procs
++{
++	int		(*fn)(int x);
++	int		(*fn2)(int x, int y);
++	void	(*vfn)(void);
++	void	(*sfn)(const char * s);
++};
++
++struct procs		gp;
++static struct procs	sp;
++struct procs		ip = { add1, mul, setcalled, setcalled_str };
++
++// struct declared together with its variable
++struct
++{
++	int		(*fn)(int x);
++}	dp;
++
++// nested struct and array of function pointers
++struct nested
++{
++	char			c;
++	struct procs	p;
++}	np;
++
++struct arrmem
++{
++	int		(*fn[2])(int x);
++}	ap;
++
++// initialized array member at a non zero offset
++struct arrinit
++{
++	int		pad;
++	int		(*fn[2])(int x);
++}	ai = { 123, { add1, add2 } };
++
++// array of structs and struct holding an array of structs, initialized
++struct item
++{
++	char	name;
++	int		(*fn)(int x);
++};
++
++struct item		objects[3] = { { 'a', add1 }, { 'b', add2 }, { 'c', add3 } };
++
++struct table
++{
++	int			pad;
++	struct item	it[2];
++}	tb = { 9, { { 'x', add2 }, { 'y', add3 } } };
++
++// bit fields around the function pointer: fn starts in the second byte of
++// the storage unit of a, so it must be found by the bits used, not by the
++// size of the bit field's type
++struct bits
++{
++	unsigned	a : 3;
++	unsigned	b : 5;
++	int			(*fn)(int x);
++	unsigned	c : 4;
++}	bf;
++
++// initialized, then reassigned in one function and called from another:
++// the write must not be removed as a store to a constant
++struct procs1
++{
++	int		pad;
++	int		(*fn)(int x);
++};
++
++struct procs1			rw = { 0, add1 };
++static struct procs1	rs = { 0, add1 };
++
++struct arrinit			ra = { 0, { add1, add1 } };
++
++struct nested1
++{
++	char			c;
++	struct procs1	p;
++}	rn = { 'n', { 0, add1 } };
++
++__noinline void reassign(void)
++{
++	rw.fn = add2;
++	rs.fn = add2;
++	ra.fn[1] = add2;
++	rn.p.fn = add2;
++}
++
++__noinline int call_reassigned(int x)
++{
++	return rw.fn(x) + rs.fn(x) + ra.fn[1](x) + rn.p.fn(x);
++}
++
++// a call through a member must be registered as a call: the caller keeps
++// locals live across it, and the callee uses a helper with its own locals.
++// The operands stay small so that no intermediate result overflows an int
++struct procs2
++{
++	int		(*fn)(int a, int b);
++}	cw;
++
++struct procsarr
++{
++	int		pad;
++	int		(*fn[2])(int a, int b);
++}	cwa;
++
++int		(*carr[2])(int a, int b);
++
++__noinline int helper(int a, int b, int c, int d)
++{
++	int t[4];
++	t[0] = a * 3; t[1] = b * 5; t[2] = c * 7; t[3] = d * 11;
++	return t[0] + t[1] + t[2] + t[3];
++}
++
++__noinline int callee(int a, int b)
++{
++	int u = a + 10, v = b + 20, s = u * v;
++	return helper(u, v, s, a ^ b) + s;
++}
++
++__noinline int caller(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int r = cw.fn(x, y);
++	return l1 + l2 + l3 + l4 + r;
++}
++
++__noinline int caller_arr(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int r = carr[1](x, y);
++	return l1 + l2 + l3 + l4 + r;
++}
++
++__noinline int caller_varidx(int i, int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int r = cwa.fn[i](x, y);
++	return l1 + l2 + l3 + l4 + r;
++}
++
++int ref_caller(int x, int y)
++{
++	int l1 = x * 13, l2 = y * 17, l3 = x * y + 19, l4 = x - y;
++	int u = x + 10, v = y + 20, s = u * v;
++	int r = (u * 3 + v * 5 + s * 7 + (x ^ y) * 11) + s;
++	return l1 + l2 + l3 + l4 + r;
++}
++
++// as used by NetHack's window interface
++#define askname (*ip.vfn)
++
++__noinline void set_procs(struct procs * p, bool c)
++{
++	if (c)
++	{
++		p->fn = add1;
++		p->fn2 = mul;
++	}
++	else
++	{
++		p->fn = add2;
++		p->fn2 = sub;
++	}
++	p->vfn = setcalled;
++	p->sfn = setcalled_str;
++}
++
++__noinline int call_procs(struct procs * p, int x, int y)
++{
++	return p->fn(x) + (*p->fn2)(x, y);
++}
++
++__noinline int call_global(int x, int y)
++{
++	return gp.fn(x) + (*gp.fn2)(x, y);
++}
++
++__noinline int call_static(int x, int y)
++{
++	return sp.fn(x) + (*sp.fn2)(x, y);
++}
++
++__noinline int call_object(int i, int x)
++{
++	return objects[i].fn(x);
++}
++
++__noinline int call_static_local(int x)
++{
++	static struct procs1	ls = { 0, add1 };
++
++	int	r = ls.fn(x);
++	ls.fn = add2;
++	return r;
++}
++
++int main(void)
++{
++	// assign and call, global
++	gp.fn = add1;
++	gp.fn2 = mul;
++	gp.vfn = setcalled;
++	gp.sfn = setcalled_str;
++	assert(gp.fn(1) == 2);
++	assert((*gp.fn)(2) == 3);
++	assert(gp.fn2(3, 4) == 12);
++	assert((*gp.fn2)(5, 6) == 30);
++	called = 0; gp.vfn(); assert(called == 1);
++	called = 0; gp.sfn("x"); assert(called == 'x');
++	assert(call_global(2, 3) == 3 + 6);
++
++	// static global
++	sp.fn = add2;
++	sp.fn2 = sub;
++	assert(sp.fn(1) == 3);
++	assert((*sp.fn2)(5, 2) == 3);
++	assert(call_static(2, 3) == 4 - 1);
++
++	// global with initializer
++	assert(ip.fn(1) == 2);
++	assert(ip.fn2(3, 4) == 12);
++	called = 0; askname(); assert(called == 1);
++	called = 0; ip.sfn("y"); assert(called == 'y');
++
++	// struct declared together with its variable
++	dp.fn = add2;
++	assert(dp.fn(1) == 3);
++
++	// through a pointer to the global, functions chosen at runtime
++	for (int i = 0; i < 2; i++)
++	{
++		bool	c = i == 0;
++
++		set_procs(&gp, c);
++		assert(gp.fn(10) == (c ? 11 : 12));
++		assert(gp.fn2(10, 2) == (c ? 20 : 8));
++		assert(call_procs(&gp, 10, 2) == (c ? 11 + 20 : 12 + 8));
++		assert(call_global(10, 2) == (c ? 11 + 20 : 12 + 8));
++
++		set_procs(&sp, !c);
++		assert(call_static(10, 2) == (c ? 12 + 8 : 11 + 20));
++
++		called = 0; gp.vfn(); assert(called == 1);
++		called = 0; sp.sfn("z"); assert(called == 'z');
++	}
++
++	// nested struct
++	np.p.fn = add1;
++	np.p.fn2 = sub;
++	assert(np.p.fn(1) == 2);
++	assert((*np.p.fn2)(4, 1) == 3);
++
++	// array of function pointers
++	ap.fn[0] = add1;
++	ap.fn[1] = add2;
++	assert(ap.fn[0](1) == 2);
++	assert(ap.fn[1](1) == 3);
++	for (int i = 0; i < 2; i++)
++		assert(ap.fn[i](5) == 6 + i);
++
++	// initialized array member
++	assert(ai.pad == 123);
++	assert(ai.fn[0](1) == 2);
++	assert(ai.fn[1](1) == 3);
++	for (int i = 0; i < 2; i++)
++		assert(ai.fn[i](5) == 6 + i);
++
++	// array of structs
++	assert(objects[0].fn(1) == 2 && objects[1].fn(1) == 3 && objects[2].fn(1) == 4);
++	assert(call_object(1, 10) == 12);
++	objects[1].fn = add3;
++	assert(objects[1].fn(1) == 4 && call_object(1, 1) == 4);
++	assert(tb.it[0].fn(1) == 3 && tb.it[1].fn(1) == 4);
++	assert(tb.pad == 9 && tb.it[1].name == 'y');
++	tb.it[0].fn = add1;
++	assert(tb.it[0].fn(1) == 2);
++
++	// bit fields around the member
++	bf.a = 5; bf.b = 21; bf.c = 9;
++	bf.fn = add1;
++	assert(bf.fn(1) == 2);
++	assert(bf.a == 5 && bf.b == 21 && bf.c == 9);
++
++	// initialized, then reassigned
++	assert(call_reassigned(1) == 4 * 2);
++	reassign();
++	assert(call_reassigned(1) == 4 * 3);
++	assert(rw.fn(1) == 3 && rs.fn(1) == 3 && ra.fn[1](1) == 3 && rn.p.fn(1) == 3);
++	assert(ra.fn[0](1) == 2 && rn.c == 'n');
++
++	// static local
++	assert(call_static_local(1) == 2);
++	assert(call_static_local(1) == 3);
++
++	// call edge through a member, through a constant array index and through
++	// a variable index into an array member
++	cw.fn = callee;
++	carr[1] = callee;
++	cwa.fn[0] = callee;
++	cwa.fn[1] = callee;
++	for (int i = 0; i < 5; i++)
++	{
++		assert(caller(i, 2 * i + 1) == ref_caller(i, 2 * i + 1));
++		assert(caller_arr(i, 2 * i + 1) == ref_caller(i, 2 * i + 1));
++		assert(caller_varidx(i & 1, i, 2 * i + 1) == ref_caller(i, 2 * i + 1));
++	}
++
++	// member read as a value
++	int	(*f)(int) = gp.fn;
++	assert(f(7) == gp.fn(7));
++
++	return 0;
++}
+diff --git a/autotest/makefile b/autotest/makefile
+index 049d25c..e4bad79 100644
+--- a/autotest/makefile
++++ b/autotest/makefile
+@@ -2,7 +2,7 @@ SRCS=$(filter-out ambiguousoverload_trigger.c constconversionordertest_impl.c co
+ EXES=$(patsubst %.c,%,$(SRCS))
+ EXES:=$(patsubst %.cpp,%,$(EXES))
+ 
+-all: $(EXES) warningstackconstraints enumrangeconstraints c23enumconstraints diskimaged64test diskimagefulltest diskimaged71test diskimaged81test
++all: $(EXES) warningstackconstraints enumrangeconstraints c23enumconstraints funcptrmemberconstconstraints diskimaged64test diskimagefulltest diskimaged71test diskimaged81test
+ 
+ .PHONY: warningstackconstraints
+ warningstackconstraints: warningstacktest.c warningstacktest.h
+@@ -73,6 +73,21 @@ c23enumconstraints: c23enumtest.c
+ 		done; \
+ 	done
+ 
++.PHONY: funcptrmemberconstconstraints
++funcptrmemberconstconstraints: funcptrmemberconsttest.c
++	@set -e; \
++	for mode in -n -bc; do \
++		for selector in GLOBAL LOCAL STATIC_LOCAL POINTER ARRAY NESTED ARRAY_OF_STRUCTS; do \
++			status=0; \
++			output="$$($(OSCAR64_CC) -g $$mode -dFUNCPTR_CONST_$$selector -o=funcptrmemberconstinvalid.prg $< 2>&1)" || status=$$?; \
++			if [ $$status -ne 20 ] || ! printf '%s\n' "$$output" | grep -Fq 'error 3014: Cannot assign to const type'; then \
++				printf '%s\n' "$$output"; \
++				printf 'Expected const function pointer member diagnostic for %s %s and exit status 20, got %s\n' "$$mode" "$$selector" "$$status"; \
++				exit 1; \
++			fi; \
++		done; \
++	done
++
+ .PHONY: enumrangeconstraints
+ enumrangeconstraints: enumrangecheck.c
+ 	@set -e; \
+@@ -259,6 +274,23 @@ funcvaropt: funcvaropt.c
+ 	$(OSCAR64_CC) -ea -g -Os -Ofp -n $<
+ 	$(OSCAR64_CC) -ea -g -O3 -Ofp -n $<
+ 
++funcptrmembertest: funcptrmembertest.c
++	$(OSCAR64_CC) -ea -g -bc $<
++	$(OSCAR64_CC) -ea -g -n $<
++	$(OSCAR64_CC) -ea -g -O2 -bc $<
++	$(OSCAR64_CC) -ea -g -O2 -n $<
++	$(OSCAR64_CC) -ea -g -O0 -bc $<
++	$(OSCAR64_CC) -ea -g -O0 -n $<
++	$(OSCAR64_CC) -ea -g -Os -bc $<
++	$(OSCAR64_CC) -ea -g -Os -n $<
++	$(OSCAR64_CC) -ea -g -O3 -bc $<
++	$(OSCAR64_CC) -ea -g -O3 -n $<
++	$(OSCAR64_CC) -ea -g -Ofp -n $<
++	$(OSCAR64_CC) -ea -g -O2 -Ofp -n $<
++	$(OSCAR64_CC) -ea -g -O0 -Ofp -n $<
++	$(OSCAR64_CC) -ea -g -Os -Ofp -n $<
++	$(OSCAR64_CC) -ea -g -O3 -Ofp -n $<
++
+ opp_functional: opp_functional.cpp
+ 	$(OSCAR64_CC) -ea -g -n $<
+ 	$(OSCAR64_CC) -ea -g -O2 -n $<
+diff --git a/oscar64/Declaration.cpp b/oscar64/Declaration.cpp
+index 6408084..a7e90ed 100644
+--- a/oscar64/Declaration.cpp
++++ b/oscar64/Declaration.cpp
+@@ -1735,6 +1735,56 @@ Declaration* Declaration::NonRefBase(void)
+ 		return this;
+ }
+ 
++// The variable or struct member a DT_VARIABLE_REF into a global aggregate refers to,
++// found by its offset, or nullptr if the offset cannot be resolved to a member (a
++// union, or a member of an anonymous union). Function pointers are tracked by this
++// declaration, whose type may have been rewritten by the function pointer optimizer
++// after the expression was built
++Declaration* Declaration::RefDeclaration(void)
++{
++	Declaration* dec = mBase;
++	Declaration* type = dec->mBase;
++	int offset = mOffset;
++
++	for (;;)
++	{
++		if (type->mType == DT_TYPE_ARRAY && type->mBase->mSize > 0)
++		{
++			offset %= type->mBase->mSize;
++			type = type->mBase;
++		}
++		else if (type->mType == DT_TYPE_STRUCT)
++		{
++			// bit fields share bytes with their neighbours, so they span their bits, not their type
++			Declaration* mdec = type->mParams;
++			while (mdec && !(mdec->mType == DT_ELEMENT && !(mdec->mFlags & DTF_STATIC) && offset >= mdec->mOffset &&
++				offset < mdec->mOffset + (mdec->mBits ? (mdec->mShift + mdec->mBits + 7) / 8 : mdec->mSize)))
++				mdec = mdec->mNext;
++			if (mdec)
++			{
++				dec = mdec;
++				offset -= mdec->mOffset;
++				type = mdec->mBase;
++			}
++			else
++			{
++				// not an own member, look in the base classes
++				Declaration* bcdec = type->mBase;
++				while (bcdec && !(bcdec->mType == DT_BASECLASS && offset >= bcdec->mOffset && offset < bcdec->mOffset + bcdec->mBase->mSize))
++					bcdec = bcdec->mNext;
++				if (!bcdec)
++					return nullptr;
++				offset -= bcdec->mOffset;
++				type = bcdec->mBase;
++			}
++		}
++		else if (type->mType == DT_TYPE_UNION)
++			return nullptr;
++		else
++			return dec;
++	}
++}
++
+ bool Declaration::IsAuto(void) const
+ {
+ 	return (mType == DT_TYPE_AUTO || IsReference() && mBase->mType == DT_TYPE_AUTO);
+diff --git a/oscar64/Declaration.h b/oscar64/Declaration.h
+index f5cb4fe..2638eb1 100644
+--- a/oscar64/Declaration.h
++++ b/oscar64/Declaration.h
+@@ -397,6 +397,7 @@ public:
+ 	Declaration* BuildRValueRef(const Location& loc);
+ 	Declaration* BuildConstRValueRef(const Location& loc);
+ 	Declaration* NonRefBase(void);
++	Declaration* RefDeclaration(void);
+ 	Declaration* BuildArrayPointer(void);
+ 	Declaration* BuildAddressOfPointer(void);
+ 	Declaration* DeduceAuto(Declaration* dec);
+diff --git a/oscar64/FunctionSets.cpp b/oscar64/FunctionSets.cpp
+index dc6b91e..8a9944d 100644
+--- a/oscar64/FunctionSets.cpp
++++ b/oscar64/FunctionSets.cpp
+@@ -302,6 +302,7 @@ Declaration* FunctionSets::Analyze(Expression* exp, Declaration* procDec)
+ 	case EX_VARIABLE:
+ 	{
+ 		Declaration* vdec = exp->mDecValue;
++		Declaration* mdec = vdec->mType == DT_VARIABLE_REF ? vdec->RefDeclaration() : nullptr;
+ 		while (vdec->mType == DT_VARIABLE_REF)
+ 			vdec = vdec->mBase;
+ 
+@@ -310,7 +311,7 @@ Declaration* FunctionSets::Analyze(Expression* exp, Declaration* procDec)
+ 			AnalyzeGlobalVariable(vdec);
+ 		}
+ 
+-		return vdec;
++		return mdec ? mdec : vdec;
+ 	}
+ 	case EX_INITIALIZATION:
+ 	case EX_ASSIGNMENT:
+diff --git a/oscar64/GlobalAnalyzer.cpp b/oscar64/GlobalAnalyzer.cpp
+index 22178f2..4440312 100644
+--- a/oscar64/GlobalAnalyzer.cpp
++++ b/oscar64/GlobalAnalyzer.cpp
+@@ -1046,6 +1046,46 @@ Declaration * GlobalAnalyzer::Analyze(Expression* exp, Declaration* procDec, uin
+ 				vdec->mFlags |= DTF_ANALYZED;
+ 			}
+ 		}
++
++		if (exp->mDecValue->mType == DT_VARIABLE_REF)
++		{
++			// function pointer, or array of function pointers, in a global aggregate:
++			// return its type rather than the aggregate, so a call through it (also
++			// through a variable index into the array) is registered. Prefer the type
++			// of the resolved member, which the function pointer optimizer may have
++			// rewritten, with as many array levels as the expression still has
++			Declaration* etype = exp->mDecType;
++			int edepth = 0;
++			while (etype->mType == DT_TYPE_ARRAY)
++			{
++				etype = etype->mBase;
++				edepth++;
++			}
++
++			if (etype->IsFunctionType())
++			{
++				Declaration* mdec = exp->mDecValue->RefDeclaration();
++				if (mdec)
++				{
++					Declaration* mtype = mdec->mBase;
++					int mdepth = 0;
++					for (Declaration* t = mtype; t->mType == DT_TYPE_ARRAY; t = t->mBase)
++						mdepth++;
++					while (mdepth > edepth)
++					{
++						mtype = mtype->mBase;
++						mdepth--;
++					}
++					Declaration* ftype = mtype;
++					while (ftype->mType == DT_TYPE_ARRAY)
++						ftype = ftype->mBase;
++					if (mdepth == edepth && ftype->IsFunctionType())
++						return mtype;
++				}
++				return exp->mDecType;
++			}
++		}
++
+ 		return vdec;
+ 	}
+ 	case EX_INITIALIZATION:
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index 9e8379d..3455600 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -2672,10 +2672,21 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 				return ExValue(exp->mDecType->mBase, ins->mDst.mTemp, ref + 1);
+ 			else if (exp->mDecType->IsFunctionType())
+ 			{
+-				if (exp->mDecValue->mType == DT_VARIABLE_REF && exp->mDecValue->mBase->mBase->mType == DT_TYPE_ARRAY)
+-					return ExValue(exp->mDecValue->mBase->mBase->mBase, ins->mDst.mTemp, ref, lbits, lshift);
+-				else
+-					return ExValue(exp->mDecValue->mBase, ins->mDst.mTemp, ref, lbits, lshift);
++				Declaration* vdec = exp->mDecValue;
++				if (vdec->mType == DT_VARIABLE_REF)
++					vdec = vdec->RefDeclaration();
++				Declaration* ftype = exp->mDecType;
++				if (vdec)
++				{
++					ftype = vdec->mBase;
++					while (ftype->mType == DT_TYPE_ARRAY)
++						ftype = ftype->mBase;
++					if (exp->mDecType->mFlags & DTF_CONST)
++						ftype = ftype->ToConstType();
++					if (exp->mDecType->mFlags & DTF_VOLATILE)
++						ftype = ftype->ToVolatileType();
++				}
++				return ExValue(ftype, ins->mDst.mTemp, ref, lbits, lshift);
+ 			}
+ 			else
+ 				return ExValue(exp->mDecType, ins->mDst.mTemp, ref, lbits, lshift);
+@@ -3071,7 +3082,14 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 			if (exp->mDecType->IsReference())
+ 				return ExValue(exp->mDecType->mBase, ains->mDst.mTemp, 2);
+ 			else if (exp->mDecType->IsFunctionType())
+-				return ExValue(exp->mDecValue->mBase, ains->mDst.mTemp, 1, exp->mDecValue->mBits, exp->mDecValue->mShift);
++			{
++				Declaration* ftype = exp->mDecValue->mBase;
++				if (exp->mDecType->mFlags & DTF_CONST)
++					ftype = ftype->ToConstType();
++				if (exp->mDecType->mFlags & DTF_VOLATILE)
++					ftype = ftype->ToVolatileType();
++				return ExValue(ftype, ains->mDst.mTemp, 1, exp->mDecValue->mBits, exp->mDecValue->mShift);
++			}
+ 			else
+ 				return ExValue(exp->mDecType, ains->mDst.mTemp, 1, exp->mDecValue->mBits, exp->mDecValue->mShift);
+ 		}

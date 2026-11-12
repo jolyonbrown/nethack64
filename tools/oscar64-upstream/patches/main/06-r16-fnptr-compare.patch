@@ -1,0 +1,295 @@
+From 97d649deddae8f168b63f5addae2726d4c3f1db7 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 07:36:05 +0000
+Subject: [PATCH] Fix comparison of function pointer with function name
+
+A relational expression with a function designator as an operand
+(p == f, p != &f, f == p) was rejected with "Incompatible pointer
+types": the operand kept its function type, while the assignment,
+argument and return paths already convert a function to a pointer to
+it. EX_RELATIONAL now applies the same conversion before the pointer
+checks, so compatible function types compare and incompatible ones are
+still diagnosed.
+
+With -O2 and above the same error remained for a function that is only
+compared, never called or assigned: the global optimizer did not count
+the comparison as taking the function's address, so it removed the
+unused return value (and unused parameters) and changed the function's
+type away from the pointer's. The relational case in
+GlobalOptimizer::Analyze now registers its operands with RegisterProc,
+as assignment, argument, return and conditional operands already are.
+
+Builds on the null pointer constant comparison fix: with the function
+operand converted to a pointer, 0 == f takes the same path as 0 == &x
+and needs the 0 emitted as a null pointer constant.
+
+The new autotest funcptrcmptest.c covers == and != in both operand
+orders against a local, a global, a volatile and a struct member
+function pointer, &f, two function names, *p, casts, a function type
+declared through a typedef, use as a condition, comparison with 0 in
+both orders, functions with a return value or a parameter whose
+address is only compared, and a function that is compared and called
+directly but never assigned or passed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+---
+ autotest/autotest.bat          |   3 +
+ autotest/funcptrcmptest.c      | 202 +++++++++++++++++++++++++++++++++
+ oscar64/GlobalOptimizer.cpp    |   3 +
+ oscar64/InterCodeGenerator.cpp |   5 +
+ 4 files changed, 213 insertions(+)
+ create mode 100644 autotest/funcptrcmptest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 4a14415..0786bbc 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -429,6 +429,9 @@ rem @echo off
+ @call :test nullptrcmptest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test funcptrcmptest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test cplxstructtest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/funcptrcmptest.c b/autotest/funcptrcmptest.c
+new file mode 100644
+index 0000000..3780209
+--- /dev/null
++++ b/autotest/funcptrcmptest.c
+@@ -0,0 +1,202 @@
++#include <assert.h>
++
++// Comparing a function pointer with a function name: the function
++// designator converts to a pointer to the function (C89 3.3.9).
++
++void fa(const char * s)
++{
++	(void)s;
++}
++
++void fb(const char * s)
++{
++	(void)s;
++}
++
++struct procs
++{
++	int			pad;
++	void		(* raw_print)(const char * s);
++};
++
++typedef void (* fop)(const char * s);
++
++fop	gp;
++
++// Functions that are only compared, never called or assigned: the
++// global optimizer must keep their return value and parameters, or the
++// comparison fails with incompatible pointer types at -O2 and above.
++
++int fc(void)
++{
++	return 1;
++}
++
++int fd(int x)
++{
++	return 2;
++}
++
++static int fe(void);
++
++int		(* gq)(void);
++int		(* gr)(int x);
++
++static int fe(void)
++{
++	return 3;
++}
++
++// compared only, parameter unused: isolates parameter removal from
++// return value removal
++void ff(int x)
++{
++}
++
++void	(* gs)(int x);
++
++// compared, assigned and called through the pointer
++int fh(int x)
++{
++	return x * 3;
++}
++
++// compared and called directly, never assigned or passed: once the direct
++// call is inlined, only the comparison keeps the optimizer from changing
++// the function's type
++int fj(int x)
++{
++	return x * 5;
++}
++
++// declared through a typedef of the function type
++typedef int fn_t(void);
++
++fn_t	fi;
++
++fn_t *	gt;
++
++int fi(void)
++{
++	return 4;
++}
++
++int main(void)
++{
++	fop				p = fa;
++	volatile fop	vp = fa;
++	struct procs	w;
++
++	w.raw_print = fb;
++	gp = fa;
++
++	// pointer variable vs function name, both orders
++	assert(p == fa);
++	assert(fa == p);
++	assert(p != fb);
++	assert(fb != p);
++	assert(!(p == fb));
++	assert(!(p != fa));
++
++	// explicit address of a function
++	assert(p == &fa);
++	assert(&fa == p);
++	assert(p != &fb);
++	assert(&fb != p);
++
++	// struct member holding a function pointer
++	assert(w.raw_print == fb);
++	assert(fb == w.raw_print);
++	assert(w.raw_print != fa);
++	assert(fa != w.raw_print);
++	assert(w.raw_print == &fb);
++
++	// global function pointer variable
++	assert(gp == fa);
++	assert(fa == gp);
++	assert(gp != fb);
++
++	// two function names
++	assert(fa == fa);
++	assert(fa != fb);
++	assert(&fa == &fa);
++	assert(&fa != &fb);
++
++	// dereferenced function pointer is the function itself
++	assert(*p == fa);
++	assert(fa == *p);
++
++	// used as a condition
++	if (p == fa)
++		p = fb;
++	assert(p == fb);
++	if (p != fb)
++		p = fa;
++	assert(p == fb);
++
++	// volatile pointer, must be read
++	assert(vp == fa);
++	assert(fa == vp);
++	assert(vp != fb);
++	vp = fb;
++	assert(vp == fb);
++	assert(vp != fa);
++	assert(fb == vp);
++
++	// casts
++	p = fa;
++	assert((fop)fa == p);
++	assert(p != (fop)fb);
++	assert((fop)&fa == p);
++	assert((void *)fa == (void *)p);
++	assert((void *)fb != (void *)p);
++
++	// function name vs null pointer constant, both orders
++	assert(fa != 0);
++	assert(p != 0);
++	assert(0 != fa);
++	assert(0 != p);
++	assert(!(fa == 0));
++	assert(!(0 == fa));
++	assert(&fa != 0);
++	assert(0 != &fa);
++
++	// functions whose address is only compared, never called or assigned
++	assert(gq != fc);
++	assert(fc != gq);
++	assert(!(gq == fc));
++	assert(gr != fd);
++	assert(fd != gr);
++	assert(gq != fe);
++	assert(fe != gq);
++	assert(fc != fe);
++	if (gq == fc || gq == fe || gr == fd)
++		return 1;
++	assert(gs != ff);
++	assert(ff != gs);
++
++	// compared function that is also assigned and called through the pointer
++	assert(fh(4) == 12);
++	assert(gr != fh);
++	gr = fh;
++	assert(gr == fh);
++	assert(fh == gr);
++	assert(gr != fd);
++	assert(gr(5) == 15);
++
++	// compared function that is called directly, never assigned or passed
++	assert(fj(2) == 10);
++	assert(gr != fj);
++	assert(fj != gr);
++	assert(!(gr == fj));
++
++	// typedef'd function type
++	assert(gt != fi);
++	assert(fi != gt);
++	gt = fi;
++	assert(gt == fi);
++	assert(fi == gt);
++	assert(gt() == 4);
++
++	return 0;
++}
+diff --git a/oscar64/GlobalOptimizer.cpp b/oscar64/GlobalOptimizer.cpp
+index 159a4c1..caebb5d 100644
+--- a/oscar64/GlobalOptimizer.cpp
++++ b/oscar64/GlobalOptimizer.cpp
+@@ -1363,6 +1363,9 @@ Declaration* GlobalOptimizer::Analyze(Expression* exp, Declaration* procDec, uin
+ 	case EX_RELATIONAL:
+ 		ldec = Analyze(exp->mLeft, procDec, flags);
+ 		rdec = Analyze(exp->mRight, procDec, flags);
++		// A compared function is a function pointer value, keep its type
++		RegisterProc(ldec);
++		RegisterProc(rdec);
+ 		return TheBoolTypeDeclaration;
+ 
+ 	case EX_PREINCDEC:
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index 93ecd16..ec197cb 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -3729,6 +3729,11 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 			vr = ToValue(proc, exp, block, inlineMapper, vr);
+ 			vr = Dereference(proc, exp, block, inlineMapper, vr, vr.mType->mType == DT_TYPE_ARRAY ? 1 : 0);
+ 
++			// A function designator compares as a pointer to the function
++			if (vl.mType->mType == DT_TYPE_FUNCTION)
++				vl = ExValue(vl.mType->BuildPointer(exp->mLocation), vl.mTemp);
++			if (vr.mType->mType == DT_TYPE_FUNCTION)
++				vr = ExValue(vr.mType->BuildPointer(exp->mLocation), vr.mTemp);
+ 
+ 			InterInstruction	*	ins = new InterInstruction(MapLocation(exp, inlineMapper), IC_RELATIONAL_OPERATOR);
+ 

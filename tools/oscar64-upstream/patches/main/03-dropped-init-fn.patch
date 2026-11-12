@@ -1,0 +1,218 @@
+From 904c0400f093c4d59110497de634d3e0cdfce5bd Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 04:40:03 +0000
+Subject: [PATCH] Fix merging of identical functions whose address is taken
+
+Linker::CombineSameConst folds linker objects with identical bytes and
+references into one, and that includes function code. Two functions
+that compile to the same code, e.g. empty stubs or dead stores, were
+merged even when the program takes their addresses, so pointers to
+different functions compared equal and function pointer tables held
+the same entry twice. This happened at every level that enables
+COPT_OPTIMIZE_BASIC (-O1 and up, -n and -bc); -O0 was unaffected.
+
+Mark the linker object of a function with DTF_FUNC_VARIABLE (its
+address is used as a value) with LOBJF_FUNC_VARIABLE and exclude such
+objects from CombineSameConst. Functions that are only called directly
+are merged as before.
+
+Two related ways for distinct functions to share an address are closed
+as well: a function whose address is only used through a cast to an
+integer, (unsigned)f, was never given DTF_FUNC_VARIABLE because
+GlobalAnalyzer::Analyze did not register the operand of EX_TYPECAST
+(this also made its calling convention differ from an indirect call
+through that integer), and Linker::Forwards appended a function that
+is a bare JMP to its target, so both ended up at the same address.
+
+Prepared with AI assistance (Claude Code).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+---
+ autotest/autotest.bat          |  3 ++
+ autotest/funcptrmergetest.c    | 90 ++++++++++++++++++++++++++++++++++
+ oscar64/GlobalAnalyzer.cpp     |  1 +
+ oscar64/InterCodeGenerator.cpp |  3 ++
+ oscar64/Linker.cpp             |  6 +--
+ oscar64/Linker.h               |  2 +
+ 6 files changed, 102 insertions(+), 3 deletions(-)
+ create mode 100644 autotest/funcptrmergetest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index ff4124e..865150d 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test funcptrmergetest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test selectorzerofallthrough.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/funcptrmergetest.c b/autotest/funcptrmergetest.c
+new file mode 100644
+index 0000000..385b0e3
+--- /dev/null
++++ b/autotest/funcptrmergetest.c
+@@ -0,0 +1,90 @@
++#include <assert.h>
++
++// Functions with identical code whose address is taken must still
++// have distinct addresses, even if the linker merges identical
++// constant objects or appends a function to its tail call target.
++// This includes addresses that are only used as integers.
++
++typedef void (* fop)(const char * s);
++typedef void (* vfp)(void);
++typedef int (* ifn)(int);
++
++int seen, count;
++
++// seen is never read, so the stores are removed and fa, fb are identical
++
++void fa(const char * s) { (void)s; seen = 1; }
++void fb(const char * s) { (void)s; seen = 2; }
++
++void ga(const char * s) { (void)s; count++; }
++void gb(const char * s) { (void)s; count++; }
++
++// ja, jb are only used as integers
++
++void ja(const char * s) { (void)s; count++; }
++void jb(const char * s) { (void)s; count++; }
++
++// hb is a bare tail call of ha
++
++__noinline void ha(void) { count++; }
++__noinline void hb(void) { ha(); }
++
++// Called directly with a constant and indirectly through its address
++// as an integer
++
++__noinline int k(int x) { return x + 1; }
++
++volatile fop gp = fa;
++
++fop tab[2] = { ga, gb };
++
++struct procs
++{
++	fop	init, exit;
++};
++
++struct procs tty_procs = { ga, gb };
++struct procs * volatile wp = &tty_procs;
++
++volatile unsigned ia, ib;
++
++volatile vfp ht[2];
++
++int main(void)
++{
++	fop q = fb;
++	fop g = gb;
++
++	volatile int i = 0;
++
++	assert(gp != q);
++	assert(tab[i] != tab[i + 1]);
++	assert(wp->init != wp->exit);
++	assert(tab[i] == wp->init);
++	assert(tab[i + 1] == g);
++
++	tab[i]("a");
++	tab[i + 1]("b");
++	wp->init("c");
++	wp->exit("d");
++
++	assert(count == 4);
++
++	ia = (unsigned)ja;
++	ib = (unsigned)jb;
++	assert(ia != ib);
++	((fop)ib)("e");
++	assert(count == 5);
++
++	ht[0] = ha;
++	ht[1] = hb;
++	assert(ht[0] != ht[1]);
++	ht[1]();
++	assert(count == 6);
++
++	assert(k(5) == 6);
++	ia = (unsigned)k;
++	assert(((ifn)ia)(7) == 8);
++
++	return 0;
++}
+diff --git a/oscar64/GlobalAnalyzer.cpp b/oscar64/GlobalAnalyzer.cpp
+index 22178f2..aadbcbe 100644
+--- a/oscar64/GlobalAnalyzer.cpp
++++ b/oscar64/GlobalAnalyzer.cpp
+@@ -1383,6 +1383,7 @@ Declaration * GlobalAnalyzer::Analyze(Expression* exp, Declaration* procDec, uin
+ 		break;
+ 	case EX_TYPECAST:
+ 		ldec = Analyze(exp->mLeft, procDec, flags);
++		RegisterProc(ldec);
+ 		return exp->mDecType;
+ 
+ 	case EX_LOGICAL_AND:
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index 9e8379d..32c1e57 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -6528,7 +6528,10 @@ InterCodeProcedure* InterCodeGenerator::TranslateProcedure(InterCodeModule * mod
+ 		proc->mInterruptCalled = true;
+ 
+ 	if (dec->mFlags & DTF_FUNC_VARIABLE)
++	{
+ 		proc->mFuncVariable = true;
++		proc->mLinkerObject->mFlags |= LOBJF_FUNC_VARIABLE;
++	}
+ 
+ 	if ((dec->mFlags & DTF_DYNSTACK) || (dec->mFlags & DTF_FUNC_RECURSIVE))
+ 		proc->mDynamicStack = true;
+diff --git a/oscar64/Linker.cpp b/oscar64/Linker.cpp
+index 4a9152b..6cab927 100644
+--- a/oscar64/Linker.cpp
++++ b/oscar64/Linker.cpp
+@@ -468,7 +468,7 @@ bool Linker::Forwards(LinkerObject* pobj, LinkerObject* lobj)
+ {
+ 	if (lobj->mAlignment == 1 && pobj && lobj->mType == LOT_NATIVE_CODE && pobj->mType == LOT_NATIVE_CODE && lobj->mSection == pobj->mSection)
+ 	{
+-		if (pobj->mSize >= 3 && pobj->mData[pobj->mSize - 3] == 0x4c && pobj->mReferences.Size() > 0)
++		if (pobj->mSize >= 3 && pobj->mData[pobj->mSize - 3] == 0x4c && pobj->mReferences.Size() > 0 && !(pobj->mSize == 3 && (pobj->mFlags & LOBJF_FUNC_VARIABLE)))
+ 		{
+ 			int i = 0;
+ 			while (i < pobj->mReferences.Size() && pobj->mReferences[i]->mOffset != pobj->mSize - 2)
+@@ -558,13 +558,13 @@ void Linker::CombineSameConst(void)
+ 			while (dobj->mMapID != mObjects[dobj->mMapID]->mMapID)
+ 				dobj->mMapID = mObjects[dobj->mMapID]->mMapID;
+ 
+-			if ((dobj->mFlags & LOBJF_REFERENCED) && (dobj->mFlags & LOBJF_CONST) && dobj->mMapID == dobj->mID && dobj->mType != LOT_INLAY)
++			if ((dobj->mFlags & LOBJF_REFERENCED) && (dobj->mFlags & LOBJF_CONST) && !(dobj->mFlags & LOBJF_FUNC_VARIABLE) && dobj->mMapID == dobj->mID && dobj->mType != LOT_INLAY)
+ 			{
+ 				for (int j = i + 1; j < mObjects.Size(); j++)
+ 				{
+ 					LinkerObject* sobj(mObjects[j]);
+ 
+-					if ((sobj->mFlags & LOBJF_REFERENCED) && (sobj->mFlags & LOBJF_CONST) && sobj->mMapID == sobj->mID && sobj->mType != LOT_INLAY)
++					if ((sobj->mFlags & LOBJF_REFERENCED) && (sobj->mFlags & LOBJF_CONST) && !(sobj->mFlags & LOBJF_FUNC_VARIABLE) && sobj->mMapID == sobj->mID && sobj->mType != LOT_INLAY)
+ 					{
+ 						if (dobj->mSize == sobj->mSize && dobj->mSection == sobj->mSection && dobj->mReferences.Size() == sobj->mReferences.Size())
+ 						{
+diff --git a/oscar64/Linker.h b/oscar64/Linker.h
+index 9f80724..cde351c 100644
+--- a/oscar64/Linker.h
++++ b/oscar64/Linker.h
+@@ -181,6 +181,8 @@ static const uint32 LOBJF_LOCAL_USED = 0x02000000;
+ static const uint32 LOBJF_NO_GLOBAL_STORES = 0x04000000;
+ static const uint32 LOBJF_NO_GLOBAL_LOADS = 0x08000000;
+ 
++static const uint32 LOBJF_FUNC_VARIABLE = 0x10000000;
++
+ class LinkerObjectRange
+ {
+ public:

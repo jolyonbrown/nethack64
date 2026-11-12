@@ -1,0 +1,254 @@
+From e8e2d25fbe9c775b11a3a9e8548cde5a8ba33351 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 04:39:19 +0000
+Subject: [PATCH] Fix wrong exit data set of merged blocks and wrong exit block
+ after value select expansion
+
+MergeBasicBlocks appends a single entry successor to its predecessor
+and, since 83e805b, copies the successor's exit data set so the merged
+block keeps its exit values. The copy was made after mTrueJump had
+already been advanced, so the merged block took the data set of the
+block beyond the one it absorbed, and dereferenced a null pointer when
+the absorbed block had no successor. PutJump uses that set to turn a
+trailing JMP into a conditional branch when the Z or C flag is known,
+and with the wrong set it emitted a never taken BEQ for a nested
+conditional such as c ? 3 : (d ? 4 : 5), so the function fell off its
+end with native code generation. Copy the data set before advancing
+mTrueJump.
+
+The null dereference happened when the final MergeBasicBlocks absorbed
+the block holding the temporary RTS, which is only possible because
+ExpandADCToBranch, after splitting the exit block for a value select,
+handed the exit block role to the first arm of the new branch instead of
+the block that received the trailing instructions. Since fb67321 the RTS
+was therefore removed from the wrong block, and a function whose exit
+block still held a value select, such as a store of p ? 242 : -127 at
+its end, returned early and skipped its stores at every optimization
+level; 83e805b turned that silent miscompile into the crash. Hand the
+role to the first block behind the branch without successors, which is
+the block that inherited the exit block's missing successors along with
+the temporary RTS, and assert that the instruction removed as the
+temporary RTS is one.
+
+Adds two regression tests. Both fail with -n at every optimization
+level before the fix, the first with a wrong result, the second with
+the compiler crash.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+---
+ autotest/autotest.bat            |  6 +++
+ autotest/nestedternaryjumptest.c | 71 ++++++++++++++++++++++++++++++++
+ autotest/ternaryexitblocktest.c  | 49 ++++++++++++++++++++++
+ oscar64/NativeCodeGenerator.cpp  | 31 +++++++++++++-
+ 4 files changed, 155 insertions(+), 2 deletions(-)
+ create mode 100644 autotest/nestedternaryjumptest.c
+ create mode 100644 autotest/ternaryexitblocktest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index ff4124e..dface9d 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -462,6 +462,12 @@ rem @echo off
+ @call :test mixedwidthternary.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test nestedternaryjumptest.c
++@if %errorlevel% neq 0 goto :error
++
++@call :test ternaryexitblocktest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test signedbytestructreturn.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/nestedternaryjumptest.c b/autotest/nestedternaryjumptest.c
+new file mode 100644
+index 0000000..d2452d4
+--- /dev/null
++++ b/autotest/nestedternaryjumptest.c
+@@ -0,0 +1,71 @@
++#include <assert.h>
++
++// A nested conditional with int operands.  The inner "d ? 4 : 5" becomes
++// two one-instruction blocks that BranchAccuAlternativeElimination turns
++// into "LDA #1 / EOR #1 / ORA #4" followed by a jump to the common store.
++// MergeBasicBlocks then appended the "ORA #4" block to its single
++// predecessor, but copied the register data set of the block *after* it,
++// so the trailing JMP was emitted as a never taken BEQ and the function
++// fell off its end.
++//
++// f, fv and fs reproduce the bug (f and fv with -n and -n -O0, fs with
++// -n -O0).  fl and fp are controls that never failed; fp(&a, &b) also
++// takes the addresses of a and b, which keeps f and fv on full 16-bit
++// compares at -O2, -Os and -O3, where the bug then shows as well.
++
++__noinline int f(int c, int d)
++{
++	return c ? 3 : (d ? 4 : 5);
++}
++
++__noinline unsigned long fl(unsigned long c, unsigned long d)
++{
++	return c ? 3 : (d ? 4 : 5);
++}
++
++__noinline int fp(int * c, int * d)
++{
++	return *c ? 3 : (*d ? 4 : 5);
++}
++
++__noinline int fv(volatile int c, volatile int d)
++{
++	return c ? 3 : (d ? 4 : 5);
++}
++
++static int fs(int c, int d)
++{
++	return c ? 3 : (d ? 4 : 5);
++}
++
++int a = 0, b = 1;
++
++int main(void)
++{
++	assert(f(a, b) == 4);
++	assert(f(a, a) == 5);
++	assert(f(b, a) == 3);
++	assert(f(b, b) == 3);
++
++	assert(fl(a, b) == 4);
++	assert(fl(a, a) == 5);
++	assert(fl(b, a) == 3);
++	assert(fl(b, b) == 3);
++
++	assert(fp(&a, &b) == 4);
++	assert(fp(&a, &a) == 5);
++	assert(fp(&b, &a) == 3);
++	assert(fp(&b, &b) == 3);
++
++	assert(fv(a, b) == 4);
++	assert(fv(a, a) == 5);
++	assert(fv(b, a) == 3);
++	assert(fv(b, b) == 3);
++
++	assert(fs(0, 1) == 4);
++	assert(fs(0, 0) == 5);
++	assert(fs(1, 0) == 3);
++	assert(fs(1, 1) == 3);
++
++	return 0;
++}
+diff --git a/autotest/ternaryexitblocktest.c b/autotest/ternaryexitblocktest.c
+new file mode 100644
+index 0000000..f233b1a
+--- /dev/null
++++ b/autotest/ternaryexitblocktest.c
+@@ -0,0 +1,49 @@
++#include <assert.h>
++
++// Functions whose exit block holds a conditional that is still a
++// CMP/LDA #0/ADC #$ff/AND/EOR value select when ExpandADCToBranch turns it
++// into a branch and splits the block.  The remaining instructions,
++// including the temporary RTS, move to a new block behind one arm of the
++// branch, but the exit block role was handed to that arm.  The RTS was
++// then removed from the wrong block and the function returned early
++// without its stores, until 83e805b, which made the final MergeBasicBlocks
++// dereference a null successor instead, so the compiler crashed.
++//
++// For f the select survives to that point with -n -O0 only; for g, with
++// the int select, it survives at every optimization level, so g fails
++// with -n at every level.
++
++unsigned char ga, gb;
++int gi;
++
++__noinline unsigned char f(unsigned char p0, unsigned char p1)
++{
++	unsigned char r = p1;
++	if (r) ga = 8; else ga = 5;
++	gb = p0 ? 16 : 1;
++	return r;
++}
++
++__noinline void g(unsigned char p0, unsigned char p1)
++{
++	if (p0) ga = 2; else ga = 4;
++	gb = (p0 >> 2) & 1;
++	gi = p1 ? 242 : -127;
++}
++
++unsigned char z = 0, o = 1, v = 4;
++
++int main(void)
++{
++	assert(f(z, o) == 1 && ga == 8 && gb == 1);
++	assert(f(o, z) == 0 && ga == 5 && gb == 16);
++	assert(f(o, o) == 1 && ga == 8 && gb == 16);
++	assert(f(z, z) == 0 && ga == 5 && gb == 1);
++
++	g(z, z); assert(ga == 4 && gb == 0 && gi == -127);
++	g(o, o); assert(ga == 2 && gb == 0 && gi == 242);
++	g(v, z); assert(ga == 2 && gb == 1 && gi == -127);
++	g(z, v); assert(ga == 4 && gb == 0 && gi == 242);
++
++	return 0;
++}
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index bac77d0..22916dc 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -17081,8 +17081,8 @@ bool NativeCodeBasicBlock::MergeBasicBlocks(void)
+ 					mIns.Push(mTrueJump->mIns[i]);
+ 				mBranch = mTrueJump->mBranch;
+ 				mFalseJump = mTrueJump->mFalseJump;
+-				mTrueJump = mTrueJump->mTrueJump;
+ 				mNDataSet = mTrueJump->mNDataSet;
++				mTrueJump = mTrueJump->mTrueJump;
+ 				changed = true;
+ 			}
+ 
+@@ -26632,8 +26632,34 @@ bool NativeCodeBasicBlock::ExpandADCToBranch(void)
+ 
+ 		if (changed && this == mProc->mExitBlock && mTrueJump)
+ 		{
++			// The trailing instructions, including the temporary RTS, have been
++			// moved into a new block behind the new branch.  That block took
++			// over the missing successors of the exit block, so hand the exit
++			// block role to the first reachable block without successors
++
++			NativeCodeBasicBlock* eblock = nullptr;
++			ExpandingArray<NativeCodeBasicBlock*>	eblocks;
++			eblocks.Push(mTrueJump);
++			if (mFalseJump)
++				eblocks.Push(mFalseJump);
++			for (int i = 0; i < eblocks.Size() && i < 16 && !eblock; i++)
++			{
++				NativeCodeBasicBlock* b = eblocks[i];
++				if (!b->mTrueJump && !b->mFalseJump)
++					eblock = b;
++				else
++				{
++					if (b->mTrueJump && b->mTrueJump != this && !eblocks.Contains(b->mTrueJump))
++						eblocks.Push(b->mTrueJump);
++					if (b->mFalseJump && b->mFalseJump != this && !eblocks.Contains(b->mFalseJump))
++						eblocks.Push(b->mFalseJump);
++				}
++			}
++			if (!eblock)
++				eblock = mTrueJump;
++
+ 			mLocked = false;
+-			mProc->mExitBlock = mTrueJump;
++			mProc->mExitBlock = eblock;
+ 			mProc->mExitBlock->mLocked = true;
+ 		}
+ 
+@@ -73170,6 +73196,7 @@ void NativeCodeProcedure::Compile(InterCodeProcedure* proc)
+ 
+ 	// Remove temporary RTS
+ 
++	assert(mExitBlock->mIns.Size() > 0 && mExitBlock->mIns.Last().mType == ASMIT_RTS);
+ 	mExitBlock->mIns.Pop();
+ 
+ 	int frameSpace = tempSave;

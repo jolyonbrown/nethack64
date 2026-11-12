@@ -1,0 +1,183 @@
+From 9c0bcf682c88ca5578af51d8f1ac52e2a30ece4d Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 03:05:36 +0000
+Subject: [PATCH] Fix string literal to char * conversion in C
+
+In C a string literal has type char[N] (C89 3.1.4, C99 6.4.5), so it may
+initialise or be assigned to a char *. The parser typed every literal
+const char[N], the C++ type, so `static char *junk[] = {"ab", "c"};`
+failed with "Incompatible constant initializer" and a local
+`char *p = "x";`, an assignment or a char * argument with "Cannot assign
+incompatible types".
+
+The element type is now char in C and stays const char in C++. The array
+type itself keeps DTF_CONST, so the literal's data is still emitted as
+constant data; every program in the autotest and samples corpus that
+both compilers accept builds byte for byte the same.
+
+The test covers static, local and designated char * aggregates, a struct
+aggregate, a char *const table, a file-scope and a local scalar,
+assignment, argument passing, concatenation, the conditional operator
+with a volatile selector, pointer arithmetic, &"lit" as a pointer to
+array, a volatile char *, return, and that a char array, const char *
+and void * still accept a literal.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+---
+ autotest/autotest.bat               |   3 +
+ autotest/stringliteralcharptrtest.c | 111 ++++++++++++++++++++++++++++
+ oscar64/Parser.cpp                  |   8 +-
+ 3 files changed, 121 insertions(+), 1 deletion(-)
+ create mode 100644 autotest/stringliteralcharptrtest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index ff4124e..88a726d 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -450,6 +450,9 @@ rem @echo off
+ @call :test constlocaltest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test stringliteralcharptrtest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test structconditionaltest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/stringliteralcharptrtest.c b/autotest/stringliteralcharptrtest.c
+new file mode 100644
+index 0000000..acdc324
+--- /dev/null
++++ b/autotest/stringliteralcharptrtest.c
+@@ -0,0 +1,111 @@
++#include <assert.h>
++#include <string.h>
++
++// In C a string literal has type char[N], so it converts to char *
++// without a cast (C99 6.4.5); only C++ makes it const char[N].
++
++struct Named
++{
++	char*	name;
++	int		value;
++};
++
++static char* junk[] = { "Please disregard", "previous", "letter." };
++static struct Named named[] = { { "one", 1 }, { "two", 2 } };
++static char* const fixed[] = { "AHEAD", "LEFT", "RIGHT", "BEHIND" };
++static char* sparse[4] = { [2] = "z", [0] = "y" };
++static char* gp = "global";
++
++static int count(char* s)
++{
++	int n = 0;
++	while (*s++)
++		n++;
++	return n;
++}
++
++static char* pick(int i)
++{
++	return i ? "yes" : "no";
++}
++
++int main(void)
++{
++	// The selector is volatile so both arms of each conditional are taken at runtime
++	volatile int t = 1;
++	int f = t - 1;
++
++	assert(junk[0][7] == 'd');
++	assert(junk[1][0] == 'p');
++	assert(count(junk[2]) == 7);
++
++	assert(named[1].name[1] == 'w');
++	assert(named[0].value + named[1].value == 3);
++
++	assert(fixed[3][0] == 'B');
++	assert(count(fixed[1]) == 4);
++
++	assert(sparse[0][0] == 'y');
++	assert(sparse[1] == 0);
++	assert(sparse[2][0] == 'z');
++	assert(sparse[3] == 0);
++
++	assert(gp[0] == 'g');
++	gp = "changed";
++	assert(gp[1] == 'h');
++
++	char* local[] = { "ab", "cd", "e" };
++	assert(local[1][0] == 'c');
++	assert(count(local[2]) == 1);
++
++	struct Named one = { "local", 7 };
++	assert(one.name[0] == 'l');
++	assert(one.value == 7);
++
++	char* p = "local";
++	assert(count(p) == 5);
++	assert(strlen(p) == 5);
++
++	p = "ab" "cd";
++	assert(p[2] == 'c' && p[4] == 0);
++
++	assert(count("argument") == 8);
++
++	p = t ? "first" : "second";
++	assert(p[0] == 'f');
++	p = f ? "first" : "second";
++	assert(p[0] == 's');
++	p = f ? p : "both";
++	assert(p[0] == 'b');
++
++	p = "offset" + 3;
++	assert(p[0] == 's');
++	p = &"index"[2];
++	assert(p[0] == 'd');
++
++	assert(pick(t)[0] == 'y');
++	assert(pick(f)[1] == 'o');
++
++	volatile char* vp = "volatile";
++	assert(vp[3] == 'a');
++
++	char (*pa)[4] = &"abc";
++	assert(sizeof(*pa) == 4);
++	assert((*pa)[1] == 'b');
++
++	// Still fine: a literal initialises a char array, which is writable
++	char copy[] = "copy";
++	copy[0] = 'C';
++	assert(copy[0] == 'C' && copy[4] == 0);
++
++	// Still fine: const char * and void * accept a literal
++	const char* cp = "const";
++	assert(cp[4] == 't');
++	cp = junk[1];
++	assert(cp[0] == 'p');
++
++	void* v = "void";
++	assert(((char*)v)[0] == 'v');
++
++	return 0;
++}
+diff --git a/oscar64/Parser.cpp b/oscar64/Parser.cpp
+index 55d93e8..5351317 100644
+--- a/oscar64/Parser.cpp
++++ b/oscar64/Parser.cpp
+@@ -8120,7 +8120,13 @@ Expression* Parser::ParseSimpleExpression(bool lhs, bool tid)
+ 		dec->mSection = mCodeSection;
+ 		dec->mBase = new Declaration(mScanner->mLocation, DT_TYPE_ARRAY);
+ 		dec->mBase->mSize = dec->mSize;
+-		dec->mBase->mBase = TheConstCharTypeDeclaration;
++		// A string literal is const char[N] in C++ but char[N] in C (C99 6.4.5),
++		// so in C it converts to char *.  The array type stays const, so the
++		// data is still emitted as constant data.
++		if (mCompilerOptions & COPT_CPLUSPLUS)
++			dec->mBase->mBase = TheConstCharTypeDeclaration;
++		else
++			dec->mBase->mBase = TheCharTypeDeclaration;
+ 		dec->mBase->mFlags |= DTF_DEFINED | DTF_CONST;
+ 		uint8* d = new uint8[size + 1];
+ 		dec->mData = d;

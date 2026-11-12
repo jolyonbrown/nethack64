@@ -1,0 +1,373 @@
+From 702408519721cf9491cff5863f180476dac3457b Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 01:01:39 +0000
+Subject: [PATCH] Fix union pointer to const union pointer conversion
+
+A `union T *` could not be passed, assigned, returned or used to
+initialise a `const union T *` or a `volatile union T *`: error 3012
+"Cannot assign incompatible types 'const union u*' != 'union u*'"
+(3018 for a return). The same conversion works for struct and scalar
+pointers. Declaration::IsSubType returned false for every
+DT_TYPE_UNION, and a qualified union type is a separate Declaration,
+so the identity check at the top did not help. IsSameMutable and
+IsConstSame had a struct-only branch as well, so pointers to a union
+and to a const union could not be compared or subtracted, a union's
+copy constructor was not recognised, and in C++ an overload taking a
+pointer to const union was not viable for a pointer to the union at
+all, so f(const void*) was called instead; fixing IsSubType alone
+would make it viable but tie it with f(const void*) at the same rank.
+
+Unions now take the struct branch of all three predicates. Dropping a
+qualifier or mixing two differently tagged unions remains an error.
+
+unionptrconsttest.c covers the argument, assignment, initialisation
+and return forms with const, volatile and (through a typedef) const
+volatile, a typedef'd union, a pointer that already has one qualifier
+gaining the other, comparison and subtraction, an array of pointers to
+const union and a struct control. unionptroverloadtest.cpp covers
+overload resolution against const void*, an ellipsis and int,
+reference binding, comparison and the copy constructor.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+---
+ autotest/autotest.bat             |   6 ++
+ autotest/unionptrconsttest.c      | 160 ++++++++++++++++++++++++++++++
+ autotest/unionptroverloadtest.cpp | 103 +++++++++++++++++++
+ oscar64/Declaration.cpp           |   8 +-
+ 4 files changed, 272 insertions(+), 5 deletions(-)
+ create mode 100644 autotest/unionptrconsttest.c
+ create mode 100644 autotest/unionptroverloadtest.cpp
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index ff4124e..95abe38 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -489,6 +489,12 @@ rem @echo off
+ @call :test globalstoreordertest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test unionptrconsttest.c
++@if %errorlevel% neq 0 goto :error
++
++@call :test unionptroverloadtest.cpp
++@if %errorlevel% neq 0 goto :error
++
+ @exit /b 0
+ 
+ :error
+diff --git a/autotest/unionptrconsttest.c b/autotest/unionptrconsttest.c
+new file mode 100644
+index 0000000..26dd440
+--- /dev/null
++++ b/autotest/unionptrconsttest.c
+@@ -0,0 +1,160 @@
++#include <assert.h>
++
++/*
++ * A pointer to a union may gain qualifiers, like a pointer to a struct or
++ * to a scalar: as a function argument, in an assignment, in an
++ * initialisation and in a return statement (C89 3.3.16.1, 3.3.2.2, 3.6.6.4;
++ * C99 6.5.16.1, 6.5.2.2, 6.8.6.4). Pointers to the qualified and to the
++ * unqualified union may be compared and subtracted (C99 6.5.6, 6.5.8, 6.5.9).
++ */
++
++union Value
++{
++	int		i;
++	char	c[2];
++};
++
++struct Pair
++{
++	int		a, b;
++};
++
++typedef union Value Any;
++
++/* volatile CValue is a const volatile union Value */
++typedef const union Value CValue;
++
++static int read_const(const union Value* p)
++{
++	return p->i;
++}
++
++static int read_volatile(volatile union Value* p)
++{
++	return p->i;
++}
++
++static int read_const_volatile(volatile CValue* p)
++{
++	return p->i;
++}
++
++static int read_typedef(const Any* p)
++{
++	return p->i;
++}
++
++static int read_struct(const struct Pair* p)
++{
++	return p->a + p->b;
++}
++
++static const union Value* keep_const(union Value* p)
++{
++	return p;
++}
++
++static volatile union Value* keep_volatile(union Value* p)
++{
++	return p;
++}
++
++static volatile CValue* keep_const_volatile(union Value* p)
++{
++	return p;
++}
++
++static int sum_const(const union Value* const* pp, int n)
++{
++	int s = 0;
++	for (int i = 0; i < n; i++)
++		s += pp[i]->i;
++	return s;
++}
++
++int main(void)
++{
++	union Value v, w, arr[4];
++	struct Pair pr;
++	const union Value* cp;
++	volatile union Value* vp;
++	volatile CValue* cvp;
++	union Value* mp = &v;
++
++	v.i = 1234;
++	w.i = 4321;
++	pr.a = 20;
++	pr.b = 22;
++
++	/* argument */
++	assert(read_const(&v) == 1234);
++	assert(read_volatile(&v) == 1234);
++	assert(read_const_volatile(&v) == 1234);
++	assert(read_typedef(&v) == 1234);
++	assert(read_struct(&pr) == 42);
++
++	/* initialisation */
++	const union Value* ip = &v;
++	volatile union Value* jp = &w;
++	volatile CValue* kp = &v;
++	Any* tp = &v;
++	const Any* ctp = tp;
++	assert(ip->i == 1234);
++	assert(jp->i == 4321);
++	assert(kp->i == 1234);
++	assert(ctp->i == 1234);
++
++	/* assignment */
++	cp = &w;
++	assert(cp->i == 4321);
++	cp = mp;
++	assert(cp->i == 1234);
++	vp = &w;
++	assert(vp->i == 4321);
++	vp = mp;
++	assert(vp->i == 1234);
++
++	/* a pointer that already has one qualifier gains the other */
++	cvp = cp;
++	assert(cvp->i == 1234);
++	cvp = vp;
++	assert(cvp->i == 1234);
++	assert(read_const_volatile(cp) == 1234);
++	assert(read_const_volatile(vp) == 1234);
++
++	/* return */
++	assert(keep_const(&w)->i == 4321);
++	assert(keep_volatile(&w)->i == 4321);
++	assert(keep_const_volatile(&w)->i == 4321);
++
++	/* comparison and subtraction */
++	for (int i = 0; i < 4; i++)
++		arr[i].i = i;
++	cp = &arr[3];
++	mp = &arr[1];
++	vp = &arr[1];
++	assert(cp != mp);
++	assert(cp > mp);
++	assert(mp < cp);
++	assert(cp - mp == 2);
++	assert(mp - cp == -2);
++	assert(vp == mp);
++	assert(&arr[3] == cp);
++	assert(keep_const(mp) == mp);
++	assert(cp - 2 == mp);
++
++	/* array of pointers to const */
++	const union Value* ps[2];
++	ps[0] = &v;
++	ps[1] = &w;
++	assert(sum_const(ps, 2) == 5555);
++
++	/* writing through the mutable pointer is seen through the const one */
++	cp = &v;
++	mp = &v;
++	mp->i = 99;
++	assert(cp->i == 99);
++	assert(read_const(mp) == 99);
++
++	return 0;
++}
+diff --git a/autotest/unionptroverloadtest.cpp b/autotest/unionptroverloadtest.cpp
+new file mode 100644
+index 0000000..3e6d6ed
+--- /dev/null
++++ b/autotest/unionptroverloadtest.cpp
+@@ -0,0 +1,103 @@
++#include <assert.h>
++
++// Overload resolution with union arguments ranks like it does with struct
++// arguments: a pointer or reference that only gains a qualifier is a better
++// match than a conversion to const void*, to an ellipsis or to an integer.
++// A union with a user declared copy constructor is copied by calling it.
++
++union U
++{
++	int		i;
++	char	c;
++};
++
++struct S
++{
++	int		i;
++	char	c;
++};
++
++static int f(const U* p)
++{
++	return 1;
++}
++
++static int f(const void* p)
++{
++	return 2;
++}
++
++static int f(const S* p)
++{
++	return 3;
++}
++
++static int g(const U& r)
++{
++	return 1;
++}
++
++static int g(int k)
++{
++	return 2;
++}
++
++static int g(const S& r)
++{
++	return 3;
++}
++
++static int h(const U* p)
++{
++	return 1;
++}
++
++static int h(...)
++{
++	return 2;
++}
++
++union V
++{
++	int		i;
++	char	c;
++
++	V(int k)
++	{
++		i = k;
++	}
++
++	V(const V& o)
++	{
++		i = o.i + 1;
++	}
++};
++
++int main(void)
++{
++	U u;
++	S s;
++	u.i = 7;
++	s.i = 8;
++
++	assert(f(&u) == 1);
++	assert(f(&s) == 3);
++	assert(g(u) == 1);
++	assert(g(s) == 3);
++	assert(g(5) == 2);
++	assert(h(&u) == 1);
++
++	const U* cp = &u;
++	U* mp = &u;
++	const U& cr = u;
++	assert(cp == mp);
++	assert(!(cp != mp));
++	assert(cr.i == 7);
++	assert(g(cr) == 1);
++
++	V a(5);
++	V b(a);
++	assert(b.i == 6);
++
++	return 0;
++}
+diff --git a/oscar64/Declaration.cpp b/oscar64/Declaration.cpp
+index 6408084..1262241 100644
+--- a/oscar64/Declaration.cpp
++++ b/oscar64/Declaration.cpp
+@@ -2831,7 +2831,7 @@ bool Declaration::IsSubType(const Declaration* dec) const
+ 		return true;
+ 	else if (mType == DT_TYPE_BOOL || mType == DT_TYPE_FLOAT || mType == DT_TYPE_VOID)
+ 		return true;
+-	else if (mType == DT_TYPE_STRUCT || mType == DT_TYPE_ENUM)
++	else if (mType == DT_TYPE_STRUCT || mType == DT_TYPE_ENUM || mType == DT_TYPE_UNION)
+ 	{
+ 		// Matching structure tags remain compatible while either declaration is incomplete.
+ 		if (mScope == dec->mScope || (mIdent == dec->mIdent &&
+@@ -2851,8 +2851,6 @@ bool Declaration::IsSubType(const Declaration* dec) const
+ 
+ 		return false;
+ 	}
+-	else if (mType == DT_TYPE_UNION)
+-		return false;
+ 	else if (mType == DT_TYPE_ARRAY)
+ 		return mSize <= dec->mSize && mBase->IsSubType(dec->mBase);
+ 	else if (mType == DT_TYPE_FUNCTION)
+@@ -2907,7 +2905,7 @@ bool Declaration::IsSameMutable(const Declaration* dec) const
+ 		return mIdent == dec->mIdent;
+ 	else if (mType == DT_TYPE_POINTER || mType == DT_TYPE_ARRAY)
+ 		return this->Stride() == dec->Stride() && mBase->IsSame(dec->mBase);
+-	else if (mType == DT_TYPE_STRUCT)
++	else if (mType == DT_TYPE_STRUCT || mType == DT_TYPE_UNION)
+ 		return mScope == dec->mScope || (mIdent == dec->mIdent && mSize == dec->mSize);
+ 	else if (mType == DT_TYPE_FUNCTION)
+ 	{
+@@ -2966,7 +2964,7 @@ bool Declaration::IsConstSame(const Declaration* dec) const
+ 		return mIdent == dec->mIdent;
+ 	else if (mType == DT_TYPE_POINTER || mType == DT_TYPE_ARRAY)
+ 		return this->Stride() == dec->Stride() && mBase->IsSame(dec->mBase);
+-	else if (mType == DT_TYPE_STRUCT)
++	else if (mType == DT_TYPE_STRUCT || mType == DT_TYPE_UNION)
+ 		return mScope == dec->mScope || (mIdent == dec->mIdent && mSize == dec->mSize);
+ 	else if (mType == DT_TYPE_FUNCTION)
+ 	{

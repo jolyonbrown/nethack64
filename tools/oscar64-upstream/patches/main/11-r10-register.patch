@@ -1,0 +1,413 @@
+From d091911f4c68911c446991bea45ae82061ad4731 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 01:47:21 +0000
+Subject: [PATCH] Fix register storage class not accepted
+
+The register keyword was not known to the scanner, so any declaration
+using it (register int i; or a register parameter) failed with
+error 3005 "Identifier not defined 'register'". C89 3.5.1 / C99 6.7.1
+make register a storage-class specifier whose allocation hint may be
+ignored.
+
+Add a TK_REGISTER token next to TK_EXTERN, map the word to it in the
+scanner, and have the parser accept and ignore it the way it ignores
+typename: as a prefix in ParseBaseTypeDeclaration (locals, parameters,
+const register) and in the token lists that decide a declaration
+starts (ParseSimpleExpression, ParseStatement, IsTypeToken). The
+keyword is accepted and ignored in C++ as well. No code generation
+changes: the regression test compiled with the keyword and the same
+file compiled on main with -dregister= give byte-identical output in
+all ten autotest configurations.
+
+Because the word is now a keyword, #pragma register(name, address)
+no longer arrives as an identifier; ParsePragma handles TK_REGISTER
+first with the existing pragma body. Placing the token inside the
+TK_IF..TK_ASM range keeps #define register <body> a valid directive
+(the body is no longer left in the token stream); like every other
+keyword, such a macro is recorded under the token name and never
+expands, so #define register static, which took effect while register
+was an identifier, is now a no-op.
+
+The regression test registerstoragetest.c covers register locals,
+parameters of integer, pointer, struct pointer, long, float and
+typedef'd types, const register, register volatile, a register pointer
+with const, a prototype and function pointer type with a register
+parameter, for-init and nested block scopes, and #pragma register.
+After main, where they cannot hide the other uses from a preprocessor
+that expands them, an empty #define register precedes a function with
+register parameters, and an unused #define register ) checks that the
+replacement list stays out of the program text.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+---
+ autotest/autotest.bat          |   3 +
+ autotest/registerstoragetest.c | 169 +++++++++++++++++++++++++++++++++
+ oscar64/Parser.cpp             |  95 +++++++++---------
+ oscar64/Scanner.cpp            |   3 +
+ oscar64/Scanner.h              |   1 +
+ 5 files changed, 228 insertions(+), 43 deletions(-)
+ create mode 100644 autotest/registerstoragetest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index ff4124e..bec6f13 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test registerstoragetest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test selectorzerofallthrough.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/registerstoragetest.c b/autotest/registerstoragetest.c
+new file mode 100644
+index 0000000..82b3802
+--- /dev/null
++++ b/autotest/registerstoragetest.c
+@@ -0,0 +1,169 @@
++#include <assert.h>
++
++// Exercise register storage-class declarations (C89 3.5.1, C99 6.7.1)
++// for locals and function parameters; the allocation hint may be ignored.
++// The keyword must not break the zero page register pragma, which has
++// the same name, nor the preprocessor's handling of a macro named after it.
++
++#pragma register(__tmpy, 0x02)
++
++typedef unsigned short ushort;
++
++struct point
++{
++	int	x, y;
++};
++
++static int sum_bytes(register const unsigned char * p, register unsigned char n)
++{
++	register int	s = 0;
++
++	while (n--)
++		s += *p++;
++
++	return s;
++}
++
++static int manhattan(register struct point * pt)
++{
++	register int	dx = pt->x;
++	register int	dy = pt->y;
++
++	return dx + dy;
++}
++
++static ushort scale(register ushort v, const register ushort f)
++{
++	return v * f;
++}
++
++static long square(register long v)
++{
++	return v * v;
++}
++
++static float half(register float f)
++{
++	return f * 0.5;
++}
++
++static int count_nonzero(register const char * s)
++{
++	register int	n = 0;
++	register char	c;
++
++	while ((c = *s++) != 0)
++	{
++		if (c != '0')
++			n++;
++	}
++
++	return n;
++}
++
++// Prototype and definition may differ in the storage class
++static int add_one(register int v);
++
++static int add_one(int v)
++{
++	return v + 1;
++}
++
++static int apply(int (*fn)(register int), register int v)
++{
++	return fn(v);
++}
++
++static int sum_to(int n)
++{
++	register int	s = 0;
++
++	while (n > 0)
++	{
++		register int	t = n * 2;
++		s += t;
++		n--;
++	}
++
++	return s;
++}
++
++// Defined after main, so the macros below cannot hide the uses above
++// from a preprocessor that expands them
++static int defined_away(register int a, register int b);
++
++int main(void)
++{
++	register int			i, s = 0;
++	register unsigned char	c = 200;
++	register const char	*	text = "register";
++	register volatile int	v = 0;
++	static const unsigned char	bytes[] = {1, 2, 3, 4, 5};
++	struct point			pt = {3, 4};
++	int						tv = 5;
++	register int	*	const	p = &tv;
++
++	for (i = 0; i < 10; i++)
++		s += i;
++	assert(s == 45);
++
++	c += 100;
++	assert(c == 44);
++
++	assert(text[0] == 'r' && text[7] == 'r');
++
++	v = v + 2;
++	assert(v == 2);
++	assert(*p == 5);
++
++	assert(sum_bytes(bytes, 5) == 15);
++	assert(manhattan(&pt) == 7);
++	assert(scale(300, 100) == 30000);
++	assert(square(300L) == 90000L);
++	assert(half(3.0) == 1.5);
++	assert(count_nonzero("10203") == 3);
++	assert(add_one(41) == 42);
++	assert(apply(add_one, 1) == 2);
++	assert(sum_to(3) == 12);
++	assert(defined_away(10, 3) == 7);
++
++	for (register int k = 0; k < 4; k++)
++		s -= k;
++	assert(s == 39);
++
++	{
++		register ushort	u = 65535;
++		u++;
++		assert(u == 0);
++	}
++
++	switch (s)
++	{
++	case 39:
++	{
++		register int	t = s * 2;
++		assert(t == 78);
++		break;
++	}
++	default:
++		assert(0);
++	}
++
++	return 0;
++}
++
++// Code written for debuggers defines the word away; the keyword must
++// still be accepted with the macro in place
++#define register
++
++static int defined_away(register int a, register int b)
++{
++	register int	d = a - b;
++
++	return d;
++}
++
++// A replacement list for the keyword must not leak into the program
++// text; this one is never used and would not parse if it did
++#undef register
++#define register )
+diff --git a/oscar64/Parser.cpp b/oscar64/Parser.cpp
+index 55d93e8..4580024 100644
+--- a/oscar64/Parser.cpp
++++ b/oscar64/Parser.cpp
+@@ -944,6 +944,11 @@ Declaration* Parser::ParseBaseTypeDeclaration(uint64 flags, bool qualified, Decl
+ 		mScanner->NextToken();
+ 		return ParseBaseTypeDeclaration(flags, qualified);
+ 
++	case TK_REGISTER:
++		// Storage class hint only, has no effect on code generation
++		mScanner->NextToken();
++		return ParseBaseTypeDeclaration(flags, qualified);
++
+ 	case TK_LONG:
+ 		dec = new Declaration(mScanner->mLocation, DT_TYPE_INTEGER);
+ 		dec->mSize = 4;
+@@ -8038,6 +8043,7 @@ Expression* Parser::ParseSimpleExpression(bool lhs, bool tid)
+ 	case TK_MEMMAP:
+ 	case TK_TYPENAME:
+ 	case TK_EXTERN:
++	case TK_REGISTER:
+ 		exp = ParseDeclarationExpression(nullptr);
+ 		break;
+ 
+@@ -12496,6 +12502,7 @@ Expression* Parser::ParseStatement(void)
+ 		case TK_MEMMAP:
+ 		case TK_TYPENAME:
+ 		case TK_EXTERN:
++		case TK_REGISTER:
+ 			exp = CleanupExpression(ParseDeclarationExpression(nullptr));
+ 			break;
+ 
+@@ -14913,6 +14920,7 @@ bool Parser::IsTypeToken(void)
+ 	case TK_DECLTYPE:
+ 	case TK_MEMMAP:
+ 	case TK_TYPENAME:
++	case TK_REGISTER:
+ 		return true;
+ 	case TK_IDENT:
+ 	{
+@@ -14961,7 +14969,50 @@ void Parser::ParsePragma(void)
+ 	uint64 op = mScanner->mCompilerOptions;
+ 	mScanner->mCompilerOptions &= ~COPT_PETSCII;
+ 
+-	if (mScanner->mToken == TK_IDENT)
++	if (mScanner->mToken == TK_REGISTER)
++	{
++		// The zero page register pragma shares its name with the register keyword
++		mScanner->NextToken();
++		ConsumeToken(TK_OPEN_PARENTHESIS);
++		if (mScanner->mToken == TK_IDENT)
++		{
++			const Ident* reg = mScanner->mTokenIdent;
++			int	index = 0;
++			mScanner->NextToken();
++
++			ConsumeToken(TK_COMMA);
++			Expression* exp = ParseRExpression();
++			if (exp->mType == EX_CONSTANT && exp->mDecValue->mType == DT_CONST_INTEGER && exp->mDecValue->mInteger >= 2 && exp->mDecValue->mInteger < 0x100)
++				index = int(exp->mDecValue->mInteger);
++			else
++				mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Integer number for start expected");
++
++			if (!strcmp(reg->mString, "__tmpy"))
++				BC_REG_WORK_Y = index;
++			else if (!strcmp(reg->mString, "__tmp"))
++				BC_REG_WORK = index;
++			else if (!strcmp(reg->mString, "__ip"))
++				BC_REG_IP = index;
++			else if (!strcmp(reg->mString, "__accu"))
++				BC_REG_ACCU = index;
++			else if (!strcmp(reg->mString, "__addr"))
++				BC_REG_ADDR = index;
++			else if (!strcmp(reg->mString, "__sp"))
++				BC_REG_STACK = index;
++			else if (!strcmp(reg->mString, "__fp"))
++				BC_REG_LOCALS = index;
++			else if (!strcmp(reg->mString, "__sregs"))
++				BC_REG_TMP_SAVED = index;
++			else if (!strcmp(reg->mString, "__regs"))
++				BC_REG_TMP = index;
++			else
++				mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Unknown register name");
++		}
++		else
++			mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Register name expected");
++		ConsumeToken(TK_CLOSE_PARENTHESIS);
++	}
++	else if (mScanner->mToken == TK_IDENT)
+ 	{
+ 		if (!strcmp(mScanner->mTokenIdent->mString, "message"))
+ 		{
+@@ -15112,48 +15163,6 @@ void Parser::ParsePragma(void)
+ 			}
+ 			ConsumeToken(TK_CLOSE_PARENTHESIS);
+ 		}
+-		else if (!strcmp(mScanner->mTokenIdent->mString, "register"))
+-		{
+-			mScanner->NextToken();
+-			ConsumeToken(TK_OPEN_PARENTHESIS);
+-			if (mScanner->mToken == TK_IDENT)
+-			{
+-				const Ident* reg = mScanner->mTokenIdent;
+-				int	index = 0;
+-				mScanner->NextToken();
+-
+-				ConsumeToken(TK_COMMA);
+-				Expression* exp = ParseRExpression();
+-				if (exp->mType == EX_CONSTANT && exp->mDecValue->mType == DT_CONST_INTEGER && exp->mDecValue->mInteger >= 2 && exp->mDecValue->mInteger < 0x100)
+-					index = int(exp->mDecValue->mInteger);
+-				else
+-					mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Integer number for start expected");
+-
+-				if (!strcmp(reg->mString, "__tmpy"))
+-					BC_REG_WORK_Y = index;
+-				else if (!strcmp(reg->mString, "__tmp"))
+-					BC_REG_WORK = index;
+-				else if (!strcmp(reg->mString, "__ip"))
+-					BC_REG_IP = index;
+-				else if (!strcmp(reg->mString, "__accu"))
+-					BC_REG_ACCU = index;
+-				else if (!strcmp(reg->mString, "__addr"))
+-					BC_REG_ADDR = index;
+-				else if (!strcmp(reg->mString, "__sp"))
+-					BC_REG_STACK = index;
+-				else if (!strcmp(reg->mString, "__fp"))
+-					BC_REG_LOCALS = index;
+-				else if (!strcmp(reg->mString, "__sregs"))
+-					BC_REG_TMP_SAVED = index;
+-				else if (!strcmp(reg->mString, "__regs"))
+-					BC_REG_TMP = index;
+-				else
+-					mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Unknown register name");
+-			}
+-			else
+-				mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Register name expected");
+-			ConsumeToken(TK_CLOSE_PARENTHESIS);
+-		}
+ 		else if (!strcmp(mScanner->mTokenIdent->mString, "bytecode"))
+ 		{
+ 			mScanner->NextToken();
+diff --git a/oscar64/Scanner.cpp b/oscar64/Scanner.cpp
+index cf2558a..aee853e 100644
+--- a/oscar64/Scanner.cpp
++++ b/oscar64/Scanner.cpp
+@@ -50,6 +50,7 @@ const char* TokenNames[] =
+ 	"'static'",
+ 	"'auto'",
+ 	"'extern'",
++	"'register'",
+ 	"'inline'",
+ 	"'__assume'",
+ 	"'static_assert'",
+@@ -2030,6 +2031,8 @@ void Scanner::NextRawToken(void)
+ 					mToken = TK_AUTO;
+ 				else if (!strcmp(tkident, "extern"))
+ 					mToken = TK_EXTERN;
++				else if (!strcmp(tkident, "register"))
++					mToken = TK_REGISTER;
+ 				else if (!strcmp(tkident, "inline"))
+ 					mToken = TK_INLINE;
+ 				else if (!strcmp(tkident, "__asm"))
+diff --git a/oscar64/Scanner.h b/oscar64/Scanner.h
+index cd56d89..87c4aa9 100644
+--- a/oscar64/Scanner.h
++++ b/oscar64/Scanner.h
+@@ -47,6 +47,7 @@ enum Token : uint8
+ 	TK_STATIC,
+ 	TK_AUTO,
+ 	TK_EXTERN,
++	TK_REGISTER,
+ 	TK_INLINE,
+ 	TK_ASSUME,
+ 	TK_STATIC_ASSERT,
