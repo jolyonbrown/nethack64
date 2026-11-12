@@ -9,7 +9,8 @@ Add new tasks at the bottom of the right section.
 - [x] T0.1 Run `tools/setup-arch.sh` (or `setup-ubuntu.sh`), then `make && make test` → 5/5 PASS
       — 2026-11-09 Claude (toolchain already installed and checked instead: Oscar64 v1.32.273, VICE 3.7.1, gcc 13.3)
 - [x] T0.2 `make repros` → 11 repros, all BROKEN on v1.32.273 (baseline) — 2026-11-09 Claude
-      (r12-r18 added since: 18, all BROKEN)
+      (r12-r35 added since: 35, all BROKEN, 2026-11-12; r28 and r29 hang until run.py's
+      120 s timeout, so a run now takes about 4 minutes)
 - [x] T0.3 Commit the bundle — github.com/jolyonbrown/nethack64 (old 2020 import kept as tag `upstream-3.4.3`), 2026-11-08 Claude
 - [x] T0.4 `make port-tree`, `tools/host-build.sh`, `tests/host_smoke.py` → all ok;
       `port/` committed as the baseline, 2026-11-08 Claude
@@ -31,13 +32,17 @@ Add new tasks at the bottom of the right section.
 - [x] T1.5 "Undefined variable type" for incomplete extern arrays: repro. — 2026-11-09 Claude:
       not a compiler gap; the defining file is missing from the harness (compiles when
       present). Harness fix in T1.10.
-- [ ] T1.6 `makemon.c` compiler hang, `mhitm.c` abort, `shknam.c` segfault: bisect by
+- [x] T1.6 `makemon.c` compiler hang, `mhitm.c` abort, `shknam.c` segfault: bisect by
       deleting functions until each compiles; repro; upstream issue. — 2026-11-12
       Claude: gdb on v1.32.273 puts the `shknam.c` segfault in
       `InterCodeBasicBlock::LoadConstantOperand` from `ConstSingleLoopOptimization`
       (compile-time evaluation of a loop over a constant table); start the reduction
       from the file's loops over `shtypes[]` and friends. The proposed patched pin
-      (ADR-0007) does not change it.
+      (ADR-0007) does not change it. — 2026-11-12 Claude: all three reduced. `mhitm.c`
+      is r26 (#30, fixed by pin commit 8); `shknam.c` is r27 (#11b), the `shkgeneral`
+      count in `nameshk()`; `makemon.c` is r28 (#11), a struct copied onto itself, reached
+      only through the harness's pointer stubs (r34). Fixes: fork PRs #17 and #18 (T1.9)
+      and the pin candidates `pin-shknam-crash` and `pin-makemon-hang` (T1.16).
 - [ ] T1.7 Parenthesise the nested `?:` sites (r2) — list them with a grep first.
 - [ ] T1.8 Work around r15 (`union T *` does not convert to `const union T *`), which
       stops every `add_menu(..., &any, ...)`: NetHack is const-correct here, so this is a
@@ -53,9 +58,10 @@ Add new tasks at the bottom of the right section.
       (#438), r11, r13 (#90). — 2026-11-12 Jolyon's decisions (decision page; recorded
       in OSCAR64-UPSTREAM.md): every PR on hold, #14 (r13) not to be sent; fork created
       (github.com/jolyonbrown/oscar64), #1-#13 queued there as `fix/<id>` branches;
-      attribution one `Co-Authored-By: Claude` line, no session link. Next: push #15-#18
-      when final; when Jolyon approves a PR, rebase if upstream moved, do its page's
-      "Before submitting" items, open it, record its number in OSCAR64-COMPAT.md.
+      attribution one `Co-Authored-By: Claude` line, no session link. #15-#18 (repros
+      r26, r29, r27, r28) are queued there too. Next: when Jolyon approves a PR, rebase
+      if upstream moved, do its page's "Before submitting" items, open it, record its
+      number in OSCAR64-COMPAT.md.
 - [ ] T1.10 Measurement harness fixes, then re-measure both configs and re-baseline both:
       find definitions in preprocessed text (`files.c` `close()`, `mon.c` `impossible(`,
       duplicate stubs in `cmd.c`/`end.c`/`mkmaze.c`); variadic stubs with a body that has a
@@ -65,11 +71,18 @@ Add new tasks at the bottom of the right section.
       — 2026-11-12 Claude: also run each compile under a memory cap and report a kill by
       signal 9 (or `std::bad_alloc`) as "compiler-oom", not "compiler-crash": Oscar64 can
       grow without bound (PR #440 on `explode.c`), and on this 15 GB machine the kernel's
-      OOM killer then picks the compiler, or something else.
+      OOM killer then picks the compiler, or something else. — 2026-11-12 Claude: also
+      the pointer stubs. `return (T)nh_vp;` (`mkstubs.py` line 58) is not opaque: Oscar64
+      merges two such reads (r34), which is what hangs `makemon.c` (r28).
+      `return (T)(unsigned)nh_vl;` keeps every read; `makemon.c` then gets through
+      v1.32.273 and the pin (fits-not, once a `monstr` table is defined) and measures
+      about 1.3% bigger, so the present stubs understate sizes a little.
 - [ ] T1.11 `files.c` (C64 config) segfaults Oscar64 at `-Os` once `close()` is stubbed
       (`-O0` places it): bisect by deleting functions; repro; upstream issue. Same for
       `questpgr.c` (C64 config), which crashes Oscar64 once the r14 stubs get a body
-      (scratch harness, 2026-11-10).
+      (scratch harness, 2026-11-10). — 2026-11-12 Claude: the shknam-crash agent saw
+      `files.c` crash the patched pin in `NativeCodeBasicBlock::SplitAt` (native code
+      generator), not in any of the r27-r35 paths; no log was kept, not re-checked.
 - [ ] T1.12 Work around r12 (`decl.c` `occtxt = DUMMY` → `= 0`) and r13 (`mail.c`
       `junk[]` → `const char *`) in `port/`; check_ansi + host_smoke; re-measure.
 - [ ] T1.13 **r18, wrong code:** Oscar64 reads the `char`/`boolean` result of a call
@@ -93,9 +106,37 @@ Add new tasks at the bottom of the right section.
       caller's locals), identical functions with stored addresses merged, and r24
       (compile-time evaluation of a pointer test, no fix yet). The ADR-0007 compiler fixes
       all but r24. Then: count NetHack's exposure to each (which files change code with
-      each fix; read those diffs), and fix or work around r24.
+      each fix; read those diffs), and fix or work around r24. — 2026-11-12 Claude: three
+      more (OSCAR64-COMPAT.md #32, #34, #35): r30 (an array element forwarded past an
+      overwrite; NetHack not searched), r32 (`t[k]` of a `const` pointer table points 2k
+      bytes too far: `sounds.c:83` `throne_msg[2]`, `pager.c:680`) and r33 (`k[c + n]`
+      with 2c + 1 elements; no site found). Each has a candidate pin commit (`pin-r30`,
+      `pin-1ae3216`, `pin-charidx`; T1.16). r34 and r35 (#36, #37) do not reach game
+      code: T1.18, T1.19.
 - [ ] T1.16 Decide the compiler nethack64 builds with: ADR-0007 (v1.32.273 plus five
-      backported wrong-code fixes) or another option it lists. Jolyon.
+      backported wrong-code fixes) or another option it lists. Jolyon. — 2026-11-12
+      Claude: six candidate commits for the pin wait for Jolyon, one per fix, each built
+      and validated alone on the eight-commit pin (c2f5cab), not yet together:
+      `nethack64/pin-shknam-crash` (r27), `pin-makemon-hang` (r28), `pin-walks-display`
+      (r29), `pin-r30` (r30), `pin-1ae3216` (r32), `pin-charidx` (r33).
+      `pin-shknam-crash` without `pin-1ae3216` turns one loop shape from a crash into
+      wrong code (OSCAR64-COMPAT.md #11b).
+- [ ] T1.17 r31 (OSCAR64-COMPAT.md #33): at `-Os` Oscar64 aborts (assertion, SIGABRT) in
+      `BlockSizeCopyReduction`, which builds `LDY #-1` for the same value stored to three
+      or more bytes from offset 0 through a pointer. Hit by `invent.c` `display_pickinv()`
+      once `invent.c` gets past its first error (T1.4). Not fixed anywhere: write the fix
+      (probably `(mIns[si + 0].mAddress - 1) & 0xff` where the `LDY` is built) for upstream
+      main and the pin, with an autotest, or work around it in `invent.c`.
+- [ ] T1.18 r34 (#36): two reads of a `volatile` pointer through a pointer cast are merged
+      (wrong code on v1.32.273, the pin and main). No game code reads a volatile pointer
+      through a cast; the harness's pointer stubs do (the stub change is in T1.10). Write
+      the fix for upstream (the pointer-to-pointer `EX_TYPECAST` branch in
+      `InterCodeGenerator.cpp` drops `DTF_VOLATILE`) with an autotest.
+- [ ] T1.19 r35 (#37): `PropagateVariableCopy` keeps a stale struct copy after a `volatile`
+      struct copy (wrong code on every version). NetHack is not exposed (no volatile
+      struct copies), so low priority: put the review's trial fix (move
+      `ltemps.SetSize(j)` in front of `if (!ins->mVolatile)`) through the autotest and the
+      corpus, with an autotest of its own, for upstream.
 
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 

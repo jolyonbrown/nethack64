@@ -143,11 +143,12 @@ for nethack64 (C, native code, `-Os`, v1.32.273):
 times at `-O2`/`-O3`; four or more inline-asm stores into a global array read back
 wrong at `-n -O3`.
 
-**Compiler crashes on NetHack files with v1.32.273** (T1.6, T1.11): `shknam.c`
-segfaults in `InterCodeBasicBlock::LoadConstantOperand`, called from
-`ConstSingleLoopOptimization` (the compile-time loop evaluator reading a constant
-table; gdb backtrace 2026-11-12); `mhitm.c` and `makemon.c` did not finish within
-900 s under gdb. Not reduced yet.
+**Compiler crashes on NetHack files with v1.32.273** (T1.6, T1.11): all three
+reduced on 2026-11-12. `shknam.c` segfaults in `InterCodeBasicBlock::LoadConstantOperand`,
+called from `ConstSingleLoopOptimization` (the compile-time loop evaluator reading a
+constant table): r27, compat #11b, fixed by #17. `mhitm.c` is the memory runaway: r26,
+compat #30, fixed by #15. `makemon.c` hangs on a struct copied onto itself, reached only
+through the measurement harness's pointer stubs (r34): r28, compat #11, fixed by #18.
 
 **Preprocessor conformance** (`#if` with `?:` or `%`; a character dropped after
 `#define F(a)(a+1)`; `#x` stringify adds a trailing blank; `XSTR(x)` does not expand;
@@ -182,8 +183,8 @@ bytecode `-O0`, a segfault on keyword-named struct members.
   whose approach changed (#4, #5), and a last round that settled those findings.
 - An integration branch (`nethack64/integration-final3`: main plus the final commits of
   all 14 fixes) checks that they work together: the full autotest gives 1,756
-  emulations, 0 failing (the 1,541 of 4da3147 plus the new tests), and 21 of
-  nethack64's 25 repros pass with it
+  emulations, 0 failing (the 1,541 of 4da3147 plus the new tests), and 21 of the
+  25 repros nethack64 had then pass with it
   (the other four: r5, r6 and r11, which upstream will not change, and r24, which has
   no fix yet).
 
