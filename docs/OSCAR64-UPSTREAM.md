@@ -150,7 +150,7 @@ bytecode `-O0`, a segfault on keyword-named struct members.
   confirmed ones, re-validated from scratch and rewrote the PR text. Then a final
   read-only Codex check of each final commit, a second Opus review of the two fixes
   whose approach changed (#4, #5), and a last round that settled those findings.
-- An integration branch (`nethack64/integration-final2`: main plus the final commits of
+- An integration branch (`nethack64/integration-final3`: main plus the final commits of
   all 14 fixes) checks that they work together: the full autotest gives 1,756
   emulations, 0 failing (the 1,541 of 4da3147 plus the new tests), and 21 of
   nethack64's 25 repros pass with it
