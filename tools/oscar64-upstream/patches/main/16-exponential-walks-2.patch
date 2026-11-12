@@ -1,0 +1,520 @@
+From 3d70f44b8a9dca6d1ed98e86db567010de4c54e4 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 15:40:25 +0000
+Subject: [PATCH] Fix exponential walks and a stack overflow in native code
+ block checks
+
+Three checks in the native code generator walk the flow graph
+recursively and visited a block once per path instead of once. A run of
+N independent conditionals has 2^N paths through it, so the compile
+time doubled or tripled with every conditional added
+(IsSameRegisterSource at every native optimisation level, the other two
+above -O0); one of the three could also recurse without end.
+
+IsSameRegisterSource (does the A, X or Y register already hold the
+value this load gives, on every path into the block; for
+PartialBackwardValuePropagation and BackwardValuePropagation) walks all
+predecessors and stops at the first failure. It now keeps the (block,
+loop count) pairs it has verified. A pair seen again returns true, as
+it did the first time, because a failure would have ended the walk; the
+loop count is part of the key because it changes the answer at a loop
+head.
+
+CanJoinEntryLoadStoreZP (can a zero page copy move up into the blocks
+in front of a join) has the same shape and gets a visited set per
+check. Its result depends only on the block, and it still sets mChecked
+on every block it reaches, so DoJoinEntryLoadStoreZP changes the same
+blocks as before.
+
+CheckSingleUseGlobalLoadStruct (can a load be forwarded to the uses of
+the local it was stored in) is guarded by mPatched, but since 1073206
+(Fix too strong check for native structure copy forwarding) a block
+first reached behind an overwrite of the local is walked a second time,
+as poisoned, when a path reaches it without an overwrite, and nothing
+recorded that this had been done: every such path walked the block and
+everything behind it again. With a run of conditionals behind the block
+that is the same exponential walk. With a loop behind it that does not
+store to the local, the second walk came back to the block it started
+from, started again, and overflowed the stack: the compiler crashed on
+element_loop() of the new test.
+
+The second walk is now done once per block (mPatchRecheck). An arrival
+at a block whose second walk is still running fails as before: such a
+block has mPatchUsed set, and a second walk that completed has left it
+clear, since a poisoned walk fails at the first use it finds. The
+mPatchFail term added to that test is defensive: every arrival inside a
+second walk is poisoned or cleared, so the old condition already fails
+there. Repeating the second walk had one more effect, which is kept:
+started again from a block inside it, it could pass a block that
+overwrites the local and arrive, cleared, back at the block whose
+second walk was running, and fail there. This happens when an
+overwriting block leads straight back into a block that is walked a
+second time after it, so the overwriting block marks its successors
+(mPatchRejoin) and a marked block searches the blocks behind it for the
+overwriting block (CheckSingleUseGlobalLoadStructLoop). The check gives
+the same answer as before wherever the old one came back; where it
+overflowed the stack the answer is now false, which leaves the store in
+place.
+
+The test has one function per walk with 16, 24 and 14 conditionals,
+the loop that overflowed the stack, and four more shapes of the
+structure check with asserts on the values. The functions are called
+with more than one argument value so that the arguments are not folded
+into them. Without the fix the native configurations above -O0 crash
+after several seconds and -O0 takes a few seconds; with it each of the
+ten configurations compiles in about half a second or less.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat             |   3 +
+ autotest/conditionchainwalktest.c | 217 ++++++++++++++++++++++++++++++
+ oscar64/NativeCodeGenerator.cpp   | 104 +++++++++++++-
+ oscar64/NativeCodeGenerator.h     |   5 +-
+ 4 files changed, 324 insertions(+), 5 deletions(-)
+ create mode 100644 autotest/conditionchainwalktest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index eac6926..fd49300 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -339,6 +339,9 @@ rem @echo off
+ @call :test structsplittest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test conditionchainwalktest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test functionpointerparamtest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/conditionchainwalktest.c b/autotest/conditionchainwalktest.c
+new file mode 100644
+index 0000000..d0b71bd
+--- /dev/null
++++ b/autotest/conditionchainwalktest.c
+@@ -0,0 +1,217 @@
++#include <assert.h>
++
++// A run of independent conditionals between two uses of a value.  The
++// number of paths through the run doubles with every conditional, and
++// three walks over the flow graph visited a block once per path instead
++// of once:
++//
++// IsSameRegisterSource (does the A, X or Y register already hold the
++// value a load would give it, on every path into the block; here the
++// index 1 in Y for the second read through the pointer), vsum below
++// CanJoinEntryLoadStoreZP (moving a parameter copy up into the blocks
++// in front of a call), argjoin below
++// CheckSingleUseGlobalLoadStruct (forwarding an indexed load to the
++// uses of the local it was stored in), the element functions below
++//
++// The last one repeated its second check of a block, first reached
++// behind an overwrite, for every path, and never came back when the
++// blocks behind the overwrite formed a loop: element_loop crashed the
++// compiler with a stack overflow in the native configurations above -O0.
++//
++// Without the fix each of vsum, argjoin and element_chain takes about a
++// second or more to compile in the native configurations (vsum at every
++// optimisation level, the other two above -O0), and two or three times
++// as long for every conditional added.  With it the file compiles in a
++// fraction of a second.  The functions are called with more than one
++// argument value, so the arguments are not folded into them.
++
++#define CHAIN4(i) \
++	if (fl[i]) acc += 1; \
++	if (fl[i + 1]) acc += 2; \
++	if (fl[i + 2]) acc += 3; \
++	if (fl[i + 3]) acc += 4;
++
++#define CHAIN12 CHAIN4(0) CHAIN4(4) CHAIN4(8)
++#define CHAIN14 CHAIN12 if (fl[12]) acc += 1; if (fl[13]) acc += 2;
++#define CHAIN16 CHAIN12 CHAIN4(12)
++#define CHAIN24 CHAIN16 CHAIN4(16) CHAIN4(20)
++
++char		fl[64];
++char		arr[8] = {10, 20, 30, 40, 50, 60, 70, 80};
++char		cb = 5;
++char		gk;
++int		acc;
++
++volatile char	buf[4], buf2[4];
++
++__noinline void bump(void)
++{
++	acc++;
++}
++
++__noinline int use(char * p)
++{
++	return p[0] + p[1];
++}
++
++__noinline int isink(int x, int y)
++{
++	return 100 * x + y;
++}
++
++// Two reads of the same volatile byte through a pointer: the index stays
++// in the Y register across the chain, and is only loaded again on the
++// path that reads p[2]
++
++__noinline int vsum(volatile char * p)
++{
++	int s = 0;
++	s += p[1];
++	CHAIN16
++	if (gk) s += p[2];
++	s += p[1];
++	return s;
++}
++
++// The value is passed in a different argument position on the two paths
++// behind the chain
++
++__noinline int argjoin(int a, int b)
++{
++	int x = a * 3 + b;
++	CHAIN24
++	if (fl[63]) return isink(x, 1);
++	return isink(2, x);
++}
++
++// The element is overwritten in one arm in front of the chain
++
++__noinline int element_chain(char k)
++{
++	char t[4];
++	t[1] = 1;
++	t[0] = arr[k];
++	int r = 0;
++	if (fl[63]) { r = use(t); t[0] = cb; r += use(t); }
++	CHAIN14
++	return r;
++}
++
++// As before, the element is read behind the chain
++
++__noinline int element_chain_read(char k)
++{
++	char t[4];
++	t[1] = 1;
++	t[0] = arr[k];
++	int r = 0;
++	if (fl[63]) { r = use(t); t[0] = cb; r += use(t); }
++	CHAIN4(0)
++	return r + t[0];
++}
++
++// The element is read before it is overwritten in one arm
++
++__noinline int element_read_chain(char k)
++{
++	char t[4];
++	t[1] = 1;
++	t[0] = arr[k];
++	int r = t[0];
++	if (fl[63]) t[0] = cb;
++	CHAIN4(0)
++	return r + use(t);
++}
++
++// A loop behind the overwrite that does not touch the element
++
++__noinline int element_loop(char k)
++{
++	char t[4];
++	t[1] = 1;
++	t[0] = arr[k];
++	int r = 0;
++	if (fl[63]) { r = use(t); t[0] = cb; r += use(t); }
++	for (char i = 0; i < k; i++) acc += fl[i];
++	return r;
++}
++
++// A loop behind the overwrite that overwrites the element again
++
++__noinline int element_loop_store(char k)
++{
++	char t[4];
++	t[1] = 1;
++	t[0] = arr[k];
++	int r = 0;
++	if (fl[63]) { r = use(t); t[0] = cb; r += use(t); }
++	CHAIN4(0)
++	for (char i = 0; i < k; i++) { if (fl[i + 8]) t[0] = i; bump(); }
++	return r + t[0];
++}
++
++// A second overwrite behind the chain
++
++__noinline int element_two_stores(char k)
++{
++	char t[4];
++	t[1] = 1;
++	t[0] = arr[k];
++	int r = 0;
++	if (fl[63]) { r = use(t); t[0] = cb; r += use(t); }
++	CHAIN4(0)
++	if (fl[62]) t[0] = 9;
++	CHAIN4(4)
++	bump();
++	return r + use(t);
++}
++
++int main(void)
++{
++	buf[1] = 3;
++	buf[2] = 4;
++	buf2[1] = 7;
++	buf2[2] = 8;
++
++	assert(vsum(buf) == 6);
++	assert(argjoin(5, 2) == 217);
++	assert(argjoin(4, 5) == 217);
++	assert(element_chain(1) == 0);
++	assert(element_chain_read(1) == 20);
++	assert(element_read_chain(1) == 41);
++	assert(element_loop(3) == 0);
++	assert(element_loop_store(2) == 30);
++	assert(element_two_stores(2) == 31);
++	assert(acc == 3);
++
++	gk = 1;
++	fl[1] = 1;
++	fl[5] = 1;
++	fl[9] = 1;
++	fl[63] = 1;
++	acc = 0;
++
++	assert(vsum(buf2) == 22);
++	assert(acc == 2 + 2 + 2);
++	assert(argjoin(5, 2) == 1701);
++	assert(argjoin(4, 5) == 1701);
++	assert(element_chain(2) == 31 + 6);
++	assert(element_chain_read(2) == 31 + 6 + 5);
++	assert(element_read_chain(2) == 30 + 6);
++	assert(element_loop(2) == 31 + 6);
++	assert(element_loop_store(2) == 31 + 6 + 1);
++	assert(acc == 6 + 12 + 6 + 2 + 2 + 1 + 4);
++
++	fl[62] = 1;
++	assert(element_two_stores(2) == 31 + 6 + 10);
++	fl[63] = 0;
++	assert(element_two_stores(2) == 10);
++	fl[62] = 0;
++	assert(element_two_stores(3) == 41);
++	fl[8] = 1;
++	assert(element_loop_store(2) == 1);
++	assert(element_loop_store(1) == 0);
++	assert(element_loop_store(0) == 10);
++
++	return 0;
++}
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 6e1bb59..2607d49 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -31570,6 +31570,21 @@ void NativeCodeBasicBlock::MarkLive(uint32 live, int from, int to)
+ 
+ bool NativeCodeBasicBlock::CanJoinEntryLoadStoreZP(int saddr, int daddr)
+ {
++	ExpandingArray<NativeCodeBasicBlock*>	visited;
++	return CanJoinEntryLoadStoreZP(saddr, daddr, visited);
++}
++
++bool NativeCodeBasicBlock::CanJoinEntryLoadStoreZP(int saddr, int daddr, ExpandingArray<NativeCodeBasicBlock*>& visited)
++{
++	// A block seen before in this check has already been verified together
++	// with everything behind it, a failure would have ended the check.
++	// Without this the check visits a block once per path from the start
++	// block, which is exponential in the number of consecutive conditionals
++	// in between.
++	if (visited.IndexOf(this) != -1)
++		return true;
++	visited.Push(this);
++
+ 	mChecked = true;
+ 
+ 	// Avoid moving code into loops
+@@ -31599,7 +31614,7 @@ bool NativeCodeBasicBlock::CanJoinEntryLoadStoreZP(int saddr, int daddr)
+ 	{
+ 		for (int i = 0; i < mEntryBlocks.Size(); i++)
+ 		{
+-			if (!mEntryBlocks[i]->CanJoinEntryLoadStoreZP(saddr, daddr))
++			if (!mEntryBlocks[i]->CanJoinEntryLoadStoreZP(saddr, daddr, visited))
+ 				return false;
+ 		}
+ 
+@@ -35880,11 +35895,46 @@ bool NativeCodeBasicBlock::PatchSingleUseGlobalLoad(const NativeCodeBasicBlock*
+ }
+ 
+ 
++bool NativeCodeBasicBlock::CheckSingleUseGlobalLoadStructLoop(const NativeCodeBasicBlock* block, const NativeCodeInstruction& rins, const NativeCodeBasicBlock* target, ExpandingArray<NativeCodeBasicBlock*>& visited)
++{
++	if (visited.IndexOf(this) != -1)
++		return false;
++	visited.Push(this);
++
++	if (this == block)
++		return false;
++
++	for (int i = 0; i < mIns.Size(); i++)
++	{
++		const NativeCodeInstruction& ins(mIns[i]);
++
++		if (ins.SameEffectiveAddress(rins) && (ins.mType == ASMIT_STA || ins.mType == ASMIT_STX || ins.mType == ASMIT_STY))
++			return mTrueJump == target || mFalseJump == target;
++	}
++
++	if (mTrueJump && mTrueJump->mPatchFail && mTrueJump->CheckSingleUseGlobalLoadStructLoop(block, rins, target, visited))
++		return true;
++	if (mFalseJump && mFalseJump->mPatchFail && mFalseJump->CheckSingleUseGlobalLoadStructLoop(block, rins, target, visited))
++		return true;
++
++	return false;
++}
++
+ bool NativeCodeBasicBlock::CheckSingleUseGlobalLoadStruct(const NativeCodeBasicBlock* block, const NativeCodeInstruction& rins, int at, const NativeCodeInstruction& ains, bool cleared, bool poisoned)
+ {
+ 	bool	ok = true;
+-	if (!mPatched || mPatchFail && !cleared)
++
++	// A block first entered after an overwrite is checked a second time when
++	// a path reaches it without one, and that second check is needed once.
++	// Repeating it for every such path is exponential in the number of
++	// consecutive conditionals behind the block, and never ends when they
++	// form a loop.
++	if (!mPatched || mPatchFail && !cleared && !mPatchRecheck)
+ 	{
++		bool	recheck = mPatched;
++		if (recheck)
++			mPatchRecheck = true;
++
+ 		if (mPatchFail || this != block && !IsDominatedBy(block))
+ 			poisoned = true;
+ 
+@@ -35935,6 +35985,28 @@ bool NativeCodeBasicBlock::CheckSingleUseGlobalLoadStruct(const NativeCodeBasicB
+ 		{
+ 			mPatchUsed = used || !cleared;
+ 
++			if (recheck)
++			{
++				// Repeated second checks of the blocks behind this one failed when
++				// one of them overwrites the variable and then leads back here while
++				// this check is still running. They are not repeated any more, so
++				// look for that case here: the overwriting block marks the blocks it
++				// leads to, and a marked block searches for it.
++				if (cleared)
++				{
++					if (mTrueJump && mTrueJump->mPatchFail && !mTrueJump->mPatchRecheck)
++						mTrueJump->mPatchRejoin = true;
++					if (mFalseJump && mFalseJump->mPatchFail && !mFalseJump->mPatchRecheck)
++						mFalseJump->mPatchRejoin = true;
++				}
++				else if (mPatchRejoin)
++				{
++					ExpandingArray<NativeCodeBasicBlock*>	visited;
++					if (CheckSingleUseGlobalLoadStructLoop(block, rins, this, visited))
++						return false;
++				}
++			}
++
+ 			if (mTrueJump && !mTrueJump->CheckSingleUseGlobalLoadStruct(block, rins, 0, ains, cleared, poisoned))
+ 				return false;
+ 			if (mFalseJump && !mFalseJump->CheckSingleUseGlobalLoadStruct(block, rins, 0, ains, cleared, poisoned))
+@@ -35943,7 +36015,11 @@ bool NativeCodeBasicBlock::CheckSingleUseGlobalLoadStruct(const NativeCodeBasicB
+ 			mPatchUsed = used || (mTrueJump && mTrueJump->mPatchUsed) || (mFalseJump && mFalseJump->mPatchUsed);
+ 		}
+ 	}
+-	else if ((mPatchUsed && (poisoned || cleared)))
++	// A block whose second check is still running has mPatchUsed set, and a
++	// completed second check has left it clear. Every arrival inside a second
++	// check is poisoned or cleared, so it fails here as it did before; the
++	// mPatchFail term is defensive and does not change the result.
++	else if (mPatchUsed && (poisoned || cleared || mPatchFail))
+ 		return false;
+ 
+ 	return true;
+@@ -44649,6 +44725,24 @@ bool NativeCodeBasicBlock::ShortcutZeroPageCopyUp(NativeCodeProcedure* nproc)
+ 
+ bool NativeCodeBasicBlock::IsSameRegisterSource(const NativeCodeInstruction& rins, int nloops) const
+ {
++	ExpandingArray<const NativeCodeBasicBlock*>	visited;
++	ExpandingArray<int>							vloops;
++	return IsSameRegisterSource(rins, nloops, visited, vloops);
++}
++
++bool NativeCodeBasicBlock::IsSameRegisterSource(const NativeCodeInstruction& rins, int nloops, ExpandingArray<const NativeCodeBasicBlock*>& visited, ExpandingArray<int>& vloops) const
++{
++	// The result depends only on the block and the remaining loop count, and
++	// a failure anywhere ends the whole search, so a block seen before with
++	// the same count has already been verified. Without this check the
++	// search visits a block once per path from the start block, which is
++	// exponential in the number of consecutive conditionals in between.
++	for (int i = 0; i < visited.Size(); i++)
++		if (visited[i] == this && vloops[i] == nloops)
++			return true;
++	visited.Push(this);
++	vloops.Push(nloops);
++
+ 	for (int i = mIns.Size() - 1; i >= 0; i--)
+ 	{
+ 		const NativeCodeInstruction& ins(mIns[i]);
+@@ -44684,7 +44778,7 @@ bool NativeCodeBasicBlock::IsSameRegisterSource(const NativeCodeInstruction& rin
+ 	}
+ 
+ 	for (int i = 0; i < mEntryBlocks.Size(); i++)
+-		if (!mEntryBlocks[i]->IsSameRegisterSource(rins, nloops))
++		if (!mEntryBlocks[i]->IsSameRegisterSource(rins, nloops, visited, vloops))
+ 			return false;
+ 	return true;
+ }
+@@ -75855,6 +75949,8 @@ void NativeCodeProcedure::ResetPatched(void)
+ 		b->mPatched = false;
+ 		b->mPatchFail = false;
+ 		b->mPatchUsed = false;
++		b->mPatchRecheck = false;
++		b->mPatchRejoin = false;
+ 		b->mPatchChecked = false;
+ 		b->mPatchStart = false;
+ 		b->mPatchLoop = false;
+diff --git a/oscar64/NativeCodeGenerator.h b/oscar64/NativeCodeGenerator.h
+index ce355a8..a53f950 100644
+--- a/oscar64/NativeCodeGenerator.h
++++ b/oscar64/NativeCodeGenerator.h
+@@ -340,7 +340,7 @@ public:
+ 	ExpandingArray<NativeCodeBasicBlock*>	mEntryBlocks;
+ 
+ 	int							mOffset, mSize, mPlace, mNumEntries, mNumEntered, mFrameOffset, mTemp;
+-	bool						mPlaced, mCopied, mKnownShortBranch, mBypassed, mAssembled, mNoFrame, mVisited, mLoopHead, mVisiting, mLocked, mPatched, mPatchFail, mPatchChecked, mPatchUsed, mPatchStart, mPatchLoop, mPatchLoopChanged, mPatchExit;
++	bool						mPlaced, mCopied, mKnownShortBranch, mBypassed, mAssembled, mNoFrame, mVisited, mLoopHead, mVisiting, mLocked, mPatched, mPatchFail, mPatchChecked, mPatchUsed, mPatchStart, mPatchLoop, mPatchLoopChanged, mPatchExit, mPatchRecheck, mPatchRejoin;
+ 	bool						mEntryRegA, mEntryRegX, mEntryRegY, mExitRegA, mExitRegX, mChecked;
+ 	NativeCodeBasicBlock	*	mDominator, * mSameBlock;
+ 
+@@ -804,6 +804,7 @@ public:
+ 	bool JoinConditionSequence(void);
+ 
+ 	bool CanJoinEntryLoadStoreZP(int saddr, int daddr);
++	bool CanJoinEntryLoadStoreZP(int saddr, int daddr, ExpandingArray<NativeCodeBasicBlock*>& visited);
+ 	bool DoJoinEntryLoadStoreZP(int saddr, int daddr);
+ 	bool JoinEntryLoadStoreZP(void);
+ 
+@@ -880,6 +881,7 @@ public:
+ 	bool BackwardReplaceZeroPage(int at, int from, int to, bool diamond);
+ 
+ 	bool IsSameRegisterSource(const NativeCodeInstruction& rins, int nloops = 0) const;
++	bool IsSameRegisterSource(const NativeCodeInstruction& rins, int nloops, ExpandingArray<const NativeCodeBasicBlock*>& visited, ExpandingArray<int>& vloops) const;
+ 	bool PartialBackwardValuePropagation(void);
+ 	bool BackwardValuePropagation(void);
+ 	bool HoistCommonLoads(void);
+@@ -1052,6 +1054,7 @@ public:
+ 	// ains : instruction loading original data
+ 	// cycles : max number of cycles saving
+ 	bool CheckSingleUseGlobalLoadStruct(const NativeCodeBasicBlock* block, const NativeCodeInstruction& rins, int at, const NativeCodeInstruction& ains, bool cleared, bool poisoned);
++	bool CheckSingleUseGlobalLoadStructLoop(const NativeCodeBasicBlock* block, const NativeCodeInstruction& rins, const NativeCodeBasicBlock* target, ExpandingArray<NativeCodeBasicBlock*>& visited);
+ 	bool PatchSingleUseGlobalLoadStruct(const NativeCodeBasicBlock* block, const NativeCodeInstruction& rins, int at, const NativeCodeInstruction& ains);
+ 
+ 	// reg : base register pair to replace
+-- 
+2.43.0
+

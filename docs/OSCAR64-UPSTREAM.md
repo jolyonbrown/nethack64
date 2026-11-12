@@ -1,7 +1,8 @@
 # Oscar64 fixes proposed upstream
 
-Status 2026-11-12: 18 fixes written locally; #1-#15 finished and reviewed, #16-#18
-still in review. Nothing has been sent upstream: no PR, no issue. One page per
+Status 2026-11-12: 18 fixes finished. #1-#15 reviewed by Opus and Codex; #16-#18 by
+Opus, with a Codex check still to do before any of them goes upstream. Nothing has been
+sent upstream: no PR, no issue (17 queued as drafts in the fork, see below). One page per
 proposed PR in [`docs/oscar64-upstream/`](oscar64-upstream/), each with a plain
 explanation, the evidence, every review finding and what happened to it, the risks,
 and the draft PR text. The commits themselves are in
@@ -19,16 +20,17 @@ Jolyon), which shows each PR's explanation and records the choice:
 2. **Fork:** yes. Created 2026-11-12: <https://github.com/jolyonbrown/oscar64>
    (public). The finished PRs on hold are queued there as branches `fix/<id>`, one
    commit each on upstream main 4da3147 (#6 sits on #1), each with a **draft PR inside
-   the fork** carrying the upstream PR text: fork PRs #1-#13 are our #1-#13 (#6 targets
-   `fix/r19-null-compare`, so it shows only its own commit). #15 and #16-#18 follow once
-   final; #14 stays local. In the local clone the fork is the remote `fork`. Nothing on
+   the fork** carrying the upstream PR text: fork PRs #1-#13 and #15-#18 are our numbers
+   (#6 targets `fix/r19-null-compare` and #16 targets `fix/pr440-runaway`, so each shows
+   only its own commit). #14 stays local; the fork's number 14 is a closed placeholder
+   issue that keeps the numbers in step. In the local clone the fork is the remote `fork`. Nothing on
    the fork notifies anyone upstream. **Never merge a draft into the fork's `main`**: it
    mirrors upstream main, so that each branch stays one clean commit to send.
 3. **Attribution:** each commit ends with one `Co-Authored-By: Claude
    <noreply@anthropic.com>` line and no session link; each PR body ends with
    "Prepared with AI assistance (Claude Code); the numbers above come from the
    validation runs described." Applied to #1-#14 by a message-only rewrite (every
-   tree identical to the validated one); #15-#18 get it when finalised.
+   tree identical to the validated one); #15-#18 were finalised with it.
 4. **The compiler nethack64 builds with:** [ADR-0007](decisions/ADR-0007-oscar64-patched-pin.md)
    accepted (v1.32.273 plus `tools/oscar64-upstream/patches/pin/`). Adding a further
    fix to it (the `shknam.c` and `makemon.c` ones) is asked for each time.
@@ -78,6 +80,10 @@ each of those already).
 | 12 | [Fix spaces and tabs between '#' and a preprocessor directive name](oscar64-upstream/12-r7-hash-space.md) | rejects valid C (preprocessor) | r7 (#3): most headers | Submit. |
 | 13 | [Fix block comment continuing past the end of a #define line](oscar64-upstream/13-r8-define-comment.md) | rejects valid C (preprocessor) | r8 (#4): 16 lines | Submit. |
 | 14 | [Fix string literal to char * conversion in C](oscar64-upstream/14-r13-string-literal.md) | rejects valid C (by design upstream) | r13 (#17): `mail.c` | Do not open as a PR now. |
+| 15 | [Fix exponential walks over chains of conditionals](oscar64-upstream/15-pr440-runaway.md) | compiler runs out of memory (exposed on main by #440) | r26 (#30): `explode.c` | Submit early, with or right after #4: it fixes an out-of-memory regression that #440 exposed, and main needs #4 before it can compile `explode.c` at all. |
+| 16 | [Fix exponential walks and a stack overflow in native code block checks](oscar64-upstream/16-exponential-walks-2.md) | compiler hang (exponential compile time) and a stack-overflow crash, native code | r29: `display.c` | Submit after #15 (stacked on it); also built and validated alone on main (efc9d90), so it can go either way. |
+| 17 | [Fix compile time evaluation of loops over constant pointer tables](oscar64-upstream/17-shknam-crash.md) | compiler crash (with a wrong count behind it) | r27 (#11b): `shknam.c` | Submit after #1: on plain main this fix alone turns `0 != names[n]` loops from a crash into a wrong count of 0 until #1 is merged. |
+| 18 | [Fix endless loop on a struct copied onto itself](oscar64-upstream/18-makemon-hang.md) | compiler hang (endless optimiser loop) | r28: `makemon.c` (harness only) | Submit; low priority for the game (only the harness's fake allocator reaches it). |
 
 ## Upstream state (checked 2026-11-12)
 
