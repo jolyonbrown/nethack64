@@ -18,9 +18,12 @@ Jolyon), which shows each PR's explanation and records the choice:
    i guess that's their choice"). It stays a one-line workaround in `port/` (T1.12).
 2. **Fork:** yes. Created 2026-11-12: <https://github.com/jolyonbrown/oscar64>
    (public). The finished PRs on hold are queued there as branches `fix/<id>`, one
-   commit each on upstream main 4da3147 (#6 sits on #1): #1-#13 pushed 2026-11-12; #15
-   and #16-#18 are pushed once final; #14 stays local. In the local clone the fork is
-   the remote `fork`. A branch on the fork notifies nobody upstream.
+   commit each on upstream main 4da3147 (#6 sits on #1), each with a **draft PR inside
+   the fork** carrying the upstream PR text: fork PRs #1-#13 are our #1-#13 (#6 targets
+   `fix/r19-null-compare`, so it shows only its own commit). #15 and #16-#18 follow once
+   final; #14 stays local. In the local clone the fork is the remote `fork`. Nothing on
+   the fork notifies anyone upstream. **Never merge a draft into the fork's `main`**: it
+   mirrors upstream main, so that each branch stays one clean commit to send.
 3. **Attribution:** each commit ends with one `Co-Authored-By: Claude
    <noreply@anthropic.com>` line and no session link; each PR body ends with
    "Prepared with AI assistance (Claude Code); the numbers above come from the
@@ -32,13 +35,18 @@ Jolyon), which shows each PR's explanation and records the choice:
 
 **Sending a queued PR**, once Jolyon approves it: rebase the branch if upstream main
 has moved (still 4da3147 on 2026-11-12) and re-run its evidence, do the "Before
-submitting" items on its page, then open it from the fork with the page's title and
-body:
+submitting" items on its page, then open the same branch against upstream with the
+page's title and body (the part of the fork draft below its line), and close the fork
+draft with a link to the upstream PR:
 
 ```sh
 gh pr create --repo drmortalwombat/oscar64 --base main \
   --head jolyonbrown:fix/<id> --title "<title>" --body-file <body.md>
 ```
+
+Our own compiler does not depend on any of this: nethack64 builds with v1.32.273 plus
+`tools/oscar64-upstream/patches/pin/` (ADR-0007), applied by `build-pin.sh` and the
+setup scripts, whatever happens to the PRs.
 
 Suggested order and pace, when the time comes: the four wrong-code fixes first (#1
 to #4) and #15 with or right after #4, then #6 once #1 is merged (it is stacked on
