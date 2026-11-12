@@ -1,4 +1,4 @@
-From 97d649deddae8f168b63f5addae2726d4c3f1db7 Mon Sep 17 00:00:00 2001
+From 6e2e67e04920642b46764a2580b944129f1762f4 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 07:36:05 +0000
 Subject: [PATCH] Fix comparison of function pointer with function name
@@ -31,8 +31,7 @@ both orders, functions with a return value or a parameter whose
 address is only compared, and a function that is compared and called
 directly but never assigned or passed.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+Co-Authored-By: Claude <noreply@anthropic.com>
 ---
  autotest/autotest.bat          |   3 +
  autotest/funcptrcmptest.c      | 202 +++++++++++++++++++++++++++++++++

@@ -1,4 +1,4 @@
-From 64ffa3a722ebf6ba52a9e70654a9ead9a3c359e8 Mon Sep 17 00:00:00 2001
+From 0bebd8550445a459387728fc1bc2adf2644ec69a Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 01:29:10 +0000
 Subject: [PATCH] Fix sizeof applied to a unary expression without parentheses
@@ -24,8 +24,7 @@ postfix operators, non-evaluation of the operand (n++, ++n, arr[n++],
 a call of a function that is never defined) and the
 memset(x, 0, sizeof x) idiom.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+Co-Authored-By: Claude <noreply@anthropic.com>
 ---
  autotest/autotest.bat      |   3 +
  autotest/sizeofunarytest.c | 117 +++++++++++++++++++++++++++++++++++++

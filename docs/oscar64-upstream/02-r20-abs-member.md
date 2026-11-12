@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Branch | `fix/r20-abs-member` in `~/src/oscar64-dev`, commit `e0c8823c9630`, one commit on upstream main 4da3147 |
+| Branch | `fix/r20-abs-member` in `~/src/oscar64-dev`, commit `5cad0d98cdce`, one commit on upstream main 4da3147 |
 | Patch | [`tools/oscar64-upstream/patches/main/02-r20-abs-member.patch`](../../tools/oscar64-upstream/patches/main/02-r20-abs-member.patch) |
 | Kind | wrong code (silent) |
 | Since | v1.32.273 and main; the minimal `?:` form regressed on main at 48f90e2 |
@@ -149,8 +149,7 @@ No blocking code or regression-test defect is apparent from the supplied diff an
 
 ## Before submitting
 
-- Make the AI-assistance line the same in every PR body (some end with a sentence, some with a "Generated with Claude Code" footer), as Jolyon decides.
-- Commit trailers: drop the `Claude-Session:` line and use one `Co-Authored-By:` line, as Jolyon decides for all PRs (see OSCAR64-UPSTREAM.md).
+- Done 2026-11-12 (Jolyon's decision): the commit ends with one `Co-Authored-By: Claude <noreply@anthropic.com>` line and no session link (message only; the tree is the one validated, commit `e0c8823c9630` before), and the PR text ends with the same AI-assistance sentence as every other PR.
 
 ## Risks and limitations
 
@@ -217,7 +216,5 @@ Validation against main 4da3147 on Linux:
 
 Known limitation: a by-value struct return (`struct p4 b = mk4(); d = b.x < 0 ? -b.x : b.x;`) is still wrong at `-O0` on main after this change (correct in 1.32.273); the wrong constant there comes from forwarding the 32 bit return-marshalling temp into a 16 bit load, a separate mechanism I have not touched.
 
-This fix was prepared with AI assistance (Claude Code); the analysis, the intermediate code dumps and all numbers above come from runs of the actual compilers.
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+Found while porting NetHack 3.4.3 to the C64. Prepared with AI assistance (Claude Code); the numbers above come from the validation runs described.
 ````

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Branch | `fix/r3-sizeof-unary` in `~/src/oscar64-dev`, commit `64ffa3a722eb`, one commit on upstream main 4da3147 |
+| Branch | `fix/r3-sizeof-unary` in `~/src/oscar64-dev`, commit `0bebd8550445`, one commit on upstream main 4da3147 |
 | Patch | [`tools/oscar64-upstream/patches/main/09-r3-sizeof-unary.patch`](../../tools/oscar64-upstream/patches/main/09-r3-sizeof-unary.patch) |
 | Kind | rejects valid C |
 | Since | v1.32.273 and main |
@@ -108,8 +108,7 @@ No findings. The diff addresses the earlier actionable findings, the revised tes
 
 ## Before submitting
 
-- Make the AI-assistance line the same in every PR body (some end with a sentence, some with a "Generated with Claude Code" footer), as Jolyon decides.
-- Commit trailers: drop the `Claude-Session:` line and use one `Co-Authored-By:` line, as Jolyon decides for all PRs (see OSCAR64-UPSTREAM.md).
+- Done 2026-11-12 (Jolyon's decision): the commit ends with one `Co-Authored-By: Claude <noreply@anthropic.com>` line and no session link (message only; the tree is the one validated, commit `64ffa3a722eb` before), and the PR text ends with the same AI-assistance sentence as every other PR.
 
 ## Risks and limitations
 
@@ -169,7 +168,5 @@ Expected: compiles and prints `Emulation result 0`. Older C code uses this spell
 
 Known limitations: `sizeof` of a function designator (`sizeof f`, gives 0) and of a bit-field member (`sizeof s.bf`) are accepted without a diagnostic. Both were already accepted in the parenthesised spelling before this change, so nothing new is admitted, but the unparenthesised spelling now reaches the same gap. The compound-literal form `sizeof (T){0}` is unchanged (a parenthesised type is not continued with postfix operators). Not tested: the Windows build (the `autotest.bat` entry follows its neighbours) and real hardware.
 
-This patch was prepared with AI assistance (Claude Code) while porting NetHack 3.4.3 to the C64, and checked by two further AI review passes; every number above comes from running the commands described.
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+Found while porting NetHack 3.4.3 to the C64. Prepared with AI assistance (Claude Code); the numbers above come from the validation runs described.
 ````

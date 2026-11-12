@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Branch | `fix/r10-register` in `~/src/oscar64-dev`, commit `d091911f4c68`, one commit on upstream main 4da3147 |
+| Branch | `fix/r10-register` in `~/src/oscar64-dev`, commit `ae6107a0ce37`, one commit on upstream main 4da3147 |
 | Patch | [`tools/oscar64-upstream/patches/main/11-r10-register.patch`](../../tools/oscar64-upstream/patches/main/11-r10-register.patch) |
 | Kind | rejects valid C |
 | Since | v1.32.273 and main |
@@ -176,8 +176,7 @@ The supplied diff shows the pragma dispatch and token-placement fixes implemente
 
 ## Before submitting
 
-- Make the AI-assistance line the same in every PR body (some end with a sentence, some with a "Generated with Claude Code" footer), as Jolyon decides.
-- Commit trailers: drop the `Claude-Session:` line and use one `Co-Authored-By:` line, as Jolyon decides for all PRs (see OSCAR64-UPSTREAM.md).
+- Done 2026-11-12 (Jolyon's decision): the commit ends with one `Co-Authored-By: Claude <noreply@anthropic.com>` line and no session link (message only; the tree is the one validated, commit `d091911f4c68` before), and the PR text ends with the same AI-assistance sentence as every other PR.
 
 ## Risks and limitations
 
@@ -236,5 +235,5 @@ Reproduce with `oscar64 -ea -g -n example.c` (same with `-bc` and at every optim
 
 **Known limitations.** `register` is accepted and ignored wherever a type specifier may start, with no diagnostic: at file scope, on an object whose address is taken, after `static`, `extern` or `typedef`, repeated, in casts, `sizeof`, struct members, compound literals and C++ `new`. This mirrors how the compiler already treats `static` and `extern` in casts and `sizeof`. A storage class after the type specifier (`int register a;`) is rejected, exactly as `int static a;` is. Like every other keyword, `register` cannot be redefined by `#define`: the directive is accepted, but the macro is recorded under the token's display name and never expands, so `#define register static` is silently a no-op where main honoured it (the one valid-C use this change breaks; the common empty `#define register` keeps working), and `#undef`, `#ifdef`, `#ifndef`, `defined()` and macro parameter lists cannot name `register`, as they cannot name any keyword. Programs that used `register` as an identifier, which was never valid C or C++, stop compiling. In C++ mode the keyword is accepted without a warning although C++17 removed the storage class (the word stays reserved).
 
-This was prepared with AI assistance (Claude Code); the change and all measurements above were checked by running the commands shown, and two independent reviews were applied before submission.
+Found while porting NetHack 3.4.3 to the C64. Prepared with AI assistance (Claude Code); the numbers above come from the validation runs described.
 ````

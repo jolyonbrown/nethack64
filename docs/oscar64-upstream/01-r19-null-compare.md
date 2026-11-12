@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Branch | `fix/r19-null-compare` in `~/src/oscar64-dev`, commit `5a07baaf6672`, one commit on upstream main 4da3147 |
+| Branch | `fix/r19-null-compare` in `~/src/oscar64-dev`, commit `8ca779561d21`, one commit on upstream main 4da3147 |
 | Patch | [`tools/oscar64-upstream/patches/main/01-r19-null-compare.patch`](../../tools/oscar64-upstream/patches/main/01-r19-null-compare.patch) |
 | Kind | wrong code (silent) |
 | Since | 6af50f5 (2024-10); on v1.32.273 and main |
@@ -155,8 +155,7 @@ No code correctness blocker found in the supplied diff. The test guards the chan
 
 ## Before submitting
 
-- Make the AI-assistance line the same in every PR body (some end with a sentence, some with a "Generated with Claude Code" footer), as Jolyon decides.
-- Commit trailers: drop the `Claude-Session:` line and use one `Co-Authored-By:` line, as Jolyon decides for all PRs (see OSCAR64-UPSTREAM.md).
+- Done 2026-11-12 (Jolyon's decision): the commit ends with one `Co-Authored-By: Claude <noreply@anthropic.com>` line and no session link (message only; the tree is the one validated, commit `5a07baaf6672` before), and the PR text ends with the same AI-assistance sentence as every other PR.
 
 ## Risks and limitations
 
@@ -211,7 +210,5 @@ Validation against main 4da3147 on Linux, C64 target:
 - All 158 autotest sources plus 23 small reproducers from our project, in five configurations (`-n` `-O0`/`-O2`/`-Os`/`-O3`, `-bc -O2`): 845 programs compile with both builds, 836 are byte-identical; the 9 that differ are the new test and the example above, which now compute the right answer (the example's `-O2` program shrinks from 139 to 137 bytes; its `-bc -O2` program has the same size with the constant 1 replaced by 0).
 - All 65 `.prg` files built by the samples makefile are byte-identical before and after (460937 bytes in total, both builds exit 0).
 
-This fix was prepared with AI assistance (Claude Code). The numbers above were obtained by building main 4da3147 and this patch and running both on the autotest suite, the samples and the small programs described; the probe programs are not part of this PR and can be supplied on request.
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+Found while porting NetHack 3.4.3 to the C64. Prepared with AI assistance (Claude Code); the numbers above come from the validation runs described. The probe programs are not part of this PR and can be supplied on request.
 ````

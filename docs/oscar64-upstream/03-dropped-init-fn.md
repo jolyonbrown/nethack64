@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Branch | `fix/dropped-init-fn` in `~/src/oscar64-dev`, commit `904c0400f093`, one commit on upstream main 4da3147 |
+| Branch | `fix/dropped-init-fn` in `~/src/oscar64-dev`, commit `ee242eed0f68`, one commit on upstream main 4da3147 |
 | Patch | [`tools/oscar64-upstream/patches/main/03-dropped-init-fn.patch`](../../tools/oscar64-upstream/patches/main/03-dropped-init-fn.patch) |
 | Kind | wrong code (silent) |
 | Since | Linker::CombineSameConst since 3a9cd85 (2023-08); on v1.32.273 and main |
@@ -106,8 +106,7 @@ No findings. The diff addresses the reported merge, integer-cast, and bare-tail-
 
 ## Before submitting
 
-- Make the AI-assistance line the same in every PR body (some end with a sentence, some with a "Generated with Claude Code" footer), as Jolyon decides.
-- Commit trailers: drop the `Claude-Session:` line and use one `Co-Authored-By:` line, as Jolyon decides for all PRs (see OSCAR64-UPSTREAM.md).
+- Done 2026-11-12 (Jolyon's decision): the commit ends with one `Co-Authored-By: Claude <noreply@anthropic.com>` line and no session link (message only; the tree is the one validated, commit `904c0400f093` before), and the PR text ends with the same AI-assistance sentence as every other PR.
 
 ## Risks and limitations
 
@@ -165,5 +164,5 @@ Validation against `main` 4da3147 on Linux, targeting C64:
 
 Known limitations: no size change was observed in the samples, but any program that stores the addresses of several functions with identical code now keeps one copy per function (a two-stub example grows from 154 to 155 bytes), and a `(void)f;` statement now counts as a value use of `f`. Named const data with identical contents is still merged (`const int ca[3] = {1,2,3}, cb[3] = {1,2,3};` gives `ca == cb` on `main` and with this patch); that is the same pass applied to data and is deliberately left out of this change. C++ virtual functions are excluded from `RegisterProc` as before.
 
-Prepared with AI assistance (Claude Code) while porting NetHack 3.4.3 to the C64.
+Found while porting NetHack 3.4.3 to the C64. Prepared with AI assistance (Claude Code); the numbers above come from the validation runs described.
 ````

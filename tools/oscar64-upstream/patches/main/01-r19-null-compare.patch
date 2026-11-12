@@ -1,4 +1,4 @@
-From 5a07baaf667257473e2f01f4f3e8ca0a825fb5f3 Mon Sep 17 00:00:00 2001
+From 8ca779561d2122b7f6337b61dbf649edae484adf Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 04:39:27 +0000
 Subject: [PATCH] Fix pointer compared with integer constant 0 folding as not
@@ -21,8 +21,7 @@ and take the comparison type from the pointer operand. The zero that the
 logical not of a pointer compares against had the same defect when the
 result is used as a value, so mark it as a null pointer constant too.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+Co-Authored-By: Claude <noreply@anthropic.com>
 ---
  autotest/autotest.bat          |   3 +
  autotest/nullptrcmptest.c      | 132 +++++++++++++++++++++++++++++++++

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Branch | `fix/r12-braced-scalar` in `~/src/oscar64-dev`, commit `76841d2efdbf`, one commit on upstream main 4da3147 |
+| Branch | `fix/r12-braced-scalar` in `~/src/oscar64-dev`, commit `bdab3bb7e341`, one commit on upstream main 4da3147 |
 | Patch | [`tools/oscar64-upstream/patches/main/10-r12-braced-scalar.patch`](../../tools/oscar64-upstream/patches/main/10-r12-braced-scalar.patch) |
 | Kind | rejects valid C |
 | Since | v1.32.273 and main |
@@ -151,8 +151,7 @@ No blocking code or regression-test issue found in the supplied material. The te
 
 ## Before submitting
 
-- Make the AI-assistance line the same in every PR body (some end with a sentence, some with a "Generated with Claude Code" footer), as Jolyon decides.
-- Commit trailers: drop the `Claude-Session:` line and use one `Co-Authored-By:` line, as Jolyon decides for all PRs (see OSCAR64-UPSTREAM.md).
+- Done 2026-11-12 (Jolyon's decision): the commit ends with one `Co-Authored-By: Claude <noreply@anthropic.com>` line and no session link (message only; the tree is the one validated, commit `76841d2efdbf` before), and the PR text ends with the same AI-assistance sentence as every other PR.
 
 ## Risks and limitations
 
@@ -207,5 +206,5 @@ Because the same two functions are reached from other places, scalar compound li
 
 **Not changed.** C++ `int x{};` / `int x = {};` (value-initialisation), `return { 3 };`, `new int{ 5 }` and C99 6.7.8p14 `char s[] = { "abc" };` are still rejected as before. The C++ direct-brace path `int g{3};` goes through `ParseVariableInit` and is untouched. Oscar64 does not check list-initialisation narrowing on any path (`int c{1.5};` already compiles on main), so `int b = { 1.5 };` compiles too.
 
-This change was prepared with AI assistance (Claude Code); all numbers above come from runs on the patched tree.
+Found while porting NetHack 3.4.3 to the C64. Prepared with AI assistance (Claude Code); the numbers above come from the validation runs described.
 ````

@@ -1,4 +1,4 @@
-From 9c0bcf682c88ca5578af51d8f1ac52e2a30ece4d Mon Sep 17 00:00:00 2001
+From 5c850251d03ba4e763103ec17aa694658c391784 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 03:05:36 +0000
 Subject: [PATCH] Fix string literal to char * conversion in C
@@ -22,8 +22,7 @@ with a volatile selector, pointer arithmetic, &"lit" as a pointer to
 array, a volatile char *, return, and that a char array, const char *
 and void * still accept a literal.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+Co-Authored-By: Claude <noreply@anthropic.com>
 ---
  autotest/autotest.bat               |   3 +
  autotest/stringliteralcharptrtest.c | 111 ++++++++++++++++++++++++++++

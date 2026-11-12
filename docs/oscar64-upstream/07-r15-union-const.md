@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Branch | `fix/r15-union-const` in `~/src/oscar64-dev`, commit `702408519721`, one commit on upstream main 4da3147 |
+| Branch | `fix/r15-union-const` in `~/src/oscar64-dev`, commit `a8ecf65c4418`, one commit on upstream main 4da3147 |
 | Patch | [`tools/oscar64-upstream/patches/main/07-r15-union-const.patch`](../../tools/oscar64-upstream/patches/main/07-r15-union-const.patch) |
 | Kind | rejects valid C |
 | Since | v1.32.273 and main |
@@ -159,8 +159,7 @@ The supplied diff addresses the earlier predicate gaps, and the tests guard them
 
 ## Before submitting
 
-- Make the AI-assistance line the same in every PR body (some end with a sentence, some with a "Generated with Claude Code" footer), as Jolyon decides.
-- Commit trailers: drop the `Claude-Session:` line and use one `Co-Authored-By:` line, as Jolyon decides for all PRs (see OSCAR64-UPSTREAM.md).
+- Done 2026-11-12 (Jolyon's decision): the commit ends with one `Co-Authored-By: Claude <noreply@anthropic.com>` line and no session link (message only; the tree is the one validated, commit `702408519721` before), and the PR text ends with the same AI-assistance sentence as every other PR.
 
 ## Risks and limitations
 
@@ -215,5 +214,5 @@ Behaviour changes to be aware of, all of them the struct behaviour applied to un
 
 Not changed by this patch: initialising a `const union` value from a `union` value (`const union u c = v;`) still errors, because `CanAssign` has a struct-only branch for aggregate values; a `volatile union u *` prototype written while the union is incomplete still does not convert after completion (the volatile copy is not updated on completion, which also breaks member access for structs); `const volatile union u *` written directly is parsed as an unqualified pointer (the parser applies only one added qualifier after a struct or union tag; pre-existing, affects structs too); and `union u **` to `const union u **` is accepted, as it already is for `int **` and struct pointers.
 
-Found while porting NetHack 3.4.3 to the C64, which passes `&any` to a `const ANY_P *` parameter in dozens of `add_menu` calls. Prepared with AI assistance (Claude Code); the numbers above come from running the stated commands on this branch.
+Found while porting NetHack 3.4.3 to the C64, which passes `&any` to a `const ANY_P *` parameter in dozens of `add_menu` calls. Prepared with AI assistance (Claude Code); the numbers above come from the validation runs described.
 ````

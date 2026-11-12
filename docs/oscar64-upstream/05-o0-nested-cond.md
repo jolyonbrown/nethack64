@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Branch | `fix/o0-nested-cond` in `~/src/oscar64-dev`, commit `e8e2d25fbe9c`, one commit on upstream main 4da3147 |
+| Branch | `fix/o0-nested-cond` in `~/src/oscar64-dev`, commit `1fa788c58389`, one commit on upstream main 4da3147 |
 | Patch | [`tools/oscar64-upstream/patches/main/05-o0-nested-cond.patch`](../../tools/oscar64-upstream/patches/main/05-o0-nested-cond.patch) |
 | Kind | compiler crash with native code (wrong code once the crash is fixed alone) |
 | Since | 83e805b (2026-08, already in v1.32.273); the exit-block hand-over bug since fb67321 (2025-07) |
@@ -168,8 +168,7 @@ Optionally, also ship the earlier reviewer's assert that the instruction popped 
 
 ## Before submitting
 
-- Make the AI-assistance line the same in every PR body (some end with a sentence, some with a "Generated with Claude Code" footer), as Jolyon decides.
-- Commit trailers: drop the `Claude-Session:` line and use one `Co-Authored-By:` line, as Jolyon decides for all PRs (see OSCAR64-UPSTREAM.md).
+- Done 2026-11-12 (Jolyon's decision): the commit ends with one `Co-Authored-By: Claude <noreply@anthropic.com>` line and no session link (message only; the tree is the one validated, commit `e8e2d25fbe9c` before), and the PR text ends with the same AI-assistance sentence as every other PR.
 
 ## Risks and limitations
 
@@ -256,7 +255,5 @@ __noinline void g(unsigned char p0, unsigned char p1)
 
 **Known limitations.** Tested in the built-in emulator only. The merged block's exit set is now the absorbed block's own set, so passes that run after the last `BuildEntryDataSet` have to keep it conservative, as before this change; no counterexample was found. The merge loop still does not copy `mFDataSet` (nothing reads it after the final merge). The sign extension expansions were never observed in an exit block, so that branch of the hand-over is covered by the search's construction and the assertion rather than by a test. `SplitAt`/`SplitBlock` move the exit block role without moving `mLocked` (pre-existing; the library functions where it happens pass). Code size can move by a byte in either direction where a `JMP` becomes a branch or vice versa; no size guarantee is intended.
 
-This was prepared with AI assistance (Claude Code); the analysis, fixes and all measurements above were run and checked as described. The failing cases came out of small reproducers from our project.
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+Found while porting NetHack 3.4.3 to the C64; the failing cases came out of small reproducers from our project. Prepared with AI assistance (Claude Code); the numbers above come from the validation runs described.
 ````

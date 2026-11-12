@@ -1,4 +1,4 @@
-From 8dec0b60a0f42b189c38bf051bfb730adae964bb Mon Sep 17 00:00:00 2001
+From 6cd17ad052927dbf4cb4e380ce0fdfb8a8ed8b3b Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 01:20:18 +0000
 Subject: [PATCH] Fix nested conditional in the middle operand of ?:
@@ -24,8 +24,7 @@ condition, constant expressions, that only the selected branch is
 evaluated, and that the precedence of the first operand is
 unchanged. The C++ test adds class and template cases.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+Co-Authored-By: Claude <noreply@anthropic.com>
 ---
  autotest/autotest.bat                 |   6 +
  autotest/nestedconditionalcpptest.cpp |  82 ++++++++++

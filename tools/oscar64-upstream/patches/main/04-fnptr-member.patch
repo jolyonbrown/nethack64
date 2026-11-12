@@ -1,4 +1,4 @@
-From 66975d6f0ecbf8bd1a6ce57ce455104ef1e54774 Mon Sep 17 00:00:00 2001
+From 335f4563639f62e27f22c3c52be538157264389b Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 01:50:49 +0000
 Subject: [PATCH] Fix function pointer members of global structs
@@ -39,8 +39,7 @@ funcptrmemberconsttest.c with the funcptrmemberconstconstraints rule checks
 that assignments to const members are rejected. funcptrmemberbasetest.cpp
 covers a member inherited from a base class.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+Co-Authored-By: Claude <noreply@anthropic.com>
 ---
  autotest/autotest.bat              |  41 ++++
  autotest/funcptrmemberaddrtest.c   | 180 +++++++++++++++

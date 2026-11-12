@@ -1,4 +1,4 @@
-From 9ffb4fba7b3dc92972cf49da7a2d8dac18649444 Mon Sep 17 00:00:00 2001
+From 7874cad34206d9e4921198c9619093049be3333f Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 01:21:23 +0000
 Subject: [PATCH] Fix spaces and tabs between '#' and a preprocessor directive
@@ -24,8 +24,7 @@ nested #if/#ifdef/#elif/#else/#endif with depth tracking, #include,
 #undef, "# x" against "#x", "##", and '#' immediates in assembler
 macro text.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+Co-Authored-By: Claude <noreply@anthropic.com>
 ---
  autotest/autotest.bat           |   3 +
  autotest/prep_hash_space_test.c | 168 ++++++++++++++++++++++++++++++++

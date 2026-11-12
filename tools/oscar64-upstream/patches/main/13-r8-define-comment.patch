@@ -1,4 +1,4 @@
-From 9dfa87d84165c7df468831350d2505d5f48c1c7d Mon Sep 17 00:00:00 2001
+From 742cf75cd3479a7f3dc0356b394628455bb3fa72 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 03:13:49 +0000
 Subject: [PATCH] Fix block comment continuing past the end of a #define line
@@ -18,8 +18,7 @@ and character constants with their escapes, as the macro argument
 collector does, so that a comment delimiter inside a constant ("\"/*",
 '"') is not taken for one.
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+Co-Authored-By: Claude <noreply@anthropic.com>
 ---
  autotest/autotest.bat               |   3 +
  autotest/prep_define_comment_test.c | 111 ++++++++++++++++++++++++++++

@@ -1,4 +1,4 @@
-From d091911f4c68911c446991bea45ae82061ad4731 Mon Sep 17 00:00:00 2001
+From ae6107a0ce37e67eb578b053042ff258b22b4570 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 01:47:21 +0000
 Subject: [PATCH] Fix register storage class not accepted
@@ -38,8 +38,7 @@ that expands them, an empty #define register precedes a function with
 register parameters, and an unused #define register ) checks that the
 replacement list stays out of the program text.
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+Co-Authored-By: Claude <noreply@anthropic.com>
 ---
  autotest/autotest.bat          |   3 +
  autotest/registerstoragetest.c | 169 +++++++++++++++++++++++++++++++++

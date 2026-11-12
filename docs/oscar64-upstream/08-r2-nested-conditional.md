@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Branch | `fix/r2-nested-conditional` in `~/src/oscar64-dev`, commit `8dec0b60a0f4`, one commit on upstream main 4da3147 |
+| Branch | `fix/r2-nested-conditional` in `~/src/oscar64-dev`, commit `6cd17ad05292`, one commit on upstream main 4da3147 |
 | Patch | [`tools/oscar64-upstream/patches/main/08-r2-nested-conditional.patch`](../../tools/oscar64-upstream/patches/main/08-r2-nested-conditional.patch) |
 | Kind | rejects valid C |
 | Since | v1.32.273 and main |
@@ -162,8 +162,7 @@ No remaining correctness defect found in the supplied diff. The earlier code and
 
 ## Before submitting
 
-- Make the AI-assistance line the same in every PR body (some end with a sentence, some with a "Generated with Claude Code" footer), as Jolyon decides.
-- Commit trailers: drop the `Claude-Session:` line and use one `Co-Authored-By:` line, as Jolyon decides for all PRs (see OSCAR64-UPSTREAM.md).
+- Done 2026-11-12 (Jolyon's decision): the commit ends with one `Co-Authored-By: Claude <noreply@anthropic.com>` line and no session link (message only; the tree is the one validated, commit `8dec0b60a0f4` before), and the PR text ends with the same AI-assistance sentence as every other PR.
 
 ## Risks and limitations
 
@@ -207,5 +206,5 @@ Reproduce with `oscar64 -ea -g -n example.c` (same with `-bc` and every `-O` lev
 - Code generation elsewhere: all 159 autotest sources (plus 21 small reproducers of ours), compiled by both compilers in five configurations (`-n -O0/-O2/-Os/-O3`, `-bc -O2`): 830 programs accepted by both, all 830 `.prg` files byte-identical. The only status changes are the three files that use the construct (the two new tests and our reproducer), which now compile; the remaining 55 cases are 11 of our reproducers for other, unrelated bugs that neither compiler accepts.
 - Beyond that, I compared a set of unparenthesised middle-operand shapes against their hand-parenthesised twins compiled by 4da3147 (byte-identical output), and fed malformed `?:` inputs to both compilers (same diagnostics as before, no crashes). Those probes were local checks and are not part of this PR.
 
-Prepared with AI assistance (Claude Code).
+Found while porting NetHack 3.4.3 to the C64. Prepared with AI assistance (Claude Code); the numbers above come from the validation runs described.
 ````

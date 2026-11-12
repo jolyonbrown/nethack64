@@ -1,4 +1,4 @@
-From 904c0400f093c4d59110497de634d3e0cdfce5bd Mon Sep 17 00:00:00 2001
+From ee242eed0f68753d15878b489affb9dfd866b93f Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 04:40:03 +0000
 Subject: [PATCH] Fix merging of identical functions whose address is taken
@@ -26,8 +26,7 @@ is a bare JMP to its target, so both ended up at the same address.
 
 Prepared with AI assistance (Claude Code).
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+Co-Authored-By: Claude <noreply@anthropic.com>
 ---
  autotest/autotest.bat          |  3 ++
  autotest/funcptrmergetest.c    | 90 ++++++++++++++++++++++++++++++++++

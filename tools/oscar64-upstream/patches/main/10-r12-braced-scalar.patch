@@ -1,4 +1,4 @@
-From 76841d2efdbf3adad9436b6fca598975818f95e3 Mon Sep 17 00:00:00 2001
+From bdab3bb7e341c96cc5b1f698fdc56cbfde70c61d Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 01:09:33 +0000
 Subject: [PATCH] Fix braced initializer for scalar variables
@@ -32,8 +32,7 @@ side-effecting initializers, compound literals, braced scalar members
 of structs and arrays with and without brace elision) and
 scalarbraceinitcpp.cpp (the C++ forms above).
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+Co-Authored-By: Claude <noreply@anthropic.com>
 ---
  autotest/autotest.bat           |   6 ++
  autotest/scalarbraceinitcpp.cpp |  50 ++++++++++++++

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Branch | `fix/r8-define-comment` in `~/src/oscar64-dev`, commit `9dfa87d84165`, one commit on upstream main 4da3147 |
+| Branch | `fix/r8-define-comment` in `~/src/oscar64-dev`, commit `742cf75cd347`, one commit on upstream main 4da3147 |
 | Patch | [`tools/oscar64-upstream/patches/main/13-r8-define-comment.patch`](../../tools/oscar64-upstream/patches/main/13-r8-define-comment.patch) |
 | Kind | rejects valid C (preprocessor) |
 | Since | v1.32.273 and main |
@@ -153,8 +153,7 @@ No additional code defect identified from the supplied diff. The substantive ear
 
 ## Before submitting
 
-- Make the AI-assistance line the same in every PR body (some end with a sentence, some with a "Generated with Claude Code" footer), as Jolyon decides.
-- Commit trailers: drop the `Claude-Session:` line and use one `Co-Authored-By:` line, as Jolyon decides for all PRs (see OSCAR64-UPSTREAM.md).
+- Done 2026-11-12 (Jolyon's decision): the commit ends with one `Co-Authored-By: Claude <noreply@anthropic.com>` line and no session link (message only; the tree is the one validated, commit `9dfa87d84165` before), and the PR text ends with the same AI-assistance sentence as every other PR.
 
 ## Risks and limitations
 
@@ -213,5 +212,5 @@ Validation against main `4da3147` on Linux:
 
 Not addressed here, noted for completeness: `#include <x.h>` followed by a block comment that continues on the next line fails before and after this patch. `Preprocessor::OpenSource` leaves the scanner on the rest of the `#include` line, which is then read as the start of the included file, so a comment opened there runs into the header.
 
-This fix was prepared with AI assistance (Claude Code), including the analysis, the test and the validation runs listed above; the numbers are from those runs.
+Found while porting NetHack 3.4.3 to the C64. Prepared with AI assistance (Claude Code); the numbers above come from the validation runs described.
 ````

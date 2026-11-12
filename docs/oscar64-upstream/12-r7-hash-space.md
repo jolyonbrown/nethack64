@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Branch | `fix/r7-hash-space` in `~/src/oscar64-dev`, commit `9ffb4fba7b3d`, one commit on upstream main 4da3147 |
+| Branch | `fix/r7-hash-space` in `~/src/oscar64-dev`, commit `7874cad34206`, one commit on upstream main 4da3147 |
 | Patch | [`tools/oscar64-upstream/patches/main/12-r7-hash-space.patch`](../../tools/oscar64-upstream/patches/main/12-r7-hash-space.patch) |
 | Kind | rejects valid C (preprocessor) |
 | Since | v1.32.273 and main |
@@ -170,9 +170,7 @@ No code correctness blocker found in the supplied diff. The earlier assembler, e
 ## Before submitting
 
 - Add a case where a tabbed `#\tendif` must close an unspaced `#if 0` (the current skipped-group tab case would pass even if tabbed inner directives were ignored).
-- PR text: replace "the rest of the file disappears into it" with "conditional nesting and branch selection can be misinterpreted, causing intended active code to be skipped", and "checked by running the commands shown" with "the validation runs described above".
-- Make the AI-assistance line the same in every PR body (some end with a sentence, some with a "Generated with Claude Code" footer), as Jolyon decides.
-- Commit trailers: drop the `Claude-Session:` line and use one `Co-Authored-By:` line, as Jolyon decides for all PRs (see OSCAR64-UPSTREAM.md).
+- Done 2026-11-12 (Jolyon's decision): the commit ends with one `Co-Authored-By: Claude <noreply@anthropic.com>` line and no session link (message only; the tree is the one validated, commit `9ffb4fba7b3d` before), and the PR text ends with the same AI-assistance sentence as every other PR.
 
 ## Risks and limitations
 
@@ -220,7 +218,7 @@ example.c(7, 1) : error 3005: Identifier not defined 'BAR'
 
 Expected: the file compiles and the emulation returns 0. This style is common in older code bases (NetHack 3.4.3's headers use `# define` / `#  ifdef` throughout, which is where we found it).
 
-**Root cause.** In `Scanner::NextRawToken` and `Scanner::NextSkipRawToken` (`oscar64/Scanner.cpp`, the `'#'` case) the directive name is collected with `while (NextChar() && IsAlpha(mTokenChar))`, starting at the character right after the `#`. A blank ends the loop at once with an empty name, which falls through to `TK_PREP_IDENT` with an empty identifier; `NextPreToken` turns that into a bare `TK_HASH`. In active code the line is then parsed as C, and in a skipped group `# endif` / `# else` / `# elif` are never recognised, so the group does not end where it should and the rest of the file disappears into it.
+**Root cause.** In `Scanner::NextRawToken` and `Scanner::NextSkipRawToken` (`oscar64/Scanner.cpp`, the `'#'` case) the directive name is collected with `while (NextChar() && IsAlpha(mTokenChar))`, starting at the character right after the `#`. A blank ends the loop at once with an empty name, which falls through to `TK_PREP_IDENT` with an empty identifier; `NextPreToken` turns that into a bare `TK_HASH`. In active code the line is then parsed as C, and in a skipped group `# endif` / `# else` / `# elif` are never recognised, so conditional nesting and branch selection can be misinterpreted, and code that should be active is skipped.
 
 **Fix.** In both scanners, skip spaces and tabs after the `#` before collecting the name. Three details keep everything else as it was:
 
@@ -240,7 +238,5 @@ The keyword table and the `TK_PREP_IDENT` fallback are unchanged. Because the st
 - All 67 `samples/**/*.c` compiled standalone in `-n -O2` and `-bc`: 131 of 134 compile with both (games/missile.c `-bc` and memmap/tsr.c fail with both), 130 byte-identical; `games/connectfour.c -bc` differs for the same include-path reason and is identical with a shared include tree.
 - Probes, before and after, 10 configurations each: a macro expanding to `#` followed by a directive name in the caller (`HASH()define X 1`, `HASH define X 1`, `HASH() define X 1`, `ID(#)define X 1`, with spaces, tabs, and a body `# ` with a trailing blank) is rejected with error 3006 by both; `lda HASH E` in assembler text gives 5 with both; `#x` / `# x` strings compare equal; `a # # b` is rejected by both; `#` alone is rejected by both.
 
-This fix was prepared with AI assistance (Claude Code); the root cause analysis, the change and all validation above were checked by running the commands shown.
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+Found while porting NetHack 3.4.3 to the C64. Prepared with AI assistance (Claude Code); the numbers above come from the validation runs described.
 ````

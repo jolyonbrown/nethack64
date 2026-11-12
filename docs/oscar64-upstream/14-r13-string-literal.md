@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Branch | `fix/r13-string-literal` in `~/src/oscar64-dev`, commit `9c0bcf682c88`, one commit on upstream main 4da3147 |
+| Branch | `fix/r13-string-literal` in `~/src/oscar64-dev`, commit `5c850251d03b`, one commit on upstream main 4da3147 |
 | Patch | [`tools/oscar64-upstream/patches/main/14-r13-string-literal.patch`](../../tools/oscar64-upstream/patches/main/14-r13-string-literal.patch) |
 | Kind | rejects valid C (by design upstream) |
 | Since | v1.32.273 and main; the maintainer closed the same request as "As expected" (issue #90, 2024) |
@@ -138,8 +138,7 @@ No implementation blocker is apparent in the supplied diff. The regression test 
 
 ## Before submitting
 
-- Make the AI-assistance line the same in every PR body (some end with a sentence, some with a "Generated with Claude Code" footer), as Jolyon decides.
-- Commit trailers: drop the `Claude-Session:` line and use one `Co-Authored-By:` line, as Jolyon decides for all PRs (see OSCAR64-UPSTREAM.md).
+- Done 2026-11-12 (Jolyon's decision): the commit ends with one `Co-Authored-By: Claude <noreply@anthropic.com>` line and no session link (message only; the tree is the one validated, commit `9c0bcf682c88` before), and the PR text ends with the same AI-assistance sentence as every other PR.
 
 ## Risks and limitations
 
@@ -194,5 +193,5 @@ What becomes accepted in C besides the fix:
 - `unsigned char *u = "abc";` compiles, because Oscar64's `char` is the unsigned char type (`TheCharTypeDeclaration` is `TheUnsignedCharTypeDeclaration`). Standard C requires a diagnostic here (gcc warns with `-Wpointer-sign`); the conflation predates this patch and only becomes observable with literals.
 - Two pre-existing laxities that the const mismatch used to mask now apply to literals exactly as they already applied to `char` arrays: `?:` keeps the less-qualified pointee, so `char *q = c ? "lit" : cp;` with `const char *cp` is accepted (as `c ? p : cp` already was), and a pointer to an array converts to a pointer to a pointer or to a pointer to an array of another size, so `char **pp = &"abc";` and `char (*pa)[5] = &"abc";` are accepted (as `&arr` already was). This patch does not change those checks; I can file them separately.
 
-Found while porting NetHack 3.4.3 to the C64 (`mail.c`'s `static char *junk[]`). Prepared with AI assistance (Claude Code); all numbers above come from the runs described.
+Found while porting NetHack 3.4.3 to the C64 (`mail.c`'s `static char *junk[]`). Prepared with AI assistance (Claude Code); the numbers above come from the validation runs described.
 ````

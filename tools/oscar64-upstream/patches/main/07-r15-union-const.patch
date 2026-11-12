@@ -1,4 +1,4 @@
-From 702408519721cf9491cff5863f180476dac3457b Mon Sep 17 00:00:00 2001
+From a8ecf65c4418a40e723b4fb62e5c2a6cf87e3bf8 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 01:01:39 +0000
 Subject: [PATCH] Fix union pointer to const union pointer conversion
@@ -28,8 +28,7 @@ const union and a struct control. unionptroverloadtest.cpp covers
 overload resolution against const void*, an ellipsis and int,
 reference binding, comparison and the copy constructor.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+Co-Authored-By: Claude <noreply@anthropic.com>
 ---
  autotest/autotest.bat             |   6 ++
  autotest/unionptrconsttest.c      | 160 ++++++++++++++++++++++++++++++

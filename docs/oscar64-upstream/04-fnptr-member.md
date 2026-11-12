@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Branch | `fix/fnptr-member` in `~/src/oscar64-dev`, commit `66975d6f0ecb`, one commit on upstream main 4da3147 |
+| Branch | `fix/fnptr-member` in `~/src/oscar64-dev`, commit `335f4563639f`, one commit on upstream main 4da3147 |
 | Patch | [`tools/oscar64-upstream/patches/main/04-fnptr-member.patch`](../../tools/oscar64-upstream/patches/main/04-fnptr-member.patch) |
 | Kind | regression on main, plus wrong code on v1.32.273 |
 | Since | regression: 349b10a (main only); call edge: v1.32.273 and older |
@@ -234,8 +234,7 @@ The supplied diff otherwise addresses the earlier folding, static-initializer, c
 - Codex (second check) rates the `-Ofp` limitation "an initialised array member later reassigned to a function with a different fastcall layout runs wrong" as high: the patch makes such programs compile, and with `-Ofp` they then run wrong, as plain global arrays already do on main. Without `-Ofp` they are right. Either fix the `-Ofp` slot tracking for members (`AnalyzeInit` and assignments must use the same slot) or keep it as a stated limitation and let the maintainer decide; the PR states it.
 - Reconcile the corpus numbers in the PR body (Codex: 920 compilations described, 935 outcomes reported).
 - Register `funcptrmemberbasetest.cpp` with `:testf` (and an `-Ofp` makefile run) as well as `:test`.
-- Make the AI-assistance line the same in every PR body (some end with a sentence, some with a "Generated with Claude Code" footer), as Jolyon decides.
-- Commit trailers: drop the `Claude-Session:` line and use one `Co-Authored-By:` line, as Jolyon decides for all PRs (see OSCAR64-UPSTREAM.md).
+- Done 2026-11-12 (Jolyon's decision): the commit ends with one `Co-Authored-By: Claude <noreply@anthropic.com>` line and no session link (message only; the tree is the one validated, commit `66975d6f0ecb` before), and the PR text ends with the same AI-assistance sentence as every other PR.
 
 ## Risks and limitations
 
@@ -285,5 +284,5 @@ Expected: compiles, `Emulation result 0`. Static and initialized globals, static
 
 **Known limitations**, `-Ofp` only; without `-Ofp` these programs compile correctly. Two-dimensional arrays of function pointers are miscompiled (one array level is tracked, as for local structs on main). Members of anonymous unions in a global struct, and members of anonymous structs reached both through the global and through a pointer, are unified wrongly (an anonymous struct's members exist twice, in the anonymous type and as clones in the outer scope, see `Parser::AddAnonymousStructMembers`). An initialized array member later reassigned to a function with a different fastcall layout runs wrong (`AnalyzeInit` unifies the canonical element type, assignments the member; the same on main for plain global arrays). A function of the wrong signature assigned to a function pointer is accepted after unification (on main too, for plain globals and local structs).
 
-Prepared with AI assistance (Claude Code); the analysis, the change and the measurements above were checked by running the commands shown.
+Found while porting NetHack 3.4.3 to the C64. Prepared with AI assistance (Claude Code); the numbers above come from the validation runs described.
 ````

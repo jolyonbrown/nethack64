@@ -142,7 +142,10 @@ def measure(f):
         return {"status": "compiler-oom"}
     errs = [l for l in (r.stdout + r.stderr).splitlines() if "error" in l]
     if crashed and not errs:
-        return {"status": "compiler-crash"}
+        # the signal tells a segfault (11) from an abort (6); a crash that does not
+        # repeat needs it (vault.c crashed once in 77 runs on 2026-11-12)
+        return {"status": "compiler-crash",
+                "signal": -r.returncode if r.returncode < 0 else r.returncode - 128}
     # (v1.32.273: -rmp itself segfaults after ordinary compile errors; those
     #  files are reported as compile-error, which is the real problem.)
     m = out[:-4] + ".map" if os.path.exists(out[:-4] + ".map") else out[:-4] + ".error.map"

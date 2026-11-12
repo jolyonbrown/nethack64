@@ -1,4 +1,4 @@
-From e8e2d25fbe9c775b11a3a9e8548cde5a8ba33351 Mon Sep 17 00:00:00 2001
+From 1fa788c583896b8e916a561703135c74b80dde34 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 04:39:19 +0000
 Subject: [PATCH] Fix wrong exit data set of merged blocks and wrong exit block
@@ -34,8 +34,7 @@ Adds two regression tests. Both fail with -n at every optimization
 level before the fix, the first with a wrong result, the second with
 the compiler crash.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+Co-Authored-By: Claude <noreply@anthropic.com>
 ---
  autotest/autotest.bat            |  6 +++
  autotest/nestedternaryjumptest.c | 71 ++++++++++++++++++++++++++++++++

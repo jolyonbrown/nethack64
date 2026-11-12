@@ -1,4 +1,4 @@
-From e0c8823c96304036b54ef302f0c788164179739b Mon Sep 17 00:00:00 2001
+From 5cad0d98cdce4d89b4cb8e1740e9df39fe219adb Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 04:44:35 +0000
 Subject: [PATCH] Fix sign extension when folding loads of signed values from
@@ -20,8 +20,7 @@ to false, and s / 3 was evaluated at compile time to 21844 instead of -1.
 Sign extend the folded value unless the load is known to be
 non-negative, and make the 32 bit case explicit the same way.
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01J5rsu7nnbQYnRY7GP34gdn
+Co-Authored-By: Claude <noreply@anthropic.com>
 ---
  autotest/autotest.bat          |   3 +
  autotest/constinitsignedtest.c | 176 +++++++++++++++++++++++++++++++++

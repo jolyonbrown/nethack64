@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Branch | `fix/r16-fnptr-compare` in `~/src/oscar64-dev`, commit `97d649deddae` (stacked on #01) |
+| Branch | `fix/r16-fnptr-compare` in `~/src/oscar64-dev`, commit `6e2e67e04920` (stacked on #01) |
 | Patch | [`tools/oscar64-upstream/patches/main/06-r16-fnptr-compare.patch`](../../tools/oscar64-upstream/patches/main/06-r16-fnptr-compare.patch) |
 | Kind | rejects valid C |
 | Since | v1.32.273 and main |
@@ -155,8 +155,7 @@ The supplied diff and reported probes support the two-part fix. The earlier reje
 ## Before submitting
 
 - Fill in the number of the null-comparison PR (#1) for "#NNN", and open this PR only after #1 is merged (or as a stacked PR that says so).
-- Make the AI-assistance line the same in every PR body (some end with a sentence, some with a "Generated with Claude Code" footer), as Jolyon decides.
-- Commit trailers: drop the `Claude-Session:` line and use one `Co-Authored-By:` line, as Jolyon decides for all PRs (see OSCAR64-UPSTREAM.md).
+- Done 2026-11-12 (Jolyon's decision): the commit ends with one `Co-Authored-By: Claude <noreply@anthropic.com>` line and no session link (message only; the tree is the one validated, commit `97d649deddae` before), and the PR text ends with the same AI-assistance sentence as every other PR.
 
 ## Risks and limitations
 
@@ -231,5 +230,5 @@ Validation against main `4da3147` on Linux, C64 target, ten configurations (`-ea
 - Full autotest (`make -k check`): 1541 successful emulations on the baseline, 1561 with the null-comparison fix and this patch (ten configurations of each new test), no new failures.
 - 182 autotest, sample-sized and external test programs compiled with both builds in five configurations (`-n -O0/-O2/-Os/-O3`, `-bc -O2`): against the null-comparison fix alone, all 845 programs both builds accept are byte-identical and the only status change is the new test going from error to ok; against plain 4da3147 the only differences are in the null-comparison fix's own test and probe.
 
-Prepared with AI assistance (Claude Code); the analysis and every number above were checked by running the commands shown.
+Found while porting NetHack 3.4.3 to the C64. Prepared with AI assistance (Claude Code); the numbers above come from the validation runs described.
 ````
