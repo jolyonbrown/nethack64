@@ -27,20 +27,46 @@ in a chat transcript.
 
 ## Wiring Codex into Claude Code
 
-`.mcp.json` registers Codex as an MCP server:
+OpenAI's Codex plugin for Claude Code (`openai/codex-plugin-cc`) is enabled
+for this repo in `.claude/settings.json`; Claude Code offers to install it the
+first time it starts here. It drives `codex app-server` and adds
+`/codex:review` (Codex's built-in reviewer on the working tree or branch),
+`/codex:adversarial-review` (a review you can steer with focus text),
+`/codex:rescue` (hand Codex a task), and `/codex:status`, `/codex:result`,
+`/codex:cancel`, `/codex:setup`. These are typed by you; Claude Code's own
+review step uses `codex exec` (below). The plugin needs the Codex CLI on PATH
+and logged in, which `/codex:setup` checks.
 
-```json
-{ "mcpServers": { "codex": { "command": "codex", "args": ["mcp-server"] } } }
+The old `.mcp.json` entry (`codex mcp-server`) is gone: Codex CLI 0.154.0
+(2026-09) removed that subcommand.
+
+**Sandbox.** Codex runs every command inside bubblewrap (`bwrap` from PATH).
+Ubuntu 24.04 sets `kernel.apparmor_restrict_unprivileged_userns=1`, so bwrap
+cannot create its user namespace ("setting up uid map: Permission denied",
+"loopback: Failed RTM_NEWADDR"). Then even a read-only Codex cannot run
+`git diff` or open a file, and `/codex:review` reports that it could not
+complete (seen 2026-11-12). The usual fix, not yet applied here, needs root.
+It grants only bwrap the user-namespace permission:
+
+```sh
+sudo tee /etc/apparmor.d/bwrap >/dev/null <<'EOF'
+abi <abi/4.0>,
+include <tunables/global>
+
+profile bwrap /usr/bin/bwrap flags=(unconfined) {
+  userns,
+  include if exists <local/bwrap>
+}
+EOF
+sudo apparmor_parser -r /etc/apparmor.d/bwrap
+bwrap --ro-bind / / --dev /dev --proc /proc --unshare-net true && echo ok
 ```
 
-It exposes `codex` (start a session: `prompt`, `cwd`, `sandbox`,
-`approval-policy`, ...) and `codex-reply` (continue one by `threadId`).
-Needs the Rust Codex CLI on PATH and logged in. Known gotchas: very old
-versions don't return the `threadId` from `codex` (multi-turn breaks) — keep
-Codex CLI current; reviews should use `sandbox: "read-only"`.
-
-Without MCP: run Codex in its own terminal in the same repo (or a git
-worktree), point it at the branch, and ask for a review against `AGENTS.md`.
+Until that works, `/codex-review` gives Codex everything inline: one
+self-contained packet (task, doc excerpts, full diff) piped into
+`codex exec -s read-only`, so Codex needs no commands. A Codex that writes
+(`--dangerously-bypass-approvals-and-sandbox`) runs only in its own worktree,
+and only on projects where you have allowed it (this one: 2026-11-09).
 
 ## Parallel work without collisions
 
