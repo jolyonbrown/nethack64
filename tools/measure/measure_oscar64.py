@@ -23,6 +23,8 @@ usage: tools/measure/measure_oscar64.py [--config unix|c64] [file.c ...]
                   2026-11-08 baseline (docs/data/oscar64-baseline-2026-11-08.json)
   c64:            the C64 configuration (port/include/c64conf.h, -dC64, ADR-0006)
 writes build/measure[-c64]/report.json and prints a table
+environment: OSCAR64 (the compiler), MEASURE_TIMEOUT (seconds per file, default 150),
+  MEASURE_MEMORY_MB (address-space cap per compile, default 3000; "compiler-oom" if hit)
 """
 import argparse
 import collections
@@ -31,6 +33,7 @@ import hashlib
 import json
 import os
 import re
+import resource
 import shutil
 import subprocess
 import sys
@@ -58,6 +61,14 @@ CONFIG = "unix"
 OUT = os.path.join(ROOT, "build", CONFIGS[CONFIG]["out"])
 DEFS = CONFIGS[CONFIG]["defs"]
 TIMEOUT = int(os.environ.get("MEASURE_TIMEOUT", "150"))
+# Oscar64 can grow without bound (exponential walks over a function's flow graph: PR #440
+# on explode.c reached 8-11 GB in 20 s).  Uncapped, the kernel's OOM killer stops it, or
+# something else on the machine first; under the cap it ends in seconds in std::bad_alloc.
+MEMORY_MB = int(os.environ.get("MEASURE_MEMORY_MB", "3000"))
+
+
+def cap_memory():
+    resource.setrlimit(resource.RLIMIT_AS, (MEMORY_MB << 20, MEMORY_MB << 20))
 
 
 def setup():
@@ -121,10 +132,14 @@ def measure(f):
            "-o=" + out, os.path.join(OUT, "src", f)] + DEFS + \
           [os.path.join(OUT, "src", x) for x in base] + [h]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, cwd=OUT, timeout=TIMEOUT)
+        r = subprocess.run(cmd, capture_output=True, text=True, cwd=OUT, timeout=TIMEOUT,
+                           preexec_fn=cap_memory)
     except subprocess.TimeoutExpired:
         return {"status": "compiler-hang"}
     crashed = r.returncode < 0 or r.returncode >= 128
+    # bad_alloc: the cap stopped it; SIGKILL that is not our timeout: the OOM killer did
+    if crashed and ("std::bad_alloc" in r.stderr or r.returncode == -9):
+        return {"status": "compiler-oom"}
     errs = [l for l in (r.stdout + r.stderr).splitlines() if "error" in l]
     if crashed and not errs:
         return {"status": "compiler-crash"}
@@ -149,7 +164,7 @@ def measure(f):
 def struct_sizes():
     r = subprocess.run([OSCAR64, "-e", "-i=" + os.path.join(OUT, "inc"), "-i=" + os.path.join(OUT, "stub"),
                         "-o=" + os.path.join(OUT, "sizes.prg"), os.path.join(HERE, "struct_sizes.c")] + DEFS,
-                       capture_output=True, text=True, cwd=OUT, timeout=TIMEOUT)
+                       capture_output=True, text=True, cwd=OUT, timeout=TIMEOUT, preexec_fn=cap_memory)
     sizes = [l for l in r.stdout.splitlines() if re.match(r"^[a-z_]+ \d", l)]
     if not sizes:
         errs = [l for l in (r.stdout + r.stderr).splitlines() if "error" in l]
@@ -180,8 +195,16 @@ def provenance():
             continue    # build timestamp; the tables are what matters
         with open(os.path.join(ROOT, "port", p), "rb") as fh:
             gen.update(fh.read())
+    exe = shutil.which(OSCAR64) or OSCAR64
+    try:
+        with open(exe, "rb") as fh:
+            exe_sha = hashlib.sha256(fh.read()).hexdigest()[:16]
+    except OSError:
+        exe_sha = "unknown"
+    # the version alone does not tell v1.32.273 from v1.32.273 plus patches (ADR-0007)
     return {"config": CONFIG, "oscar64_defs": DEFS, "mkstubs_defs": CONFIGS[CONFIG]["cpp"],
-            "oscar64": ver(out([OSCAR64, "-v"])), "gcc": ver(out(["gcc", "-dumpfullversion"])),
+            "oscar64": ver(out([OSCAR64, "-v"])), "oscar64_sha256": exe_sha,
+            "memory_limit_mb": MEMORY_MB, "gcc": ver(out(["gcc", "-dumpfullversion"])),
             "git": out(["git", "-C", ROOT, "describe", "--always", "--dirty"]) or "unknown",
             "generated_tables_sha256": gen.hexdigest()[:16],
             "date": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())}

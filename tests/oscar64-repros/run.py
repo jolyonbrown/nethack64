@@ -16,12 +16,20 @@ Otherwise success = compiles and "Emulation result 0".
 import glob
 import os
 import re
+import resource
 import subprocess
 import sys
 import tempfile
 
 OSCAR64 = os.environ.get("OSCAR64", "oscar64")
 HERE = os.path.dirname(os.path.abspath(__file__))
+# Some Oscar64 bugs make the compiler's memory grow without bound; uncapped, the kernel's
+# OOM killer stops it (or something else).  Under the cap it ends in std::bad_alloc.
+MEMORY_MB = int(os.environ.get("REPRO_MEMORY_MB", "3000"))
+
+
+def cap_memory():
+    resource.setrlimit(resource.RLIMIT_AS, (MEMORY_MB << 20, MEMORY_MB << 20))
 
 
 def run(path):
@@ -33,10 +41,12 @@ def run(path):
         out = os.path.join(tmp, "r.prg")
         try:
             r = subprocess.run([OSCAR64] + flags + ["-o=" + out, path],
-                               capture_output=True, text=True, timeout=120)
+                               capture_output=True, text=True, timeout=120, preexec_fn=cap_memory)
         except subprocess.TimeoutExpired:
             return "BROKEN", "compiler hang"
     text = r.stdout + r.stderr
+    if (r.returncode < 0 or r.returncode >= 128) and ("std::bad_alloc" in text or r.returncode == -9):
+        return "BROKEN", "compiler out of memory (cap %d MB)" % MEMORY_MB
     if r.returncode < 0 or r.returncode >= 128:
         return "BROKEN", "compiler crashed (signal %d)" % (-r.returncode if r.returncode < 0 else r.returncode - 128)
     err = [l for l in text.splitlines() if "error" in l]

@@ -69,6 +69,9 @@ VICE passing is necessary, not sufficient: real-hardware caveats are in `docs/HA
 - Behaviour changes to the game (cutting features, shrinking buffers, changing
   RNG use) need a decision record in `docs/decisions/` first.
 - Code density beats speed (`-Os`); NetHack waits for input anyway.
+- Run Oscar64 on NetHack files under a memory cap, `(ulimit -v 3000000; ...)`: some
+  of its bugs make it grow without bound (compat #30). The measurement harness and
+  `make repros` cap their own compiles.
 - Never read `$DF00-$DFFF` and never use EasyFlash's 256-byte RAM: that I/O
   page is shared with the REU (see `docs/HARDWARE.md`).
 - Keep `make test` green. Add an AUTOTEST check for anything new in `src/`.

@@ -4,6 +4,12 @@ How we turn Oscar64 bugs found by the port into fixes that could go upstream
 (github.com/drmortalwombat/oscar64). A fix becomes a pull request only after
 Jolyon has read its explanation and said yes. Until then, branches stay local.
 
+- **Memory.** Run every compile of a NetHack file, reduction or probe under
+  a cap, `(ulimit -v 3000000; ...)`: some Oscar64 bugs make the compiler grow
+  without bound (compat #30), and on a 15 GB machine the kernel's OOM killer
+  then stops it, or something else. Under the cap a runaway ends in seconds in
+  `std::bad_alloc`. `tools/measure/measure_oscar64.py` and `make repros` cap
+  their compiles themselves (`MEASURE_MEMORY_MB`, `REPRO_MEMORY_MB`).
 - **Clones.** `~/src/oscar64` is the pinned compiler (v1.32.273) that every
   nethack64 build uses; never rebuild it for this work. `~/src/oscar64-dev`
   tracks upstream `main` (remote `upstream`). `~/src/oscar64-base` is a frozen
@@ -19,7 +25,10 @@ Jolyon has read its explanation and said yes. Until then, branches stay local.
   - the case passes in all ten autotest configurations, `-ea -g` with
     `-bc`/`-n` × default/`-O2`/`-O0`/`-Os`/`-O3`;
   - a new `autotest/<name>.c` with `assert`s, registered in `autotest.bat`,
-    that fails before the fix and passes after it;
+    that fails before the fix and passes after it (for a compile-time or
+    memory blow-up: a test that makes the unfixed compiler slow or large but
+    lets it finish, since a test that exhausts memory would hurt whoever
+    runs the suite; #15 is the example);
   - `make -k -j4 -C make check > LOG 2>&1`, then
     `autotest_diff.py BASE.log LOG` shows no new failures;
   - `corpus_diff.py BEFORE AFTER --out DIR` shows every program both
