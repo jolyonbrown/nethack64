@@ -32,7 +32,12 @@ Add new tasks at the bottom of the right section.
       not a compiler gap; the defining file is missing from the harness (compiles when
       present). Harness fix in T1.10.
 - [ ] T1.6 `makemon.c` compiler hang, `mhitm.c` abort, `shknam.c` segfault: bisect by
-      deleting functions until each compiles; repro; upstream issue.
+      deleting functions until each compiles; repro; upstream issue. — 2026-11-12
+      Claude: gdb on v1.32.273 puts the `shknam.c` segfault in
+      `InterCodeBasicBlock::LoadConstantOperand` from `ConstSingleLoopOptimization`
+      (compile-time evaluation of a loop over a constant table); start the reduction
+      from the file's loops over `shtypes[]` and friends. The proposed patched pin
+      (ADR-0007) does not change it.
 - [ ] T1.7 Parenthesise the nested `?:` sites (r2) — list them with a grep first.
 - [ ] T1.8 Work around r15 (`union T *` does not convert to `const union T *`), which
       stops every `add_menu(..., &any, ...)`: NetHack is const-correct here, so this is a
@@ -40,15 +45,23 @@ Add new tasks at the bottom of the right section.
       `add_menu` macro would cover all 87 calls (the 2026-11-09 review saw `apply.c`,
       `pager.c` and `spell.c` reach placement with it in a scratch copy). check_ansi +
       host_smoke; re-measure.
-- [ ] T1.9 File upstream Oscar64 issues for r1-r10 (one per issue, repro attached);
-      record issue numbers in OSCAR64-COMPAT.md. (Now also r12-r18; r18 first, it is
-      wrong code.)
+- [ ] T1.9 Upstream Oscar64 fixes. — 2026-11-12 Claude: instead of issues, 14 fixes
+      were written on a local clone of upstream main, reviewed twice each and revised;
+      they wait for Jolyon's per-PR decision (`docs/OSCAR64-UPSTREAM.md`, one page per PR
+      in `docs/oscar64-upstream/`, patches in `tools/oscar64-upstream/patches/main/`).
+      Already fixed on main: r1, r4, r9, r14, r17, r18. Not wanted upstream: r5/r6
+      (#438), r11, r13 (#90). Next: a fork (needs Jolyon's OK), open the approved PRs in
+      the suggested order, record the PR numbers in OSCAR64-COMPAT.md.
 - [ ] T1.10 Measurement harness fixes, then re-measure both configs and re-baseline both:
       find definitions in preprocessed text (`files.c` `close()`, `mon.c` `impossible(`,
       duplicate stubs in `cmd.c`/`end.c`/`mkmaze.c`); variadic stubs with a body that has a
       side effect, e.g. `nh_vl = 0;` (r14: an empty or `va_start`/`va_end`-only body still
       fails); definitions for referenced extern arrays (error 3010); count files that compile
       without referenced code (`dlb.c`, `mkmap.c`, data tables) as compiled, not as errors.
+      — 2026-11-12 Claude: also run each compile under a memory cap and report a kill by
+      signal 9 (or `std::bad_alloc`) as "compiler-oom", not "compiler-crash": Oscar64 can
+      grow without bound (PR #440 on `explode.c`), and on this 15 GB machine the kernel's
+      OOM killer then picks the compiler, or something else.
 - [ ] T1.11 `files.c` (C64 config) segfaults Oscar64 at `-Os` once `close()` is stubbed
       (`-O0` places it): bisect by deleting functions; repro; upstream issue. Same for
       `questpgr.c` (C64 config), which crashes Oscar64 once the r14 stubs get a body
@@ -62,10 +75,23 @@ Add new tasks at the bottom of the right section.
       `boolean` callback is at risk. Before game code runs: file upstream (T1.9), check
       whether a newer Oscar64 fixes it, then decide between a fixed or patched compiler
       and a port-side workaround (an ADR if it changes window-proc signatures).
+      — 2026-11-12 Claude: fixed on upstream main by 1169268 (2026-09-21), not in a
+      release; the patched compiler proposed in ADR-0007 carries it (decision: T1.16).
 - [ ] T1.14 Work around r16 (`windows.c:113` function pointer `==` function name) and r17
       (`do.c:688` `?:` over two functions), with repro-backed changes in `port/`. The
       obvious r17 workaround, a pointer variable, runs into r18 for `boolean` functions,
-      so do it after T1.13.
+      so do it after T1.13. (r17 is fixed on upstream main, c8da6bd; r16 has a fix
+      branch, PR #6 in OSCAR64-UPSTREAM.md. Both stay port-side work while we build
+      with v1.32.273.)
+- [ ] T1.15 **Wrong code to settle before game code runs** (OSCAR64-COMPAT.md #22-#28):
+      r19 (`p == 0` on a pointer initialised to 0), r20-r22 (negative initialised data
+      read as unsigned), r23 (a call through `windowprocs.win_*` overwrites the
+      caller's locals), identical functions with stored addresses merged, and r24
+      (compile-time evaluation of a pointer test, no fix yet). The ADR-0007 compiler fixes
+      all but r24. Then: count NetHack's exposure to each (which files change code with
+      each fix; read those diffs), and fix or work around r24.
+- [ ] T1.16 Decide the compiler nethack64 builds with: ADR-0007 (v1.32.273 plus five
+      backported wrong-code fixes) or another option it lists. Jolyon.
 
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 
