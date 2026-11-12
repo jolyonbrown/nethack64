@@ -50,8 +50,12 @@ Add new tasks at the bottom of the right section.
       they wait for Jolyon's per-PR decision (`docs/OSCAR64-UPSTREAM.md`, one page per PR
       in `docs/oscar64-upstream/`, patches in `tools/oscar64-upstream/patches/main/`).
       Already fixed on main: r1, r4, r9, r14, r17, r18. Not wanted upstream: r5/r6
-      (#438), r11, r13 (#90). Next: a fork (needs Jolyon's OK), open the approved PRs in
-      the suggested order, record the PR numbers in OSCAR64-COMPAT.md.
+      (#438), r11, r13 (#90). — 2026-11-12 Jolyon's decisions (decision page; recorded
+      in OSCAR64-UPSTREAM.md): every PR on hold, #14 (r13) not to be sent; fork created
+      (github.com/jolyonbrown/oscar64), #1-#13 queued there as `fix/<id>` branches;
+      attribution one `Co-Authored-By: Claude` line, no session link. Next: push #15-#18
+      when final; when Jolyon approves a PR, rebase if upstream moved, do its page's
+      "Before submitting" items, open it, record its number in OSCAR64-COMPAT.md.
 - [ ] T1.10 Measurement harness fixes, then re-measure both configs and re-baseline both:
       find definitions in preprocessed text (`files.c` `close()`, `mon.c` `impossible(`,
       duplicate stubs in `cmd.c`/`end.c`/`mkmaze.c`); variadic stubs with a body that has a

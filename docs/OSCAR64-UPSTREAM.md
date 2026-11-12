@@ -1,36 +1,52 @@
 # Oscar64 fixes proposed upstream
 
-Status 2026-11-12: 14 fixes, written and reviewed locally, waiting for Jolyon's
-decision. Nothing has been sent upstream: no fork, no PR, no issue. One page per
+Status 2026-11-12: 18 fixes written locally; #1-#15 finished and reviewed, #16-#18
+still in review. Nothing has been sent upstream: no PR, no issue. One page per
 proposed PR in [`docs/oscar64-upstream/`](oscar64-upstream/), each with a plain
 explanation, the evidence, every review finding and what happened to it, the risks,
 and the draft PR text. The commits themselves are in
 [`tools/oscar64-upstream/patches/main/`](../tools/oscar64-upstream/patches/main/)
 (`git am` onto upstream main 4da3147; GPL-3.0, like Oscar64).
 
-## What Jolyon needs to decide
+## Jolyon's decisions (2026-11-12)
 
-1. **Which PRs to open.** The recommendation per PR is in the table below.
-2. **Where from.** A PR needs a fork. `gh repo fork drmortalwombat/oscar64` under
-   `jolyonbrown` was refused by the agent's permission check (it creates a public
-   repository), so it needs your OK, or you run it yourself.
-3. **Order and pace.** Suggested: the four wrong-code fixes first (#1 to #4), then #6
-   once #1 is merged (it is stacked on #1), then the rest a few at a time. Most
-   outside PRs since August were merged or closed within a few days; a few took two
-   to five weeks. The maintainer often keeps the
-   contributor's regression test and writes his own version of the fix ("Picked up
-   your test but made a slightly different fix", PRs #442, #443, #447), so the tests
-   and the root-cause write-ups matter as much as the code.
-4. **Attribution.** Every commit ends with `Co-Authored-By: Claude ...` and a
-   `Claude-Session:` link, and every PR body says it was prepared with AI assistance
-   (Claude Code). The session link is private and means nothing upstream; the final
-   reviews recommend dropping it. The co-author names are inconsistent (some agents
-   wrote "Claude Fable 5.1"). Suggested: one line, `Co-Authored-By: Claude
-   <noreply@anthropic.com>`, no session link, keep the sentence in the PR body.
-   No upstream PR so far carries any AI attribution, so there is no house style to
-   follow.
-5. **The compiler nethack64 builds with** (separate from the PRs): see
-   [ADR-0007](decisions/ADR-0007-oscar64-patched-pin.md).
+Made on the decision page (claude.ai artifact `9Q2qbWw5XfEB3NQsk1cZuy`, private to
+Jolyon), which shows each PR's explanation and records the choice:
+
+1. **Which PRs to open:** none yet. All are **on hold**, except #14
+   (`r13-string-literal`): **do not send** (Jolyon: "read the response to issue #90 and
+   i guess that's their choice"). It stays a one-line workaround in `port/` (T1.12).
+2. **Fork:** yes. Created 2026-11-12: <https://github.com/jolyonbrown/oscar64>
+   (public). The finished PRs on hold are queued there as branches `fix/<id>`, one
+   commit each on upstream main 4da3147 (#6 sits on #1): #1-#13 pushed 2026-11-12; #15
+   and #16-#18 are pushed once final; #14 stays local. In the local clone the fork is
+   the remote `fork`. A branch on the fork notifies nobody upstream.
+3. **Attribution:** each commit ends with one `Co-Authored-By: Claude
+   <noreply@anthropic.com>` line and no session link; each PR body ends with
+   "Prepared with AI assistance (Claude Code); the numbers above come from the
+   validation runs described." Applied to #1-#14 by a message-only rewrite (every
+   tree identical to the validated one); #15-#18 get it when finalised.
+4. **The compiler nethack64 builds with:** [ADR-0007](decisions/ADR-0007-oscar64-patched-pin.md)
+   accepted (v1.32.273 plus `tools/oscar64-upstream/patches/pin/`). Adding a further
+   fix to it (the `shknam.c` and `makemon.c` ones) is asked for each time.
+
+**Sending a queued PR**, once Jolyon approves it: rebase the branch if upstream main
+has moved (still 4da3147 on 2026-11-12) and re-run its evidence, do the "Before
+submitting" items on its page, then open it from the fork with the page's title and
+body:
+
+```sh
+gh pr create --repo drmortalwombat/oscar64 --base main \
+  --head jolyonbrown:fix/<id> --title "<title>" --body-file <body.md>
+```
+
+Suggested order and pace, when the time comes: the four wrong-code fixes first (#1
+to #4) and #15 with or right after #4, then #6 once #1 is merged (it is stacked on
+#1), then the rest a few at a time. Most outside PRs since August were merged or
+closed within a few days; a few took two to five weeks. The maintainer often keeps
+the contributor's regression test and writes his own version of the fix ("Picked up
+your test but made a slightly different fix", PRs #442, #443, #447), so the tests and
+the root-cause write-ups matter as much as the code.
 
 ## The proposed PRs
 
