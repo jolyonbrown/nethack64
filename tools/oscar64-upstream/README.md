@@ -34,3 +34,16 @@ Jolyon has read its explanation and said yes. Until then, branches stay local.
 - **`cases/`** holds inputs that are not nethack64 repros, such as the
   function-pointer-member regression on upstream `main` (2026-11-12), which
   v1.32.273 compiles.
+- **`patches/main/`** holds the finished fixes as `git format-patch` files, one
+  commit each on upstream main 4da3147, numbered in the proposed submission
+  order (`git -C <clone> am patches/main/NN-<id>.patch`; #06 applies on top of
+  #01). They are what `docs/OSCAR64-UPSTREAM.md` and `docs/oscar64-upstream/`
+  describe, kept here because the branches exist only in a local clone until
+  there is a fork. **`patches/pin/`** holds the same fixes backported to
+  v1.32.273 for the patched compiler proposed in ADR-0007. Both are Oscar64
+  changes and so GPL-3.0, like Oscar64.
+- **Reproducible output.** Some programs compile to different bytes with two
+  builds of the same compiler source (`autotest/testint16mul.c` and
+  `samples/hires/splitscreen.c` at `-bc -O2`; the output depends on the
+  compiler's install path or heap layout). Before blaming a fix for a
+  `corpus_diff.py` difference, compare two builds of the base.
