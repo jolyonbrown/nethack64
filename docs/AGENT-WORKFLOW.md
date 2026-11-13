@@ -47,24 +47,25 @@ Ubuntu 24.04 sets `kernel.apparmor_restrict_unprivileged_userns=1`, so bwrap
 cannot create its user namespace ("setting up uid map: Permission denied",
 "loopback: Failed RTM_NEWADDR"). Then even a read-only Codex cannot run
 `git diff` or open a file, and `/codex:review` reports that it could not
-complete (seen 2026-11-12). The usual fix, not yet applied here, needs root.
-It grants only bwrap the user-namespace permission:
+complete (seen 2026-11-12). No Codex setting gets round it (checked 2026-11-13,
+Codex 0.167): `sandbox_mode`, writable roots and permission profiles change what
+the sandbox allows once it starts, `danger-full-access` turns it off, and the
+deprecated `use_legacy_landlock` flag stops with "filesystem-restricted execution
+requires bubblewrap to isolate app-server sockets". The fix OpenAI documents for
+24.04 (learn.chatgpt.com/docs/sandboxing) needs root: Ubuntu's own profile, which
+lets bwrap create the namespace and denies capabilities to what runs inside it.
+Not applied (2026-11-13): nothing needs it while the workarounds below cover every
+use; only the plugin's `/codex:review` and `/codex:adversarial-review` stay broken.
 
 ```sh
-sudo tee /etc/apparmor.d/bwrap >/dev/null <<'EOF'
-abi <abi/4.0>,
-include <tunables/global>
-
-profile bwrap /usr/bin/bwrap flags=(unconfined) {
-  userns,
-  include if exists <local/bwrap>
-}
-EOF
-sudo apparmor_parser -r /etc/apparmor.d/bwrap
+sudo apt install apparmor-profiles apparmor-utils
+sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict \
+  /etc/apparmor.d/bwrap-userns-restrict
+sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
 bwrap --ro-bind / / --dev /dev --proc /proc --unshare-net true && echo ok
 ```
 
-Until that works, `/codex-review` gives Codex everything inline: one
+Instead, `/codex-review` gives Codex everything inline: one
 self-contained packet (task, doc excerpts, full diff) piped into
 `codex exec -s read-only`, so Codex needs no commands. A Codex that writes
 (`--dangerously-bypass-approvals-and-sandbox`) runs only in its own worktree,
