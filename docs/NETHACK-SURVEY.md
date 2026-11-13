@@ -231,3 +231,29 @@ configuration with four of the five.)
     the tables `monst.c`, `objects.c` and `vis_tab.c`.
 - Measurement only: nothing here links or runs, and the shim is not the
   system layer.
+
+## Oscar64 compile status with the ADR-0007 compiler (2026-11-13)
+
+The build switched to the patched compiler (ADR-0007; T1.20). Both configurations
+measured again with it, `tools/measure/measure_oscar64.py` with and without
+`--config c64`. Tools: the pin (`~/src/oscar64-pin`, tree 7de21ef), gcc 13.3.0; port
+and harness at `5b0d9a7`. Per-file results: `docs/data/oscar64-pin-baseline-2026-11-13.json`
+(UNIX) and `docs/data/oscar64-pin-c64conf-2026-11-13.json` (C64).
+
+| Result | UNIX config | C64 config |
+|---|---|---|
+| compile through to placement | 39 (241,280 B) | **44 (251,667 B)** |
+| stop on a compile error | 66 | 61 |
+| crash the compiler (`shknam.c`, SIGSEGV) | 1 | 1 |
+| hang the compiler (`makemon.c`, killed after 150 s) | 1 | 1 |
+
+- **New in both, `mhitm.c`:** the release still runs out of memory on it today
+  (`compiler-oom` under the 3 GB cap, compat #30); the pin's runaway fix lets it through.
+- **New in both, `monst.c` and `objects.c`:** a counting artefact. They are data
+  tables whose arrays place under neither compiler ("Could not place object
+  'mons'"); the pin places their one small function, so the harness now counts them
+  as compiling (T1.10 wants data-only files counted that way anyway).
+- **Sizes are not exactly repeatable** without a zero-filled compiler heap:
+  `potion.c` places 22 of 24 functions (16,137 B) in this run and 23 (18,227 B) with
+  the heap zeroed; `teleport.c` is 11 bytes shorter here, the frame push that #40
+  loses. The bytecode comparison (FITTING-TOOLBOX.md #15) used the zeroed heap.

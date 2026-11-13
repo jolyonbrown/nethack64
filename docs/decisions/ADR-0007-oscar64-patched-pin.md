@@ -1,6 +1,6 @@
 # ADR-0007: Build with Oscar64 v1.32.273 plus wrong-code fixes
 
-- Status: accepted by Jolyon on 2026-11-12, on the decision page; not used by the build yet (see Decision)
+- Status: accepted by Jolyon on 2026-11-12, on the decision page; used by the build since 2026-11-13
 - Date: 2026-11-12 (proposed and accepted); commit ids final 2026-11-13
 - Deciders: Jolyon (+ Claude, who proposed it)
 
@@ -83,13 +83,13 @@ because c2f5cab and f001eba are siblings. Round six (2026-11-13) added more cand
 also undecided: the heap-initialisation commits (r38, r39; T1.21) and our fixes for r36
 and r37 (T1.22, T1.23).
 
-`tools/oscar64-upstream/build-pin.sh [DIR]` builds it (`JOBS=N` for `make -jN`). The
-build does not use it yet: the setup scripts (`tools/setup-ubuntu.sh`,
-`tools/setup-arch.sh`) still build plain `OSCAR64_TAG` (v1.32.273), and the Makefile
-still takes `oscar64` from PATH. Switching is the next step: the setup scripts apply
-the patches after checking out `OSCAR64_TAG`, and the docs say "v1.32.273 + nethack64
-patches". Re-pin to a plain release once one contains these fixes (or equivalents) and
-passes the same checks, and its `-Os` size is understood.
+`tools/oscar64-upstream/build-pin.sh [DIR]` builds it (`JOBS=N` for `make -jN`). Since
+2026-11-13 the setup scripts (`tools/setup-ubuntu.sh`, `tools/setup-arch.sh`) build the
+release and then this compiler, link this one as `oscar64` (the Makefile takes it from
+PATH) and the release as `oscar64-plain`; `OSCAR64_PLAIN=1` keeps the release as the
+default. Our C64 program (`src/`) compiles to the same bytes with both. Re-pin to a
+plain release once one contains these fixes (or equivalents) and passes the same
+checks, and its `-Os` size is understood.
 
 ## Consequences
 

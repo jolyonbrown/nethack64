@@ -11,7 +11,8 @@
 #   make memmap     summarise the last build's memory map
 #   make clean
 #
-# Tools are found on PATH; override e.g.  make OSCAR64=~/src/oscar64/bin/oscar64
+# Tools are found on PATH (tools/setup-*.sh links oscar64 to the ADR-0007 compiler and
+# oscar64-plain to the plain release); override e.g.  make OSCAR64=oscar64-plain
 
 OSCAR64  ?= oscar64
 VICE     ?= x64sc

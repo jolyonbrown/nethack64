@@ -54,8 +54,8 @@ gh pr create --repo drmortalwombat/oscar64 --base main \
 
 Our own compiler does not depend on any of this: nethack64 is to build with v1.32.273
 plus `tools/oscar64-upstream/patches/pin/` (ADR-0007), whatever happens to the PRs.
-`build-pin.sh` builds it; the setup scripts still build plain v1.32.273 until the build
-switches (TASKS T1.20).
+The setup scripts build it with `build-pin.sh` and link it as `oscar64` (since
+2026-11-13, TASKS T1.20); the plain release is `oscar64-plain`.
 
 Suggested order and pace, when the time comes: the four wrong-code fixes first (#1
 to #4) and #15 with or right after #4, then #6 once #1 is merged (it is stacked on

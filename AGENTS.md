@@ -57,11 +57,12 @@ VICE passing is necessary, not sufficient: real-hardware caveats are in `docs/HA
 
 ## Ground rules
 
-- **Oscar64 is the compiler** (pinned: v1.32.273). It has known gaps with
-  1990s C; see `docs/OSCAR64-COMPAT.md`. When you hit a new one: reduce it to
-  a tiny file in `tests/oscar64-repros/` (header says expected vs actual and the
-  workaround), add the workaround, note it in the compat doc. Do not silently
-  rewrite game code around a compiler bug.
+- **Oscar64 is the compiler** (pinned: v1.32.273 plus the wrong-code fixes in
+  `tools/oscar64-upstream/patches/pin/`, ADR-0007; `oscar64-plain` is the
+  release). It has known gaps with 1990s C; see `docs/OSCAR64-COMPAT.md`.
+  When you hit a new one: reduce it to a tiny file in `tests/oscar64-repros/`
+  (header says expected vs actual and the workaround), add the workaround, note
+  it in the compat doc. Do not silently rewrite game code around a compiler bug.
 - `upstream/` is read-only reference. All game changes go in `port/` and must
   stay buildable by gcc (host build) as well as Oscar64.
 - Prefer mechanical, scripted transforms (in `tools/`) over hand edits for

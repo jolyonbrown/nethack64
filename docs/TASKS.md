@@ -100,7 +100,7 @@ Add new tasks at the bottom of the right section.
       generator), not in any of the r27-r35 paths; no log was kept, not re-checked.
 - [ ] T1.12 Work around r12 (`decl.c` `occtxt = DUMMY` → `= 0`) and r13 (`mail.c`
       `junk[]` → `const char *`) in `port/`; check_ansi + host_smoke; re-measure.
-- [ ] T1.13 **r18, wrong code:** Oscar64 reads the `char`/`boolean` result of a call
+- [x] T1.13 **r18, wrong code:** Oscar64 reads the `char`/`boolean` result of a call
       through a function pointer from `ACCU` while the callee leaves it in A, with no
       diagnostic: at `-Os`/`-O2` once the target is unknown at compile time, at `-O0`
       always. Every `yn(...) == 'y'` (`win_yn_function` returns `char`) and every
@@ -109,7 +109,7 @@ Add new tasks at the bottom of the right section.
       and a port-side workaround (an ADR if it changes window-proc signatures).
       — 2026-11-12 Claude: fixed on upstream main by 1169268 (2026-09-21), not in a
       release; the ADR-0007 compiler (accepted 2026-11-12) carries it, and the build
-      switches to that compiler in T1.20.
+      uses that compiler since 2026-11-13 (T1.20). Settled: no port-side workaround.
 - [ ] T1.14 Work around r16 (`windows.c:113` function pointer `==` function name) and r17
       (`do.c:688` `?:` over two functions), with repro-backed changes in `port/`. The
       obvious r17 workaround, a pointer variable, runs into r18 for `boolean` functions,
@@ -121,7 +121,7 @@ Add new tasks at the bottom of the right section.
       read as unsigned), r23 (a call through `windowprocs.win_*` overwrites the
       caller's locals), identical functions with stored addresses merged, and r24
       (compile-time evaluation of a pointer test, no fix yet). The ADR-0007 compiler fixes
-      all but r24. Then: count NetHack's exposure to each (which files change code with
+      all but r24, and the build uses it since 2026-11-13 (T1.20). Then: count NetHack's exposure to each (which files change code with
       each fix; read those diffs), and fix or work around r24. — 2026-11-12 Claude: three
       more (OSCAR64-COMPAT.md #32, #34, #35): r30 (an array element forwarded past an
       overwrite; NetHack not searched), r32 (`t[k]` of a `const` pointer table points 2k
@@ -158,13 +158,20 @@ Add new tasks at the bottom of the right section.
       struct copies), so low priority: put the review's trial fix (move
       `ltemps.SetSize(j)` in front of `if (!ins->mVolatile)`) through the autotest and the
       corpus, with an autotest of its own, for upstream.
-- [ ] T1.20 Switch the build to the ADR-0007 compiler. `tools/setup-ubuntu.sh` and
+- [x] T1.20 Switch the build to the ADR-0007 compiler. `tools/setup-ubuntu.sh` and
       `tools/setup-arch.sh` build it with `build-pin.sh` (`JOBS` for the `make -j`, and a
       way to get the plain release for comparisons); the Makefile, AGENTS.md ("pinned:
       v1.32.273"), TOOLCHAIN.md, README and OSCAR64-COMPAT.md's header say "v1.32.273 +
       nethack64 patches (ADR-0007)". Then `make`, `make prg`, `make test`, `make repros`
       (r1-r35: 8 pass) with it, re-baseline the measurements (T1.10) and update the
       workaround column of the rows it fixes.
+      — 2026-11-13 Claude: done. Both setup scripts tested on scratch copies (both modes).
+      Here `oscar64` -> `~/src/oscar64-pin` (tree 7de21ef), `oscar64-plain` -> the
+      release. `make -B`: `nethack-ef.crt` byte-identical to the release build
+      (sha256 fbc83167...); `make prg`; `make test` 5/5; `make repros` 8 of 44 pass
+      (r18-r23, r25, r26; r40-r44 broken as recorded). Re-baselined both configurations
+      (NETHACK-SURVEY.md, 2026-11-13 section): 44 of 107 (C64) and 39 (UNIX) reach
+      placement. Rows #22-#27, #29, #30 updated.
 - [ ] T1.21 Heap-dependent output and two wrong-code bugs (OSCAR64-COMPAT.md #40, #41;
       r38, r39). v1.32.273 and the pin read members nothing has set: `LinkerObject`
       addresses of objects never placed, `LinkerSection` start/end,
@@ -179,7 +186,11 @@ Add new tasks at the bottom of the right section.
       itself depends on the heap, and r39, which the commits fix); 45 non-fitting
       NetHack files identical under six heap fills; r38 and r39 FIXED. Before they can
       be offered: 8286734's message and its patch credit 963b29c (2026-09-28) where
-      4969258 (2026-10-18) is right. Candidates for the pin (T1.25). For upstream: the
+      4969258 (2026-10-18) is right (963b29c added `ModifiesIndirect()`; 4969258 made
+      this test use it), and all ten commits on the two branches carry a
+      `Claude-Session` trailer, which upstream-bound commits must not. Reword them
+      when the T1.25 candidates are finalised, so their ids change once. Candidates
+      for the pin (T1.25). For upstream: the
       four commits on `scratch/heap-init-main` (on 4da3147; autotest 1,541/1,541).
 - [ ] T1.22 r36 and its family (OSCAR64-COMPAT.md #38, #42-#45; r36, r40-r43; r40-r43
       being finalised 2026-11-13). r36: `InnerLoopOptimization` moves a loop-invariant

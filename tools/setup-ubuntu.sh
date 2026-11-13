@@ -31,13 +31,26 @@ if [ ! -f "$VICEDATA/C64/kernal-901227-03.bin" ] && [ ! -f "$VICEDATA/C64/kernal
 fi
 
 # ---- Oscar64 ---------------------------------------------------------------------
+# The build uses the ADR-0007 compiler: release v1.32.273 plus the wrong-code fixes in
+# tools/oscar64-upstream/patches/pin/ (oscar64).  The plain release stays next to it
+# (oscar64-plain) for comparisons; OSCAR64_PLAIN=1 makes it the default instead.
+# JOBS sets make -j for both compiler builds (default: nproc).
 SRC=${OSCAR64_SRC:-$HOME/src/oscar64}
+PIN=${OSCAR64_PIN:-$HOME/src/oscar64-pin}
 if [ ! -d "$SRC/.git" ]; then
   git clone -q https://github.com/drmortalwombat/oscar64 "$SRC"
 fi
 git -C "$SRC" fetch --tags --quiet
 git -C "$SRC" checkout --quiet "$OSCAR64_TAG"
-make -C "$SRC/make" -j"$(nproc)" compiler
+make -C "$SRC/make" -j"${JOBS:-$(nproc)}" compiler
 mkdir -p "$PREFIX/bin"
-ln -sf "$SRC/bin/oscar64" "$PREFIX/bin/oscar64"
-echo "oscar64 -> $PREFIX/bin/oscar64 ($OSCAR64_TAG)"
+ln -sf "$SRC/bin/oscar64" "$PREFIX/bin/oscar64-plain"
+if [ "${OSCAR64_PLAIN:-0}" = 1 ]; then
+  ln -sf "$SRC/bin/oscar64" "$PREFIX/bin/oscar64"
+  echo "oscar64 -> $PREFIX/bin/oscar64 (plain $OSCAR64_TAG, OSCAR64_PLAIN=1)"
+else
+  OSCAR64_REPO="$SRC" JOBS="${JOBS:-$(nproc)}" "$(dirname "$0")/oscar64-upstream/build-pin.sh" "$PIN"
+  ln -sf "$PIN/bin/oscar64" "$PREFIX/bin/oscar64"
+  echo "oscar64 -> $PREFIX/bin/oscar64 (v1.32.273 + nethack64 patches, ADR-0007);" \
+       "oscar64-plain -> $OSCAR64_TAG"
+fi

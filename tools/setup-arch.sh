@@ -25,18 +25,30 @@ fi
 python3 -m pip install --user --break-system-packages pexpect 2>/dev/null || \
   echo "note: install python-pexpect (pacman) or pexpect (pip) for tests/host_smoke.py"
 
-# Oscar64 from source, pinned
+# Oscar64 from source, pinned.  The build uses the ADR-0007 compiler: release v1.32.273
+# plus the wrong-code fixes in tools/oscar64-upstream/patches/pin/ (oscar64).  The plain
+# release stays next to it (oscar64-plain) for comparisons; OSCAR64_PLAIN=1 makes it the
+# default instead.  JOBS sets make -j for both compiler builds (default: nproc).
 SRC=${OSCAR64_SRC:-$HOME/src/oscar64}
+PIN=${OSCAR64_PIN:-$HOME/src/oscar64-pin}
 if [ ! -d "$SRC/.git" ]; then
   git clone https://github.com/drmortalwombat/oscar64 "$SRC"
 fi
 git -C "$SRC" fetch --tags --quiet
 git -C "$SRC" checkout --quiet "$OSCAR64_TAG"
-make -C "$SRC/make" -j"$(nproc)" compiler
+make -C "$SRC/make" -j"${JOBS:-$(nproc)}" compiler
 mkdir -p "$PREFIX/bin"
-ln -sf "$SRC/bin/oscar64" "$PREFIX/bin/oscar64"
+ln -sf "$SRC/bin/oscar64" "$PREFIX/bin/oscar64-plain"
+if [ "${OSCAR64_PLAIN:-0}" = 1 ]; then
+  ln -sf "$SRC/bin/oscar64" "$PREFIX/bin/oscar64"
+  which="plain $OSCAR64_TAG, OSCAR64_PLAIN=1"
+else
+  OSCAR64_REPO="$SRC" JOBS="${JOBS:-$(nproc)}" "$(dirname "$0")/oscar64-upstream/build-pin.sh" "$PIN"
+  ln -sf "$PIN/bin/oscar64" "$PREFIX/bin/oscar64"
+  which="v1.32.273 + nethack64 patches, ADR-0007; oscar64-plain is $OSCAR64_TAG"
+fi
 
 echo
-echo "oscar64 -> $PREFIX/bin/oscar64 ($OSCAR64_TAG); make sure $PREFIX/bin is on PATH"
+echo "oscar64 -> $PREFIX/bin/oscar64 ($which); make sure $PREFIX/bin is on PATH"
 echo "VICE: $(command -v x64sc)"
 echo "next: make && make test"

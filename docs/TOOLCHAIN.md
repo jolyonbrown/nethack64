@@ -2,7 +2,7 @@
 
 | Tool | Version verified | Role | Install |
 |---|---|---|---|
-| Oscar64 | v1.32.273 (pinned) | the C compiler for everything on the C64 | built from source by `tools/setup-*.sh` |
+| Oscar64 | v1.32.273 plus `tools/oscar64-upstream/patches/pin/` (ADR-0007) | the C compiler for everything on the C64 | built from source by `tools/setup-*.sh`: `oscar64` is the patched compiler, `oscar64-plain` the release |
 | VICE | 3.7.1 verified; 3.10 is current | emulator: `x64sc` (C64), `x128` | Arch: `pacman -S vice`; Ubuntu: `apt install vice` + ROMs (see below) |
 | xvfb-run | any | headless VICE for agents/CI | Arch: `xorg-server-xvfb`; Ubuntu: `xvfb` |
 | Python 3 | 3.10+ | all tools; `pexpect` for the host smoke test | |
@@ -19,9 +19,16 @@ make && make test
 ```
 
 Why pinned: every compatibility finding and every byte count in `docs/`
-was taken with v1.32.273. Upgrade deliberately: bump `OSCAR64_TAG`, run
-`make repros`, `make test` and `tools/measure/measure_oscar64.py`, record what
-changed in `docs/OSCAR64-COMPAT.md`, then commit the bump.
+was taken with v1.32.273 or with the patched compiler built on it. The
+patches are silent wrong-code fixes (ADR-0007): since 2026-11-13 the setup
+scripts build v1.32.273 plus `tools/oscar64-upstream/patches/pin/` with
+`tools/oscar64-upstream/build-pin.sh` and link it as `oscar64`, and link the
+plain release as `oscar64-plain` for comparisons (`OSCAR64_PLAIN=1` makes the
+release the default instead; `JOBS=N` sets `make -jN`). Our C64 program
+compiles to the same bytes with both (2026-11-13). Upgrade deliberately: a
+new release needs the patch stack re-checked against it, then `make repros`,
+`make test` and `tools/measure/measure_oscar64.py`; record what changed in
+`docs/OSCAR64-COMPAT.md` and ADR-0007, then commit the bump.
 
 Oscar64 finds its own headers relative to the real path of the binary, so a
 symlink in `~/.local/bin` is fine. It has no separate link step: list every
