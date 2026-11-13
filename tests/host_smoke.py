@@ -11,6 +11,7 @@ usage: tests/host_smoke.py [install_dir]   (default build/host-install)
 """
 import os
 import random
+import re
 import sys
 import time
 
@@ -43,9 +44,16 @@ def session(keys):
         child.expect(pexpect.EOF, timeout=15)
         out += child.before or ""
     except pexpect.TIMEOUT:
+        out += child.before or ""   # keep what arrived before the timeout
         child.terminate(force=True)
         out += "\n[TIMEOUT]"
     return out
+
+
+def strip_tty(s):
+    """Drop terminal control sequences so a transcript reads as text."""
+    return re.sub(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][0-9A-Za-z]|\x1b[=>78DEM]"
+                  r"|[\x00-\x08\x0e-\x1f]", "", s)
 
 
 def main():
@@ -69,7 +77,19 @@ def main():
     }
     for name, ok in checks.items():
         print("%-36s %s" % (name, "ok" if ok else "FAIL"))
-    sys.exit(0 if all(checks.values()) else 1)
+    if all(checks.values()):
+        sys.exit(0)
+    # A failure on CI (seen once, run 43189837451) did not reproduce locally,
+    # so keep the evidence: both transcripts, and the end of the restore one.
+    for tag, s in (("s1", s1), ("s2", s2)):
+        with open(os.path.join(INST, "smoke-%s.txt" % tag), "w",
+                  encoding="latin-1") as f:
+            f.write(s)
+    print("save dir after session 1: %s" % (saved or "empty"))
+    print("--- end of the restore session, control sequences stripped:")
+    print(strip_tty(s2)[-1200:])
+    print("--- transcripts: %s/smoke-s1.txt, smoke-s2.txt" % INST)
+    sys.exit(1)
 
 
 if __name__ == "__main__":
