@@ -24,7 +24,8 @@ usage: tools/measure/measure_oscar64.py [--config unix|c64] [file.c ...]
   c64:            the C64 configuration (port/include/c64conf.h, -dC64, ADR-0006)
 writes build/measure[-c64]/report.json and prints a table
 environment: OSCAR64 (the compiler), MEASURE_TIMEOUT (seconds per file, default 150),
-  MEASURE_MEMORY_MB (address-space cap per compile, default 3000; "compiler-oom" if hit)
+  MEASURE_MEMORY_MB (address-space cap per compile, default 3000; "compiler-oom" if hit),
+  MEASURE_BC=1 (compile to Oscar64 bytecode, -bc; sizes then count BYTE_CODE functions)
 """
 import argparse
 import collections
@@ -128,7 +129,9 @@ def measure(f):
     if g.returncode:
         return {"status": "stubgen-fail"}
     out = os.path.join(OUT, "m_%s.prg" % b)
-    cmd = [OSCAR64, "-rmp", "-Os", "-i=" + os.path.join(OUT, "inc"), "-i=" + os.path.join(OUT, "stub"),
+    # MEASURE_BC=1: the same compile in Oscar64 bytecode (FITTING-TOOLBOX.md #15)
+    bc = ["-bc"] if os.environ.get("MEASURE_BC") == "1" else []
+    cmd = [OSCAR64, "-rmp", "-Os"] + bc + ["-i=" + os.path.join(OUT, "inc"), "-i=" + os.path.join(OUT, "stub"),
            "-o=" + out, os.path.join(OUT, "src", f)] + DEFS + \
           [os.path.join(OUT, "src", x) for x in base] + [h]
     try:
@@ -152,7 +155,7 @@ def measure(f):
     code, seen = 0, set()
     if os.path.exists(m):
         for line in open(m):
-            mm = re.match(r"^([0-9a-f]{4}) - ([0-9a-f]{4}) : (\w+), NATIVE_CODE:", line)
+            mm = re.match(r"^([0-9a-f]{4}) - ([0-9a-f]{4}) : (\w+), (?:NATIVE|BYTE)_CODE:", line)
             if mm and mm.group(3) in names and mm.group(3) not in seen:
                 seen.add(mm.group(3))
                 code += int(mm.group(2), 16) - int(mm.group(1), 16)
@@ -210,6 +213,7 @@ def provenance():
             "memory_limit_mb": MEMORY_MB, "gcc": ver(out(["gcc", "-dumpfullversion"])),
             "git": out(["git", "-C", ROOT, "describe", "--always", "--dirty"]) or "unknown",
             "generated_tables_sha256": gen.hexdigest()[:16],
+            "bytecode": os.environ.get("MEASURE_BC") == "1",
             "date": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())}
 
 
@@ -245,8 +249,9 @@ def main():
     report["_meta"] = provenance()
     json.dump(report, open(os.path.join(OUT, "report.json"), "w"), indent=1)
     good = [r for k, r in report.items() if not k.startswith("_") and r.get("code")]
-    print("\nfiles measured: %d of %d, native code in those: %d bytes" %
-          (len(good), len(files), sum(r["code"] for r in good)))
+    print("\nfiles measured: %d of %d, %s in those: %d bytes" %
+          (len(good), len(files), "bytecode" if os.environ.get("MEASURE_BC") == "1" else "native code",
+           sum(r["code"] for r in good)))
     status = collections.Counter(r["status"] for k, r in report.items() if not k.startswith("_"))
     print("status (%s config):" % CONFIG, ", ".join("%d %s" % (n, s) for s, n in sorted(status.items())))
     print("struct sizes (Oscar64):", "; ".join(sizes))
