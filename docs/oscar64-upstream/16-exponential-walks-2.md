@@ -7,7 +7,7 @@
 | Kind | compiler hang (exponential compile time) and a stack-overflow crash, native code |
 | Since | v1.32.273 and main |
 | NetHack | Repro r29. `display.c` never finishes compiling (`feel_location`, `newsym`) once the `obj_to_glyph` macro gap (compat #7) is worked around; with the walk fixes it compiles in 4.7 s. For the pin the work is split into two decisions: `nethack64/pin-walks-display` (walks 1 and 2, the `display.c` fix) and `nethack64/pin-r30` (upstream 3bb084f + 1073206, which fix r30 wrong code, plus walk 3, which 1073206 makes necessary). |
-| Reviews | Opus (one round, ran probes): use-after-changes, 0 high, 1 medium, 5 low; fix-up: ready; final Codex check: pending |
+| Reviews | Opus (one round, ran probes): use-after-changes, 0 high, 1 medium, 5 low; fix-up: ready; final Codex check (2026-11-13): submit after changes, 3 open items below |
 | Recommendation | **Submit after #15 (stacked on it); also built and validated alone on main (efc9d90), so it can go either way.** |
 
 ## In plain words
@@ -110,6 +110,16 @@ NetHack display.c (harness copy in /home/jolyon/nethack64/build/oscar64-wt/f16-s
    /home/jolyon/nethack64/build/oscar64-wt/f16-scratch/gdb-pin8-display.log (samples at 60/100/140 s in CanJoinEntryLoadStoreZP); pin-walks-display reaches "error 3034: Cannot place stack section" in 4.7 s. The function name feel_location comes from the investigation and was not re-derived.
 
 </details>
+
+## Final Codex check (gpt-6-astra, 2026-11-13)
+
+Read-only `codex exec` on a packet of the final PR text, the commit and the earlier findings (as for PRs 1-14). Each finding was then checked by the lead.
+
+| Severity | Finding | Checked | Resolution |
+|---|---|---|---|
+| medium | "testint16mul.c at `-bc -O2`, whose output depends on the compiler build and not on this change": the hashes given do not establish that | True as worded; now measured: with the compiler's heap zero-filled (`zeroheap.so` preload), plain main 4da3147, main with this change alone (efc9d90) and main with #15 and this change (3d70f44) give identical bytes for it (sha256 56269bcc...), twice each; without the preload main and efc9d90 give 5875acb7... and 3d70f44 gives 56269bcc... So the difference comes from memory the compiler reads before writing (OSCAR64-COMPAT.md #40, #41), not from this change | Open: before submitting, replace the clause with that measurement |
+| low | The comment "A block whose second check is still running has mPatchUsed set" is too broad | True: `mPatchUsed = used \|\| !cleared` leaves it clear during a second check that started with the local overwritten and not used; an arrival there then passes the test, exactly as with the old condition, so behaviour is unchanged and only the comment overclaims | Open: before submitting, qualify the comment and the PR's explanation to second checks that start without the overwrite (comment only; the compiled compiler does not change) |
+| low | The PR text's `#NNN` placeholders must become real references | True | Already on the "Before submitting" list: fill in once the parent PR has a number |
 
 ## Before submitting
 

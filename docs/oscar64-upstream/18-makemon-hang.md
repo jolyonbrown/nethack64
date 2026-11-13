@@ -7,7 +7,7 @@
 | Kind | compiler hang (endless optimiser loop) |
 | Since | v1.32.273 and main |
 | NetHack | Repro r28. `makemon.c` hangs only in our measurement harness: a separate bug (r34, two reads of a volatile pointer merged) makes `clone_mon()`'s new and old monster the same memory, so `*m2 = *mon` becomes a copy onto itself. With the fix the harness compiles `makemon.c` in about 10 s. r34 and r35 (stale forward after a volatile struct copy) are separate and not fixed; a one-line harness change avoids the hang without any compiler fix. |
-| Reviews | Opus (one round, ran probes): use-after-changes, 1 high, 3 medium, 3 low; fix-up: ready; final Codex check: pending |
+| Reviews | Opus (one round, ran probes): use-after-changes, 1 high, 3 medium, 3 low; fix-up: ready; final Codex check (2026-11-13): submit after changes, 1 open item below |
 | Recommendation | **Submit; low priority for the game (only the harness's fake allocator reaches it).** |
 
 ## In plain words
@@ -109,6 +109,14 @@ Pin (pin c2f5cab against fixed pin): 154 files, 690 compile with both, 690 ident
    makemon.c on the fixed pin: 14275 bytes with the present stubs, 14458 with the changed line; clone_mon 698 against 768 bytes, one read of nh_vp against three separate reads.
 
 </details>
+
+## Final Codex check (gpt-6-astra, 2026-11-13)
+
+Read-only `codex exec` on a packet of the final PR text, the commit and the earlier findings (as for PRs 1-14). Each finding was then checked by the lead.
+
+| Severity | Finding | Checked | Resolution |
+|---|---|---|---|
+| medium | The test's `memcpy(p, p, 16)` is undefined behaviour in ISO C (overlapping objects) | True for ISO C. Measured: a file holding only that call hangs v1.32.273 at the default level, `-O2` and `-Os`, native and bytecode (60 s timeouts, all six), and the fix build 487a142 compiles it and returns 0 in all six: Oscar64 compiles a constant-size `memcpy` into the same copy, so the case covers a second way into the bug | Open: keep the case; before submitting, add a test comment and a PR sentence saying that ISO C leaves it undefined and why it is there, so the maintainer can drop it |
 
 ## Before submitting
 

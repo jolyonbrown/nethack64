@@ -7,7 +7,7 @@
 | Kind | compiler crash (with a wrong count behind it) |
 | Since | v1.32.273 and main |
 | NetHack | Compat #11b (repro r27): `shknam.c` crashes v1.32.273 when it evaluates the loop that counts a const table of shopkeeper names at compile time; behind the crash it would count 1 name instead of 30. With the fix `shknam.c` compiles (2,578 bytes) and counts 30. |
-| Reviews | Opus (one round, ran probes): use-after-changes, 1 high, 2 medium, 3 low; fix-up: ready; final Codex check: pending |
+| Reviews | Opus (one round, ran probes): use-after-changes, 1 high, 2 medium, 3 low; fix-up: ready; final Codex check (2026-11-13): submit after changes, 1 open item below |
 | Recommendation | **Submit after #1: on plain main this fix alone turns `0 != names[n]` loops from a crash into a wrong count of 0 until #1 is merged.** |
 
 ## In plain words
@@ -114,6 +114,14 @@ I counted the file sets this round (159 and 129 autotest sources after the makef
    The reviewer asked for no change. Not re-run this round.
 
 </details>
+
+## Final Codex check (gpt-6-astra, 2026-11-13)
+
+Read-only `codex exec` on a packet of the final PR text, the commit and the earlier findings (as for PRs 1-14). Each finding was then checked by the lead.
+
+| Severity | Finding | Checked | Resolution |
+|---|---|---|---|
+| low | The PR text's `#NNN` placeholders must become real references | True | Already on the "Before submitting" list: fill in once the parent PR has a number |
 
 ## Before submitting
 

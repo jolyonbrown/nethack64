@@ -7,7 +7,7 @@
 | Kind | compiler runs out of memory (exposed on main by #440) |
 | Since | the three walks are old (v1.32.273 and before); bf42402 (#440, 2026-10-24) exposed them at `-O2`/`-Os`/`-O3` |
 | NetHack | Compat #30 (repro r26). `explode.c`: with upstream bf42402 (PR #440, which the ADR-0007 compiler carries for r25) the compiler grows past 8 GB on `explode()` and the kernel kills it; this machine's OOM killer stopped oscar64 44 times this week. v1.32.273 has the same bug at `-O0`/`-O1`, and at `-Os` whenever nothing folds the conditions away (r26). Commit 8 of the proposed patched pin. |
-| Reviews | Opus (one round, ran probes): use-after-changes, 0 high, 3 medium, 5 low; Codex (read the diff): submit after changes; fix-up: ready; final Codex check: pending |
+| Reviews | Opus (one round, ran probes): use-after-changes, 0 high, 3 medium, 5 low; Codex (read the diff): submit after changes; fix-up: ready; final Codex check (2026-11-13): submit after changes, 2 open items below |
 | Recommendation | **Submit early, with or right after #4: it fixes an out-of-memory regression that #440 exposed, and main needs #4 before it can compile `explode.c` at all.** |
 
 ## In plain words
@@ -152,6 +152,15 @@ functionpointerparamtest.c on fixed main: 10/10 "Emulation result 0".
    Resolved 2026-11-13: `nethack64/v1.32.273-pin` is f001eba, and `tools/oscar64-upstream/patches/pin/0008-*.patch` is f001eba ("From f001eba...", same patch-id). `patches/main/15-pr440-runaway.patch` is ce1a99b (same patch-id as `fix/pr440-runaway`).
 
 </details>
+
+## Final Codex check (gpt-6-astra, 2026-11-13)
+
+Read-only `codex exec` on a packet of the final PR text, the commit and the earlier findings (as for PRs 1-14). Each finding was then checked by the lead.
+
+| Severity | Finding | Checked | Resolution |
+|---|---|---|---|
+| low | "Expected, and the result with this change: ... prints 432 and returns 0" reads as unconditional, while the Validation section reports four bytecode configurations printing 455/456 (a separate bytecode bug) | True: the Validation bullet says so, the sentence does not | Open: before submitting, change it to "With this change it compiles in all ten configurations; native code and `-bc -O0` print 432 and return 0; the other bytecode configurations show the separate issue described below" |
+| low | The PR text's `#NNN` placeholders must become real references | True | Already on the "Before submitting" list: fill in once the parent PR has a number |
 
 ## Before submitting
 
