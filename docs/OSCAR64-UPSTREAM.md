@@ -175,14 +175,18 @@ a difference against a second base build before blaming a fix.
 
 **Round six (2026-11-13)** turned up r36 to r44 and an unreduced default-level case
 (OSCAR64-COMPAT.md #38 to #46; TASKS T1.21 to T1.24). Still wrong on upstream main, so
-candidates for PRs once our fixes are ready: r36 and r37 (fixes on local branches,
-`scratch/r36-fix-main`, `scratch/r37-fix-main`), r40, r41, r43, r44, and the
+candidates for PRs once our fixes are ready: r36, r37, r40, r41 and r43 (fixes on
+local branches `scratch/r36-fix-main`, `scratch/r37-fix-main`, `scratch/r40-native-fix-main`,
+`scratch/r41-fix-main`, `scratch/r43-fix-main`), r44 (fixed on the pin only), and the
 default-level case.
 
 **Upstream-main-only regressions** (matter if we ever move to main): a by-value struct
 return read through a signed load at `-O0`, an assertion failure on
 `(gi(&s) < 0 ? -(long)gi(&s) : (long)gi(&s))`, an unsigned-short subtraction at
-bytecode `-O0`, a segfault on keyword-named struct members.
+bytecode `-O0`, a segfault on keyword-named struct members, and (from 57655c5's
+`CoerceType` mask, r42) a pointer compared with a pointer conditional, `(c ? p : q) == m`,
+taken as compared with a null pointer, in all ten configurations: NetHack's
+`m_at(x, y) == mon` in `known_hitum()` has that form.
 
 ## How the fixes were made and checked
 

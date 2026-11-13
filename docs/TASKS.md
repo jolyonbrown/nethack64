@@ -192,21 +192,27 @@ Add new tasks at the bottom of the right section.
       when the T1.25 candidates are finalised, so their ids change once. Candidates
       for the pin (T1.25). For upstream: the
       four commits on `scratch/heap-init-main` (on 4da3147; autotest 1,541/1,541).
-- [ ] T1.22 r36 and its family (OSCAR64-COMPAT.md #38, #42-#45; r36, r40-r43; r40-r43
-      being finalised 2026-11-13). r36: `InnerLoopOptimization` moves a loop-invariant
+- [ ] T1.22 r36 and its family (OSCAR64-COMPAT.md #38, #42-#45; r36, r40-r43). r36: `InnerLoopOptimization` moves a loop-invariant
       assignment in front of a loop that reads the old value first (wrong code at every
       level but `-O0` on v1.32.273, the pin and main). No NetHack site: an instrumented
       pin logged none in the 44 files that reach code generation nor in `src/`; 63 files
       do not compile yet and were only searched by hand, so measure again as they start
       to compile. Our fix with an autotest: `scratch/r36-fix-pin` 26a9c12 (pin autotest
       1,251 emulations, none failing), `scratch/r36-fix-main` 550e9a3 (full autotest not
-      run on main). The same work found a native-code twin (r40; fix
-      `scratch/r36-native-fix-pin` 5997864, pin only), a compiler abort in
-      `SingleBlockLoopOptimisation` (r41), an unsigned char global read wrong after a
-      loop at `-O2`/`-Os`/`-O3` that main gets right (r42), and its verifier a native
-      pointer form that no fix cures and no instrumentation sees (r43). Also seen, not
-      exposed: a `long` accumulated in a loop is wrong in bytecode at `-O2`/`-Os`/`-O3`
-      on v1.32.273 and the pin (main right; NetHack is native code).
+      run on main). The same work found, each with a repro, its own row and a local fix
+      (2026-11-13; repro claims re-measured by Codex, headers corrected):
+      r40, the native-code twin (5997864 on the pin, 3ac93dd on main; 2bede01, 8cae5da
+      and 7a4f9ff on top of 5997864 cure a parameter form it leaves wrong, and r43);
+      r41, a compiler abort in `SingleBlockLoopOptimisation` (e5b8d38, 8affaca); r42, an
+      unsigned char read back unwrapped behind a loop (`scratch/r42-backport-pin`:
+      upstream 57655c5's hunk plus a guard: upstream's hunk alone zeroes a pointer
+      compared with a pointer conditional, which main 4da3147 does, NetHack's
+      `known_hitum()` included); r43, a native pointer form (67d2908, 6f811e3, or
+      7a4f9ff). No NetHack site for any of them in the files that compile. Open: an
+      autotest for the r43 fix; full autotests of the main builds; signed narrowing
+      (`gs = 126 + (i & 3)`) wrong everywhere, no repro yet; which join the pin (T1.25).
+      Also seen, not exposed: a `long` accumulated in a loop is wrong in bytecode at
+      `-O2`/`-Os`/`-O3` on v1.32.273 and the pin (main right; NetHack is native code).
 - [ ] T1.23 r37 and its sibling (OSCAR64-COMPAT.md #39, #46; r37, r44). r37: the native
       peephole pass forwards a stored byte past a call that overwrites the register it
       came from, so the low byte of the call's result is read from the stored byte
@@ -215,9 +221,16 @@ Add new tasks at the bottom of the right section.
       fix (17 lines) and autotest `callresultforwardtest.c`: `scratch/r37-backport-pin`
       (c9f86f6, 3eef9b8; autotest 1,251/1,251), `scratch/r37-fix-main` (feff01f; full
       autotest not run on main). r44, found by its verifier: the walk also passes a
-      callee that writes the global through a pointer, which game code may do
-      (`levl[x][y]`, `u`, `youmonst` read into a register before such a call): repro,
-      fix and a differential exposure check are being done (2026-11-13).
+      callee that writes the global through a pointer (`STA (zp),y` is not counted as
+      a store), native code, v1.32.273, the pin and main. In the harness's listings
+      `make_hallucinated()` (`potion.c:248`) tests `old` as `HHallucination` behind
+      `set_itimeout(&HHallucination, xtime)`; without the harness's address-taking the
+      pin inlines `set_itimeout` there and gets it right, so check the game build's
+      listing once `potion.c` links. Our fix and autotest: `scratch/r44-fix-pin`
+      (8890301, cf8dd6f; autotest 1,261, none failing; verified by a second agent).
+      Not covered: calls through a function pointer (`JSR bcexec`); with the fix one
+      probe turns wrong at `-O0` (a separate bug it hid): reduce it before the fix is
+      offered.
 - [ ] T1.24 Wrong code at the default optimisation level only, native code (mutual
       recursion; a local's address passed on is taken at the wrong stack offset): on
       v1.32.273, the pin and main; right at `-O0`, `-O2`, `-Os`, `-O3`, so nethack64's
