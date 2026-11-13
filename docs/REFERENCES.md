@@ -113,6 +113,9 @@ File formats
 
 ## Agents
 - Claude Code memory files and `@AGENTS.md` imports — https://code.claude.com/docs/en/memory
-- Claude Code project files (`.claude/`, skills, `.mcp.json`) — https://code.claude.com/docs/en/claude-directory
-- Codex CLI as an MCP server (`codex mcp-server`, tools `codex`/`codex-reply`) —
-  https://codex.danielvaughan.com/2026/03/30/codex-cli-as-mcp-server/
+- Claude Code project files (`.claude/`, skills, plugins) — https://code.claude.com/docs/en/claude-directory
+- Codex plugin for Claude Code (`/codex:review`, `/codex:rescue`, ...) — https://github.com/openai/codex-plugin-cc
+- `codex mcp-server` deprecated 2026-08, removed in Codex CLI 0.154.0 —
+  https://codex.danielvaughan.com/2026/08/30/codex-mcp-server-deprecated-migration-app-server-agents-sdk/
+- Codex's Linux sandbox (bubblewrap from PATH, user namespaces) —
+  https://github.com/openai/codex/blob/main/codex-rs/linux-sandbox/README.md
