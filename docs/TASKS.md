@@ -37,12 +37,12 @@ Add new tasks at the bottom of the right section.
       Claude: gdb on v1.32.273 puts the `shknam.c` segfault in
       `InterCodeBasicBlock::LoadConstantOperand` from `ConstSingleLoopOptimization`
       (compile-time evaluation of a loop over a constant table); start the reduction
-      from the file's loops over `shtypes[]` and friends. The proposed patched pin
-      (ADR-0007) does not change it. — 2026-11-12 Claude: all three reduced. `mhitm.c`
+      from the file's loops over `shtypes[]` and friends. The ADR-0007 compiler does
+      not change it. — 2026-11-12 Claude: all three reduced. `mhitm.c`
       is r26 (#30, fixed by pin commit 8); `shknam.c` is r27 (#11b), the `shkgeneral`
       count in `nameshk()`; `makemon.c` is r28 (#11), a struct copied onto itself, reached
       only through the harness's pointer stubs (r34). Fixes: fork PRs #17 and #18 (T1.9)
-      and the pin candidates `pin-shknam-crash` and `pin-makemon-hang` (T1.16).
+      and the pin candidates `pin-shknam-crash` and `pin-makemon-hang` (T1.25).
 - [ ] T1.7 Parenthesise the nested `?:` sites (r2) — list them with a grep first.
 - [ ] T1.8 Work around r15 (`union T *` does not convert to `const union T *`), which
       stops every `add_menu(..., &any, ...)`: NetHack is const-correct here, so this is a
@@ -76,7 +76,22 @@ Add new tasks at the bottom of the right section.
       merges two such reads (r34), which is what hangs `makemon.c` (r28).
       `return (T)(unsigned)nh_vl;` keeps every read; `makemon.c` then gets through
       v1.32.273 and the pin (fits-not, once a `monstr` table is defined) and measures
-      about 1.3% bigger, so the present stubs understate sizes a little.
+      about 1.3% bigger, so the present stubs understate sizes a little. — 2026-11-13
+      Claude: three more. (a) The map regex (`measure_oscar64.py`, the `NATIVE_CODE`
+      line) takes only four-digit addresses and silently skips a function whose map
+      line holds garbage (`fffffffe - 0828 : dodip` in `potion.c`); an unparsable
+      `NATIVE_CODE` line should be an error. (b) v1.32.273 and the eight-commit pin
+      emit heap-dependent listings and sizes for files that do not fit (#40, #41's
+      cause: `potion.c` measures 16,137, 13,257 or 18,227 bytes), so until the T1.21
+      commits are in, measure under a zero-filled compiler heap (an `LD_PRELOAD` shim
+      that zero-fills each allocation; the round-six runs used one) and compare
+      reports only between runs made that way. (c) The `vault.c` "compiler-crash" of
+      2026-11-12 (1 in 77 runs) is most likely not the compiler: at 14:06:39Z another
+      agent ran `pkill -INT -f "pin/bin/oscar64 -rmp -Os"`, which matches the
+      harness's own compile command, while `vault.c` was being compiled
+      (reconstructed from timings; the signal was not recorded then). 190 runs since,
+      with and without heap fills, never crashed. The harness now records the signal
+      of a crash; agents must not `pkill` by a pattern that matches other compiles.
 - [ ] T1.11 `files.c` (C64 config) segfaults Oscar64 at `-Os` once `close()` is stubbed
       (`-O0` places it): bisect by deleting functions; repro; upstream issue. Same for
       `questpgr.c` (C64 config), which crashes Oscar64 once the r14 stubs get a body
@@ -93,7 +108,8 @@ Add new tasks at the bottom of the right section.
       whether a newer Oscar64 fixes it, then decide between a fixed or patched compiler
       and a port-side workaround (an ADR if it changes window-proc signatures).
       — 2026-11-12 Claude: fixed on upstream main by 1169268 (2026-09-21), not in a
-      release; the patched compiler proposed in ADR-0007 carries it (decision: T1.16).
+      release; the ADR-0007 compiler (accepted 2026-11-12) carries it, and the build
+      switches to that compiler in T1.20.
 - [ ] T1.14 Work around r16 (`windows.c:113` function pointer `==` function name) and r17
       (`do.c:688` `?:` over two functions), with repro-backed changes in `port/`. The
       obvious r17 workaround, a pointer variable, runs into r18 for `boolean` functions,
@@ -111,16 +127,21 @@ Add new tasks at the bottom of the right section.
       overwrite; NetHack not searched), r32 (`t[k]` of a `const` pointer table points 2k
       bytes too far: `sounds.c:83` `throne_msg[2]`, `pager.c:680`) and r33 (`k[c + n]`
       with 2c + 1 elements; no site found). Each has a candidate pin commit (`pin-r30`,
-      `pin-1ae3216`, `pin-charidx`; T1.16). r34 and r35 (#36, #37) do not reach game
+      `pin-1ae3216`, `pin-charidx`; T1.25). r34 and r35 (#36, #37) do not reach game
       code: T1.18, T1.19.
-- [ ] T1.16 Decide the compiler nethack64 builds with: ADR-0007 (v1.32.273 plus five
+- [x] T1.16 Decide the compiler nethack64 builds with: ADR-0007 (v1.32.273 plus five
       backported wrong-code fixes) or another option it lists. Jolyon. — 2026-11-12
-      Claude: six candidate commits for the pin wait for Jolyon, one per fix, each built
-      and validated alone on the eight-commit pin (c2f5cab), not yet together:
-      `nethack64/pin-shknam-crash` (r27), `pin-makemon-hang` (r28), `pin-walks-display`
-      (r29), `pin-r30` (r30), `pin-1ae3216` (r32), `pin-charidx` (r33).
-      `pin-shknam-crash` without `pin-1ae3216` turns one loop shape from a crash into
-      wrong code (OSCAR64-COMPAT.md #11b).
+      Jolyon (decision page): ADR-0007 accepted, v1.32.273 plus eight commits.
+      — 2026-11-13 Claude: the pin is final. `nethack64/v1.32.273-pin` is at f001eba,
+      commit 8's final form, which changes only comments and its test (built in one
+      worktree, the c2f5cab and f001eba compilers differ only in 81 `assert` line
+      numbers). `tools/oscar64-upstream/patches/pin/` was regenerated with `git
+      format-patch --no-signature` (8 patches), and `build-pin.sh` (now `JOBS=N`)
+      reproduces f001eba's tree. With f001eba: autotest 1,241 emulations, none failing;
+      `corpus_diff` against c2f5cab 726/726 identical; repros r1-r35: 8 pass
+      (v1.32.273: 0); NetHack harness: identical reports and listings in both configs.
+      Checked again by a second agent. Using it in the build is T1.20; the further
+      candidates are T1.25.
 - [ ] T1.17 r31 (OSCAR64-COMPAT.md #33): at `-Os` Oscar64 aborts (assertion, SIGABRT) in
       `BlockSizeCopyReduction`, which builds `LDY #-1` for the same value stored to three
       or more bytes from offset 0 through a pointer. Hit by `invent.c` `display_pickinv()`
@@ -137,6 +158,72 @@ Add new tasks at the bottom of the right section.
       struct copies), so low priority: put the review's trial fix (move
       `ltemps.SetSize(j)` in front of `if (!ins->mVolatile)`) through the autotest and the
       corpus, with an autotest of its own, for upstream.
+- [ ] T1.20 Switch the build to the ADR-0007 compiler. `tools/setup-ubuntu.sh` and
+      `tools/setup-arch.sh` build it with `build-pin.sh` (`JOBS` for the `make -j`, and a
+      way to get the plain release for comparisons); the Makefile, AGENTS.md ("pinned:
+      v1.32.273"), TOOLCHAIN.md, README and OSCAR64-COMPAT.md's header say "v1.32.273 +
+      nethack64 patches (ADR-0007)". Then `make`, `make prg`, `make test`, `make repros`
+      (r1-r35: 8 pass) with it, re-baseline the measurements (T1.10) and update the
+      workaround column of the rows it fixes.
+- [ ] T1.21 Heap-dependent output and two wrong-code bugs (OSCAR64-COMPAT.md #40, #41;
+      r38, r39). v1.32.273 and the pin read members nothing has set: `LinkerObject`
+      addresses of objects never placed, `LinkerSection` start/end,
+      `InterInstruction::mRemove` (r38: a caller loses its call frame; `teleport.c`
+      `u_teleport_mon`), `NativeRegisterData::mFlags`, `IntegerValueRange` min/max,
+      `InterCodeBasicBlock` entry counts and `InterCodeProcedure::mStoresIndirect` (r39).
+      Six commits on the local branch `scratch/heap-init-pin` (on f001eba): 03a460a
+      (upstream fbca293, `mRemove`), d7c9e1b, 3fe242d, c9589f6, 8286734 (the
+      `DestroyingMem` test upstream got in 4969258), 11ef264. Measured 2026-11-13 and
+      checked by a second agent: autotest 1,241/1,241; corpus against the pin 729 of 735
+      byte-identical (the six: `opp_streamtest.cpp` `-n -O3`, whose output on the pin
+      itself depends on the heap, and r39, which the commits fix); 45 non-fitting
+      NetHack files identical under six heap fills; r38 and r39 FIXED. Before they can
+      be offered: 8286734's message and its patch credit 963b29c (2026-09-28) where
+      4969258 (2026-10-18) is right. Candidates for the pin (T1.25). For upstream: the
+      four commits on `scratch/heap-init-main` (on 4da3147; autotest 1,541/1,541).
+- [ ] T1.22 r36 and its family (OSCAR64-COMPAT.md #38, #42-#45; r36, r40-r43; r40-r43
+      being finalised 2026-11-13). r36: `InnerLoopOptimization` moves a loop-invariant
+      assignment in front of a loop that reads the old value first (wrong code at every
+      level but `-O0` on v1.32.273, the pin and main). No NetHack site: an instrumented
+      pin logged none in the 44 files that reach code generation nor in `src/`; 63 files
+      do not compile yet and were only searched by hand, so measure again as they start
+      to compile. Our fix with an autotest: `scratch/r36-fix-pin` 26a9c12 (pin autotest
+      1,251 emulations, none failing), `scratch/r36-fix-main` 550e9a3 (full autotest not
+      run on main). The same work found a native-code twin (r40; fix
+      `scratch/r36-native-fix-pin` 5997864, pin only), a compiler abort in
+      `SingleBlockLoopOptimisation` (r41), an unsigned char global read wrong after a
+      loop at `-O2`/`-Os`/`-O3` that main gets right (r42), and its verifier a native
+      pointer form that no fix cures and no instrumentation sees (r43). Also seen, not
+      exposed: a `long` accumulated in a loop is wrong in bytecode at `-O2`/`-Os`/`-O3`
+      on v1.32.273 and the pin (main right; NetHack is native code).
+- [ ] T1.23 r37 and its sibling (OSCAR64-COMPAT.md #39, #46; r37, r44). r37: the native
+      peephole pass forwards a stored byte past a call that overwrites the register it
+      came from, so the low byte of the call's result is read from the stored byte
+      (v1.32.273, the pin and main). No NetHack site in the files that reach code
+      generation (also with `__noinline` stubs); `mhitm.c` and `mkobj.c` unchecked. Our
+      fix (17 lines) and autotest `callresultforwardtest.c`: `scratch/r37-backport-pin`
+      (c9f86f6, 3eef9b8; autotest 1,251/1,251), `scratch/r37-fix-main` (feff01f; full
+      autotest not run on main). r44, found by its verifier: the walk also passes a
+      callee that writes the global through a pointer, which game code may do
+      (`levl[x][y]`, `u`, `youmonst` read into a register before such a call): repro,
+      fix and a differential exposure check are being done (2026-11-13).
+- [ ] T1.24 Wrong code at the default optimisation level only, native code (mutual
+      recursion; a local's address passed on is taken at the wrong stack offset): on
+      v1.32.273, the pin and main; right at `-O0`, `-O2`, `-Os`, `-O3`, so nethack64's
+      `-Os` build is not affected as tested. Unreduced:
+      `tools/oscar64-upstream/cases/default_level_mutual_recursion_local_address.c`.
+      Reduce, find the cause, report upstream when PRs resume.
+- [ ] T1.25 Decide what joins the pin (Jolyon, on the decision page; each then goes
+      through ADR-0007's checks and a new patch export). Ready: `nethack64/pin-shknam-crash`
+      (r27), `pin-makemon-hang` (r28), `pin-walks-display` (r29), `pin-r30` (r30),
+      `pin-1ae3216` (r32), `pin-charidx` (r33): built on c2f5cab, validated alone and
+      together (`review/pin-candidates-all`: autotest 1,311, none failing; repros 14 of
+      35); each rebases onto f001eba without conflicts (`git rebase --onto f001eba
+      c2f5cab`). `pin-shknam-crash` without `pin-1ae3216` turns one loop shape from a
+      crash into wrong code (OSCAR64-COMPAT.md #11b). Before adding: drop the
+      `Co-Authored-By` trailer from c5ac062 (upstream's commit) and reword b52c9fe's
+      message. New on 2026-11-13: the heap-initialisation commits (T1.21) and our r36
+      and r37 fixes (T1.22, T1.23).
 
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 

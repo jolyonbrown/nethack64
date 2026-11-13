@@ -10,6 +10,8 @@ and docs/OSCAR64-COMPAT.md should be updated.
 
 Header keys read from each file's first comment:
     FLAGS: <oscar64 flags>     e.g. -e (run in Oscar64's built-in emulator)
+    ENV: NAME=value ...        extra environment for the compiler itself (r38: glibc's
+                               MALLOC_PERTURB_, for a bug that depends on old heap contents)
     COMPILE-ONLY               success = compiler exits 0
 Otherwise success = compiles and "Emulation result 0".
 """
@@ -37,11 +39,14 @@ def run(path):
     flags = re.search(r"FLAGS:\s*(.*)", head)
     flags = flags.group(1).split() if flags else ["-e"]
     compile_only = "COMPILE-ONLY" in head
+    env = re.search(r"ENV:\s*(.*)", head)
+    env = dict(os.environ, **dict(kv.split("=", 1) for kv in env.group(1).split())) if env else None
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "r.prg")
         try:
             r = subprocess.run([OSCAR64] + flags + ["-o=" + out, path],
-                               capture_output=True, text=True, timeout=120, preexec_fn=cap_memory)
+                               capture_output=True, text=True, timeout=120, preexec_fn=cap_memory,
+                               env=env)
         except subprocess.TimeoutExpired:
             return "BROKEN", "compiler hang"
     text = r.stdout + r.stderr

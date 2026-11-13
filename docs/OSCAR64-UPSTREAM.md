@@ -37,8 +37,9 @@ Jolyon), which shows each PR's explanation and records the choice:
    validation runs described." Applied to #1-#14 by a message-only rewrite (every
    tree identical to the validated one); #15-#18 were finalised with it.
 4. **The compiler nethack64 builds with:** [ADR-0007](decisions/ADR-0007-oscar64-patched-pin.md)
-   accepted (v1.32.273 plus `tools/oscar64-upstream/patches/pin/`). Adding a further
-   fix to it (the `shknam.c` and `makemon.c` ones) is asked for each time.
+   accepted (v1.32.273 plus `tools/oscar64-upstream/patches/pin/`: eight commits, tip
+   f001eba since 2026-11-13). Adding a further fix to it is asked for each time; the
+   candidates waiting are listed in TASKS T1.25.
 
 **Sending a queued PR**, once Jolyon approves it: rebase the branch if upstream main
 has moved (still 4da3147 on 2026-11-12) and re-run its evidence, do the "Before
@@ -51,9 +52,10 @@ gh pr create --repo drmortalwombat/oscar64 --base main \
   --head jolyonbrown:fix/<id> --title "<title>" --body-file <body.md>
 ```
 
-Our own compiler does not depend on any of this: nethack64 builds with v1.32.273 plus
-`tools/oscar64-upstream/patches/pin/` (ADR-0007), applied by `build-pin.sh` and the
-setup scripts, whatever happens to the PRs.
+Our own compiler does not depend on any of this: nethack64 is to build with v1.32.273
+plus `tools/oscar64-upstream/patches/pin/` (ADR-0007), whatever happens to the PRs.
+`build-pin.sh` builds it; the setup scripts still build plain v1.32.273 until the build
+switches (TASKS T1.20).
 
 Suggested order and pace, when the time comes: the four wrong-code fixes first (#1
 to #4) and #15 with or right after #4, then #6 once #1 is merged (it is stacked on
@@ -96,7 +98,9 @@ each of those already).
   in April and June. Upstream main is 182 commits ahead (4da3147, 2026-11-10).
 - **Fixed on main since v1.32.273** (so they need no PR): r1 (160c92b, PR #419),
   r4 (813fe29, PR #437), r9 (46e60d6), r14 (349b10a), r17 (c8da6bd), r18 (1169268,
-  2026-09-21, wrong code: it is in the proposed patched pin).
+  2026-09-21, wrong code: it is in the ADR-0007 compiler). Found later, also fixed on
+  main: r38 (fbca293, 2026-10-18) and r39 (4969258, 2026-10-18), both reads of members
+  nothing had set, and r42 (commit not identified yet).
 - **Will not be fixed upstream:** r5/r6, struct tags sharing the ordinary namespace
   (issue #438: "design flaw of the language and will not implement"); r11, K&R
   definitions (Oscar64 is a C99 compiler); r13, string literals as `char *` (issue
@@ -160,10 +164,20 @@ through the measurement harness's pointer stubs (r34): r28, compat #11, fixed by
 comments inside skipped groups): none of these shapes occurs in NetHack's 917
 function-like macros or elsewhere in `port/include` and `port/src` (grep, 2026-11-12).
 
-**Reproducible builds.** Some outputs depend on the compiler's install path or heap
-layout (`autotest/testint16mul.c` and `samples/hires/splitscreen.c` at `-bc -O2`): two
-builds of the same source can differ. `tools/oscar64-upstream/corpus_diff.py` users
-should confirm a difference against a second base build before blaming a fix.
+**Reproducible builds.** v1.32.273 and the pin read members of their own data
+structures that nothing has set, so their output can depend on the heap: the install
+path, the environment, or nothing visible (`samples/hires/splitscreen.c` at `-bc -O2`,
+`autotest/opp_streamtest.cpp` at `-n -O3`, the listings and sizes of NetHack files that
+do not fit). Two of these reads give wrong code (r38, r39: OSCAR64-COMPAT.md #40, #41).
+Fix commits exist locally (TASKS T1.21); how to test a compiler for it is in
+`tools/oscar64-upstream/README.md`. Until then, `corpus_diff.py` users should confirm
+a difference against a second base build before blaming a fix.
+
+**Round six (2026-11-13)** turned up r36 to r44 and an unreduced default-level case
+(OSCAR64-COMPAT.md #38 to #46; TASKS T1.21 to T1.24). Still wrong on upstream main, so
+candidates for PRs once our fixes are ready: r36 and r37 (fixes on local branches,
+`scratch/r36-fix-main`, `scratch/r37-fix-main`), r40, r41, r43, r44, and the
+default-level case.
 
 **Upstream-main-only regressions** (matter if we ever move to main): a by-value struct
 return read through a signed load at `-O0`, an assertion failure on

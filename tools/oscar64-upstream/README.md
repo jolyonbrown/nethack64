@@ -49,10 +49,25 @@ Jolyon has read its explanation and said yes. Until then, branches stay local.
   #01). They are what `docs/OSCAR64-UPSTREAM.md` and `docs/oscar64-upstream/`
   describe, kept here because the branches exist only in a local clone until
   there is a fork. **`patches/pin/`** holds the same fixes backported to
-  v1.32.273 for the patched compiler proposed in ADR-0007. Both are Oscar64
+  v1.32.273 for the patched compiler accepted in ADR-0007. Both are Oscar64
   changes and so GPL-3.0, like Oscar64.
-- **Reproducible output.** Some programs compile to different bytes with two
-  builds of the same compiler source (`autotest/testint16mul.c` and
-  `samples/hires/splitscreen.c` at `-bc -O2`; the output depends on the
-  compiler's install path or heap layout). Before blaming a fix for a
-  `corpus_diff.py` difference, compare two builds of the base.
+- **Reproducible output.** v1.32.273 and the eight-commit pin read several
+  members of their own data structures before anything has written them, so what
+  they emit can depend on what the compiler's heap held: the install path, the
+  environment, or nothing you can see. Measured 2026-11-13:
+  `samples/hires/splitscreen.c` at `-bc -O2` differs between two install paths;
+  `autotest/opp_streamtest.cpp` at `-n -O3` compiles to two different programs of
+  the same size (both run correctly); for NetHack files that do not fit, the
+  listing, the map and the measured size change (`potion.c`: 16,137, 13,257 or
+  18,227 bytes), and the code can be wrong (OSCAR64-COMPAT #40, #41). The six
+  commits on the local branch `scratch/heap-init-pin` (four on
+  `scratch/heap-init-main`) initialise those members; with them the corpus is
+  byte-identical between two install paths (735 of 735 builds). To test a compiler
+  for this, compile the same source with `MALLOC_PERTURB_=85` and with
+  `MALLOC_PERTURB_=170` (glibc fills each new allocation with the complement of that
+  byte) and compare every output file. On a compiler without those commits, compare
+  two builds of the base before blaming a fix for a `corpus_diff.py` difference.
+  Keep install and output paths short: Oscar64's output path buffers are 200 bytes
+  (`Compiler.cpp`), and a longer path aborts the compile ("buffer overflow
+  detected"), which `corpus_diff.py` then reports as a crash. Leave r26, r28 and
+  r29 out of `--src`: they hang or run out of memory, at 180 s per configuration.
