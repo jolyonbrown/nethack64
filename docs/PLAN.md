@@ -69,6 +69,10 @@ Exit: `make test` includes a "walk downstairs" test on the real game.
 - [ ] Shops, prayer, polymorph, pets, spells, artifacts: walk FEATURES.md
 - [ ] Encyclopedia, rumors, oracles, quest text through dlb
 - [ ] Performance: keystroke-to-screen under ~1 s on common commands
+- [ ] Long games by a NetHack-playing AI agent (Jolyon's suggestion, 2026-11-13: one
+      such agent has reportedly ascended), driving VICE through `tools/vice.py`; and the
+      same games recorded on the host build and replayed seed for seed on the C64 build,
+      where any screen that differs is a port bug (needs T2.7's exact RNG)
 
 Exit: FEATURES.md checklist ticked by scripted or manual play.
 
