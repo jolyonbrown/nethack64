@@ -1,0 +1,406 @@
+From f001ebae42d3eb649d873c97978fc31ae1261b23 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 12:35:04 +0000
+Subject: [PATCH 8/8] Fix exponential walks over chains of conditionals
+
+Three recursive walks over the predecessor graph (four functions, with
+the X and Y register variants of the native check) had no visited set,
+so in a region of consecutive conditionals they visited a block once
+per path to it, and the number of paths doubles with every conditional.
+CollectBlocksToDominator also pushed every visit onto its result array,
+so the compiler's memory grew without bound (NetHack's explode(), with
+140 blocks and 149 million paths between a loop head and its latch,
+grew past 8 GB in 20 seconds and was killed); IsDirectLoopPathBlock and
+CheckLoopIndexX/YRegisters, which only recurse, took minutes instead.
+Their siblings CollectDominatorPath and CollectLoopBody already check
+IndexOf before pushing.
+
+The boolean walks return what they returned before wherever the old
+code terminated: a block seen again in a failing IsDirectLoopPathBlock
+has already been searched without finding the target, and a block seen
+again in CheckLoopIndexX/YRegisters has already passed, since a failure
+ends the check. A block can also be seen again while it is still on the
+recursion stack, but only on a cycle without a loop head, where the old
+code never terminated. CollectBlocksToDominator returns the same blocks,
+each once and in the order first reached, instead of once per path; its
+only caller, HoistCommonConditionalPath, starts it with an empty array
+and asks whether any collected block modifies a temporary, which the
+duplicates did not change.
+
+Code in which one arm of a conditional holds a long chain of
+independent conditionals before the arms join can be affected, at any
+optimisation level where the conditions are not constant. A loop body
+is the common case, since the latch is the join, but no loop is needed.
+bf42402 (d2ea285 here; preserve parameters of address-taken functions)
+made the case common: a function called directly with constant arguments
+and also through a function pointer used to have the constants folded
+into its body at -O2, -Os and -O3, which collapsed such chains.
+
+The test takes the address of three functions whose loop bodies contain
+a chain of 24, 18 and 18 independent conditionals. The first reaches
+CollectBlocksToDominator and IsDirectLoopPathBlock, the second
+CheckLoopIndexXRegisters and the third CheckLoopIndexYRegisters. With
+any one of the four checks removed but its Push kept, so that every
+revisit also costs memory, the compiler needs a quarter of a gigabyte
+to a gigabyte for the file instead of 25 to 40 MB in the configurations
+that reach that walk; without the X check it exceeds a 2 GB address
+space limit in four of the five native configurations. The chains are
+sized so that a compiler without the fix still finishes: it then needs
+half a gigabyte for the file, and tens of seconds per native
+configuration where the fixed compiler needs about a second. Measured
+on one machine at load averages between 3 and 20, that was 8 to 66
+seconds against 0.4 to 3.2 per native configuration, and 1 to 10
+seconds against 0.15 to 1.3 per bytecode configuration. A regression
+shows as compile time and memory, not as a failed assert.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat            |   3 +
+ autotest/loopconditionpathtest.c | 179 +++++++++++++++++++++++++++++++
+ oscar64/InterCode.cpp            |  27 ++++-
+ oscar64/InterCode.h              |   1 +
+ oscar64/NativeCodeGenerator.cpp  |  30 +++++-
+ oscar64/NativeCodeGenerator.h    |   2 +
+ 6 files changed, 239 insertions(+), 3 deletions(-)
+ create mode 100644 autotest/loopconditionpathtest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index be31d07..c3375a2 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -255,6 +255,9 @@ rem @echo off
+ @call :test functionpointerparamtest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test loopconditionpathtest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test funcvartest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/loopconditionpathtest.c b/autotest/loopconditionpathtest.c
+new file mode 100644
+index 0000000..d70d7ad
+--- /dev/null
++++ b/autotest/loopconditionpathtest.c
+@@ -0,0 +1,179 @@
++#include <assert.h>
++
++// A loop body with a long chain of independent conditionals.  The
++// number of paths through the chain doubles with every conditional,
++// and three walks over the predecessor graph used to visit a block
++// once per path instead of once: CollectBlocksToDominator (hoisting
++// common conditional paths), IsDirectLoopPathBlock (moving conditions
++// out of loops) and CheckLoopIndexXRegisters with its twin
++// CheckLoopIndexYRegisters (reducing index register shuffles).
++// NetHack's explode() compiled this way grew the compiler to several
++// gigabytes within seconds.
++//
++// f reaches the first two: a short path beside a chain of calls.
++// g reaches CheckLoopIndexXRegisters: the loop keeps the high byte of
++// its int count in X across the chain.  h reaches
++// CheckLoopIndexYRegisters: the loop counts in a byte and keeps a
++// condition of the chain in Y (without optimization in X, which
++// reaches CheckLoopIndexXRegisters again); the store after its loop
++// is needed for that with v1.32.273.  The addresses of f, g and h are
++// taken, so the arguments stay variables and the chains are not folded
++// away by constant parameter propagation.
++//
++// The chains are sized so that a compiler without the fix still
++// finishes: f then costs about half a gigabyte of memory, g and h
++// compile time, some seconds to tens of seconds each per native
++// configuration.  With the fix the file needs about 40 megabytes and
++// about a second.
++
++int		acc;
++unsigned long	mask;
++char		last;
++
++__noinline void bump(int v)
++{
++	acc += v;
++}
++
++void f(int x, int n)
++{
++	for (int i = 0; i < n; i++)
++	{
++		if (x == 0)
++			bump(100);
++		else
++		{
++			if (mask & 0x000001ul) bump(1);
++			if (mask & 0x000002ul) bump(2);
++			if (mask & 0x000004ul) bump(3);
++			if (mask & 0x000008ul) bump(4);
++			if (mask & 0x000010ul) bump(5);
++			if (mask & 0x000020ul) bump(6);
++			if (mask & 0x000040ul) bump(7);
++			if (mask & 0x000080ul) bump(8);
++			if (mask & 0x000100ul) bump(9);
++			if (mask & 0x000200ul) bump(10);
++			if (mask & 0x000400ul) bump(11);
++			if (mask & 0x000800ul) bump(12);
++			if (mask & 0x001000ul) bump(13);
++			if (mask & 0x002000ul) bump(14);
++			if (mask & 0x004000ul) bump(15);
++			if (mask & 0x008000ul) bump(16);
++			if (mask & 0x010000ul) bump(17);
++			if (mask & 0x020000ul) bump(18);
++			if (mask & 0x040000ul) bump(19);
++			if (mask & 0x080000ul) bump(20);
++			if (mask & 0x100000ul) bump(21);
++			if (mask & 0x200000ul) bump(22);
++			if (mask & 0x400000ul) bump(23);
++			if (mask & 0x800000ul) bump(24);
++		}
++	}
++}
++
++void g(int x, int n)
++{
++	for (int i = 0; i < n; i++)
++	{
++		if (x == 0)
++			acc += 100;
++		else
++		{
++			if (mask & 0x00001ul) acc += 1;
++			if (mask & 0x00002ul) acc += 2;
++			if (mask & 0x00004ul) acc += 3;
++			if (mask & 0x00008ul) acc += 4;
++			if (mask & 0x00010ul) acc += 5;
++			if (mask & 0x00020ul) acc += 6;
++			if (mask & 0x00040ul) acc += 7;
++			if (mask & 0x00080ul) acc += 8;
++			if (mask & 0x00100ul) acc += 9;
++			if (mask & 0x00200ul) acc += 10;
++			if (mask & 0x00400ul) acc += 11;
++			if (mask & 0x00800ul) acc += 12;
++			if (mask & 0x01000ul) acc += 13;
++			if (mask & 0x02000ul) acc += 14;
++			if (mask & 0x04000ul) acc += 15;
++			if (mask & 0x08000ul) acc += 16;
++			if (mask & 0x10000ul) acc += 17;
++			if (mask & 0x20000ul) acc += 18;
++		}
++	}
++}
++
++void h(char n)
++{
++	for (char i = 0; i < n; i++)
++	{
++		if (mask & 0x00001ul) acc += 1;
++		if (mask & 0x00002ul) acc += 2;
++		if (mask & 0x00004ul) acc += 3;
++		if (mask & 0x00008ul) acc += 4;
++		if (mask & 0x00010ul) acc += 5;
++		if (mask & 0x00020ul) acc += 6;
++		if (mask & 0x00040ul) acc += 7;
++		if (mask & 0x00080ul) acc += 8;
++		if (mask & 0x00100ul) acc += 9;
++		if (mask & 0x00200ul) acc += 10;
++		if (mask & 0x00400ul) acc += 11;
++		if (mask & 0x00800ul) acc += 12;
++		if (mask & 0x01000ul) acc += 13;
++		if (mask & 0x02000ul) acc += 14;
++		if (mask & 0x04000ul) acc += 15;
++		if (mask & 0x08000ul) acc += 16;
++		if (mask & 0x10000ul) acc += 17;
++		if (mask & 0x20000ul) acc += 18;
++	}
++
++	last = n;
++}
++
++void (*fp)(int, int) = f;
++void (*gp)(int, int) = g;
++void (*hp)(char) = h;
++
++int main(void)
++{
++	mask = 0x0f0f0ful;
++
++	f(0, 2);
++	assert(acc == 200);
++
++	fp(1, 1);
++	assert(acc == 200 + (1 + 2 + 3 + 4) + (9 + 10 + 11 + 12) + (17 + 18 + 19 + 20));
++
++	mask = 0xf0f0f0ul;
++	fp(1, 2);
++	assert(acc == 326 + 2 * ((5 + 6 + 7 + 8) + (13 + 14 + 15 + 16) + (21 + 22 + 23 + 24)));
++
++	acc = 0;
++	mask = 0x0f0f0ful;
++
++	g(0, 2);
++	assert(acc == 200);
++
++	gp(1, 1);
++	assert(acc == 200 + (1 + 2 + 3 + 4) + (9 + 10 + 11 + 12) + (17 + 18));
++
++	mask = 0xf0f0f0ul;
++	gp(1, 2);
++	assert(acc == 287 + 2 * ((5 + 6 + 7 + 8) + (13 + 14 + 15 + 16)));
++
++	acc = 0;
++	mask = 0x0f0f0ful;
++
++	h(1);
++	assert(acc == (1 + 2 + 3 + 4) + (9 + 10 + 11 + 12) + (17 + 18));
++	assert(last == 1);
++
++	hp(0);
++	assert(acc == 87);
++	assert(last == 0);
++
++	mask = 0xf0f0f0ul;
++	hp(2);
++	assert(acc == 87 + 2 * ((5 + 6 + 7 + 8) + (13 + 14 + 15 + 16)));
++	assert(last == 2);
++
++	return 0;
++}
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index 08f3de5..eb38ca8 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -15823,6 +15823,12 @@ static bool CanMoveInstructionBeforePath(const GrowingInterCodeBasicBlockPtrArra
+ }
+ 
+ bool InterCodeBasicBlock::IsDirectLoopPathBlock(InterCodeBasicBlock* block)
++{
++	ExpandingArray<InterCodeBasicBlock*>	visited;
++	return IsDirectLoopPathBlock(block, visited);
++}
++
++bool InterCodeBasicBlock::IsDirectLoopPathBlock(InterCodeBasicBlock* block, ExpandingArray<InterCodeBasicBlock*>& visited)
+ {
+ 	if (this == block)
+ 		return true;
+@@ -15833,8 +15839,18 @@ bool InterCodeBasicBlock::IsDirectLoopPathBlock(InterCodeBasicBlock* block)
+ 	if (block->mEntryBlocks.Size() == 0)
+ 		return false;
+ 
++	// A block seen before in this search has been searched already without
++	// finding this block (a hit ends the search), or is still being searched
++	// further up, which happens only on a cycle without a loop head, where
++	// the old search never ended.  Without this check a failing search
++	// visits a block once per path to it, which is exponential in the number
++	// of consecutive conditionals in the loop body.
++	if (visited.IndexOf(block) != -1)
++		return false;
++	visited.Push(block);
++
+ 	for (int i = 0; i < block->mEntryBlocks.Size(); i++)
+-		if (IsDirectLoopPathBlock(block->mEntryBlocks[i]))
++		if (IsDirectLoopPathBlock(block->mEntryBlocks[i], visited))
+ 			return true;
+ 
+ 	return false;
+@@ -15873,6 +15889,15 @@ bool InterCodeBasicBlock::CollectBlocksToDominator(InterCodeBasicBlock* dblock,
+ 	if (mEntryBlocks.Size() == 0)
+ 		return false;
+ 
++	// body starts empty, so a block already in it was reached before in
++	// this walk and has been collected with everything behind it (a failure
++	// ends the walk), or is still being collected further up, on a cycle
++	// without a loop head, where the old walk never ended.  Without this
++	// check the walk visits and stores a block once per path to it, which
++	// is exponential in the number of consecutive conditionals between the
++	// two blocks.
++	if (body.IndexOf(this) != -1)
++		return true;
+ 	body.Push(this);
+ 
+ 	for (int i = 0; i < mEntryBlocks.Size(); i++)
+diff --git a/oscar64/InterCode.h b/oscar64/InterCode.h
+index 755af4d..b23bad1 100644
+--- a/oscar64/InterCode.h
++++ b/oscar64/InterCode.h
+@@ -612,6 +612,7 @@ public:
+ 	bool IsDominator(InterCodeBasicBlock* block);
+ 	bool IsDirectDominatorBlock(InterCodeBasicBlock* block);
+ 	bool IsDirectLoopPathBlock(InterCodeBasicBlock* block);
++	bool IsDirectLoopPathBlock(InterCodeBasicBlock* block, ExpandingArray<InterCodeBasicBlock*>& visited);
+ 	bool CollectBlocksToDominator(InterCodeBasicBlock* dblock, ExpandingArray<InterCodeBasicBlock*>& body);
+ 
+ 	void MarkRelevantStatics(void);
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 7f10fa6..14e2ae9 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -45615,6 +45615,21 @@ bool NativeCodeBasicBlock::OffsetValueForwarding(const ValueNumberingDataSet& da
+ 
+ bool NativeCodeBasicBlock::CheckLoopIndexXRegisters(NativeCodeBasicBlock* head, int xreg)
+ {
++	ExpandingArray<NativeCodeBasicBlock*>	visited;
++	return CheckLoopIndexXRegisters(head, xreg, visited);
++}
++
++bool NativeCodeBasicBlock::CheckLoopIndexXRegisters(NativeCodeBasicBlock* head, int xreg, ExpandingArray<NativeCodeBasicBlock*>& visited)
++{
++	// A block seen before in this check has passed already (a failure ends
++	// the check), or is still being checked further up, on a cycle without a
++	// loop head, where the old check never ended.  Without this the check
++	// visits a block once per path to the loop head, which is exponential in
++	// the number of consecutive conditionals in the loop.
++	if (visited.IndexOf(this) != -1)
++		return true;
++	visited.Push(this);
++
+ 	for (int i = mIns.Size() - 1; i >= 0; i--)
+ 	{
+ 		if ((mIns[i].mType == ASMIT_LDX || mIns[i].mType == ASMIT_STX) && mIns[i].mMode == ASMIM_ZERO_PAGE && mIns[i].mAddress == xreg)
+@@ -45631,7 +45646,7 @@ bool NativeCodeBasicBlock::CheckLoopIndexXRegisters(NativeCodeBasicBlock* head,
+ 
+ 	for (int i = 0; i < mEntryBlocks.Size(); i++)
+ 	{
+-		if (!mEntryBlocks[i]->CheckLoopIndexXRegisters(head, xreg))
++		if (!mEntryBlocks[i]->CheckLoopIndexXRegisters(head, xreg, visited))
+ 			return false;
+ 	}
+ 
+@@ -45711,6 +45726,17 @@ bool NativeCodeBasicBlock::AbsoluteLocalRegisterValueReuse(void)
+ 
+ bool NativeCodeBasicBlock::CheckLoopIndexYRegisters(NativeCodeBasicBlock* head, int yreg)
+ {
++	ExpandingArray<NativeCodeBasicBlock*>	visited;
++	return CheckLoopIndexYRegisters(head, yreg, visited);
++}
++
++bool NativeCodeBasicBlock::CheckLoopIndexYRegisters(NativeCodeBasicBlock* head, int yreg, ExpandingArray<NativeCodeBasicBlock*>& visited)
++{
++	// As in CheckLoopIndexXRegisters.
++	if (visited.IndexOf(this) != -1)
++		return true;
++	visited.Push(this);
++
+ 	for (int i = mIns.Size() - 1; i >= 0; i--)
+ 	{
+ 		if ((mIns[i].mType == ASMIT_LDY || mIns[i].mType == ASMIT_STY) && mIns[i].mMode == ASMIM_ZERO_PAGE && mIns[i].mAddress == yreg)
+@@ -45727,7 +45753,7 @@ bool NativeCodeBasicBlock::CheckLoopIndexYRegisters(NativeCodeBasicBlock* head,
+ 
+ 	for (int i = 0; i < mEntryBlocks.Size(); i++)
+ 	{
+-		if (!mEntryBlocks[i]->CheckLoopIndexYRegisters(head, yreg))
++		if (!mEntryBlocks[i]->CheckLoopIndexYRegisters(head, yreg, visited))
+ 			return false;
+ 	}
+ 
+diff --git a/oscar64/NativeCodeGenerator.h b/oscar64/NativeCodeGenerator.h
+index bac484d..c26c02c 100644
+--- a/oscar64/NativeCodeGenerator.h
++++ b/oscar64/NativeCodeGenerator.h
+@@ -720,7 +720,9 @@ public:
+ 	bool IndexXYValueForwarding(int xreg, int xoffset, int xvalue, int yreg, int yoffset, int yvalue);
+ 	bool ReduceIndexXYZeroShuffle(NativeCodeBasicBlock* from, int xreg, int yreg);
+ 	bool CheckLoopIndexXRegisters(NativeCodeBasicBlock* head, int xreg);
++	bool CheckLoopIndexXRegisters(NativeCodeBasicBlock* head, int xreg, ExpandingArray<NativeCodeBasicBlock*>& visited);
+ 	bool CheckLoopIndexYRegisters(NativeCodeBasicBlock* head, int yreg);
++	bool CheckLoopIndexYRegisters(NativeCodeBasicBlock* head, int yreg, ExpandingArray<NativeCodeBasicBlock*>& visited);
+ 	bool AbsoluteLocalRegisterValueReuse(void);
+ 
+ 	void MarkLocalUsedLinkerObjects(void);

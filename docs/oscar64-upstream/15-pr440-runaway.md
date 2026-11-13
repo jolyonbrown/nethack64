@@ -6,7 +6,7 @@
 | Patch | [`tools/oscar64-upstream/patches/main/15-pr440-runaway.patch`](../../tools/oscar64-upstream/patches/main/15-pr440-runaway.patch) |
 | Kind | compiler runs out of memory (exposed on main by #440) |
 | Since | the three walks are old (v1.32.273 and before); bf42402 (#440, 2026-10-24) exposed them at `-O2`/`-Os`/`-O3` |
-| NetHack | Compat #30 (repro r26). `explode.c`: with upstream bf42402 (PR #440, which the proposed patched pin carries for r25) the compiler grows past 8 GB on `explode()` and the kernel kills it; this machine's OOM killer stopped oscar64 44 times this week. v1.32.273 has the same bug at `-O0`/`-O1`, and at `-Os` whenever nothing folds the conditions away (r26). Commit 8 of the proposed patched pin. |
+| NetHack | Compat #30 (repro r26). `explode.c`: with upstream bf42402 (PR #440, which the ADR-0007 compiler carries for r25) the compiler grows past 8 GB on `explode()` and the kernel kills it; this machine's OOM killer stopped oscar64 44 times this week. v1.32.273 has the same bug at `-O0`/`-O1`, and at `-Os` whenever nothing folds the conditions away (r26). Commit 8 of the proposed patched pin. |
 | Reviews | Opus (one round, ran probes): use-after-changes, 0 high, 3 medium, 5 low; Codex (read the diff): submit after changes; fix-up: ready; final Codex check: pending |
 | Recommendation | **Submit early, with or right after #4: it fixes an out-of-memory regression that #440 exposed, and main needs #4 before it can compile `explode.c` at all.** |
 
@@ -148,6 +148,8 @@ functionpointerparamtest.c on fixed main: 10/10 "Emulation result 0".
 20. **Exported patches, the pin, and the stacked walks2 branch still carry the old commit** (Partly resolved, rest is the lead's. fix/exponential-walks-2 was already rebased onto ce1a99b by another agent (8b2fa93). The two exported patches in nethack64 are still stale and untracked (not mine to overwrite); fresh exports are in f15-scratch/patches-main and patches-pin. The accepted pin nethack64/v1.32.273-pin is still c2f5cab and was not touched.)
 
    head -1 of tools/oscar64-upstream/patches/main/15-pr440-runaway.patch: "From dc87ab3..."; patches/pin/0008-*.patch: "From c2f5cab...". git branch --contains ce1a99b lists fix/exponential-walks-2.
+
+   Resolved 2026-11-13: `nethack64/v1.32.273-pin` is f001eba, and `tools/oscar64-upstream/patches/pin/0008-*.patch` is f001eba ("From f001eba...", same patch-id). `patches/main/15-pr440-runaway.patch` is ce1a99b (same patch-id as `fix/pr440-runaway`).
 
 </details>
 
