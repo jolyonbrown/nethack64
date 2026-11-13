@@ -245,9 +245,12 @@ Add new tasks at the bottom of the right section.
       35); each rebases onto f001eba without conflicts (`git rebase --onto f001eba
       c2f5cab`). `pin-shknam-crash` without `pin-1ae3216` turns one loop shape from a
       crash into wrong code (OSCAR64-COMPAT.md #11b). Before adding: drop the
-      `Co-Authored-By` trailer from c5ac062 (upstream's commit) and reword b52c9fe's
-      message. New on 2026-11-13: the heap-initialisation commits (T1.21) and our r36
-      and r37 fixes (T1.22, T1.23).
+      `Co-Authored-By` trailer from c5ac062 (upstream's commit), reword b52c9fe's
+      message, and drop the `Claude-Session` line from every candidate commit (most
+      carry one; Jolyon, 2026-11-13: no session links). Five of the eight pin patches
+      keep theirs: rewording them would change every commit id from commit 2 on. New on
+      2026-11-13: the heap-initialisation commits (T1.21) and our fixes for r36, r37 and
+      r40-r44 (T1.22, T1.23).
 
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 

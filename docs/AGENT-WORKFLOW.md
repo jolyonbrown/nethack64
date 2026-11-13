@@ -40,7 +40,9 @@ and logged in, which `/codex:setup` checks.
 The old `.mcp.json` entry (`codex mcp-server`) is gone: Codex CLI 0.154.0
 (2026-09) removed that subcommand.
 
-**Sandbox.** Codex runs every command inside bubblewrap (`bwrap` from PATH).
+**Sandbox.** Codex runs every command inside bubblewrap (`bwrap` from PATH;
+Codex 0.167 ships its own copy in `codex-resources/`, but strace shows it runs
+`/usr/bin/bwrap`, 2026-11-13).
 Ubuntu 24.04 sets `kernel.apparmor_restrict_unprivileged_userns=1`, so bwrap
 cannot create its user namespace ("setting up uid map: Permission denied",
 "loopback: Failed RTM_NEWADDR"). Then even a read-only Codex cannot run

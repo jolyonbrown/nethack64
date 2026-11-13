@@ -19,3 +19,7 @@
   `port/` or rewrites history still asks.
 - Long VICE sessions: launch with `--headless`, and always `tools/vice.py quit` afterwards so
   no emulator is left holding port 6502.
+- Commit messages end with the `Co-Authored-By: Claude ...` line and no `Claude-Session:`
+  link, even where Claude Code's own attribution adds one (Jolyon, 2026-11-13: the repo is
+  public and the link is no use to its readers). Commits meant for upstream Oscar64 follow
+  `docs/OSCAR64-UPSTREAM.md` instead.
