@@ -52,6 +52,7 @@ ARCHITECTURE.md "Code: banking".
 | 12 | Host-side crunchers for read-only data | Roughly half the size of text and levels in flash | Try in Phase 2 (T2.5) |
 | 13 | NetHack's own RLECOMP + ZEROCOMP for level files | Map 10,080 bytes down to 1.9-3.4 KB on samples | Try in Phase 2 (already enabled; T2.6 first) |
 | 14 | A better level codec (planes, palette, predictive, LZ) | A further 30-43% on the map, up to about 3x in principle | Keep in reserve; needs an ADR |
+| 15 | Oscar64 bytecode for code that need not be fast | 11-12.5% less code on the files measured, for a 3 KB resident interpreter and slower code | Keep in reserve |
 
 ---
 
@@ -525,6 +526,59 @@ Common to all four:
 
 ---
 
+## Code density
+
+### 15. Oscar64 bytecode for code that need not be fast
+
+- **What it is.** Oscar64 can compile a function to a compact bytecode that
+  an interpreter in its runtime executes, instead of 6502 machine code: `-bc`
+  for a whole program, and in such a program `#pragma native(f)` or the
+  `__native` specifier keeps chosen functions as machine code (Oscar64's
+  manual, `oscar64.md`: "-bc" and "#pragma native") [sourced]. NetHack spends
+  most of its time waiting for a key, so most of its code need not be fast.
+- **Buys.** [recorded] Measured 2026-11-13 with the ADR-0007 compiler at
+  `-Os`, C64 configuration, under a zero-filled compiler heap (otherwise its
+  output depends on old heap contents: OSCAR64-COMPAT.md #40, #41), on the 44
+  files that reach code generation: `tools/measure/measure_oscar64.py --config c64`
+  with and without `MEASURE_BC=1`; data in
+  `docs/data/oscar64-pin-c64-native-2026-11-13.json` and
+  `docs/data/oscar64-pin-c64-bytecode-2026-11-13.json`. On the 39 files that
+  place the same functions both ways (left out: the three data files, and
+  `ball.c` and `hacklib.c`, which place one function more in bytecode): native
+  246,478 bytes, bytecode 219,274 (0.89). Bytecode is smaller in 34 files,
+  down to 0.62 (`rnd.c`), 0.64 (`o_init.c`) and 0.65 (`exper.c`); of the big
+  files, `vision.c` is 0.66 and `mkobj.c` 0.70. It is bigger in five:
+  `quest.c` 1.32, `sounds.c` 1.18, `sit.c` 1.16, `mhitm.c` 1.10, `drawing.c`
+  1.02. Picking the smaller form file by file gives 215,783 (0.875), 30,695
+  bytes less over these 39 files. Oscar64's manual expects the opposite ("the
+  native code is not only significantly faster than the interpreted one, but
+  also smaller in most cases"; Dhrystone: bytecode 10,993 bytes, native 8,952)
+  [sourced]; on NetHack's code at `-Os` it is not so.
+- **Costs and risks.** Speed: the manual's Dhrystone figures, 94 iterations
+  per second in bytecode against 442 native, make bytecode about 4.7 times
+  slower [arithmetic]; not measured on NetHack. The interpreter is native code
+  that every bank running bytecode needs within reach, so in practice it is
+  resident [derived]. Its size [recorded], from the link maps of the same 44
+  compiles (add `MEASURE_KEEP=1`): one file links 80 to 94 of its routines
+  (2,246 to 2,667 bytes); all 44 together use 101 (97 `inp_*` handlers and
+  four branch and compare helpers), 2,873 bytes, plus a 256-byte table of
+  handler addresses at `$0900`: about 3.1 KB. The runtime defines 112 `inp_*`
+  handlers (`include/crt.c`), so the 63 files that do not compile yet can add
+  at most 15. The bugs differ: several of this week's wrong-code bugs are
+  native-only (r37 is right in bytecode) and at least one was seen in bytecode
+  alone (a `long` summed in a loop, TASKS T1.22) [recorded], so a mixed build
+  needs its repros run in both modes.
+- **Options and risks.** Any option. Risk 2 (code and data against flash):
+  11% less code on these files, 12.5% picking file by file, less the
+  interpreter. Risk 1 (resident RAM): the interpreter costs about 3 KB of it.
+  Risk 5 (speed): worse.
+- **Verdict: keep in reserve.** A real but modest saving, smaller than the
+  crunchers' on data (technique 12). Worth a spike only if code still does not
+  fit once banking is designed: keep hot code (vision, movement, monster turns)
+  `__native`, then measure size per function, and speed in VICE.
+
+---
+
 ## Rule check (AGENTS.md)
 
 The two hardware rules are: never read `$DF00-$DFFF`; never use EasyFlash's
@@ -562,6 +616,9 @@ Measurements wanted, none needing new C64 code:
 - T2.6, then stock-coded level files from deep and explored levels
   (techniques 13, 14).
 - T2.5 with the cruncher shortlist (technique 12).
+- Only if code still does not fit after the banking spikes (T2.1, T2.2) and
+  the RAM map (T2.3): bytecode size per function with hot code kept
+  `__native`, then its speed in VICE (technique 15).
 
 ## Left out because the research could not verify it
 

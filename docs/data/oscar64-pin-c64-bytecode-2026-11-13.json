@@ -1,0 +1,304 @@
+{
+ "alloc.c": {
+  "status": "fits-not",
+  "code": 77,
+  "funcs": "2/5",
+  "error": ""
+ },
+ "attrib.c": {
+  "status": "fits-not",
+  "code": 3505,
+  "funcs": "17/19",
+  "error": ""
+ },
+ "ball.c": {
+  "status": "fits-not",
+  "code": 3977,
+  "funcs": "10/10",
+  "error": ""
+ },
+ "dbridge.c": {
+  "status": "fits-not",
+  "code": 7325,
+  "funcs": "21/24",
+  "error": ""
+ },
+ "decl.c": {
+  "status": "fits-not",
+  "code": 8,
+  "funcs": "1/1",
+  "error": ""
+ },
+ "dogmove.c": {
+  "status": "fits-not",
+  "code": 6935,
+  "funcs": "7/11",
+  "error": ""
+ },
+ "dokick.c": {
+  "status": "fits-not",
+  "code": 11573,
+  "funcs": "10/13",
+  "error": ""
+ },
+ "drawing.c": {
+  "status": "fits-not",
+  "code": 741,
+  "funcs": "5/5",
+  "error": ""
+ },
+ "engrave.c": {
+  "status": "fits-not",
+  "code": 7257,
+  "funcs": "19/19",
+  "error": ""
+ },
+ "exper.c": {
+  "status": "fits-not",
+  "code": 1569,
+  "funcs": "8/8",
+  "error": ""
+ },
+ "explode.c": {
+  "status": "fits-not",
+  "code": 3908,
+  "funcs": "3/3",
+  "error": ""
+ },
+ "extralev.c": {
+  "status": "fits-not",
+  "code": 2514,
+  "funcs": "6/6",
+  "error": ""
+ },
+ "hacklib.c": {
+  "status": "fits-not",
+  "code": 2440,
+  "funcs": "33/34",
+  "error": ""
+ },
+ "mapglyph.c": {
+  "status": "fits-not",
+  "code": 729,
+  "funcs": "1/1",
+  "error": ""
+ },
+ "mhitm.c": {
+  "status": "fits-not",
+  "code": 18224,
+  "funcs": "15/17",
+  "error": ""
+ },
+ "minion.c": {
+  "status": "fits-not",
+  "code": 2133,
+  "funcs": "9/9",
+  "error": ""
+ },
+ "mkobj.c": {
+  "status": "fits-not",
+  "code": 7942,
+  "funcs": "44/45",
+  "error": ""
+ },
+ "mondata.c": {
+  "status": "fits-not",
+  "code": 4584,
+  "funcs": "30/30",
+  "error": ""
+ },
+ "monmove.c": {
+  "status": "fits-not",
+  "code": 13244,
+  "funcs": "13/16",
+  "error": ""
+ },
+ "monst.c": {
+  "status": "fits-not",
+  "code": 8,
+  "funcs": "1/1",
+  "error": ""
+ },
+ "mplayer.c": {
+  "status": "fits-not",
+  "code": 1789,
+  "funcs": "4/6",
+  "error": ""
+ },
+ "music.c": {
+  "status": "fits-not",
+  "code": 4246,
+  "funcs": "5/12",
+  "error": ""
+ },
+ "o_init.c": {
+  "status": "fits-not",
+  "code": 2325,
+  "funcs": "10/13",
+  "error": ""
+ },
+ "objects.c": {
+  "status": "fits-not",
+  "code": 8,
+  "funcs": "1/23",
+  "error": ""
+ },
+ "potion.c": {
+  "status": "fits-not",
+  "code": 16734,
+  "funcs": "23/24",
+  "error": ""
+ },
+ "quest.c": {
+  "status": "fits-not",
+  "code": 1687,
+  "funcs": "13/20",
+  "error": ""
+ },
+ "read.c": {
+  "status": "fits-not",
+  "code": 12679,
+  "funcs": "20/25",
+  "error": ""
+ },
+ "rnd.c": {
+  "status": "fits-not",
+  "code": 509,
+  "funcs": "6/6",
+  "error": ""
+ },
+ "role.c": {
+  "status": "fits-not",
+  "code": 5212,
+  "funcs": "28/30",
+  "error": ""
+ },
+ "rumors.c": {
+  "status": "fits-not",
+  "code": 1774,
+  "funcs": "8/8",
+  "error": ""
+ },
+ "sit.c": {
+  "status": "fits-not",
+  "code": 2287,
+  "funcs": "4/4",
+  "error": ""
+ },
+ "sounds.c": {
+  "status": "fits-not",
+  "code": 7019,
+  "funcs": "9/12",
+  "error": ""
+ },
+ "steal.c": {
+  "status": "fits-not",
+  "code": 1290,
+  "funcs": "9/12",
+  "error": ""
+ },
+ "steed.c": {
+  "status": "fits-not",
+  "code": 5004,
+  "funcs": "11/11",
+  "error": ""
+ },
+ "teleport.c": {
+  "status": "fits-not",
+  "code": 7541,
+  "funcs": "23/25",
+  "error": ""
+ },
+ "u_init.c": {
+  "status": "fits-not",
+  "code": 2924,
+  "funcs": "3/5",
+  "error": ""
+ },
+ "uhitm.c": {
+  "status": "fits-not",
+  "code": 22718,
+  "funcs": "17/26",
+  "error": ""
+ },
+ "vault.c": {
+  "status": "fits-not",
+  "code": 6357,
+  "funcs": "11/13",
+  "error": ""
+ },
+ "vision.c": {
+  "status": "fits-not",
+  "code": 8828,
+  "funcs": "11/23",
+  "error": ""
+ },
+ "were.c": {
+  "status": "fits-not",
+  "code": 1931,
+  "funcs": "5/6",
+  "error": ""
+ },
+ "wield.c": {
+  "status": "fits-not",
+  "code": 3253,
+  "funcs": "19/19",
+  "error": ""
+ },
+ "worm.c": {
+  "status": "fits-not",
+  "code": 2464,
+  "funcs": "18/20",
+  "error": ""
+ },
+ "worn.c": {
+  "status": "fits-not",
+  "code": 7272,
+  "funcs": "14/15",
+  "error": ""
+ },
+ "write.c": {
+  "status": "fits-not",
+  "code": 1171,
+  "funcs": "1/2",
+  "error": ""
+ },
+ "_struct_sizes": [
+  "rm 6",
+  "dlevel_t 16813",
+  "obj 48",
+  "monst 80",
+  "permonst 55 x 382",
+  "objclass 26 x 433",
+  "you 1381",
+  "trap 11",
+  "flag 127",
+  "int 2 long 4 ptr 2"
+ ],
+ "_meta": {
+  "config": "c64",
+  "oscar64_defs": [
+   "-dC64",
+   "-dregister="
+  ],
+  "mkstubs_defs": [
+   "-DC64",
+   "-Dregister=",
+   "-D__OSCAR64C__=1",
+   "-D__C64__=1",
+   "-D__CBM__=1",
+   "-DOSCAR_TARGET_PRG=1"
+  ],
+  "oscar64": "1.32.273",
+  "oscar64_sha256": "cc14a8428f04bb0e",
+  "memory_limit_mb": 1953,
+  "gcc": "13.3.0",
+  "git": "22d67ed-dirty",
+  "generated_tables_sha256": "12cb8cf1a158df80",
+  "bytecode": true,
+  "date": "2026-11-13 09:12:34 UTC",
+  "oscar64_build": "the ADR-0007 compiler: ~/src/oscar64-pin built by tools/oscar64-upstream/build-pin.sh, commit a4cfc5c, tree 7de21ef, binary sha256 fffcbc5e9f42a302",
+  "oscar64_wrapper": "oscar64_sha256 is a wrapper script's: it preloads a shim that zero-fills the compiler's heap allocations, so the output does not depend on old heap contents (OSCAR64-COMPAT.md #40, #41)",
+  "files": "the 44 files that reached code generation on 2026-11-13 (FITTING-TOOLBOX.md #15)"
+ }
+}

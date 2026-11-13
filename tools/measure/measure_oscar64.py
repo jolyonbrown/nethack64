@@ -25,7 +25,9 @@ usage: tools/measure/measure_oscar64.py [--config unix|c64] [file.c ...]
 writes build/measure[-c64]/report.json and prints a table
 environment: OSCAR64 (the compiler), MEASURE_TIMEOUT (seconds per file, default 150),
   MEASURE_MEMORY_MB (address-space cap per compile, default 3000; "compiler-oom" if hit),
-  MEASURE_BC=1 (compile to Oscar64 bytecode, -bc; sizes then count BYTE_CODE functions)
+  MEASURE_BC=1 (compile to Oscar64 bytecode, -bc; sizes then count BYTE_CODE functions),
+  MEASURE_KEEP=1 (keep each file's map, listings and generated stub file in the output
+  directory, e.g. to size what the runtime links in)
 """
 import argparse
 import collections
@@ -161,8 +163,9 @@ def measure(f):
                 code += int(mm.group(2), 16) - int(mm.group(1), 16)
     placement_only = all("Could not place" in e or "Cannot place" in e for e in errs)
     status = "ok" if not errs else ("fits-not" if placement_only and seen else "compile-error")
-    for p in glob.glob(os.path.join(OUT, "m_%s*" % b)) + [h]:
-        os.remove(p)
+    if os.environ.get("MEASURE_KEEP") != "1":
+        for p in glob.glob(os.path.join(OUT, "m_%s*" % b)) + [h]:
+            os.remove(p)
     return {"status": status, "code": code, "funcs": "%d/%d" % (len(seen), len(names)),
             "error": re.sub(r".*/", "", errs[0]) if status == "compile-error" else ""}
 
