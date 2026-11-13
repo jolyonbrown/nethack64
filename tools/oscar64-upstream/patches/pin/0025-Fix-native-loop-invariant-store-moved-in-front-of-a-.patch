@@ -1,0 +1,257 @@
+From a2a42f8f0fa7747ca51e9e0788ac77a2e2cce00a Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 04:41:27 +0000
+Subject: [PATCH 25/28] Fix native loop invariant store moved in front of a
+ loop that reads the old value
+
+OptimizeSimpleLoopInvariant moves "LDA #c; STA zp" and "LDA zp1; STA zp2"
+in front of a single block loop when nothing else in the block changes
+zp.  It did not check whether the block reads zp before that store, so in
+
+    int v = 5;
+    for (char i = 0; i < n; i++)
+    {
+        r += v;
+        v = 30;
+    }
+
+the first iteration added 30.  Leave the store in the loop when an
+instruction in front of it references the zero page location.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/loopinvariantstoretest.c | 197 ++++++++++++++++++++++++++++++
+ oscar64/NativeCodeGenerator.cpp   |   9 +-
+ 2 files changed, 204 insertions(+), 2 deletions(-)
+ create mode 100644 autotest/loopinvariantstoretest.c
+
+diff --git a/autotest/loopinvariantstoretest.c b/autotest/loopinvariantstoretest.c
+new file mode 100644
+index 0000000..1095e72
+--- /dev/null
++++ b/autotest/loopinvariantstoretest.c
+@@ -0,0 +1,197 @@
++// A variable that is read at the top of a single block loop and assigned a
++// constant or a loop invariant variable later in the same iteration must
++// still have its old value in the first iteration: the native code generator
++// may not move the store in front of the loop.
++
++#include <assert.h>
++
++char arr[4] = {10, 20, 30, 40};
++char gc = 30;
++int gi = 30;
++
++// constant
++__noinline int sum_const(char n)
++{
++	int r = 0;
++	int v = 5;
++
++	for (char i = 0; i < n; i++)
++	{
++		r += v;
++		v = 30;
++	}
++
++	return r;
++}
++
++// global variable
++__noinline int sum_global(char n)
++{
++	int r = 0;
++	int v = 5;
++
++	for (char i = 0; i < n; i++)
++	{
++		r += v;
++		v = gi;
++	}
++
++	return r;
++}
++
++// array element
++__noinline int sum_arr(char n, char k)
++{
++	int r = 0;
++	int v = 5;
++
++	for (char i = 0; i < n; i++)
++	{
++		r += v;
++		v = arr[k];
++	}
++
++	return r;
++}
++
++// another local variable
++__noinline int sum_local(char n, char k)
++{
++	int r = 0;
++	int v = 5;
++
++	for (char i = 0; i < n; i++)
++	{
++		r += v;
++		v = k;
++	}
++
++	return r;
++}
++
++// unsigned
++__noinline unsigned sum_unsigned(char n)
++{
++	unsigned r = 0;
++	unsigned v = 5;
++
++	for (char i = 0; i < n; i++)
++	{
++		r += v;
++		v = 30;
++	}
++
++	return r;
++}
++
++// long
++__noinline long sum_long(char n, char k)
++{
++	long r = 0;
++	long v = 5;
++
++	for (char i = 0; i < n; i++)
++	{
++		r += v;
++		v = k + 1;
++	}
++
++	return r;
++}
++
++// the variable is a parameter
++__noinline int sum_param(char n, char v)
++{
++	int r = 0;
++
++	for (char i = 0; i < n; i++)
++	{
++		r += v;
++		v = gc;
++	}
++
++	return r;
++}
++
++// the variable is a parameter, constant
++__noinline int sum_param_const(char n, char v)
++{
++	int r = 0;
++
++	for (char i = 0; i < n; i++)
++	{
++		r += v;
++		v = 30;
++	}
++
++	return r;
++}
++
++// while loop
++__noinline int sum_while(char n)
++{
++	int r = 0;
++	int v = 5;
++	char i = 0;
++
++	while (i < n)
++	{
++		r += v;
++		v = 30;
++		i++;
++	}
++
++	return r;
++}
++
++// do loop
++__noinline int sum_do(char n)
++{
++	int r = 0;
++	int v = 5;
++	char i = 0;
++
++	do
++	{
++		r += v;
++		v = 30;
++		i++;
++	} while (i < n);
++
++	return r;
++}
++
++int main(void)
++{
++	assert(sum_const(3) == 65);
++	assert(sum_const(1) == 5);
++
++	assert(sum_global(3) == 65);
++	assert(sum_global(2) == 35);
++
++	assert(sum_arr(3, 2) == 65);
++	assert(sum_arr(2, 1) == 25);
++
++	assert(sum_local(3, 7) == 19);
++	assert(sum_local(2, 9) == 14);
++
++	assert(sum_unsigned(3) == 65);
++	assert(sum_unsigned(2) == 35);
++
++	assert(sum_long(3, 2) == 11);
++	assert(sum_long(2, 7) == 13);
++
++	assert(sum_param(3, 5) == 65);
++	assert(sum_param(2, 6) == 36);
++
++	assert(sum_param_const(3, 5) == 65);
++	assert(sum_param_const(2, 6) == 36);
++
++	assert(sum_while(3) == 65);
++	assert(sum_while(2) == 35);
++
++	assert(sum_do(3) == 65);
++	assert(sum_do(2) == 35);
++
++	return 0;
++}
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index d723ed2..06948b0 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -49804,7 +49804,12 @@ bool NativeCodeBasicBlock::OptimizeSimpleLoopInvariant(NativeCodeProcedure* proc
+ 					(j == i + 0 || !mIns[j].ChangesZeroPage(mIns[i + 0].mAddress)) &&
+ 					(j == i + 1 || !mIns[j].ChangesZeroPage(mIns[i + 1].mAddress)))
+ 					j++;
+-				if (j == mIns.Size())
++				if (j == mIns.Size() && ReferencesZeroPage(mIns[i + 1].mAddress, 0, i))
++				{
++					// The loop reads the target before this store, so the first
++					// iteration needs the value it had in front of the loop
++				}
++				else if (j == mIns.Size())
+ 				{
+ 					if (!prevBlock)
+ 						return OptimizeSimpleLoopInvariant(proc, full);
+@@ -49872,7 +49877,7 @@ bool NativeCodeBasicBlock::OptimizeSimpleLoopInvariant(NativeCodeProcedure* proc
+ 					while (j < mIns.Size() &&
+ 						(j == i + 1 || !mIns[j].ChangesZeroPage(mIns[i + 1].mAddress)))
+ 						j++;
+-					if (j == mIns.Size())
++					if (j == mIns.Size() && !ReferencesZeroPage(mIns[i + 1].mAddress, 0, i))
+ 					{
+ 						if (!prevBlock)
+ 							return OptimizeSimpleLoopInvariant(proc, full);

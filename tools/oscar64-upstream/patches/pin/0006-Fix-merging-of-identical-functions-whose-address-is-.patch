@@ -1,7 +1,8 @@
 From cd222515ffbc96cf7d3f81422a56019c5a6a617b Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 09:41:57 +0000
-Subject: [PATCH 6/8] Fix merging of identical functions whose address is taken
+Subject: [PATCH 06/28] Fix merging of identical functions whose address is
+ taken
 
 Backport of 904c0400f093c4d59110497de634d3e0cdfce5bd (branch
 fix/dropped-init-fn, on upstream main 4da3147) to v1.32.273.

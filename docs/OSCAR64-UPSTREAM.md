@@ -37,8 +37,8 @@ Jolyon), which shows each PR's explanation and records the choice:
    validation runs described." Applied to #1-#14 by a message-only rewrite (every
    tree identical to the validated one); #15-#18 were finalised with it.
 4. **The compiler nethack64 builds with:** [ADR-0007](decisions/ADR-0007-oscar64-patched-pin.md)
-   accepted (v1.32.273 plus `tools/oscar64-upstream/patches/pin/`: eight commits, tip
-   f001eba since 2026-11-13). Adding a further fix to it is asked for each time; the
+   accepted (v1.32.273 plus `tools/oscar64-upstream/patches/pin/`: 28 commits, tip
+   b4dc4eb since 2026-11-13: eight accepted on 2026-11-12, twenty added on 2026-11-13). Adding a further fix to it is asked for each time; the
    candidates waiting are listed in TASKS T1.25.
 
 **Sending a queued PR**, once Jolyon approves it: rebase the branch if upstream main

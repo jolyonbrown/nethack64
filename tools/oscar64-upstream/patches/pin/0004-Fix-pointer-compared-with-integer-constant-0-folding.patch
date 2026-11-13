@@ -1,7 +1,7 @@
 From a6fe02bb771ab82946a95d169df3cb7f1fd5a1c1 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 09:27:00 +0000
-Subject: [PATCH 4/8] Fix pointer compared with integer constant 0 folding as
+Subject: [PATCH 04/28] Fix pointer compared with integer constant 0 folding as
  not equal
 
 Backport of 5a07baaf667257473e2f01f4f3e8ca0a825fb5f3 (branch

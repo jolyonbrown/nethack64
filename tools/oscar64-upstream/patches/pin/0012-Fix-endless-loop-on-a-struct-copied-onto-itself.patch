@@ -1,0 +1,272 @@
+From 41a411d9a0fe4348b3f9aac911365528a9c4b73e Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 15:36:36 +0000
+Subject: [PATCH 12/28] Fix endless loop on a struct copied onto itself
+
+A copy whose source and destination are the same memory, reached
+through a pointer, made the compiler loop forever at constant memory:
+"*p = *p; return p->b;" is enough when p is not a known address, at
+every optimization level, in native and byte code. Two passes record
+each IC_COPY and redirect a later read of its destination to its
+source: LoadStoreForwarding redirects a load, PropagateVariableCopy a
+load or the source of another copy. When source and destination are
+the same, the redirected operand is what it was before, but both
+passes report a change, and their callers
+(InterCodeProcedure::LoadStoreForwarding and the PropagateVariableCopy
+loops in Close) repeat until nothing changes.
+
+RemoveUnusedResultInstructions deletes a copy of a variable onto
+itself, so "g = g" was not affected, but it did not look at copies
+through a temporary. Such a copy does not have to be written as one.
+Temp forwarding makes one when two pointers turn out to be the same
+value, and PropagateVariableCopy turns "t = *p; *p = t;" into
+"*p = *p" inside its own loop, where no cleanup runs before the next
+pass.
+
+Add IsSelfCopy (SameMem on the two operands and equal strides), and
+with it:
+
+- neither pass records a self copy. It says only that a block of memory
+  equals itself, so no forwarding is lost. A redirection through any
+  other copy changes the operand, and a copy in the opposite direction
+  removes the earlier one from the list before it is recorded
+  (CollidingMem, DestroyingMem);
+- RemoveUnusedResultInstructions deletes a non volatile self copy
+  through a temporary as it does one of a variable, which also saves
+  the code for it. The deletion also requires both operands to use the
+  same temp: SameMem compares temps only for IM_INDIRECT, and a copy
+  must not be removed on the strength of a comparison that did not
+  look at them. The two guards do not depend on the deletion.
+
+Code that compiled before is only affected if it contains such a copy:
+the copy is no longer emitted.
+
+structselfcopytest.c covers a load after a self copy, two self copies,
+a self copy followed by a copy to another struct, "t = *p; *p = t;"
+followed by another copy, two names for one pointer, struct members
+copied onto themselves, a self copy in a loop and memcpy(p, p, n). A
+compiler without the fix does not finish compiling it in any of the
+ten configurations (stopped after ten seconds each); the loop has no
+bounded form, so the file is kept small and compiles in well under a
+second with the fix.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat         |   3 +
+ autotest/structselfcopytest.c | 142 ++++++++++++++++++++++++++++++++++
+ oscar64/InterCode.cpp         |  18 ++++-
+ 3 files changed, 160 insertions(+), 3 deletions(-)
+ create mode 100644 autotest/structselfcopytest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 0871c81..de29595 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -279,6 +279,9 @@ rem @echo off
+ @call :test structassigntest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test structselfcopytest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test structmembertest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/structselfcopytest.c b/autotest/structselfcopytest.c
+new file mode 100644
+index 0000000..c1b7635
+--- /dev/null
++++ b/autotest/structselfcopytest.c
+@@ -0,0 +1,142 @@
++// Copies of a struct onto itself through a pointer: "*p = *p", or two
++// copies that the optimizer joins into one.  Such a copy changes nothing,
++// but the forwarding of loads and copies through it used to replace an
++// address by itself and report a change on every pass, so the compiler
++// never finished.
++
++#include <assert.h>
++#include <string.h>
++
++struct S
++{
++	char	a[20];
++	int		b;
++};
++
++struct I
++{
++	int		x[5];
++};
++
++struct T
++{
++	char	c[3];
++	struct I	i, j;
++};
++
++struct S	k[4];
++struct T	t[2];
++char		buf[2][16];
++
++volatile char	vi;
++
++// a load after a self copy
++int self_load(struct S * p)
++{
++	*p = *p;
++	return p->b;
++}
++
++// two self copies, nothing loaded
++int self_twice(struct S * p)
++{
++	*p = *p;
++	*p = *p;
++	return 7;
++}
++
++// a self copy followed by a real copy
++int self_then_copy(struct S * p, struct S * q)
++{
++	*p = *p;
++	*q = *p;
++	return q->b;
++}
++
++// no self copy in the source, copy propagation turns "*p = t" into one
++int save_restore(struct S * p, struct S * q)
++{
++	struct S	t = *p;
++	*p = t;
++	*q = *p;
++	return p->b;
++}
++
++// two names for one pointer
++int same_pointer(struct S * p)
++{
++	struct S	*	q = p;
++	struct S	*	r = q;
++
++	*q = *r;
++	*r = *p;
++	q->b++;
++	*p = *q;
++	return r->b;
++}
++
++// members copied onto themselves
++int self_member(struct T * p)
++{
++	p->i = p->i;
++	p->j = p->i;
++	p->j = p->j;
++	return p->j.x[4] + p->i.x[0];
++}
++
++// in a loop, under a condition
++int self_loop(struct S * p, char n)
++{
++	int	s = 0;
++	for(char i=0; i<n; i++)
++	{
++		if (i & 1)
++			p[i] = p[i];
++		s += p[i].b;
++	}
++	return s;
++}
++
++int self_memcpy(void)
++{
++	char	*	p = buf[vi];
++
++	p[3] = 7;
++	memcpy(p, p, 16);
++	return p[3];
++}
++
++int main(void)
++{
++	for(char i=0; i<4; i++)
++	{
++		k[i].a[0] = 10 + i;
++		k[i].a[19] = 20 + i;
++		k[i].b = 1000 + i;
++	}
++
++	assert(self_load(k + vi) == 1000);
++	assert(self_load(k + 1 + vi) == 1001);
++	assert(self_twice(k + vi) == 7);
++
++	assert(self_then_copy(k + vi, k + 3 - vi) == 1000);
++	assert(k[3].a[0] == 10 && k[3].a[19] == 20 && k[3].b == 1000);
++
++	assert(save_restore(k + 1 + vi, k + 2 + vi) == 1001);
++	assert(k[2].a[0] == 11 && k[2].a[19] == 21 && k[2].b == 1001);
++	assert(k[1].a[0] == 11 && k[1].a[19] == 21 && k[1].b == 1001);
++
++	assert(same_pointer(k + vi) == 1001);
++	assert(k[0].a[0] == 10 && k[0].a[19] == 20 && k[0].b == 1001);
++
++	t[0].i.x[0] = 12;
++	t[0].i.x[4] = 30;
++	assert(self_member(t + vi) == 42);
++	assert(t[0].j.x[0] == 12 && t[0].j.x[4] == 30);
++
++	assert(self_loop(k + vi, 4) == 1001 + 1001 + 1001 + 1000);
++
++	assert(self_memcpy() == 7);
++
++	return 0;
++}
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index 8d70910..92f2d0a 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -1000,6 +1000,14 @@ static bool SameMemAndSize(const InterOperand& op, const InterInstruction* ins)
+ 		return false;
+ }
+ 
++// A copy of a block of memory onto itself. It leaves the memory unchanged, so
++// there is nothing to forward from it, and forwarding through it would
++// replace an address by itself and report a change on every pass.
++static bool IsSelfCopy(const InterInstruction* ins)
++{
++	return ins->mCode == IC_COPY && ins->mSrc[0].mStride == ins->mSrc[1].mStride && SameMem(ins->mSrc[0], ins->mSrc[1]);
++}
++
+ static bool SameInstruction(const InterInstruction* ins1, const InterInstruction* ins2)
+ {
+ 	if (ins1->mCode == ins2->mCode && ins1->mNumOperands == ins2->mNumOperands)
+@@ -5232,8 +5240,9 @@ bool InterInstruction::RemoveUnusedResultInstructions(InterInstruction* pre, Num
+ 
+ 		changed = true;
+ 	}
+-	else if (mCode == IC_COPY && !mVolatile && mSrc[0].mTemp < 0 && mSrc[1].mTemp < 0 && mSrc[0].mMemory == mSrc[1].mMemory &&
+-		mSrc[0].mVarIndex == mSrc[1].mVarIndex && mSrc[0].mLinkerObject == mSrc[1].mLinkerObject && mSrc[0].mIntConst == mSrc[1].mIntConst)
++	else if (mCode == IC_COPY && !mVolatile && (mSrc[0].mTemp < 0 && mSrc[1].mTemp < 0 && mSrc[0].mMemory == mSrc[1].mMemory &&
++		mSrc[0].mVarIndex == mSrc[1].mVarIndex && mSrc[0].mLinkerObject == mSrc[1].mLinkerObject && mSrc[0].mIntConst == mSrc[1].mIntConst ||
++		mSrc[0].mTemp == mSrc[1].mTemp && IsSelfCopy(this)))
+ 	{
+ 		mNumOperands = 0;
+ 		mDst.mTemp = -1;
+@@ -8410,7 +8419,8 @@ bool InterCodeBasicBlock::PropagateVariableCopy(const GrowingInstructionPtrArray
+ 				if (!ins->mVolatile)
+ 				{
+ 					ltemps.SetSize(j);
+-					ltemps.Push(ins);
++					if (!IsSelfCopy(ins))
++						ltemps.Push(ins);
+ 				}
+ 				break;
+ 
+@@ -14958,6 +14968,8 @@ bool InterCodeBasicBlock::LoadStoreForwarding(const GrowingInstructionPtrArray&
+ 				else if (!ins->mVolatile && ins->mSrc[1].mTemp < 0 && ins->mSrc[1].mStride == 1)
+ 					nins = ins;
+ #endif
++				if (nins && IsSelfCopy(nins))
++					nins = nullptr;
+ 			}
+ 			else if (ins->mCode == IC_FILL)
+ 			{

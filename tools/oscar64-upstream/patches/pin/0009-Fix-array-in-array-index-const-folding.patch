@@ -1,0 +1,36 @@
+From 7a40c79dce35025ef443275f22073e25d62a0462 Mon Sep 17 00:00:00 2001
+From: drmortalwombat <90205530+drmortalwombat@users.noreply.github.com>
+Date: Sat, 24 Oct 2026 15:41:04 +0200
+Subject: [PATCH 09/28] Fix array in array index const folding
+
+(cherry picked from commit 1ae3216fa3699465746fa8fd8e09617f7b8c742a)
+
+Backport to v1.32.273 for nethack64.  The Declaration.cpp change applies
+as is: Expression::ConstantDereference returned the initializer's element
+declaration itself, whose mOffset is the element's offset inside the
+aggregate, and the code generator adds a constant pointer's mOffset to
+the pointer.  A pointer read from a const table at a constant index k, or
+as a struct member at a non zero offset, pointed that many bytes past its
+target.  The element is now cloned and its offset cleared.
+
+Left out: the upstream commit's other hunk, which only changes the
+debugging define CHECK_FUNC in InterCode.cpp; it stays at its v1.32.273
+value.
+---
+ oscar64/Declaration.cpp | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/oscar64/Declaration.cpp b/oscar64/Declaration.cpp
+index d5669c5..240ef94 100644
+--- a/oscar64/Declaration.cpp
++++ b/oscar64/Declaration.cpp
+@@ -634,6 +634,9 @@ Expression* Expression::ConstantDereference(Errors* errors, LinkerSection* dataS
+ 					else
+ 					{
+ 						Expression* ex = new Expression(mLocation, EX_CONSTANT);
++						mdec = mdec->Clone();
++						mdec->mOffset = 0;
++
+ 						ex->mDecValue = mdec;
+ 						ex->mDecType = mDecType;
+ 						return ex;

@@ -1,0 +1,54 @@
+From 01cfa3a7ae6b2027620c21534073f1770d65190c Mon Sep 17 00:00:00 2001
+From: drmortalwombat <90205530+drmortalwombat@users.noreply.github.com>
+Date: Mon, 19 Oct 2026 20:42:09 +0200
+Subject: [PATCH 16/28] Fix too strong check for native structure copy
+ forwarding
+
+(cherry picked from commit 107320637da1897afc7fdcea0c8a52d8bb449e0f)
+---
+ oscar64/NativeCodeGenerator.cpp | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 90ee3e6..686c59e 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -34616,16 +34616,17 @@ bool NativeCodeBasicBlock::PatchSingleUseGlobalLoad(const NativeCodeBasicBlock*
+ bool NativeCodeBasicBlock::CheckSingleUseGlobalLoadStruct(const NativeCodeBasicBlock* block, const NativeCodeInstruction& rins, int at, const NativeCodeInstruction& ains, bool cleared, bool poisoned)
+ {
+ 	bool	ok = true;
+-	if (!mPatched)
++	if (!mPatched || mPatchFail && !cleared)
+ 	{
+-		if (this != block && !IsDominatedBy(block))
++		if (mPatchFail || this != block && !IsDominatedBy(block))
+ 			poisoned = true;
+ 
+ 		// A later path must not reuse a check entered after an overwrite or invalidation.
+ 		if (at == 0)
+ 		{
+ 			mPatched = true;
+-			mPatchFail = cleared || poisoned;
++			if (cleared)
++				mPatchFail = true;
+ 		}
+ 
+ 		bool	used = false;
+@@ -34675,7 +34676,7 @@ bool NativeCodeBasicBlock::CheckSingleUseGlobalLoadStruct(const NativeCodeBasicB
+ 			mPatchUsed = used || (mTrueJump && mTrueJump->mPatchUsed) || (mFalseJump && mFalseJump->mPatchUsed);
+ 		}
+ 	}
+-	else if (mPatchFail || (mPatchUsed && (poisoned || cleared)))
++	else if ((mPatchUsed && (poisoned || cleared)))
+ 		return false;
+ 
+ 	return true;
+@@ -34699,6 +34700,8 @@ bool NativeCodeBasicBlock::PatchSingleUseGlobalLoadStruct(const NativeCodeBasicB
+ 			{
+ 				if (ins.mType == ASMIT_LDA || ins.mType == ASMIT_LDX || ins.mType == ASMIT_LDY)
+ 				{
++//					printf("Patching %s,%d\n", ins.mIns->mLocation.mFileName, ins.mIns->mLocation.mLine);
++
+ 					finat = i;
+ 					ins.CopyMode(ains);
+ 					changed = true;

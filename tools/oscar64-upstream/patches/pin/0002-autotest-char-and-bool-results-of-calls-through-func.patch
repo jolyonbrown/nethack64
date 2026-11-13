@@ -1,8 +1,8 @@
 From 37bc12618e514bbaa4ed8a549f4850e45c3fcd46 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 10:46:41 +0000
-Subject: [PATCH 2/8] autotest: char and bool results of calls through function
- pointers
+Subject: [PATCH 02/28] autotest: char and bool results of calls through
+ function pointers
 
 Regression test for the previous commit (upstream 1169268), which has no
 test upstream: signed char, unsigned char, char and bool results of

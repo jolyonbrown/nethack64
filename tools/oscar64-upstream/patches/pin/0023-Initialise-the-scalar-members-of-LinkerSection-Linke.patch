@@ -1,0 +1,53 @@
+From 372dc4cc7ffc723d98dde10eeb2f93053921ba3d Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 05:22:56 +0000
+Subject: [PATCH 23/28] Initialise the scalar members of LinkerSection,
+ LinkerRegion and Linker
+
+A section that the linker never places keeps the mStart, mEnd and mSize
+its constructor left it with, and the constructor set none of them.
+When a compile ends with errors the map file is still written, and its
+section lines then print whatever the heap held:
+
+    aaaaaaaa - aaaaaaaa : DATA, code
+
+instead of "0000 - 0000".  Found by compiling the same source with the
+heap pre-filled with different bytes and comparing every output file.
+
+LinkerRegion and Linker get the same treatment for the members their
+constructors skipped (the callers set them today, but nothing says so).
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/Linker.cpp | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/oscar64/Linker.cpp b/oscar64/Linker.cpp
+index 88f866b..5cc3e78 100644
+--- a/oscar64/Linker.cpp
++++ b/oscar64/Linker.cpp
+@@ -5,11 +5,12 @@
+ #include "Compression.h"
+ 
+ LinkerRegion::LinkerRegion(void)
+-	: mSections(nullptr), mFreeChunks(FreeChunk{ 0, 0 } ), mLastObject(nullptr), mInlayObject(nullptr), mCartridgeBanks(0)
++	: mIdent(nullptr), mFlags(0), mStart(0), mEnd(0), mUsed(0), mNonzero(0), mReloc(0),
++	  mSections(nullptr), mFreeChunks(FreeChunk{ 0, 0 } ), mLastObject(nullptr), mInlayObject(nullptr), mCartridgeBanks(0)
+ {}
+ 
+ LinkerSection::LinkerSection(void)
+-	: mObjects(nullptr), mSections(nullptr), mFlags(0)
++	: mIdent(nullptr), mObjects(nullptr), mSections(nullptr), mStart(0), mEnd(0), mSize(0), mType(LST_NONE), mFlags(0)
+ {}
+ 
+ 
+@@ -176,7 +177,8 @@ LinkerOverlay::~LinkerOverlay(void)
+ }
+ 
+ Linker::Linker(Errors* errors)
+-	: mErrors(errors), mSections(nullptr), mReferences(nullptr), mObjects(nullptr), mRegions(nullptr), mOverlays(nullptr), mBreakpoints(0), mCompilerOptions(COPT_DEFAULT)
++	: mErrors(errors), mSections(nullptr), mReferences(nullptr), mObjects(nullptr), mRegions(nullptr), mOverlays(nullptr), mBreakpoints(0), mCompilerOptions(COPT_DEFAULT),
++	  mProgramStart(0), mProgramEnd(0)
+ {
+ 	for (int i = 0; i < 64; i++)
+ 	{

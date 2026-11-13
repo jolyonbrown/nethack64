@@ -1,0 +1,37 @@
+From bf5e1ea5a1b71ff611a993c0ecdb1fef10456ad1 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 04:29:21 +0000
+Subject: [PATCH 18/28] Fix uninitialized variable in cheap inlining of
+ recursive functions
+
+Backport of upstream fbca293 (drmortalwombat, 2026-10-18), without its
+two CHECK_FUNC debug-name changes.
+
+InterInstruction's constructor left mRemove unset. CheapInlining
+inserts a new IC_PUSH_FRAME and a new IC_POP_FRAME around an inlined
+call whose callee has a common frame, then turns every instruction of
+the block with mRemove set into IC_NONE. It clears the flag only on the
+instructions that were there before, so whether the two new frame
+instructions survive depended on what the heap block held before:
+either one, or both, could disappear. Losing the push while keeping
+the pop raises the stack pointer by the frame size on every call;
+losing the push in a caller with no frame of its own lets the callee's
+stack arguments overwrite the caller's locals.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/InterCode.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index 7469e83..01b43e3 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -4518,6 +4518,7 @@ InterInstruction::InterInstruction(const Location& loc, InterCode code)
+ 	mAliasing = false;
+ 	mMemmap = false;
+ 	mLockOrder = false;
++	mRemove = false;
+ }
+ 
+ void InterInstruction::Reset(void)

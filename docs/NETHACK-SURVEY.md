@@ -257,3 +257,29 @@ and harness at `5b0d9a7`. Per-file results: `docs/data/oscar64-pin-baseline-2026
   `potion.c` places 22 of 24 functions (16,137 B) in this run and 23 (18,227 B) with
   the heap zeroed; `teleport.c` is 11 bytes shorter here, the frame push that #40
   loses. The bytecode comparison (FITTING-TOOLBOX.md #15) used the zeroed heap.
+
+## Oscar64 compile status with the 28-commit pin (2026-11-13, later)
+
+Twenty more commits joined the pin (ADR-0007, T1.25): crash and hang fixes, the heap
+initialisation and five wrong-code fixes. Same harness and caps (3,000 MB, 600 s per
+file); the compiler built by `build-pin.sh` from the 28 patch files (tree 229e43f), gcc
+13.3.0; port and harness as at `c9a4cf6`. Per-file results:
+`docs/data/oscar64-pin28-baseline-2026-11-13.json` (UNIX) and
+`docs/data/oscar64-pin28-c64conf-2026-11-13.json` (C64).
+
+| Result | UNIX config | C64 config |
+|---|---|---|
+| compile through to placement | 40 (245,962 B) | **45 (256,349 B)** |
+| stop on a compile error | 67 | 62 |
+| crash or hang the compiler | 0 | 0 |
+
+- **`shknam.c`** now compiles (2,578 B, 3 of 7 functions placed); **`makemon.c`** stops
+  at a known compile error (an `extern` array without a size) instead of hanging.
+- **Code changes in three files that compiled before**, the same in both
+  configurations: `teleport.c` +11 B and `potion.c` one more function (18,227 B), both
+  what the eight-commit pin gave only with its heap zeroed (#40: the frame push is
+  kept); `mkobj.c` +3 B, `weight()` reading `obj->otyp` again after its recursive loop
+  (#41).
+- **Repeatable now:** with every heap block filled with 0xA5 before use, the C64 run
+  gives byte-identical listings, intermediate code and maps for the 90 files that reach
+  code generation, and the same report.

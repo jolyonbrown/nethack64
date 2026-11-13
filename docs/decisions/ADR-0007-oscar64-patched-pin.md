@@ -1,6 +1,7 @@
 # ADR-0007: Build with Oscar64 v1.32.273 plus wrong-code fixes
 
-- Status: accepted by Jolyon on 2026-11-12, on the decision page; used by the build since 2026-11-13
+- Status: accepted by Jolyon on 2026-11-12, on the decision page; used by the build since
+  2026-11-13; twenty more commits added on 2026-11-13 (Jolyon, decision page)
 - Date: 2026-11-12 (proposed and accepted); commit ids final 2026-11-13
 - Deciders: Jolyon (+ Claude, who proposed it)
 
@@ -72,16 +73,27 @@ fixes #1-#3, #15 and the call-graph part of #4". Commit 8 was then c2f5cab; its 
 form f001eba changes only comments and its regression test, not the compiler's code
 (Evidence, 2026-11-13).
 
-Not accepted: six further candidates (nine commits on six branches) wait for Jolyon's
-decision one at a time (T1.25): `nethack64/pin-1ae3216` (r32), `pin-r30` (r30),
-`pin-charidx` (r33), `pin-shknam-crash` (r27), `pin-makemon-hang` (r28) and
-`pin-walks-display` (r29). Each was built on c2f5cab and validated alone, and the six
-together on `review/pin-candidates-all` (2026-11-13: autotest 1,311 emulations, none
-failing; repros 14 of 35). Each rebases onto f001eba without conflicts (`git rebase
---onto f001eba c2f5cab`); a plain merge conflicts in the three files commit 8 touches,
-because c2f5cab and f001eba are siblings. Round six (2026-11-13) added more candidates,
-also undecided: the heap-initialisation commits (r38, r39; T1.21) and our fixes for r36
-and r37 (T1.22, T1.23).
+Added on 2026-11-13 (Jolyon chose "Add" for ten rows on the decision page): commits 9 to
+28, on f001eba in this order, each code change identical to the reviewed branch commit
+(`git patch-id`):
+
+9. `7a40c79` upstream 1ae3216 (r32: a pointer read from a `const` table at a constant
+   index), and 10. `2ccb958` its regression test;
+11. `51729f2` r27 (the `shknam.c` crash); 12. `41a411d` r28 (the `makemon.c` hang);
+13. `66bd3eb` r33; 14. `e3995c0` r29 (two exponential walks; `display.c`);
+15. `d169009` upstream 3bb084f and 16. `01cfa3a` upstream 1073206 (r30), and
+17. `870ac02` our fix for the exponential walk and stack overflow 1073206 brings;
+18. to 23. heap initialisation (T1.21): `bf5e1ea` backports upstream fbca293 (r38);
+   `14ff554`, `9ce4806`, `05b403a` and `372dc4c` initialise members the compiler read
+   before writing them; `2da6d7f` fixes r39 (with `05b403a`);
+24. `efd669b` r36; 25. to 27. `a2a42f8`, `f6ef29b`, `2275592` r40 (r36's twin in native
+   code); 28. `b4dc4eb` r41.
+
+Their messages were edited on the way, nothing else: no session links, upstream's
+1ae3216 without our co-author line, the backport notes of 3bb084f and of `2da6d7f`
+corrected. Also "Add", once each review is done and if nothing in its row changes (T1.25):
+r42 and r43. r37 and r44 go back to Jolyon: the `-O0` probe they were waiting on is r45
+(T1.26), a wrong-code bug that commit 3 exposes at `-O2`/`-Os`/`-O3`.
 
 `tools/oscar64-upstream/build-pin.sh [DIR]` builds it (`JOBS=N` for `make -jN`). Since
 2026-11-13 the setup scripts (`tools/setup-ubuntu.sh`, `tools/setup-arch.sh`) build the
@@ -96,10 +108,11 @@ checks, and its `-Os` size is understood.
 - The six fixed rows above stop being "must be settled before game code runs" once
   the build uses the pin; r18-r23 and r25 pass, and so does r26 (commit 8). r24 stays
   open (T1.15).
-- We carry a patch stack until upstream releases: two of the eight commits are
-  upstream already, five are our fixes, prepared for upstream as draft PRs in the fork
-  and on hold (#1 to #3, the call-graph part of #4, and #15 in OSCAR64-UPSTREAM.md;
-  nothing sent yet), and one is a test, so it should shrink. Once
+- We carry a patch stack until upstream releases: of the 28 commits, five are upstream's
+  (1169268, bf42402, 1ae3216, 3bb084f, 1073206), one backports upstream fbca293, two are
+  tests for upstream fixes, and twenty are ours. Most of ours have an upstream form as a
+  draft PR in the fork or a local branch on main, on hold (OSCAR64-UPSTREAM.md; nothing
+  sent yet), so the stack should shrink. Once
   the build switches, anyone building must run the setup script (or `build-pin.sh`); a
   stock v1.32.273 builds a subtly broken game.
 - Measurements and byte counts taken with v1.32.273 stay valid where the code does not
@@ -114,7 +127,9 @@ checks, and its `-Os` size is understood.
 - Risk: a mistake in a backport could add wrong code of its own. Mitigation: each
   backport was reviewed against its upstream-main version by a second agent
   (`build/oscar64-wt/pinned-patched-2-review`), the full v1.32.273 autotest passes, and
-  every pre-existing autotest program compiles byte-for-byte as before (below).
+  every pre-existing autotest program compiles byte-for-byte as before (below). It has
+  happened once: commit 3, upstream bf42402, exposes r45 (T1.26), a dropped `char`
+  result, at `-O2`/`-Os`/`-O3`; found on 2026-11-13, after the build switched.
 
 ## Open problem (2026-11-12; resolved by commit 8)
 
@@ -142,7 +157,7 @@ Upstream main has the same problem. Until it is fixed, the choice is between:
 
 ```sh
 JOBS=2 tools/oscar64-upstream/build-pin.sh /tmp/pin    # v1.32.273 + patches/pin
-make repros OSCAR64=/tmp/pin/bin/oscar64               # r18-r23, r25 and r26 FIXED (run.py caps each compile)
+make repros OSCAR64=/tmp/pin/bin/oscar64               # 19 of 45 FIXED (run.py caps each compile)
 (ulimit -v 3000000; make -k -j2 -C /tmp/pin/make check)  # Oscar64's own autotest
 (ulimit -v 3000000; python3 tools/oscar64-upstream/corpus_diff.py ~/src/oscar64/bin/oscar64 /tmp/pin/bin/oscar64 -j 2 --out /tmp/pin-corpus)
 make OSCAR64=/tmp/pin/bin/oscar64 && make prg OSCAR64=/tmp/pin/bin/oscar64 && make test OSCAR64=/tmp/pin/bin/oscar64
@@ -198,3 +213,35 @@ accepted). Every compile ran under `ulimit -v 2000000`:
   compiler that gives the same `.prg` files as the pin's for the seven regression
   tests the commits add, three other autotest programs and repros r18-r26 in five
   configurations (95 of 95).
+
+Results 2026-11-13 (28 commits, tip b4dc4eb; the compiler `build-pin.sh` builds from the
+28 patch files checks out tree 229e43f, the branch's). Compiles under `ulimit -v 3000000`:
+
+- Oscar64 autotest: 1,341 emulations, all result 0, no failing step (1,241 with the
+  eight commits; the 100 more are the ten tests the twenty commits add).
+- `corpus_diff.py` f001eba against b4dc4eb, over the autotest programs and repros
+  r1-r44: 182 files x 5 configurations, 799 compiled by both, 749 byte-identical. The 50
+  that differ are the ten new tests, the repros of bugs these commits fix (r30, r32, r33,
+  r36, r39, r40) or touch (r43, whose loop pass r40's commits change; still wrong), and
+  `opp_streamtest.cpp` at `-n -O3`, whose output depended on the heap. 30 compiles went
+  from a crash or time-out to a program: r27, r28, r29, r41 and three of the new tests.
+  Every other autotest program compiles byte-for-byte as before.
+- Repros: 19 of 45 pass (r18-r23, r25-r30, r32, r33, r36, r38-r41), against 8 with the
+  eight commits. r45, found the same day, is wrong on both (T1.26).
+- nethack64 today: `make` and `make prg` give a `nethack-ef.crt` and `nethack.prg`
+  byte-identical to the eight-commit build's; `make test` 5/5 passed.
+- NetHack harness (`measure_oscar64.py`, 3,000 MB and 600 s per file) against the same
+  day's eight-commit reports: C64 45 of 107 files measured (all fits-not), 256,349
+  bytes; UNIX 40, 245,962. No crash or hang is left: `shknam.c` compiles (2,578 bytes, 3
+  of 7 functions placed) and `makemon.c` stops at a known compile error (an `extern`
+  array without a size). Code changes in three files, each accounted for: `teleport.c`
+  (+11 bytes) and `potion.c` (one more function placed) now get what the eight commits
+  gave only under a zero-filled heap (r38: `u_teleport_mon()` keeps its call frame);
+  `mkobj.c` +3 bytes in `weight()`, which now reads `obj->otyp` again after its recursive
+  loop (r39; the stale copy was harmless there). With every heap block filled with 0xA5
+  first (an `LD_PRELOAD` shim), the C64 run gives byte-identical listings, intermediate
+  code and maps for all 90 files that reach code generation: the output no longer
+  depends on old heap contents.
+- `make check` re-links `bin/oscar64` before it starts: run it apart from other uses of
+  the same compiler (on 2026-11-13 a corpus run started at the same moment failed with
+  "Permission denied" and was run again).

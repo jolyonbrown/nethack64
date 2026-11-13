@@ -1,0 +1,82 @@
+From f6ef29bb99ef1af624449a224878830bb78c6188 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 09:08:20 +0000
+Subject: [PATCH 26/28] Native loop invariant store: count only the parameters
+ a call takes
+
+The test that keeps "LDA #c; STA zp" and "LDA zp1; STA zp2" in a one-block
+loop when the block reads zp in front of the store used ReferencesZeroPage,
+which treats a JSR as a reader of every parameter location.  A loop that
+calls a function and then sets up a parameter location that the callee does
+not take kept the store (autotest/linetest.c, native -O0: two bytes more).
+
+ReadsZeroPageBefore counts, for a call to a compiled function, the
+locations the liveness analysis requires for it (IsUsedResultInstructions):
+the callee's parameter footprint, the work registers when flagged, and the
+frame pointer.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/NativeCodeGenerator.cpp | 35 +++++++++++++++++++++++++++++++--
+ 1 file changed, 33 insertions(+), 2 deletions(-)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 06948b0..a42ea80 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -48506,6 +48506,37 @@ bool NativeCodeBasicBlock::Is16BitImmSum(int at, int& val, int& reg) const
+ }
+ 
+ 
++// True if an instruction in front of index "to" may read the zero page location.  A call
++// to a compiled function reads the locations that function takes parameters in, the same
++// set the liveness analysis requires for it (IsUsedResultInstructions); UsesZeroPage would
++// count every parameter location.
++static bool ReadsZeroPageBefore(const NativeCodeBasicBlock* block, int address, int to)
++{
++	for (int i = 0; i < to; i++)
++	{
++		const NativeCodeInstruction& ins(block->mIns[i]);
++
++		if (ins.mType == ASMIT_JSR && !(ins.mFlags & NCIF_RUNTIME) && ins.mLinkerObject && ins.mLinkerObject->mProc)
++		{
++			if ((ins.mFlags & NICF_USE_WORKREGS) && address >= BC_REG_WORK && address < BC_REG_WORK + 10)
++				return true;
++
++			if (address == BC_REG_LOCALS || address == BC_REG_LOCALS + 1)
++				return true;
++
++			for (int j = 0; j < ins.mLinkerObject->mNumTemporaries; j++)
++			{
++				if (address >= ins.mLinkerObject->mTemporaries[j] && address < ins.mLinkerObject->mTemporaries[j] + ins.mLinkerObject->mTempSizes[j])
++					return true;
++			}
++		}
++		else if (ins.ReferencesZeroPage(address))
++			return true;
++	}
++
++	return false;
++}
++
+ bool NativeCodeBasicBlock::OptimizeSimpleLoopInvariant(NativeCodeProcedure* proc, NativeCodeBasicBlock* prevBlock, NativeCodeBasicBlock* exitBlock, bool full)
+ {
+ 	bool changed = false;
+@@ -49804,7 +49835,7 @@ bool NativeCodeBasicBlock::OptimizeSimpleLoopInvariant(NativeCodeProcedure* proc
+ 					(j == i + 0 || !mIns[j].ChangesZeroPage(mIns[i + 0].mAddress)) &&
+ 					(j == i + 1 || !mIns[j].ChangesZeroPage(mIns[i + 1].mAddress)))
+ 					j++;
+-				if (j == mIns.Size() && ReferencesZeroPage(mIns[i + 1].mAddress, 0, i))
++				if (j == mIns.Size() && ReadsZeroPageBefore(this, mIns[i + 1].mAddress, i))
+ 				{
+ 					// The loop reads the target before this store, so the first
+ 					// iteration needs the value it had in front of the loop
+@@ -49877,7 +49908,7 @@ bool NativeCodeBasicBlock::OptimizeSimpleLoopInvariant(NativeCodeProcedure* proc
+ 					while (j < mIns.Size() &&
+ 						(j == i + 1 || !mIns[j].ChangesZeroPage(mIns[i + 1].mAddress)))
+ 						j++;
+-					if (j == mIns.Size() && !ReferencesZeroPage(mIns[i + 1].mAddress, 0, i))
++					if (j == mIns.Size() && !ReadsZeroPageBefore(this, mIns[i + 1].mAddress, i))
+ 					{
+ 						if (!prevBlock)
+ 							return OptimizeSimpleLoopInvariant(proc, full);

@@ -1,0 +1,289 @@
+From 66bd3eb62335b028f038366bccee447642bc0d5c Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 20:02:27 +0000
+Subject: [PATCH 13/28] Fix value range of a scaled index after folding its
+ constant into the address
+
+PeepholeReplaceOptimization rewrites
+
+    t1 = t0 + c
+    t2 = t1 << s
+    p  = LEA t2, base
+
+into t2 = t0 << s; p = LEA t2, base + (c << s).  It moved the value range
+of the LEA's index operand down by c << s, but left the range of the
+shift's result as it was, so t2 still claimed the range of the old,
+larger value.  The next integer range pass combines that range with the
+one it derives for the new shift, and with the limit the size of the
+array puts on the index.  For
+
+    int k[3];
+    char i = 1 + n;
+    return k[i];
+
+the stale range is [2..4] and the new one [0..2], which leaves [2..2]:
+the scaled index became the constant 2, every call returned k[2], and a
+store to n that only this function read was removed.  With a signed
+index (signed char i = 2 + n, n from -2 to 0) the two ranges meet in 0
+and every call returned k[2] as well.
+
+An array of two or four byte elements (int, long, pointers, structs)
+indexed by an unsigned char c + variable is affected when it has exactly
+2c + 1 elements, which is when the two ranges meet in a single value:
+k[3] with 1 + n, k[5] with 2 + n, k[7] with 3 + n.  Reads and writes,
+native and bytecode, at every level except -O0.
+
+Move the range of the shift's result together with the operand of the
+LEA.
+
+autotest/arrayindexaddtest.c fails in eight of the ten configurations
+without the change (-O0 is not affected) and passes with it.
+
+The pattern is the same on main (4da3147).  Since 57655c5 ("Fix wrapping
+byte index in addressing") an unsigned char index is masked with 255
+before it is scaled, so an index computed from a global no longer has
+this shape; an index computed from a char parameter (-O2, -Os, -O3) or a
+signed char still does, and the test fails there in the same eight
+configurations.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/arrayindexaddtest.c | 200 +++++++++++++++++++++++++++++++++++
+ autotest/autotest.bat        |   3 +
+ oscar64/InterCode.cpp        |   2 +
+ 3 files changed, 205 insertions(+)
+ create mode 100644 autotest/arrayindexaddtest.c
+
+diff --git a/autotest/arrayindexaddtest.c b/autotest/arrayindexaddtest.c
+new file mode 100644
+index 0000000..45dff56
+--- /dev/null
++++ b/autotest/arrayindexaddtest.c
+@@ -0,0 +1,200 @@
++#include <assert.h>
++
++// An index of the form "constant + variable" into an array of two or four
++// byte elements: the constant is folded into the address of the array and
++// the variable alone is scaled.  The value range of the scaled index has
++// to follow, or the range that the array size implies for the old index
++// is combined with the range of the new one, and the element address
++// becomes a constant.
++
++struct Pair
++{
++	int		a, b;
++};
++
++int ints3[3] = {1, 21, 5};
++int ints4[4] = {7, 17, 27, 37};
++int ints5[5] = {2, 12, 22, 32, 42};
++unsigned words3[3] = {1000, 2000, 3000};
++long longs3[3] = {100000, 200000, 300000};
++int * ptrs3[3] = {ints3, ints3 + 1, ints3 + 2};
++struct Pair pairs3[3] = {{1, 2}, {3, 4}, {5, 6}};
++
++char gn;
++signed char gs;
++
++__noinline void setn(char v)
++{
++	gn = v;
++}
++
++__noinline void sets(signed char v)
++{
++	gs = v;
++}
++
++// index from a global char
++
++__noinline int g_int3(void)
++{
++	char i = 1 + gn;
++	return ints3[i];
++}
++
++__noinline int g_int4(void)
++{
++	char i = 1 + gn;
++	return ints4[i];
++}
++
++__noinline int g_int5(void)
++{
++	char i = 2 + gn;
++	return ints5[i];
++}
++
++__noinline long g_long3(void)
++{
++	char i = 1 + gn;
++	return longs3[i];
++}
++
++__noinline int g_ptr3(void)
++{
++	char i = 1 + gn;
++	return *ptrs3[i];
++}
++
++__noinline int g_struct3(void)
++{
++	char i = 1 + gn;
++	return pairs3[i].b;
++}
++
++__noinline void g_store3(int v)
++{
++	char i = 1 + gn;
++	ints3[i] = v;
++}
++
++__noinline int g_signed3(void)
++{
++	signed char i = 2 + gs;
++	return ints3[i];
++}
++
++// index from a parameter
++
++__noinline int p_int3(char n)
++{
++	char i = 1 + n;
++	return ints3[i];
++}
++
++__noinline int p_int5(char n)
++{
++	char i = 2 + n;
++	return ints5[i];
++}
++
++__noinline unsigned p_word3(char n)
++{
++	char i = 1 + n;
++	return words3[i];
++}
++
++__noinline long p_long3(char n)
++{
++	char i = 1 + n;
++	return longs3[i];
++}
++
++__noinline int p_struct3(char n)
++{
++	char i = 1 + n;
++	return pairs3[i].a;
++}
++
++__noinline int p_direct3(char n)
++{
++	return ints3[n + 1];
++}
++
++__noinline int p_int3i(int n)
++{
++	int i = 1 + n;
++	return ints3[i];
++}
++
++// index from a loop
++
++__noinline int sum_from(char n)
++{
++	int s = 0;
++	for (char j = n; j < 2; j++)
++	{
++		char i = 1 + j;
++		s += ints3[i];
++	}
++	return s;
++}
++
++int main(void)
++{
++	setn(0);
++	assert(g_int3() == 21);
++	assert(g_int4() == 17);
++	assert(g_int5() == 22);
++	assert(g_long3() == 200000);
++	assert(g_ptr3() == 21);
++	assert(g_struct3() == 4);
++
++	setn(1);
++	assert(g_int3() == 5);
++	assert(g_int4() == 27);
++	assert(g_int5() == 32);
++	assert(g_long3() == 300000);
++	assert(g_ptr3() == 5);
++	assert(g_struct3() == 6);
++
++	setn(2);
++	assert(g_int4() == 37);
++	assert(g_int5() == 42);
++
++	setn(0);
++	g_store3(77);
++	assert(ints3[0] == 1 && ints3[1] == 77 && ints3[2] == 5);
++	setn(1);
++	g_store3(88);
++	assert(ints3[0] == 1 && ints3[1] == 77 && ints3[2] == 88);
++	ints3[1] = 21; ints3[2] = 5;
++
++	sets(-2);
++	assert(g_signed3() == 1);
++	sets(-1);
++	assert(g_signed3() == 21);
++	sets(0);
++	assert(g_signed3() == 5);
++
++	assert(p_int3(0) == 21);
++	assert(p_int3(1) == 5);
++	assert(p_int5(0) == 22);
++	assert(p_int5(1) == 32);
++	assert(p_int5(2) == 42);
++	assert(p_word3(0) == 2000);
++	assert(p_word3(1) == 3000);
++	assert(p_long3(0) == 200000);
++	assert(p_long3(1) == 300000);
++	assert(p_struct3(0) == 3);
++	assert(p_struct3(1) == 5);
++	assert(p_direct3(0) == 21);
++	assert(p_direct3(1) == 5);
++	assert(p_int3i(0) == 21);
++	assert(p_int3i(1) == 5);
++
++	assert(sum_from(0) == 26);
++	assert(sum_from(1) == 5);
++	assert(sum_from(2) == 0);
++
++	return 0;
++}
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index de29595..c8c42a0 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -168,6 +168,9 @@ rem @echo off
+ @call :test arrayindexintrangecheck.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test arrayindexaddtest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test array2stringinittest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index 92f2d0a..7469e83 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -25426,6 +25426,8 @@ bool InterCodeBasicBlock::PeepholeReplaceOptimization(const GrowingVariableArray
+ 			{
+ 				mInstructions[i + 1]->mSrc[1] = mInstructions[i + 0]->mSrc[1];
+ 				mInstructions[i + 2]->mSrc[1].mIntConst += mInstructions[i + 0]->mSrc[0].mIntConst << mInstructions[i + 1]->mSrc[0].mIntConst;
++				// The shift no longer includes the constant, so its result moves down with the index operand
++				mInstructions[i + 1]->mDst.mRange.AddConstValue(IT_INT16, - (mInstructions[i + 0]->mSrc[0].mIntConst << mInstructions[i + 1]->mSrc[0].mIntConst));
+ 				mInstructions[i + 2]->mSrc[0].mRange.AddConstValue(IT_INT16, - (mInstructions[i + 0]->mSrc[0].mIntConst << mInstructions[i + 1]->mSrc[0].mIntConst));
+ 
+ 				mInstructions[i + 0]->mCode = IC_NONE; mInstructions[i + 0]->mNumOperands = 0;

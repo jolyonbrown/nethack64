@@ -1,0 +1,241 @@
+From b4dc4ebf229aac0c56445150217356936871b2c8 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 08:45:30 +0000
+Subject: [PATCH 28/28] Fix global kept in a temporary across a loop that needs
+ the temporary
+
+SingleBlockLoopOptimisation keeps a global variable that a loop without
+calls reads and later stores in the temporary of the stored value: the
+load is moved in front of the loop with that temporary as its target,
+the store is moved behind the loop.  The temporary must be free to take
+the value of the global from the loop entry up to the read.  Two cases
+were not checked:
+
+    gv = 5;
+    for (i = 0; i < n; i++)
+    {
+        r += gv;
+        gv = n;        // n is needed on entry, the load overwrites it
+    }
+
+ended in the assertion !mEntryRequiredTemps[...] (a build without
+assertions compares i with the 5 and stores it back), and
+
+    for (i = 0; i < n; i++)
+    {
+        char t = arr[i];
+        arr[i] = 9;
+        r += gv;       // read as t, the value of this iteration
+        gv = t;
+    }
+
+compiled without a diagnostic and added arr[i] instead of gv, because
+only uses of the temporary in front of the read were excluded, not
+assignments.  Both at every optimization level except -O0, native and
+bytecode.
+
+The global now stays in memory when the temporary is required on entry
+to the loop or referenced in any way in front of the read.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat            |   3 +
+ autotest/loopglobalforwardtest.c | 142 +++++++++++++++++++++++++++++++
+ oscar64/InterCode.cpp            |  12 +--
+ 3 files changed, 152 insertions(+), 5 deletions(-)
+ create mode 100644 autotest/loopglobalforwardtest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 3915563..ff59f52 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -381,6 +381,9 @@ rem @echo off
+ @call :test constinitsignedtest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test loopglobalforwardtest.c
++@if %errorlevel% neq 0 goto :error
++
+ @exit /b 0
+ 
+ :error
+diff --git a/autotest/loopglobalforwardtest.c b/autotest/loopglobalforwardtest.c
+new file mode 100644
+index 0000000..5d70d14
+--- /dev/null
++++ b/autotest/loopglobalforwardtest.c
+@@ -0,0 +1,142 @@
++// A global variable that is read and later stored in every iteration of
++// a loop without calls is kept in the temporary of the stored value: the
++// global is loaded into it in front of the loop and stored back after
++// the loop.  That is only possible when the temporary has no other value
++// to carry at the point of the read: it must not be needed with the
++// value it has on entry to the loop, and it must not be assigned in
++// front of the read.
++
++#include <assert.h>
++
++char gv;
++int gi;
++char arr[4] = {1, 2, 3, 4};
++
++struct S
++{
++	char	a;
++	int		b;
++}	gs;
++
++// the stored value is a parameter that the loop needs on entry
++__noinline int store_param(char n)
++{
++	int r = 0;
++
++	gv = 5;
++	for (char i = 0; i < n; i++)
++	{
++		r += gv;
++		gv = n;
++	}
++
++	return r + gv;
++}
++
++// the stored value is computed in front of the loop
++__noinline int store_invariant(char n, char k)
++{
++	int r = 0;
++	char t = arr[k];
++
++	gv = 5;
++	for (char i = 0; i < n; i++)
++	{
++		r += gv;
++		gv = t;
++	}
++
++	return r + gv;
++}
++
++// the same with 16 bit variables
++__noinline int store_int(unsigned n)
++{
++	int r = 0;
++
++	gi = 500;
++	for (unsigned i = 0; i < n; i++)
++	{
++		r += gi;
++		gi = n;
++	}
++
++	return r + gi;
++}
++
++// a member of a global struct
++__noinline int store_member(unsigned n)
++{
++	int r = 0;
++
++	gs.b = 500;
++	for (unsigned i = 0; i < n; i++)
++	{
++		r += gs.b;
++		gs.b = n;
++	}
++
++	return r + gs.b;
++}
++
++// the stored value is assigned in the loop in front of the read of the
++// global, the store to the array keeps the two reads in this order
++__noinline int store_earlier(char n)
++{
++	int r = 0;
++
++	gv = 5;
++	for (char i = 0; i < n; i++)
++	{
++		char t = arr[i];
++
++		arr[i] = 9;
++		r += gv;
++		gv = t;
++	}
++
++	return r + gv;
++}
++
++// the stored value is assigned after the read: the global can be kept
++// in its temporary, the result must be the same
++__noinline int store_later(char n)
++{
++	int r = 0;
++
++	gv = 5;
++	for (char i = 0; i < n; i++)
++	{
++		r += gv;
++		gv = arr[i];
++	}
++
++	return r + gv;
++}
++
++int main(void)
++{
++	assert(store_param(0) == 5);
++	assert(store_param(1) == 5 + 1);
++	assert(store_param(3) == 5 + 3 + 3 + 3);
++
++	assert(store_invariant(0, 2) == 5);
++	assert(store_invariant(1, 2) == 5 + 3);
++	assert(store_invariant(3, 1) == 5 + 2 + 2 + 2);
++
++	assert(store_int(0) == 500);
++	assert(store_int(1) == 500 + 1);
++	assert(store_int(40) == 500 + 39 * 40 + 40);
++
++	assert(store_member(0) == 500);
++	assert(store_member(40) == 500 + 39 * 40 + 40);
++
++	assert(store_later(0) == 5);
++	assert(store_later(3) == 5 + 1 + 2 + 3);
++
++	assert(store_earlier(0) == 5);
++	assert(store_earlier(3) == 5 + 1 + 2 + 3);
++	assert(arr[0] == 9 && arr[2] == 9 && arr[3] == 4);
++
++	return 0;
++}
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index fafcc72..f716517 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -23275,9 +23275,10 @@ void InterCodeBasicBlock::SingleBlockLoopOptimisation(const NumberSet& aliasedPa
+ 							{
+ 								if (sins->mSrc[0].mTemp >= 0)
+ 								{
+-									// Check temp not used before load
++									// Check temp not used or modified before load, the load
++									// will read the value of the previous iteration from it
+ 									int k = 0;
+-									while (k < i && !mInstructions[k]->UsesTemp(sins->mSrc[0].mTemp))
++									while (k < i && !mInstructions[k]->ReferencesTemp(sins->mSrc[0].mTemp))
+ 										k++;
+ 									if (k == i)
+ 									{
+@@ -23285,10 +23286,11 @@ void InterCodeBasicBlock::SingleBlockLoopOptimisation(const NumberSet& aliasedPa
+ 										k = j + 1;
+ 										while (k < mInstructions.Size() && mInstructions[k]->mDst.mTemp != sins->mSrc[0].mTemp)
+ 											k++;
+-										if (k == mInstructions.Size())
+-										{
+-											assert(!mEntryRequiredTemps[sins->mSrc[0].mTemp]);
+ 
++										// Check temp not needed with the value it has on entry, it
++										// will be loaded with the global in front of the loop
++										if (k == mInstructions.Size() && !mEntryRequiredTemps[sins->mSrc[0].mTemp])
++										{
+ 											// Move load before loop
+ 											mLoopPrefix->mInstructions.Insert(mLoopPrefix->mInstructions.Size() - 1, ins);
+ 											InterInstruction* nins = new InterInstruction(sins->mLocation, IC_LOAD_TEMPORARY);

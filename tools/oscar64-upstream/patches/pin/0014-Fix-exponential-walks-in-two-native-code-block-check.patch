@@ -1,0 +1,246 @@
+From e3995c02465f51308d6e6071a38e6a0496665287 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 19:46:12 +0000
+Subject: [PATCH 14/28] Fix exponential walks in two native code block checks
+
+Two checks in the native code generator walk the flow graph recursively
+and visited a block once per path instead of once. A run of N
+independent conditionals has 2^N paths through it, so the compile time
+doubled or tripled with every conditional added (IsSameRegisterSource
+at every native optimisation level, CanJoinEntryLoadStoreZP above -O0).
+
+IsSameRegisterSource (does the A, X or Y register already hold the
+value this load gives, on every path into the block; for
+PartialBackwardValuePropagation and BackwardValuePropagation) walks all
+predecessors and stops at the first failure. It now keeps the (block,
+loop count) pairs it has verified. A pair seen again returns true, as
+it did the first time, because a failure would have ended the walk; the
+loop count is part of the key because it changes the answer at a loop
+head.
+
+CanJoinEntryLoadStoreZP (can a zero page copy move up into the blocks
+in front of a join) has the same shape and gets a visited set per
+check. Its result depends only on the block, and it still sets mChecked
+on every block it reaches, so DoJoinEntryLoadStoreZP changes the same
+blocks as before.
+
+The test has one function per walk, with 16 and 24 conditionals, called
+with more than one argument value so that the arguments are not folded
+into them. Without the fix each function takes a second or more to
+compile in the native configurations; with it the file compiles in
+well under a second in all ten configurations.
+
+This is the part of the change proposed for upstream main (Fix
+exponential walks and a stack overflow in native code block checks)
+that applies to v1.32.273; the third walk of that change does not exist
+here.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat             |  3 +
+ autotest/conditionchainwalktest.c | 91 +++++++++++++++++++++++++++++++
+ oscar64/NativeCodeGenerator.cpp   | 37 ++++++++++++-
+ oscar64/NativeCodeGenerator.h     |  2 +
+ 4 files changed, 131 insertions(+), 2 deletions(-)
+ create mode 100644 autotest/conditionchainwalktest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index c8c42a0..5e50462 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -258,6 +258,9 @@ rem @echo off
+ @call :test structsplittest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test conditionchainwalktest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test functionpointerparamtest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/conditionchainwalktest.c b/autotest/conditionchainwalktest.c
+new file mode 100644
+index 0000000..10b5282
+--- /dev/null
++++ b/autotest/conditionchainwalktest.c
+@@ -0,0 +1,91 @@
++#include <assert.h>
++
++// A run of independent conditionals between two uses of a value.  The
++// number of paths through the run doubles with every conditional, and
++// two walks over the flow graph visited a block once per path instead
++// of once:
++//
++// IsSameRegisterSource (does the A, X or Y register already hold the
++// value a load would give it, on every path into the block; here the
++// index 1 in Y for the second read through the pointer), vsum below
++// CanJoinEntryLoadStoreZP (moving a parameter copy up into the blocks
++// in front of a call), argjoin below
++//
++// Without the fix each of the two functions takes a second or more to
++// compile in the native configurations (vsum at every optimisation
++// level, argjoin above -O0), and two or three times as long for every
++// conditional added.  With it the file compiles in a fraction of a
++// second.  The functions are called with more than one argument value,
++// so the arguments are not folded into them.
++
++#define CHAIN4(i) \
++	if (fl[i]) acc += 1; \
++	if (fl[i + 1]) acc += 2; \
++	if (fl[i + 2]) acc += 3; \
++	if (fl[i + 3]) acc += 4;
++
++#define CHAIN16 CHAIN4(0) CHAIN4(4) CHAIN4(8) CHAIN4(12)
++#define CHAIN24 CHAIN16 CHAIN4(16) CHAIN4(20)
++
++char		fl[64];
++char		gk;
++int		acc;
++
++volatile char	buf[4], buf2[4];
++
++__noinline int isink(int x, int y)
++{
++	return 100 * x + y;
++}
++
++// Two reads of the same volatile byte through a pointer: the index stays
++// in the Y register across the chain, and is only loaded again on the
++// path that reads p[2]
++
++__noinline int vsum(volatile char * p)
++{
++	int s = 0;
++	s += p[1];
++	CHAIN16
++	if (gk) s += p[2];
++	s += p[1];
++	return s;
++}
++
++// The value is passed in a different argument position on the two paths
++// behind the chain
++
++__noinline int argjoin(int a, int b)
++{
++	int x = a * 3 + b;
++	CHAIN24
++	if (fl[63]) return isink(x, 1);
++	return isink(2, x);
++}
++
++int main(void)
++{
++	buf[1] = 3;
++	buf[2] = 4;
++	buf2[1] = 7;
++	buf2[2] = 8;
++
++	assert(vsum(buf) == 6);
++	assert(argjoin(5, 2) == 217);
++	assert(argjoin(4, 5) == 217);
++	assert(acc == 0);
++
++	gk = 1;
++	fl[1] = 1;
++	fl[5] = 1;
++	fl[9] = 1;
++	fl[63] = 1;
++
++	assert(vsum(buf2) == 22);
++	assert(acc == 2 + 2 + 2);
++	assert(argjoin(5, 2) == 1701);
++	assert(argjoin(4, 5) == 1701);
++	assert(acc == 6 + 6 + 6);
++
++	return 0;
++}
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 14e2ae9..331a20e 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -30519,6 +30519,21 @@ void NativeCodeBasicBlock::MarkLiveBlockChain(int index, NativeCodeBasicBlock* b
+ 
+ bool NativeCodeBasicBlock::CanJoinEntryLoadStoreZP(int saddr, int daddr)
+ {
++	ExpandingArray<NativeCodeBasicBlock*>	visited;
++	return CanJoinEntryLoadStoreZP(saddr, daddr, visited);
++}
++
++bool NativeCodeBasicBlock::CanJoinEntryLoadStoreZP(int saddr, int daddr, ExpandingArray<NativeCodeBasicBlock*>& visited)
++{
++	// A block seen before in this check has already been verified together
++	// with everything behind it, a failure would have ended the check.
++	// Without this the check visits a block once per path from the start
++	// block, which is exponential in the number of consecutive conditionals
++	// in between.
++	if (visited.IndexOf(this) != -1)
++		return true;
++	visited.Push(this);
++
+ 	mChecked = true;
+ 
+ 	// Avoid moving code into loops
+@@ -30548,7 +30563,7 @@ bool NativeCodeBasicBlock::CanJoinEntryLoadStoreZP(int saddr, int daddr)
+ 	{
+ 		for (int i = 0; i < mEntryBlocks.Size(); i++)
+ 		{
+-			if (!mEntryBlocks[i]->CanJoinEntryLoadStoreZP(saddr, daddr))
++			if (!mEntryBlocks[i]->CanJoinEntryLoadStoreZP(saddr, daddr, visited))
+ 				return false;
+ 		}
+ 
+@@ -42445,6 +42460,24 @@ bool NativeCodeBasicBlock::ShortcutZeroPageCopyUp(NativeCodeProcedure* nproc)
+ 
+ bool NativeCodeBasicBlock::IsSameRegisterSource(const NativeCodeInstruction& rins, int nloops) const
+ {
++	ExpandingArray<const NativeCodeBasicBlock*>	visited;
++	ExpandingArray<int>							vloops;
++	return IsSameRegisterSource(rins, nloops, visited, vloops);
++}
++
++bool NativeCodeBasicBlock::IsSameRegisterSource(const NativeCodeInstruction& rins, int nloops, ExpandingArray<const NativeCodeBasicBlock*>& visited, ExpandingArray<int>& vloops) const
++{
++	// The result depends only on the block and the remaining loop count, and
++	// a failure anywhere ends the whole search, so a block seen before with
++	// the same count has already been verified. Without this check the
++	// search visits a block once per path from the start block, which is
++	// exponential in the number of consecutive conditionals in between.
++	for (int i = 0; i < visited.Size(); i++)
++		if (visited[i] == this && vloops[i] == nloops)
++			return true;
++	visited.Push(this);
++	vloops.Push(nloops);
++
+ 	for (int i = mIns.Size() - 1; i >= 0; i--)
+ 	{
+ 		const NativeCodeInstruction& ins(mIns[i]);
+@@ -42480,7 +42513,7 @@ bool NativeCodeBasicBlock::IsSameRegisterSource(const NativeCodeInstruction& rin
+ 	}
+ 
+ 	for (int i = 0; i < mEntryBlocks.Size(); i++)
+-		if (!mEntryBlocks[i]->IsSameRegisterSource(rins, nloops))
++		if (!mEntryBlocks[i]->IsSameRegisterSource(rins, nloops, visited, vloops))
+ 			return false;
+ 	return true;
+ }
+diff --git a/oscar64/NativeCodeGenerator.h b/oscar64/NativeCodeGenerator.h
+index c26c02c..b8d20eb 100644
+--- a/oscar64/NativeCodeGenerator.h
++++ b/oscar64/NativeCodeGenerator.h
+@@ -767,6 +767,7 @@ public:
+ 	bool JoinConditionSequence(void);
+ 
+ 	bool CanJoinEntryLoadStoreZP(int saddr, int daddr);
++	bool CanJoinEntryLoadStoreZP(int saddr, int daddr, ExpandingArray<NativeCodeBasicBlock*>& visited);
+ 	bool DoJoinEntryLoadStoreZP(int saddr, int daddr);
+ 	bool JoinEntryLoadStoreZP(void);
+ 
+@@ -842,6 +843,7 @@ public:
+ 	bool BackwardReplaceZeroPage(int at, int from, int to, bool diamond);
+ 
+ 	bool IsSameRegisterSource(const NativeCodeInstruction& rins, int nloops = 0) const;
++	bool IsSameRegisterSource(const NativeCodeInstruction& rins, int nloops, ExpandingArray<const NativeCodeBasicBlock*>& visited, ExpandingArray<int>& vloops) const;
+ 	bool PartialBackwardValuePropagation(void);
+ 	bool BackwardValuePropagation(void);
+ 	bool HoistCommonLoads(void);

@@ -1,0 +1,67 @@
+From 9ce480660aae4d20a923d4b63bd36132e946968d Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 04:29:21 +0000
+Subject: [PATCH 20/28] Initialise members read before they are written
+
+Found with MemorySanitizer on the autotest and on NetHack sources; each
+of these was read while indeterminate:
+
+- NativeRegisterData::mFlags (and mLinkerObject): ResetAliasing tests
+  NCIF_ALIASING on registers that were only default constructed, so a
+  stray bit dropped a known register value.
+- IntegerValueRange::mMinValue/mMaxValue: read without a state check in
+  UpdateLocalIntegerRangeSetsBackward and through LimitMin/LimitMax.
+- InterCodeBasicBlock::mNumEntries/mNumEntered: a block made by Clone()
+  in CheckIsConstBranch is incremented and tested without ever being
+  counted. Also mConditionBlockTrue, mLoopPath, mPatched, mLoopDebug
+  and mMark, which had no initial value either.
+
+None of these produced wrong code in what was tested, but each made
+the generated code depend on earlier contents of the heap or the stack.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/InterCode.cpp           | 9 ++++++++-
+ oscar64/NativeCodeGenerator.cpp | 2 +-
+ 2 files changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index 01b43e3..62a6190 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -188,7 +188,7 @@ static int64 TypeShiftMask(InterType type, int64 val)
+ 
+ 
+ IntegerValueRange::IntegerValueRange(void)
+-	: mMinState(S_UNKNOWN), mMaxState(S_UNKNOWN)
++	: mMinState(S_UNKNOWN), mMaxState(S_UNKNOWN), mMinValue(0), mMaxValue(0)
+ {
+ 	mMinExpanded = 0;
+ 	mMaxExpanded = 0;
+@@ -6747,6 +6747,13 @@ InterCodeBasicBlock::InterCodeBasicBlock(InterCodeProcedure * proc)
+ 	mTraceIndex = -1;
+ 	mUnreachable = false;
+ 	mValueRangeValid = false;
++	mNumEntries = 0;
++	mNumEntered = 0;
++	mConditionBlockTrue = false;
++	mLoopPath = false;
++	mPatched = false;
++	mLoopDebug = false;
++	mMark = 0;
+ 
+ 	mIndex = proc->mNumBlocks++;
+ 	proc->mBlocks.Push(this);
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index e9c8a01..d723ed2 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -73,7 +73,7 @@ static unsigned LowBinMask(unsigned n)
+ }
+ 
+ NativeRegisterData::NativeRegisterData(void)
+-	: mMode(NRDM_UNKNOWN), mValue(GlobalValueNumber++), mMask(0), mMinVal(0), mMaxVal(255)
++	: mMode(NRDM_UNKNOWN), mValue(GlobalValueNumber++), mMask(0), mMinVal(0), mMaxVal(255), mFlags(0), mLinkerObject(nullptr)
+ {
+ 	mUnique = mValue;
+ }

@@ -1,0 +1,174 @@
+From 2ccb958ec543e9a119dfe66fa5ebe14de44fd387 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 12 Nov 2026 19:43:50 +0000
+Subject: [PATCH 10/28] autotest: pointers folded from const tables and structs
+
+Regression test for the previous commit (upstream 1ae3216), which has no
+test upstream: pointers read from const aggregates with a constant index
+or as a member and then used as a value (passed, assigned, dereferenced,
+in pointer arithmetic).  It covers tables of strings (file scope, global
+and function static, an enum and a sizeof index, two dimensions), tables
+of pointers to variables and into an array, members of a const struct
+and of a table of structs at non zero offsets, and function pointers in
+a table and in a struct, with a table that is not const as the control.
+
+It fails with v1.32.273 in all ten configurations (Emulation result -1,
+first at first(msg[1]), which received a pointer two bytes into "bravo")
+and passes with the fix.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat          |   3 +
+ autotest/constptrelementtest.c | 129 +++++++++++++++++++++++++++++++++
+ 2 files changed, 132 insertions(+)
+ create mode 100644 autotest/constptrelementtest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index c3375a2..37c48c1 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -306,6 +306,9 @@ rem @echo off
+ @call :test ptrarraycmptest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test constptrelementtest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test nullptrcmptest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/constptrelementtest.c b/autotest/constptrelementtest.c
+new file mode 100644
+index 0000000..27f72cc
+--- /dev/null
++++ b/autotest/constptrelementtest.c
+@@ -0,0 +1,129 @@
++#include <assert.h>
++
++// A pointer read from a const aggregate with a constant index or as a
++// member is folded to the initializer's element.  The element carries its
++// offset inside the aggregate, which is not an offset into what it points
++// to: the folded pointer must point at the target itself, not that many
++// bytes past it.
++
++typedef int (*fn)(void);
++
++struct One
++{
++	char			c;
++	const char	*	p;
++	int				n;
++	const char	*	q;
++};
++
++struct Ops
++{
++	int		id;
++	fn		f, g;
++};
++
++enum { E0, E1, E2, E3 };
++
++int a = 11, b = 22, c = 33;
++int arr[4] = {100, 200, 300, 400};
++
++int f0(void) { return 10; }
++int f1(void) { return 20; }
++int f2(void) { return 30; }
++
++static const char * const msg[4] = {"alpha", "bravo", "charlie", "delta"};
++const char * const gmsg[3] = {"xray", "yankee", "zulu"};
++static const char * const grid[2][2] = {{"00", "01"}, {"10", "11"}};
++
++static const int * const pi[3] = {&a, &b, &c};
++static const int * const pe[3] = {arr, arr + 1, &arr[2]};
++
++static const struct One one = {'x', "one", 7, "uno"};
++static const struct One tab[2] = {{'a', "first", 1, "erste"}, {'b', "second", 2, "zweite"}};
++
++static const fn fns[3] = {f0, f1, f2};
++static const struct Ops ops = {1, f1, f2};
++
++// Not const, so never folded
++static const char * var[3] = {"uno", "dos", "tres"};
++
++__noinline char first(const char * s)
++{
++	return s[0];
++}
++
++__noinline int deref(const int * p)
++{
++	return *p;
++}
++
++__noinline int call(fn f)
++{
++	return f();
++}
++
++int main(void)
++{
++	static const char * const loc[3] = {"red", "green", "blue"};
++	const char * s;
++	const int * p;
++	fn f;
++
++	// Table of strings, as an argument
++	assert(first(msg[0]) == 'a');
++	assert(first(msg[1]) == 'b');
++	assert(first(msg[2]) == 'c');
++	assert(first(msg[3]) == 'd');
++	assert(first(msg[E2]) == 'c');
++	assert(first(msg[sizeof(int) + 1]) == 'd');
++	assert(first(gmsg[1]) == 'y');
++	assert(first(gmsg[2]) == 'z');
++	assert(first(loc[1]) == 'g');
++	assert(first(loc[2]) == 'b');
++
++	// Dereferenced, assigned and in pointer arithmetic
++	assert(*msg[3] == 'd');
++	s = msg[2];
++	assert(s[0] == 'c' && s[6] == 'e' && s[7] == 0);
++	assert(first(msg[1] + 1) == 'r');
++	assert(msg[2] + 1 == &msg[2][1]);
++
++	// Two dimensions
++	assert(first(grid[0][1]) == '0' && grid[0][1][1] == '1');
++	assert(first(grid[1][0]) == '1' && grid[1][0][1] == '0');
++	assert(*grid[1][1] == '1');
++
++	// Pointers to variables and into an array
++	assert(deref(pi[0]) == 11);
++	assert(deref(pi[1]) == 22);
++	assert(deref(pi[2]) == 33);
++	p = pi[2];
++	assert(*p == 33);
++	assert(deref(pe[0]) == 100);
++	assert(deref(pe[1]) == 200);
++	assert(deref(pe[2]) == 300);
++
++	// Members of a const struct and of a table of structs
++	assert(first(one.p) == 'o');
++	assert(first(one.q) == 'u');
++	assert(*one.q == 'u');
++	assert(first(tab[0].p) == 'f');
++	assert(first(tab[0].q) == 'e');
++	assert(first(tab[1].p) == 's');
++	assert(first(tab[1].q) == 'z');
++
++	// Function pointers
++	assert(call(fns[0]) == 10);
++	assert(call(fns[1]) == 20);
++	assert(call(fns[2]) == 30);
++	f = fns[2];
++	assert(f() == 30);
++	assert(call(ops.f) == 20);
++	f = ops.g;
++	assert(f() == 30);
++
++	// Control: a table that is not const is read at run time
++	assert(first(var[2]) == 't');
++
++	return 0;
++}

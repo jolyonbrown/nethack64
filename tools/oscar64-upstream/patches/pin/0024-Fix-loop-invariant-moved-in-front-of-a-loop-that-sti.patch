@@ -1,0 +1,238 @@
+From efd669b3fdee01af2c7dbb1783ee556264106815 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 04:22:35 +0000
+Subject: [PATCH 24/28] Fix loop invariant moved in front of a loop that still
+ reads the old value
+
+InnerLoopOptimization moves an instruction that is executed in every
+iteration and has loop invariant operands in front of the loop.  It did
+not check whether the temporary the instruction writes is still needed
+with the value it has on entry to the loop:
+
+    char v = 5;
+    for (i = 0; i < n; i++)
+    {
+        r += v;        // first iteration: 5
+        v = arr[k];    // invariant load, moved in front of the loop
+    }
+
+read arr[k] in the first iteration as well.  Loads, binary and unary
+operators were affected, for local and global variables, at every
+optimization level except -O0, native and bytecode.
+
+An instruction is now kept in the loop when its result temporary is
+required on entry to the loop head.  MoveConditionsOutOfLoop builds the
+data flow sets before it calls InnerLoopOptimization, the other callers
+already do.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/loopinvariantentrytest.c | 170 ++++++++++++++++++++++++++++++
+ oscar64/InterCode.cpp             |  10 ++
+ 2 files changed, 180 insertions(+)
+ create mode 100644 autotest/loopinvariantentrytest.c
+
+diff --git a/autotest/loopinvariantentrytest.c b/autotest/loopinvariantentrytest.c
+new file mode 100644
+index 0000000..e85e918
+--- /dev/null
++++ b/autotest/loopinvariantentrytest.c
+@@ -0,0 +1,170 @@
++// A variable that is read at the top of a loop and assigned a loop invariant
++// value later in the same iteration must still have its old value in the
++// first iteration: the assignment may not be moved in front of the loop.
++
++#include <assert.h>
++
++char arr[4] = {10, 20, 30, 40};
++char g = 30;
++
++struct S
++{
++	char	a;
++	int		b;
++}	gs;
++
++// load of an array element
++__noinline int sum_arr(char n, char k)
++{
++	int r = 0;
++	char v = 5;
++
++	for (char i = 0; i < n; i++)
++	{
++		r += v;
++		v = arr[k];
++	}
++
++	return r;
++}
++
++// load of a global
++__noinline int sum_global(char n)
++{
++	int r = 0;
++	char v = 5;
++
++	for (char i = 0; i < n; i++)
++	{
++		r += v;
++		v = g;
++	}
++
++	return r;
++}
++
++// binary operator
++__noinline int sum_add(char n, char k)
++{
++	int r = 0;
++	char v = 5;
++
++	for (char i = 0; i < n; i++)
++	{
++		r += v;
++		v = k + 1;
++	}
++
++	return r;
++}
++
++// load through a pointer
++__noinline int sum_ptr(char n, const char * p)
++{
++	int r = 0;
++	char v = 5;
++
++	for (char i = 0; i < n; i++)
++	{
++		r += v;
++		v = p[1];
++	}
++
++	return r;
++}
++
++// "first time through" flag
++__noinline int sum_flag(char n, char k)
++{
++	int r = 0;
++	char v = 5;
++
++	for (char i = 0; i < n; i++)
++	{
++		if (v == 5)
++			r += 100;
++		else
++			r += 1;
++		v = arr[k];
++	}
++
++	return r;
++}
++
++// while loop
++__noinline int sum_while(char n, char k)
++{
++	int r = 0;
++	char v = 5;
++	char i = 0;
++
++	while (i < n)
++	{
++		r += v;
++		v = arr[k];
++		i++;
++	}
++
++	return r;
++}
++
++// do loop
++__noinline int sum_do(char n, char k)
++{
++	int r = 0;
++	char v = 5;
++	char i = 0;
++
++	do
++	{
++		r += v;
++		v = arr[k];
++		i++;
++	} while (i < n);
++
++	return r;
++}
++
++// the variable is a member of a global struct
++__noinline int sum_member(char n, char k)
++{
++	int r = 0;
++
++	gs.a = 5;
++	for (char i = 0; i < n; i++)
++	{
++		r += gs.a;
++		gs.a = arr[k];
++	}
++
++	return r;
++}
++
++int main(void)
++{
++	assert(sum_arr(3, 2) == 65);
++	assert(sum_arr(2, 1) == 25);
++
++	assert(sum_global(3) == 65);
++	assert(sum_global(1) == 5);
++
++	assert(sum_add(3, 2) == 11);
++	assert(sum_add(2, 7) == 13);
++
++	assert(sum_ptr(3, arr + 2) == 85);
++	assert(sum_ptr(2, arr) == 25);
++
++	assert(sum_flag(3, 2) == 102);
++	assert(sum_flag(1, 1) == 100);
++
++	assert(sum_while(3, 2) == 65);
++	assert(sum_while(2, 1) == 25);
++
++	assert(sum_do(3, 2) == 65);
++	assert(sum_do(2, 1) == 25);
++
++	assert(sum_member(3, 2) == 65);
++	assert(sum_member(2, 1) == 25);
++
++	return 0;
++}
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index f9bc80c..fafcc72 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -20430,6 +20430,14 @@ void InterCodeBasicBlock::InnerLoopOptimization(const NumberSet& aliasedParams)
+ 
+ 						if (!IsMoveable(ins->mCode))
+ 							ins->mInvariant = false;
++						else if (ins->mDst.mTemp >= 0 && mEntryRequiredTemps[ins->mDst.mTemp])
++						{
++							// The value the temp has on entry to the loop is still needed: it is read
++							// before this instruction in the first iteration, or behind an exit that
++							// is taken before this instruction is reached.  Moving the instruction in
++							// front of the loop would replace that value.
++							ins->mInvariant = false;
++						}
+ 						else if (ins->mCode == IC_CONSTANT && ins->mDst.mType == IT_POINTER && ins->mConst.mMemory == IM_FRAME && hasFrame)
+ 							ins->mInvariant = false;
+ 						else if (ins->mCode == IC_LEA && ins->mSrc[1].mMemory == IM_FRAME && hasFrame)
+@@ -28289,6 +28297,8 @@ void InterCodeProcedure::MoveConditionsOutOfLoop(void)
+ 		BuildTraces(0);
+ 		BuildLoopPrefix();
+ 
++		BuildDataFlowSets();
++
+ 		ResetVisited();
+ 		mEntryBlock->InnerLoopOptimization(mParamAliasedSet);
+ 

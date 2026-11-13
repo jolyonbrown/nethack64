@@ -172,7 +172,7 @@ Add new tasks at the bottom of the right section.
       (r18-r23, r25, r26; r40-r44 broken as recorded). Re-baselined both configurations
       (NETHACK-SURVEY.md, 2026-11-13 section): 44 of 107 (C64) and 39 (UNIX) reach
       placement. Rows #22-#27, #29, #30 updated.
-- [ ] T1.21 Heap-dependent output and two wrong-code bugs (OSCAR64-COMPAT.md #40, #41;
+- [x] T1.21 Heap-dependent output and two wrong-code bugs (OSCAR64-COMPAT.md #40, #41;
       r38, r39). v1.32.273 and the pin read members nothing has set: `LinkerObject`
       addresses of objects never placed, `LinkerSection` start/end,
       `InterInstruction::mRemove` (r38: a caller loses its call frame; `teleport.c`
@@ -192,6 +192,10 @@ Add new tasks at the bottom of the right section.
       when the T1.25 candidates are finalised, so their ids change once. Candidates
       for the pin (T1.25). For upstream: the
       four commits on `scratch/heap-init-main` (on 4da3147; autotest 1,541/1,541).
+      — 2026-11-13 Claude: in the pin as commits 18-23, reworded as above (ADR-0007).
+      With them the C64 measurement gives identical listings with the heap filled with
+      0xA5 (NETHACK-SURVEY.md). The four commits for main wait with the other PRs (T1.9);
+      their messages still need the same rewording.
 - [ ] T1.22 r36 and its family (OSCAR64-COMPAT.md #38, #42-#45; r36, r40-r43). r36: `InnerLoopOptimization` moves a loop-invariant
       assignment in front of a loop that reads the old value first (wrong code at every
       level but `-O0` on v1.32.273, the pin and main). No NetHack site: an instrumented
@@ -213,6 +217,8 @@ Add new tasks at the bottom of the right section.
       (`gs = 126 + (i & 3)`) wrong everywhere, no repro yet; which join the pin (T1.25).
       Also seen, not exposed: a `long` accumulated in a loop is wrong in bytecode at
       `-O2`/`-Os`/`-O3` on v1.32.273 and the pin (main right; NetHack is native code).
+      — 2026-11-13 Claude: r36, r40 and r41 are in the pin (commits 24-28). r42 and r43
+      wait for their reviews (T1.25).
 - [ ] T1.23 r37 and its sibling (OSCAR64-COMPAT.md #39, #46; r37, r44). r37: the native
       peephole pass forwards a stored byte past a call that overwrites the register it
       came from, so the low byte of the call's result is read from the stored byte
@@ -229,8 +235,8 @@ Add new tasks at the bottom of the right section.
       listing once `potion.c` links. Our fix and autotest: `scratch/r44-fix-pin`
       (8890301, cf8dd6f; autotest 1,261, none failing; verified by a second agent).
       Not covered: calls through a function pointer (`JSR bcexec`); with the fix one
-      probe turns wrong at `-O0` (a separate bug it hid): reduce it before the fix is
-      offered.
+      probe turns wrong at `-O0`: that is r45 (T1.26), which the pin already gets wrong
+      at `-O2`/`-Os`/`-O3`.
 - [ ] T1.24 Wrong code at the default optimisation level only, native code (mutual
       recursion; a local's address passed on is taken at the wrong stack offset): on
       v1.32.273, the pin and main; right at `-O0`, `-O2`, `-Os`, `-O3`, so nethack64's
@@ -238,19 +244,25 @@ Add new tasks at the bottom of the right section.
       `tools/oscar64-upstream/cases/default_level_mutual_recursion_local_address.c`.
       Reduce, find the cause, report upstream when PRs resume.
 - [ ] T1.25 Decide what joins the pin (Jolyon, on the decision page; each then goes
-      through ADR-0007's checks and a new patch export). Ready: `nethack64/pin-shknam-crash`
-      (r27), `pin-makemon-hang` (r28), `pin-walks-display` (r29), `pin-r30` (r30),
-      `pin-1ae3216` (r32), `pin-charidx` (r33): built on c2f5cab, validated alone and
-      together (`review/pin-candidates-all`: autotest 1,311, none failing; repros 14 of
-      35); each rebases onto f001eba without conflicts (`git rebase --onto f001eba
-      c2f5cab`). `pin-shknam-crash` without `pin-1ae3216` turns one loop shape from a
-      crash into wrong code (OSCAR64-COMPAT.md #11b). Before adding: drop the
-      `Co-Authored-By` trailer from c5ac062 (upstream's commit), reword b52c9fe's
-      message, and drop the `Claude-Session` line from every candidate commit (most
-      carry one; Jolyon, 2026-11-13: no session links). Five of the eight pin patches
-      keep theirs: rewording them would change every commit id from commit 2 on. New on
-      2026-11-13: the heap-initialisation commits (T1.21) and our fixes for r36, r37 and
-      r40-r44 (T1.22, T1.23).
+      through ADR-0007's checks and a new patch export). — 2026-11-13 Jolyon: "Add" on
+      ten rows; Claude: they are commits 9-28 of the pin (ADR-0007): the six candidates
+      (`nethack64/pin-1ae3216`, `pin-shknam-crash`, `pin-makemon-hang`, `pin-charidx`,
+      `pin-walks-display`, `pin-r30`), the heap-initialisation commits (T1.21) and our
+      fixes for r36, r40 and r41 (T1.22). Messages as planned: no session links,
+      upstream's c5ac062 without our trailer, b52c9fe and 8286734 corrected. Five of the
+      first eight patches keep their session links: rewording them would change every
+      commit id from commit 2 on. Also "Add", once each review is done and if nothing in
+      its row changes: r42 (read the scanf/fscanf and `vision_reset()` differences) and
+      r43 (an autotest of its own). r37+r44 goes back to Jolyon: the `-O0` probe it was
+      waiting on is r45 (T1.26), which the pin already has at `-Os`.
+- [ ] T1.26 r45 (OSCAR64-COMPAT.md #47): a `char` result made from two values read
+      before a direct call to an address-taken function is never computed (native code;
+      the pin and main at the default level, `-O2`, `-Os` and `-O3`; v1.32.273 at the
+      default level only). The pin's commit 3, upstream bf42402 (the r25 fix), exposes
+      it; the r44 fix extends it to `-O0`. Find the cause in the native back end, fix it
+      (ours first; upstream when PRs resume), and search NetHack for the shape with an
+      instrumented build, as for r36. Until then: the repro's workarounds. Then decide
+      r37+r44 (T1.25).
 
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 

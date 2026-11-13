@@ -94,11 +94,12 @@ Exit: FEATURES.md checklist ticked by scripted or manual play.
 2. **Code size vs 1 MB flash** (~0.85 MB code + data) — compression, REU.
 3. **Oscar64 maturity on 130K lines** — repros, upstream issues, pinned version.
    Not only compile errors: r18 (2026-11-10) is silent wrong code, so game
-   code needs run-time checks, not just a clean compile. By 2026-11-13, 21 of
-   the 44 repros are silent wrong code, most of them found while reviewing
-   fixes for others, and each round of review has found more. Pinned: v1.32.273 plus
-   eight nethack64 patches (ADR-0007, accepted 2026-11-12); the build uses it
-   since 2026-11-13 (T1.20).
+   code needs run-time checks, not just a clean compile. By 2026-11-13, 22 of
+   the 45 repros are silent wrong code, most of them found while reviewing
+   fixes for others, and each round of review has found more; one (r45) is exposed
+   by an upstream fix the pin carries. Pinned: v1.32.273 plus 28 commits
+   (ADR-0007: eight accepted 2026-11-12, twenty added 2026-11-13); the build uses
+   it since 2026-11-13 (T1.20).
 4. **EF + REU bus conflict on real hardware** — sub-type 1 on Ultimate; REU-only fallback.
 5. **Speed** — NetHack waits for input; vision recalculation and level
    creation are the hot spots to profile (Oscar64 `-ep` profiler, VICE).

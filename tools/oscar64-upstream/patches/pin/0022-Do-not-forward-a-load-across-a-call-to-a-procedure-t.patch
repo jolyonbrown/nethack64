@@ -1,0 +1,35 @@
+From 2da6d7f44dc5db9fbf435977077d114108751e06 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 05:01:58 +0000
+Subject: [PATCH 22/28] Do not forward a load across a call to a procedure that
+ is not analysed
+
+InterCodeBasicBlock::DestroyingMem asks the callee whether it stores
+through a pointer, but mStoresIndirect means something only once
+Close() has collected the procedure's effects and set mGlobalsChecked.
+For a recursive call inside a loop the callee is the procedure being
+compiled: the flag was still unset (in practice zero), so a value
+loaded before the loop was reused after it although the recursive call
+had changed it.  ModifiesGlobal() already answers "yes" for such a
+procedure; do the same here.  Upstream main does this since 4969258,
+which made this test use ModifiesIndirect() (added in 963b29c).
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/InterCode.cpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index 35d27ef..f9bc80c 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -1311,7 +1311,8 @@ bool InterCodeBasicBlock::DestroyingMem(const InterInstruction* lins, const Inte
+ 
+ 						if (op.mTemp >= 0)
+ 						{
+-							if (proc->mStoresIndirect)
++							// until Close() has collected them, the effects of a procedure are unknown
++							if (!proc->mGlobalsChecked || proc->mStoresIndirect)
+ 								return true;
+ 						}
+ 						else if (op.mMemory == IM_FFRAME || op.mMemory == IM_FRAME)

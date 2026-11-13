@@ -1,7 +1,7 @@
 From d2ea285fe41ec45fb1c5d90abe26e63d923a67b2 Mon Sep 17 00:00:00 2001
 From: Arkadiusz Bronowicki <arek@bronowicki.com>
 Date: Sat, 24 Oct 2026 08:59:33 +0200
-Subject: [PATCH 3/8] fix: preserve parameters of address-taken functions
+Subject: [PATCH 03/28] fix: preserve parameters of address-taken functions
 
 (cherry picked from commit bf42402c53097b8625f5cac5063c3369adeda426)
 ---

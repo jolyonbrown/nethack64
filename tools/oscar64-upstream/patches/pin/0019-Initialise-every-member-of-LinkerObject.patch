@@ -1,0 +1,45 @@
+From 14ff5542cd4e3bffa5981f13d8c16710161cb636 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 04:29:21 +0000
+Subject: [PATCH 19/28] Initialise every member of LinkerObject
+
+The constructor left mAddress, mRefAddress, mType, mFlags, mSection,
+mRegion, mData and the temporaries arrays unset, and Linker::AddObject
+sets only some of them. An object that is never placed, because its
+region is full, keeps the indeterminate address. PatchReferences then
+patches that address into the code that was placed, and the map file
+and the assembler listing print it, so a program that does not fit
+came out different from run to run: the same source gave a map line
+"fffffffe - 0828 : dodip" in one run and "0000 - 082a : dodip" in
+another, and different operand bytes in the placed code.
+
+Zero is what a fresh heap page held, so output for a program that does
+not fit now always matches what a first allocation used to give.
+Programs that fit are unaffected: every object is placed before it is
+read.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/Linker.cpp | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/oscar64/Linker.cpp b/oscar64/Linker.cpp
+index 30468e3..88f866b 100644
+--- a/oscar64/Linker.cpp
++++ b/oscar64/Linker.cpp
+@@ -47,7 +47,14 @@ bool LinkerReference::operator!=(const LinkerReference& ref)
+ LinkerObject::LinkerObject(void)
+ 	: mReferences(nullptr), mNumTemporaries(0), mSize(0), mStripe(0), mAlignment(1), mStackSection(nullptr), mIdent(nullptr), mFullIdent(nullptr), mStartUsed(0x10000), mEndUsed(0x00000), mMemory(nullptr)
+ 	, mPrefix(nullptr), mSuffix(nullptr), mProc(nullptr), mNativeProc(nullptr), mOwnerProc(nullptr)
+-{}
++	, mType(LOT_NONE), mID(0), mMapID(0), mAddress(0), mRefAddress(0), mSection(nullptr), mRegion(nullptr), mData(nullptr)
++	, mVariable(nullptr), mFlags(0), mSuffixReference(0)
++{
++	// An object that is never placed (its region is full) keeps these, and both
++	// the reference patcher and the map and listing writers read them
++	memset(mTemporaries, 0, sizeof(mTemporaries));
++	memset(mTempSizes, 0, sizeof(mTempSizes));
++}
+ 
+ LinkerObject::~LinkerObject(void)
+ {

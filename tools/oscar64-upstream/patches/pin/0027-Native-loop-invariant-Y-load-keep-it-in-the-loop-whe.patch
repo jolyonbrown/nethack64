@@ -1,0 +1,44 @@
+From 227559248093c6f927832f30198a351fa1f3449f Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 09:14:44 +0000
+Subject: [PATCH 27/28] Native loop invariant Y load: keep it in the loop when
+ Y is read first
+
+OptimizeSimpleLoopInvariant moves the only "LDY #c" or "LDY zp" of a
+one-block loop in front of the loop.  The accumulator case next to it asks
+for !mEntryRequiredRegs[CPU_REG_A]; the Y case asked nothing, so a block
+that reads Y in front of the load (STY, TYA) got the loaded value in the
+first iteration instead of the value Y had on entry.
+
+Both moves now ask that no instruction in front of the load refers to Y.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/NativeCodeGenerator.cpp | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index a42ea80..4605c4a 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -49647,7 +49647,9 @@ bool NativeCodeBasicBlock::OptimizeSimpleLoopInvariant(NativeCodeProcedure* proc
+ 			int i = ai + 1;
+ 			while (i < mIns.Size() && !mIns[i].ChangesYReg())
+ 				i++;
+-			if (i == mIns.Size())
++			// An instruction in front of the load that reads Y needs, in the first
++			// iteration, the value Y had in front of the loop
++			if (i == mIns.Size() && !ReferencesYReg(0, ai))
+ 			{
+ 				if (!prevBlock)
+ 					return OptimizeSimpleLoopInvariant(proc, full);
+@@ -49674,7 +49676,8 @@ bool NativeCodeBasicBlock::OptimizeSimpleLoopInvariant(NativeCodeProcedure* proc
+ 			int i = 0;
+ 			while (i < mIns.Size() && (i == ai || !mIns[i].ChangesYReg()))
+ 				i++;
+-			if (i == mIns.Size())
++			// As above: no reader of Y in front of the load
++			if (i == mIns.Size() && !ReferencesYReg(0, ai))
+ 			{
+ 				int addr = mIns[ai].mAddress;
+ 				bool	fail = false, changey = false, changev = false;
