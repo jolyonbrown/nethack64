@@ -85,6 +85,10 @@ VICE passing is necessary, not sufficient: real-hardware caveats are in `docs/HA
 - Progress → tick `docs/TASKS.md`; phase status → `docs/PLAN.md`.
 - End each working session with a short handoff note in `docs/sessions/YYYY-MM-DD-<agent>.md`:
   what changed, what was verified (commands + results), what is next, open questions.
+- Story-worthy moments (a milestone, a surprise, a hard-won fix) → an entry in the
+  development diary, `docs/diary/` (conventions in its README). Entries become public
+  blog posts: facts checkable, failures told too, no time estimates. Jolyon reviews
+  each entry before anything is published.
 
 ## Working with the other agent
 

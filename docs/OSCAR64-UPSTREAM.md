@@ -23,8 +23,13 @@ Jolyon), which shows each PR's explanation and records the choice:
    the fork** carrying the upstream PR text: fork PRs #1-#13 and #15-#18 are our numbers
    (#6 targets `fix/r19-null-compare` and #16 targets `fix/pr440-runaway`, so each shows
    only its own commit). #14 stays local; the fork's number 14 is a closed placeholder
-   issue that keeps the numbers in step. In the local clone the fork is the remote `fork`. Nothing on
-   the fork notifies anyone upstream. **Never merge a draft into the fork's `main`**: it
+   issue that keeps the numbers in step. In the local clone the fork is the remote `fork`. Nothing
+   is opened upstream, but fork text can still show there: a bare `#N` in a fork PR
+   links to upstream's issue or PR of that number. Draft #15 wrote `#440` bare, and
+   since 2026-11-12 23:09 upstream PR 440's page lists the draft; putting the numbers in
+   code spans on 2026-11-13 did not remove that entry. **In fork text, write upstream
+   numbers in code spans** (`` `#440` ``), and never `@`-mention anyone.
+   **Never merge a draft into the fork's `main`**: it
    mirrors upstream main, so that each branch stays one clean commit to send.
 3. **Attribution:** each commit ends with one `Co-Authored-By: Claude
    <noreply@anthropic.com>` line and no session link; each PR body ends with

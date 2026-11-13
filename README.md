@@ -18,7 +18,7 @@ partially compiles with Oscar64. The numbers that shape everything else:
 | Game code, Oscar64 `-Os` (estimate) | ~0.85 MB |
 | All static content (code + text + levels) | ~1.7 MB, vs 1 MB EasyFlash |
 | RAM needed while playing | ~45-60 KB, vs 30 KB resident |
-| Files compiling under Oscar64 today | 36 / 107 |
+| Files compiling under Oscar64 v1.32.273 (C64 config, 2026-11-09) | 41 / 107 |
 
 ![Phase 0 self-test: EasyFlash + 16 MB REU in VICE](docs/img/phase0-autotest-ef-reu16m.png)
 
