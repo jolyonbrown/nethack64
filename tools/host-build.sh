@@ -48,7 +48,12 @@ if [ "${1:-}" = "--generate-only" ]; then
   exit 0
 fi
 
-make -C src -j"$(nproc)" > ../host-build.log 2>&1 || { tail -30 ../host-build.log; exit 1; }
+# util's makedefs rule compiles ../src/monst.o and ../src/objects.o itself.  Run in
+# parallel with src's own compile of the same two objects, the writes can collide
+# (2026-11-14: "ld: ../src/monst.o: error adding symbols"), so build makedefs first,
+# in the order a serial build takes.
+make -C util makedefs > ../host-build.log 2>&1 || { tail -30 ../host-build.log; exit 1; }
+make -C src -j"$(nproc)" >> ../host-build.log 2>&1 || { tail -30 ../host-build.log; exit 1; }
 I="$ROOT/build/$INSTALL"
 rm -rf "$I"
 make install PREFIX="$I" GAMEDIR="$I/nethackdir" SHELLDIR="$I/bin" \
