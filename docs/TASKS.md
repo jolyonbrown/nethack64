@@ -285,11 +285,12 @@ Add new tasks at the bottom of the right section.
       — 2026-11-14: rewritten. After each command the driver types `v` and reads up to the
       version line, answering --More--, menus, y/n and naming prompts on the way; both
       sessions must then exit by themselves with status 0, so a crash shows as a signal.
-      0.6 s instead of about 100 s. The old clock had let the first --More-- swallow the
-      rest of the walk and, at times, the scripted quit. That CI failure was not a slow
-      runner: no key is read during a restore, and its restore ended inside `dorecover()`
-      with no message. Not reproduced (NETHACK-SURVEY.md: `tools/smoke_stress.py`, and
-      `tools/host-build.sh --sanitize`). CI now uploads the transcripts when the job fails.
+      0.6 s; the old test took 47-109 s (three timed runs). Its fixed clock let the first
+      --More-- swallow the rest of the walk and, at times, the scripted quit. That CI
+      failure was not a slow runner: no key is read during a restore, and its restore
+      ended inside `dorecover()` with no message. Not reproduced (NETHACK-SURVEY.md:
+      `tools/smoke_stress.py`, and `tools/host-build.sh --sanitize`). CI now uploads the
+      transcripts when the job fails.
 - [ ] T1.29 The sanitizer host build reports three over-reads, all in NetHack 3.4.3 itself
       (NETHACK-SURVEY.md). `savefruitchn()` writes its 48-byte terminator from the
       40-byte `nul`, and `free_window_info()` reads `wins[WIN_MESSAGE]` once the message
