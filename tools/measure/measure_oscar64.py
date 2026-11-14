@@ -118,8 +118,6 @@ def setup():
 
 def measure(f):
     b = f[:-2]
-    src = open(os.path.join(OUT, "src", f), encoding="latin-1").read()
-    names = set(re.findall(r"^([A-Za-z_]\w*)\s*\(", src, re.M))
     base = [x for x in BASE if x != f]
     h = os.path.join(OUT, "h_%s.c" % b)
     env = {k: v for k, v in os.environ.items() if k != "MKSTUBS_DEFS"}
@@ -130,6 +128,9 @@ def measure(f):
                        env=env)
     if g.returncode:
         return {"status": "stubgen-fail"}
+    # the functions the file itself defines, found by mkstubs.py in its preprocessed text
+    with open(h[:-2] + ".defs") as fh:
+        names = set(fh.read().split())
     out = os.path.join(OUT, "m_%s.prg" % b)
     # MEASURE_BC=1: the same compile in Oscar64 bytecode (FITTING-TOOLBOX.md #15)
     bc = ["-bc"] if os.environ.get("MEASURE_BC") == "1" else []
@@ -154,20 +155,32 @@ def measure(f):
     # (v1.32.273: -rmp itself segfaults after ordinary compile errors; those
     #  files are reported as compile-error, which is the real problem.)
     m = out[:-4] + ".map" if os.path.exists(out[:-4] + ".map") else out[:-4] + ".error.map"
-    code, seen = 0, set()
+    code, seen, garbage = 0, set(), []
     if os.path.exists(m):
         for line in open(m):
+            if not re.match(r"^\S+ - \S+ : \w+, (?:NATIVE|BYTE)_CODE:", line):
+                continue                   # other sections, e.g. "0801 (0052) : startup"
             mm = re.match(r"^([0-9a-f]{4}) - ([0-9a-f]{4}) : (\w+), (?:NATIVE|BYTE)_CODE:", line)
-            if mm and mm.group(3) in names and mm.group(3) not in seen:
+            if not mm or int(mm.group(2), 16) < int(mm.group(1), 16):
+                # e.g. "fffffffe - 0828 : dodip" (potion.c, 2026-11-13): a size from such a
+                # line would be wrong, and skipping it would understate the file
+                garbage.append(line.strip())
+            elif mm.group(3) in names and mm.group(3) not in seen:
                 seen.add(mm.group(3))
                 code += int(mm.group(2), 16) - int(mm.group(1), 16)
-    placement_only = all("Could not place" in e or "Cannot place" in e for e in errs)
-    status = "ok" if not errs else ("fits-not" if placement_only and seen else "compile-error")
+    # error 3034 is the fit family: "Could not place object", "Cannot place stack section",
+    # "Static stack usage exceeds stack segment".  The file compiled; it does not fit
+    # with the base data in one program, which the real (banked) build will not ask.
+    placement_only = all("error 3034" in e for e in errs)
+    status = "ok" if not errs else ("fits-not" if placement_only else "compile-error")
+    if garbage:
+        status = "map-error"
     if os.environ.get("MEASURE_KEEP") != "1":
-        for p in glob.glob(os.path.join(OUT, "m_%s*" % b)) + [h]:
+        for p in glob.glob(os.path.join(OUT, "m_%s*" % b)) + [h, h[:-2] + ".defs"]:
             os.remove(p)
     return {"status": status, "code": code, "funcs": "%d/%d" % (len(seen), len(names)),
-            "error": re.sub(r".*/", "", errs[0]) if status == "compile-error" else ""}
+            "error": (garbage[0] if status == "map-error" else
+                      re.sub(r".*/", "", errs[0]) if status == "compile-error" else "")}
 
 
 def struct_sizes():
