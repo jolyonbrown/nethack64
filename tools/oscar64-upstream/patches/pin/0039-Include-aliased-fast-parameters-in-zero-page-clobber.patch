@@ -1,7 +1,7 @@
 From 7317f3010afa5769d66db105942d4d6bfcc477af Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 00:57:52 +0000
-Subject: [PATCH 39/40] Include aliased fast parameters in zero page clobbers
+Subject: [PATCH 39/42] Include aliased fast parameters in zero page clobbers
 
 A fast parameter whose address escapes can be modified indirectly by a
 callee even when no direct zero page store names it. Include all bytes

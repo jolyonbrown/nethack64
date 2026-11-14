@@ -1,0 +1,66 @@
+From 2fded3cfb2d9e47c7567369cfad4a3fee539fec9 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 18:26:22 +0000
+Subject: [PATCH 42/42] Test splitting a function's exit block
+
+dealloc() tests its pointer against a global, clears the global and
+calls free(): the shape that made SplitAt follow the exit block's null
+true jump (nethack64 repro r49).  Without the fix the native
+configurations at the default level, -O0, -O2 and -Os crash; with it
+all ten pass.  Register the test in the batch driver; the makefile
+discovers it through the existing wildcard.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat         |  3 +++
+ autotest/splitexitblocktest.c | 28 ++++++++++++++++++++++++++++
+ 2 files changed, 31 insertions(+)
+ create mode 100644 autotest/splitexitblocktest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 8a8467a..450af0d 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test splitexitblocktest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test paramaliascalltest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/splitexitblocktest.c b/autotest/splitexitblocktest.c
+new file mode 100644
+index 0000000..46da556
+--- /dev/null
++++ b/autotest/splitexitblocktest.c
+@@ -0,0 +1,28 @@
++#include <assert.h>
++#include <stdlib.h>
++
++struct thing { int x; };
++struct thing *thrown;
++
++// Testing a pointer against a global, clearing the global and calling free()
++// made the native code generator split the function's exit block, and SplitAt
++// then followed the exit block's null true jump.
++
++void dealloc(struct thing *p)
++{
++	if (p == thrown) thrown = (struct thing *)0;
++	free((void *)p);
++}
++
++int main(void)
++{
++	struct thing *t = malloc(sizeof(struct thing));
++	struct thing *u = malloc(sizeof(struct thing));
++
++	thrown = t;
++	dealloc(u);
++	assert(thrown == t);
++	dealloc(t);
++	assert(thrown == 0);
++	return 0;
++}

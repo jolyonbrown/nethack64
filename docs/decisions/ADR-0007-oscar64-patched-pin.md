@@ -121,6 +121,11 @@ Added the same night, also under that go-ahead: 39. `7317f30` r46 (found and fix
 every byte of an address-taken register parameter now counts in the function's zero-page
 clobber set; and 40. `04b8b6a` its test (Codex).
 
+Added 2026-11-14 on Jolyon's go-ahead ("you go ahead"): 41. `190d72a` upstream 46e60d6
+(r49: `SplitAt` followed the null true jump of a function's exit block, crashing on
+`mkobj.c` and `files.c` in the corrected harness; r9, compat #10, is the same crash), and
+42. `2fded3c` its test, ours.
+
 `tools/oscar64-upstream/build-pin.sh [DIR]` builds it (`JOBS=N` for `make -jN`). Since
 2026-11-13 the setup scripts (`tools/setup-ubuntu.sh`, `tools/setup-arch.sh`) build the
 release and then this compiler, link this one as `oscar64` (the Makefile takes it from
@@ -135,9 +140,9 @@ checks, and its `-Os` size is understood.
 - The six fixed rows above stop being "must be settled before game code runs" once
   the build uses the pin; r18-r23 and r25 pass, and so does r26 (commit 8). r24 stays
   open (T1.15).
-- We carry a patch stack until upstream releases: of the 38 commits, five are upstream's
-  (1169268, bf42402, 1ae3216, 3bb084f, 1073206), two backport upstream fixes (fbca293 and the
-  CoerceType hunk of 57655c5), two are tests for upstream fixes, and thirty-one are ours
+- We carry a patch stack until upstream releases: of the 42 commits, six are upstream's
+  (1169268, bf42402, 1ae3216, 3bb084f, 1073206, 46e60d6), two backport upstream fixes (fbca293
+  and the CoerceType hunk of 57655c5), three are tests for upstream fixes, and thirty-one are ours
   (the r45 and r46 fixes and three tests written by Codex). Most of ours have an upstream form as a
   draft PR in the fork or a local branch on main, on hold (OSCAR64-UPSTREAM.md; nothing
   sent yet), so the stack should shrink. Once
@@ -185,7 +190,7 @@ Upstream main has the same problem. Until it is fixed, the choice is between:
 
 ```sh
 JOBS=2 tools/oscar64-upstream/build-pin.sh /tmp/pin    # v1.32.273 + patches/pin
-make repros OSCAR64=/tmp/pin/bin/oscar64               # 25 of 46 FIXED (run.py caps each compile)
+make repros OSCAR64=/tmp/pin/bin/oscar64               # 27 of 50 FIXED (run.py caps each compile)
 (ulimit -v 3000000; make -k -j2 -C /tmp/pin/make check)  # Oscar64's own autotest
 (ulimit -v 3000000; python3 tools/oscar64-upstream/corpus_diff.py ~/src/oscar64/bin/oscar64 /tmp/pin/bin/oscar64 -j 2 --out /tmp/pin-corpus)
 make OSCAR64=/tmp/pin/bin/oscar64 && make prg OSCAR64=/tmp/pin/bin/oscar64 && make test OSCAR64=/tmp/pin/bin/oscar64
@@ -311,3 +316,13 @@ autotest 1,391 emulations, all 0; corpus 858 of 864 identical (r46's repro and t
 `structconditionaltest.c` at `-n -O0`, which passes); repros 25 of 46; nethack64 unchanged,
 `make test` 5/5; NetHack: every listing, intermediate code and map of the 91 files that reach
 code generation identical to the 38-commit compiler's (compiler paths aside).
+
+Results 2026-11-14 (42 commits, tip 2fded3c; the patch files give tree 946d3ed, the branch's):
+autotest 1,401 emulations, all 0 (the new test in all ten configurations; with 40 commits it
+crashes the four native ones at the default level, `-O0`, `-O2` and `-Os`); corpus: 872 of
+872 compiled by both identical, and five crashes now compile (the new test in three
+configurations, r49 and r9); repros 27 of 50 (r49 and r9 now pass); nethack64: `.crt` and
+`.prg` byte-identical, `make test` 5/5; NetHack (T1.10 harness): every listing,
+intermediate code and map of the 86 (C64) and 85 (UNIX) files both compilers compile is
+identical, and `files.c` and `mkobj.c`, which crashed, reach placement: C64 63/107
+(378,919 B), UNIX 52/107 (325,427 B).

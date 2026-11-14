@@ -326,8 +326,10 @@ Add new tasks at the bottom of the right section.
       only in `files.c`; `save.c`'s first error) and the generated `monstr[]` (`makemon.c`,
       `wizard.c`, `pray.c`, `muse.c`): have `--generate-only` run `makedefs -m` as it does
       for `vis_tab.c`, and give the harness `SAVESIZE`.
-- [ ] T1.34 Jolyon: add upstream 46e60d6 (r49's fix) to the pin? On the decision page
+- [x] T1.34 Jolyon: add upstream 46e60d6 (r49's fix) to the pin? On the decision page
       since 2026-11-14. If added: ADR-0007's checks, as for the earlier rounds.
+      — 2026-11-14: added on his go-ahead ("you go ahead") as commits 41-42; ADR-0007's
+      checks passed (results there). It fixes r9 as well.
 - [ ] T1.33 r50 (OSCAR64-COMPAT.md #52): Oscar64 segfaults in `LoadStoreForwarding` on
       `g = fopen(...); f("x");` (`f` storing to a global) at `-Os`/`-O2`/`-O3`:
       `questpgr.c` `load_qtlist()` under the C64 configuration. Release, pin and main

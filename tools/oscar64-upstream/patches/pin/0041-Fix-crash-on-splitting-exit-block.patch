@@ -1,0 +1,47 @@
+From 190d72a8c543c30628c55395f68c845112fd29de Mon Sep 17 00:00:00 2001
+From: drmortalwombat <90205530+drmortalwombat@users.noreply.github.com>
+Date: Sun, 4 Oct 2026 21:11:32 +0200
+Subject: [PATCH 41/42] Fix crash on splitting exit block
+
+(cherry picked from commit 46e60d6d49677133a69ba74ec73d16c3b1bf7839)
+
+Backport to v1.32.273 for nethack64.  The change to
+NativeCodeBasicBlock::SplitAt applies as is: SplitAt dereferenced
+eblock->mTrueJump, which is null when the block being split is the
+procedure's exit block, and it now also moves mProc->mExitBlock to the
+new block.  The compiler crashed on `if (p == g) g = 0; free(p);`
+(nethack64 repro r49: mkobj.c dealloc_obj and files.c get_uchars).
+
+Left out: the upstream commit's other hunk, which only changes the
+debugging define CHECK_FUNC; the defines stay at their v1.32.273 values.
+---
+ oscar64/NativeCodeGenerator.cpp | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 3cfe143..5bffb7e 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -67987,13 +67987,20 @@ NativeCodeBasicBlock* NativeCodeBasicBlock::SplitAt(int at)
+ 	mIns.SetSize(at);
+ 	eblock->mNumEntries = 1;
+ 	eblock->mEntryBlocks.Push(this);
+-	eblock->mTrueJump->mEntryBlocks.RemoveAll(this);
+-	eblock->mTrueJump->mEntryBlocks.Push(eblock);
++	if (eblock->mTrueJump)
++	{
++		eblock->mTrueJump->mEntryBlocks.RemoveAll(this);
++		eblock->mTrueJump->mEntryBlocks.Push(eblock);
++	}
+ 	if (eblock->mFalseJump)
+ 	{
+ 		eblock->mFalseJump->mEntryBlocks.RemoveAll(this);
+ 		eblock->mFalseJump->mEntryBlocks.Push(eblock);
+ 	}
++
++	if (this == mProc->mExitBlock)
++		mProc->mExitBlock = eblock;
++
+ 	return eblock;
+ }
+ 

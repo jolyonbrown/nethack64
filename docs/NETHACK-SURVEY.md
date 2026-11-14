@@ -406,3 +406,8 @@ results: `docs/data/oscar64-pin40-t110-c64conf-2026-11-14.json` (C64) and
   picked onto the pin both get to placement. `questpgr.c` is r50, a `LoadStoreForwarding`
   segfault after `fopen()`, still on main 16acc53. Under UNIX only `mkobj.c` crashes.
 - **Still undefined:** `SAVEF` and the generated `monstr[]` (T1.35).
+- **With 42 commits** (upstream 46e60d6 and its test, the same day): `files.c` (3,894 B)
+  and `mkobj.c` (11,830 B) reach placement, and every other listing, intermediate code and
+  map is identical. C64 63/107 (378,919 B), UNIX 52/107 (325,427 B); `questpgr.c` (r50)
+  is the one crash left. Data: `docs/data/oscar64-pin42-c64conf-2026-11-14.json` and
+  `docs/data/oscar64-pin42-baseline-2026-11-14.json`.
