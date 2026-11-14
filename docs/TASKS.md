@@ -62,7 +62,7 @@ Add new tasks at the bottom of the right section.
       r26, r29, r27, r28) are queued there too. Next: when Jolyon approves a PR, rebase
       if upstream moved, do its page's "Before submitting" items, open it, record its
       number in OSCAR64-COMPAT.md.
-- [ ] T1.10 Measurement harness fixes, then re-measure both configs and re-baseline both:
+- [x] T1.10 Measurement harness fixes, then re-measure both configs and re-baseline both:
       find definitions in preprocessed text (`files.c` `close()`, `mon.c` `impossible(`,
       duplicate stubs in `cmd.c`/`end.c`/`mkmaze.c`); variadic stubs with a body that has a
       side effect, e.g. `nh_vl = 0;` (r14: an empty or `va_start`/`va_end`-only body still
@@ -92,12 +92,26 @@ Add new tasks at the bottom of the right section.
       (reconstructed from timings; the signal was not recorded then). 190 runs since,
       with and without heap fills, never crashed. The harness now records the signal
       of a crash; agents must not `pkill` by a pattern that matches other compiles.
-- [ ] T1.11 `files.c` (C64 config) segfaults Oscar64 at `-Os` once `close()` is stubbed
+      — 2026-11-14 Claude: done, but for two arrays (T1.35). Definitions come from the
+      preprocessed file (`name ( ... ) {` at file scope, in its own lines), and
+      `measure_oscar64.py` counts exactly those functions' code. Variadic void stubs
+      have a body (r14) and pointer stubs return `(T)(unsigned)nh_vl` (r34): the old
+      empty stubs let Oscar64 delete calls, so sizes were low (+4.6% for the files
+      placed both times, C64). Unsized extern arrays a file uses are defined from the
+      file that has them. Every error 3034 counts as fits-not (also `dlb.c`, `mkmap.c`,
+      `vis_tab.c`, and `hack.c`'s static stack); a malformed map line is a map-error.
+      The heap-fill item is moot: T1.21's commits are in the pin. C64 61/107, UNIX
+      51/107; three files crash the compiler (T1.11).
+- [x] T1.11 `files.c` (C64 config) segfaults Oscar64 at `-Os` once `close()` is stubbed
       (`-O0` places it): bisect by deleting functions; repro; upstream issue. Same for
       `questpgr.c` (C64 config), which crashes Oscar64 once the r14 stubs get a body
       (scratch harness, 2026-11-10). — 2026-11-12 Claude: the shknam-crash agent saw
       `files.c` crash the patched pin in `NativeCodeBasicBlock::SplitAt` (native code
       generator), not in any of the r27-r35 paths; no log was kept, not re-checked.
+      — 2026-11-14 Claude: both reduced. `files.c` `get_uchars()`, and `mkobj.c`
+      `dealloc_obj()` once T1.10's stubs keep calls, are r49 (`SplitAt` on a function's
+      exit block), fixed upstream by 46e60d6 (T1.34). `questpgr.c` `load_qtlist()` is
+      r50, a `LoadStoreForwarding` crash still on main 16acc53 (T1.33).
 - [ ] T1.12 Work around r12 (`decl.c` `occtxt = DUMMY` → `= 0`) and r13 (`mail.c`
       `junk[]` → `const char *`) in `port/`; check_ansi + host_smoke; re-measure.
 - [x] T1.13 **r18, wrong code:** Oscar64 reads the `char`/`boolean` result of a call
@@ -308,6 +322,18 @@ Add new tasks at the bottom of the right section.
       fills of the 4 bytes before the buffer, except where those bytes decided the old
       answer ("riken", "uriken", "huriken" after "shu", "sh", "s"). C64 assembly and
       map of `decl.c` unchanged.
+- [ ] T1.35 Harness arrays still undefined: `SAVEF` (its size, `SAVESIZE`, is defined
+      only in `files.c`; `save.c`'s first error) and the generated `monstr[]` (`makemon.c`,
+      `wizard.c`, `pray.c`, `muse.c`): have `--generate-only` run `makedefs -m` as it does
+      for `vis_tab.c`, and give the harness `SAVESIZE`.
+- [ ] T1.34 Jolyon: add upstream 46e60d6 (r49's fix) to the pin? On the decision page
+      since 2026-11-14. If added: ADR-0007's checks, as for the earlier rounds.
+- [ ] T1.33 r50 (OSCAR64-COMPAT.md #52): Oscar64 segfaults in `LoadStoreForwarding` on
+      `g = fopen(...); f("x");` (`f` storing to a global) at `-Os`/`-O2`/`-O3`:
+      `questpgr.c` `load_qtlist()` under the C64 configuration. Release, pin and main
+      16acc53 alike. Find the cause and a fix on a branch (a pin decision for Jolyon).
+      No port-side workaround yet: it needs Oscar64's own `fopen()`, which the C64
+      file layer (T2.4) may replace.
 - [x] T1.32 r48 (OSCAR64-COMPAT.md #50): `a ? b ? x : y : z` is rejected ("':' expected"),
       `pray.c`'s first compile error. — 2026-11-14: the middle operand is parsed as a
       logical-OR expression (also on upstream main). Parentheses at the 3 sites a token

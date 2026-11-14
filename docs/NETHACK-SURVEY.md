@@ -376,3 +376,33 @@ and r47's goto/else rule (port at `f060c52`). Per-file results:
 - **With r48** (parentheses at three sites, measured after this run): `pray.c` stops at
   the harness's missing stub for `pline` instead of line 790, `shk.c` at line 693
   ("Incompatible conditional types"; UNIX: `sleep`) instead of 2669. Totals unchanged.
+
+## Oscar64 compile status with the corrected harness (2026-11-14, T1.10)
+
+T1.10 changed how the harness builds each file's program; the compiler (the 40-commit
+pin) and the port did not change. Definitions come from the preprocessed file, stubs keep
+the calls a real build keeps, extern arrays are defined from the files that have them,
+and every error 3034 counts as "fits-not". Harness and port at `30ac71d`. Per-file
+results: `docs/data/oscar64-pin40-t110-c64conf-2026-11-14.json` (C64) and
+`docs/data/oscar64-pin40-t110-baseline-2026-11-14.json` (UNIX).
+
+| Result | UNIX config | C64 config |
+|---|---|---|
+| compile through to placement | 51 (313,597 B) | **61 (363,195 B)** |
+| of which place no code | 3 | 3 |
+| stop on a compile error | 55 | 43 |
+| crash the compiler | 1 | 3 |
+
+- **Sizes are higher, and nearer a real build's.** The files placed both before and now
+  grew 4.6% (C64, 264,733 to 276,857 B) and 4.8% (UNIX). The old empty stubs of the
+  variadic message functions let Oscar64 delete calls: `potion.c`'s listing held 36
+  calls to `pline`, `You` and the like where it now holds 65 (18,230 to 20,811 B).
+- **New in the C64 count (15):** `bones.c`, `botl.c`, `do_name.c`, `end.c`, `fountain.c`,
+  `hack.c` (its static stack is a fit error), `light.c`, `mcastu.c`, `mkmaze.c`,
+  `pline.c`, `rip.c`, `topten.c`, and `dlb.c`, `mkmap.c` and `vis_tab.c`, which place no
+  code because the base data does not fit before their functions do.
+- **Crashes (T1.11):** `files.c` and `mkobj.c` (11,297 B before the stubs changed) are
+  r49, `SplitAt` on a function's exit block, fixed upstream by 46e60d6; with it cherry-
+  picked onto the pin both get to placement. `questpgr.c` is r50, a `LoadStoreForwarding`
+  segfault after `fopen()`, still on main 16acc53. Under UNIX only `mkobj.c` crashes.
+- **Still undefined:** `SAVEF` and the generated `monstr[]` (T1.35).

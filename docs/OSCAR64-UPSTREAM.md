@@ -153,6 +153,10 @@ for nethack64 (C, native code, `-Os`, v1.32.273):
   `ParseConditionalExpression` reads the middle operand as a logical-OR expression (r48,
   compat #50; parentheses at three sites). Issue texts are drafted in
   `docs/sessions/2026-11-14-claude.md`, unfiled like the rest.
+- Two compiler crashes surfaced by the corrected harness (T1.10). r49 (compat #51),
+  `SplitAt` on a function's exit block, is fixed upstream by 46e60d6 (2026-10-04): a
+  backport for the pin, on the decision page. r50 (compat #52), a `LoadStoreForwarding`
+  segfault on `g = fopen(...); f("x");`, is still on main 16acc53; issue text drafted.
 
 **Not at `-Os`:** `for (unsigned char c = 250; c != 4; c++)` loops the wrong number of
 times at `-O2`/`-O3`; four or more inline-asm stores into a global array read back
