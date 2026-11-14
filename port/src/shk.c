@@ -2558,7 +2558,7 @@ sellobj(struct obj_s *obj, xchar x, xchar y)
 		    pline("%ld %s %s added to your credit.",
 				delta, currency(delta), delta > 1L ? "are" : "is");
 		}
-		if(offer) goto move_on;
+		if(offer) { goto move_on; }
 		else {
 		    if(!isgold) {
 			if (container)

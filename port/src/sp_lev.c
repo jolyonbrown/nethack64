@@ -764,7 +764,7 @@ create_monster(monster *m, struct mkroom_s *croom)
 	    pm = &mons[m->id];
 	    g_mvflags = (unsigned) mvitals[monsndx(pm)].mvflags;
 	    if ((pm->geno & G_UNIQ) && (g_mvflags & G_EXTINCT))
-		goto m_done;
+		{ goto m_done; }
 	    else if (g_mvflags & G_GONE)	/* genocided or extinct */
 		pm = (struct permonst *) 0;	/* make random monster */
 	} else {

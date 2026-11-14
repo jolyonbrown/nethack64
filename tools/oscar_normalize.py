@@ -24,6 +24,10 @@ NetHack 3.4.3's headers trip over (verified against oscar64 v1.32.273):
  5. The `trap` typedef in sp_lev.h collides with `struct trap`; it is
     renamed `sp_trap` in the special-level loader and level compiler.
 
+ 6. `if (c) goto L; else ...` is rejected: the parser leaves a goto's ';' to
+    the enclosing block, so the if ends before the else (repro r47).  The
+    goto is wrapped in braces: `if (c) { goto L; } else ...`.
+
 All rewrites are behaviour-preserving for any conforming compiler, so the
 normalised tree still builds with gcc/cc65.
 
@@ -67,6 +71,11 @@ SPTRAP_FILES = ("sp_lev.h", "sp_lev.c", "lev_comp.y", "lev_main.c")
 SIZEOF_RE = re.compile(r"\bsizeof\s+(?!\()(\**[A-Za-z_]\w*(?:(?:\.|->)\w+|\[[^\]\n]*\])*"
                        r"|\"(?:[^\"\\\n]|\\.)*\")")
 
+# `goto L;` directly followed (past blanks and comments) by `else`: only an if's
+# then-branch can look like that, so braces around the goto change nothing.
+COMMENT = r"/\*(?:[^*]|\*(?!/))*\*/"
+GOTO_ELSE_RE = re.compile(r"\bgoto(\s+\w+\s*);((?:\s|%s)*)else\b" % COMMENT)
+
 # `(char *)(otmp)->oextra`: Oscar64 binds the cast before `->`.
 CAST_ARROW_RE = re.compile(
     r"(\(\s*(?:const\s+)?(?:unsigned\s+)?[A-Za-z_]\w*\s*\*+\s*\))\s*\(([^()]+)\)\s*->\s*(\w+)")
@@ -81,6 +90,7 @@ FNPTR_NULL_RE = re.compile(
 def normalise_text(text, path=""):
     text = TAG_RE.sub(lambda m: "%s%s%s_s" % (m.group(1), m.group(2), m.group(3)), text)
     text = SIZEOF_RE.sub(r"sizeof(\1)", text)
+    text = GOTO_ELSE_RE.sub(r"{ goto\1; }\2else", text)
     text = CAST_ARROW_RE.sub(r"\1((\2)->\3)", text)
     text = FNPTR_NULL_RE.sub("0", text)
     if path.endswith(SPTRAP_FILES):

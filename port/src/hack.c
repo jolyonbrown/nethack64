@@ -1459,7 +1459,7 @@ spoteffects(boolean pick)
 				    is_ice(u.ux, u.uy) ? "ice" : "land");
 		}
 		else if (Is_waterlevel(&u.uz))
-			goto stillinwater;
+			{ goto stillinwater; }
 		else if (Levitation)
 			You("pop out of the water like a cork!");
 		else if (Flying)

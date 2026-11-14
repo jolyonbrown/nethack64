@@ -137,7 +137,7 @@ mk_artifact(struct obj_s *otmp, aligntyp alignment)
 		if (by_align && a->race != NON_PM && race_hostile(&mons[a->race]))
 		    continue;	/* skip enemies' equipment */
 		else if (by_align && Role_if(a->role))
-		    goto make_artif;	/* 'a' points to the desired one */
+		    { goto make_artif; }	/* 'a' points to the desired one */
 		else
 		    eligible[n++] = m;
 	    }

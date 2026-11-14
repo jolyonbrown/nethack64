@@ -703,7 +703,7 @@ makelevel(void)
 			vault_x = rooms[nroom].lx;
 			vault_y = rooms[nroom].ly;
 			if (check_room(&vault_x, &w, &vault_y, &h, TRUE))
-				goto fill_vault;
+				{ goto fill_vault; }
 			else
 				rooms[nroom].hx = -1;
 		}

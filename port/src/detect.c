@@ -674,13 +674,13 @@ trap_detect(struct obj_s *sobj)
 
     for (ttmp = ftrap; ttmp; ttmp = ttmp->ntrap) {
 	if (ttmp->tx != u.ux || ttmp->ty != u.uy)
-	    goto outtrapmap;
+	    { goto outtrapmap; }
 	else found = TRUE;
     }
     for (obj = fobj; obj; obj = obj->nobj) {
 	if ((obj->otyp==LARGE_BOX || obj->otyp==CHEST) && obj->otrapped) {
 	    if (obj->ox != u.ux || obj->oy != u.uy)
-		goto outtrapmap;
+		{ goto outtrapmap; }
 	    else found = TRUE;
 	}
     }
@@ -688,7 +688,7 @@ trap_detect(struct obj_s *sobj)
 	cc = doors[door];
 	if (levl[cc.x][cc.y].doormask & D_TRAPPED) {
 	    if (cc.x != u.ux || cc.y != u.uy)
-		goto outtrapmap;
+		{ goto outtrapmap; }
 	    else found = TRUE;
 	}
     }

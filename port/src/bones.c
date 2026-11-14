@@ -204,7 +204,7 @@ savebones(struct obj_s *corpse)
 #ifdef WIZARD
 		if (wizard) {
 		    if (yn("Bones file already exists.  Replace it?") == 'y') {
-			if (delete_bonesfile(&u.uz)) goto make_bones;
+			if (delete_bonesfile(&u.uz)) { goto make_bones; }
 			else pline("Cannot unlink old bones.");
 		    }
 		}

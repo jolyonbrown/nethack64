@@ -2142,7 +2142,7 @@ readobjnam(char *bp, struct obj_s *no_wish, boolean from_user)
 		if (!strcmpi(g, "glass")) {	/* choose random color */
 			/* 9 different kinds */
 			typ = LAST_GEM + rnd(9);
-			if (objects[typ].oc_class == GEM_CLASS) goto typfnd;
+			if (objects[typ].oc_class == GEM_CLASS) { goto typfnd; }
 			else typ = 0;	/* somebody changed objects[]? punt */
 		} else {		/* try to construct canonical form */
 			char tbuf[BUFSZ];
