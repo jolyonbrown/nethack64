@@ -22,7 +22,17 @@
       "Bash(git log:*)",
       "Bash(git show:*)",
       "Bash(git branch:*)",
-      "Bash(git worktree list:*)"
+      "Bash(git worktree list:*)",
+      "Bash(command grep *)",
+      "Bash(command ls *)",
+      "Bash(command -v *)",
+      "Bash(git -C * log *)",
+      "Bash(git -C * status)",
+      "Bash(git -C * status *)",
+      "Bash(git -C * diff *)",
+      "Bash(git -C * show *)",
+      "Bash(git -C * rev-parse *)",
+      "Bash(journalctl -k *)"
     ],
     "deny": [
       "Edit(upstream/**)",
