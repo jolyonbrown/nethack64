@@ -272,11 +272,16 @@ Add new tasks at the bottom of the right section.
       writes `$1b`. Fix and autotest on `codex/r45-fix` (e8207f5, b7d5ea1): 0 in all ten,
       autotest 1,351 with no failure; no NetHack site in the 45 files that compile.
       In the pin as commits 33-34 (2026-11-14), with r37+r44 (T1.25).
-- [ ] T1.27 r46 (OSCAR64-COMPAT.md #48): a pointer argument kept in a parameter
+- [x] T1.27 r46 (OSCAR64-COMPAT.md #48): a pointer argument kept in a parameter
       register is reused after a call whose callee advanced it through its address
       (`sscanf` then `strcmp` with the same literal; native code at `-Os` only, on
       v1.32.273, the pin and main). Found by Codex reviewing r42. Find the cause and
       search NetHack for callees that advance a pointer parameter through its address.
+      — 2026-11-14: cause found and fixed by Codex, checked by Claude (OSCAR64-COMPAT.md
+      #48); in the pin as commits 39-40 under Jolyon's go-ahead. No NetHack site goes wrong.
+- [ ] T1.28 `tests/host_smoke.py` types keys on a fixed 0.1 s clock and never waits for the
+      game: on 2026-11-14 a CI runner missed the restore greeting (run 43536929831, green
+      on re-run, nothing host-related changed). Wait for each screen with pexpect instead.
 
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 

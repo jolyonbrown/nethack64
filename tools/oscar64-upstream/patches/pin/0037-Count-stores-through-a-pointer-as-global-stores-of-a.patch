@@ -1,7 +1,7 @@
 From 3a1fe757cad16ad7db9e6334d9013d216adc31da Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 13 Nov 2026 08:39:40 +0000
-Subject: [PATCH 37/38] Count stores through a pointer as global stores of a
+Subject: [PATCH 37/40] Count stores through a pointer as global stores of a
  function
 
 NativeCodeBasicBlock::CheckGlobalAliasing decides whether a function is

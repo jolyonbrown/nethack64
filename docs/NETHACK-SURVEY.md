@@ -291,3 +291,5 @@ file); the compiler built by `build-pin.sh` from the 28 patch files (tree 229e43
   and, C64 only, `getrumor()` (`rumors.c` +1 B). C64 45 files, 256,360 B; UNIX 40,
   245,972 B. Data: `docs/data/oscar64-pin38-c64conf-2026-11-14.json` and
   `docs/data/oscar64-pin38-baseline-2026-11-14.json`.
+- **With commits 39-40** (r46): no change; every listing is identical to the 38-commit
+  compiler's.

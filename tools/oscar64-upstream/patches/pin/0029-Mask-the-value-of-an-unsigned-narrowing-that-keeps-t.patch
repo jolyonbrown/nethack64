@@ -1,7 +1,7 @@
 From 19aae5ff440cba0f77b880180836c251913abd40 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 13 Nov 2026 09:12:38 +0000
-Subject: [PATCH 29/38] Mask the value of an unsigned narrowing that keeps the
+Subject: [PATCH 29/40] Mask the value of an unsigned narrowing that keeps the
  wider temporary
 
 CoerceType narrows an integer to a smaller type by reusing the wider

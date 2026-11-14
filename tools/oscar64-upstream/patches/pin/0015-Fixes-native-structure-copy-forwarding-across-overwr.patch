@@ -1,7 +1,7 @@
 From d16900936fc4c52a19c794f9471f6b6b87cf450d Mon Sep 17 00:00:00 2001
 From: John Schneiderman <JohnMS@member.fsf.org>
 Date: Sun, 18 Oct 2026 15:27:37 +0200
-Subject: [PATCH 15/38] Fixes native structure-copy forwarding across
+Subject: [PATCH 15/40] Fixes native structure-copy forwarding across
  overwritten branch joins.
 
 (cherry picked from commit 3bb084ff51bb895a4573fb2d51684d50364254e4)

@@ -1,7 +1,7 @@
 From 14ff5542cd4e3bffa5981f13d8c16710161cb636 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 13 Nov 2026 04:29:21 +0000
-Subject: [PATCH 19/38] Initialise every member of LinkerObject
+Subject: [PATCH 19/40] Initialise every member of LinkerObject
 
 The constructor left mAddress, mRefAddress, mType, mFlags, mSection,
 mRegion, mData and the temporaries arrays unset, and Linker::AddObject

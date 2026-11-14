@@ -1,7 +1,7 @@
 From 41a411d9a0fe4348b3f9aac911365528a9c4b73e Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 15:36:36 +0000
-Subject: [PATCH 12/38] Fix endless loop on a struct copied onto itself
+Subject: [PATCH 12/40] Fix endless loop on a struct copied onto itself
 
 A copy whose source and destination are the same memory, reached
 through a pointer, made the compiler loop forever at constant memory:

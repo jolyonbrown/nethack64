@@ -1,0 +1,111 @@
+From 04b8b6a7a6498a87e23edd5432a3742e525af022 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 00:57:52 +0000
+Subject: [PATCH 40/40] Test argument reuse after indirect parameter changes
+
+Check sscanf followed by strcmp and reuse of pointer and four-byte
+integer arguments after an address-taken parameter is changed. Cover a
+transitive call and runtime pointer increments. Register the test in the
+batch driver; the makefile discovers it through the existing wildcard
+and runs all ten configurations.
+
+Written by Codex; checked by Claude.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat         |  3 ++
+ autotest/paramaliascalltest.c | 72 +++++++++++++++++++++++++++++++++++
+ 2 files changed, 75 insertions(+)
+ create mode 100644 autotest/paramaliascalltest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 82dc8b0..8a8467a 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test paramaliascalltest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test funcptrmergetest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/paramaliascalltest.c b/autotest/paramaliascalltest.c
+new file mode 100644
+index 0000000..c427550
+--- /dev/null
++++ b/autotest/paramaliascalltest.c
+@@ -0,0 +1,72 @@
++#include <assert.h>
++#include <stdio.h>
++#include <string.h>
++
++char s[8];
++volatile unsigned char step = 1;
++volatile unsigned int observed;
++
++__noinline void advance(const char **p)
++{
++	*p += step;
++}
++
++__noinline void scan(const char *p)
++{
++	advance(&p);
++	observed = *p;
++}
++
++__noinline void relay(const char *p)
++{
++	scan(p);
++}
++
++__noinline void change(unsigned long *p)
++{
++	*p += step;
++}
++
++__noinline void number(unsigned long n)
++{
++	change(&n);
++	observed = (unsigned int)n;
++}
++
++__noinline void check_pointer(const char *p)
++{
++	assert(*p == 'a');
++}
++
++__noinline void check_number(unsigned long n)
++{
++	assert(n == 0x1234ffffUL);
++}
++
++int main(void)
++{
++	int r;
++	memset(s, 81, 8);
++	r = sscanf("abc", "%s", s);
++	assert(r == 1 && s[0] == 'a' && s[1] == 'b' && s[2] == 'c' && s[3] == 0 && s[4] == 81);
++	assert(strcmp(s, "abc") == 0);
++
++	// Reuse an argument after both a direct callee and a transitive writer.
++	scan("abc");
++	assert(observed == 'b');
++	check_pointer("abc");
++	relay("abc");
++	assert(observed == 'b');
++	check_pointer("abc");
++
++	// Cover every byte of an address-taken parameter, including a carry.
++	number(0x1234ffffUL);
++	assert(observed == 0);
++	check_number(0x1234ffffUL);
++
++	step = 2;
++	scan("abc");
++	assert(observed == 'c');
++	check_pointer("abc");
++	return 0;
++}

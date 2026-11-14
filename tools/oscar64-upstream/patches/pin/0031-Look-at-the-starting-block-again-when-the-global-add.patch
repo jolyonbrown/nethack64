@@ -1,7 +1,7 @@
 From 0b7dd3097ab12d68a9839de13a0cd14a88e59cec Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 13 Nov 2026 08:42:54 +0000
-Subject: [PATCH 31/38] Look at the starting block again when the global
+Subject: [PATCH 31/40] Look at the starting block again when the global
  address walk comes round to it
 
 CheckGlobalAddressSumYPointer starts in the middle of a block, behind an

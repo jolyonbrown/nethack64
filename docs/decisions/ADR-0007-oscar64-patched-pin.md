@@ -1,8 +1,8 @@
 # ADR-0007: Build with Oscar64 v1.32.273 plus wrong-code fixes
 
 - Status: accepted by Jolyon on 2026-11-12, on the decision page; used by the build since
-  2026-11-13; twenty more commits added on 2026-11-13 and ten on 2026-11-14 (24 chosen by
-  Jolyon on the decision page; the last six by Claude, under Jolyon's go-ahead of 2026-11-14 ("You go ahead ... push what you need"))
+  2026-11-13; twenty more commits added on 2026-11-13 and twelve on 2026-11-14 (24 chosen by
+  Jolyon on the decision page; the last eight by Claude, under Jolyon's go-ahead of 2026-11-14 ("You go ahead ... push what you need"))
 - Date: 2026-11-12 (proposed and accepted); commit ids final 2026-11-13
 - Deciders: Jolyon (+ Claude, who proposed it)
 
@@ -117,6 +117,10 @@ Added on 2026-11-14 by Claude, under Jolyon's go-ahead of 2026-11-14 ("You go ah
 r45's fix goes first: with r44's alone the r45 probe turns wrong at `-O0` too; with all three
 it gives 0 in all ten configurations.
 
+Added the same night, also under that go-ahead: 39. `7317f30` r46 (found and fixed by Codex):
+every byte of an address-taken register parameter now counts in the function's zero-page
+clobber set; and 40. `04b8b6a` its test (Codex).
+
 `tools/oscar64-upstream/build-pin.sh [DIR]` builds it (`JOBS=N` for `make -jN`). Since
 2026-11-13 the setup scripts (`tools/setup-ubuntu.sh`, `tools/setup-arch.sh`) build the
 release and then this compiler, link this one as `oscar64` (the Makefile takes it from
@@ -133,8 +137,8 @@ checks, and its `-Os` size is understood.
   open (T1.15).
 - We carry a patch stack until upstream releases: of the 38 commits, five are upstream's
   (1169268, bf42402, 1ae3216, 3bb084f, 1073206), two backport upstream fixes (fbca293 and the
-  CoerceType hunk of 57655c5), two are tests for upstream fixes, and twenty-nine are ours
-  (r45's fix and two tests written by Codex). Most of ours have an upstream form as a
+  CoerceType hunk of 57655c5), two are tests for upstream fixes, and thirty-one are ours
+  (the r45 and r46 fixes and three tests written by Codex). Most of ours have an upstream form as a
   draft PR in the fork or a local branch on main, on hold (OSCAR64-UPSTREAM.md; nothing
   sent yet), so the stack should shrink. Once
   the build switches, anyone building must run the setup script (or `build-pin.sh`); a
@@ -181,7 +185,7 @@ Upstream main has the same problem. Until it is fixed, the choice is between:
 
 ```sh
 JOBS=2 tools/oscar64-upstream/build-pin.sh /tmp/pin    # v1.32.273 + patches/pin
-make repros OSCAR64=/tmp/pin/bin/oscar64               # 24 of 46 FIXED (run.py caps each compile)
+make repros OSCAR64=/tmp/pin/bin/oscar64               # 25 of 46 FIXED (run.py caps each compile)
 (ulimit -v 3000000; make -k -j2 -C /tmp/pin/make check)  # Oscar64's own autotest
 (ulimit -v 3000000; python3 tools/oscar64-upstream/corpus_diff.py ~/src/oscar64/bin/oscar64 /tmp/pin/bin/oscar64 -j 2 --out /tmp/pin-corpus)
 make OSCAR64=/tmp/pin/bin/oscar64 && make prg OSCAR64=/tmp/pin/bin/oscar64 && make test OSCAR64=/tmp/pin/bin/oscar64
@@ -301,3 +305,9 @@ Results 2026-11-14 (38 commits, tip f21d475; the patch files give tree b16b95d, 
   run `getrumor()` (`rumors.c`, +1), which keeps a copy of a value instead of reading the
   global behind `strcat()` again: a harness stub returns that global, and nothing changes it,
   so both versions are right. Under the 0xA5 heap fill the listings are still identical.
+
+Results 2026-11-14 (40 commits, tip 04b8b6a; the patch files give tree e98604b, the branch's):
+autotest 1,391 emulations, all 0; corpus 858 of 864 identical (r46's repro and test, and
+`structconditionaltest.c` at `-n -O0`, which passes); repros 25 of 46; nethack64 unchanged,
+`make test` 5/5; NetHack: every listing, intermediate code and map of the 91 files that reach
+code generation identical to the 38-commit compiler's (compiler paths aside).

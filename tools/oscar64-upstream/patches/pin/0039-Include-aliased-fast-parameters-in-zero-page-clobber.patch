@@ -1,0 +1,44 @@
+From 7317f3010afa5769d66db105942d4d6bfcc477af Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 00:57:52 +0000
+Subject: [PATCH 39/40] Include aliased fast parameters in zero page clobbers
+
+A fast parameter whose address escapes can be modified indirectly by a
+callee even when no direct zero page store names it. Include all bytes
+of those parameters in the procedure write summary so callers do not
+retain stale register values across the call. The summary also
+propagates these clobbers through further callers.
+
+Found and fixed by Codex (nethack64 repro r46); checked by Claude.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/NativeCodeGenerator.cpp | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 13d18c6..3cfe143 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -69361,6 +69361,21 @@ void NativeCodeProcedure::Compile(InterCodeProcedure* proc)
+ 			for (int i = BC_REG_TMP_SAVED; i < BC_REG_TMP_SAVED + tempSave; i++)
+ 				zpLocal -= i;
+ 
++			// An address-taken fast parameter can be changed through a pointer,
++			// without a direct zero-page store in this procedure or its callees.
++			if (proc->mFastCallProcedure)
++			{
++				for (int i = 0; i < proc->mParamVars.Size(); i++)
++				{
++					InterVariable* var = proc->mParamVars[i];
++					if (var && var->mAliased)
++					{
++						for (int j = 0; j < var->mSize && BC_REG_FPARAMS + i + j < BC_REG_FPARAMS_END; j++)
++							zpLocal += BC_REG_FPARAMS + i + j;
++					}
++				}
++			}
++
+ 			proc->mLinkerObject->mZeroPageSet = zpLocal;
+ 			proc->mLinkerObject->mFlags |= LOBJF_ZEROPAGESET;
+ 			if (!xreg)

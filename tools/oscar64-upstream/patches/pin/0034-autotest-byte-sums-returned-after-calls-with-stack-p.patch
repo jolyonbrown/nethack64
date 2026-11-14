@@ -1,7 +1,7 @@
 From 2451a2ceaa6511b3f16a93d156efe66b8f99bbbf Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 00:28:06 +0000
-Subject: [PATCH 34/38] autotest: byte sums returned after calls with stack
+Subject: [PATCH 34/40] autotest: byte sums returned after calls with stack
  parameters
 
 Regression test for the previous commit (r45): the sum of two bytes read

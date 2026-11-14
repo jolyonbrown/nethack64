@@ -1,7 +1,7 @@
 From f21d47526c640aabc95d0eefdbdb5cc1e4e1860f Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 13 Nov 2026 08:39:40 +0000
-Subject: [PATCH 38/38] autotest: globals re-read behind a call that stores
+Subject: [PATCH 38/40] autotest: globals re-read behind a call that stores
  through a pointer
 
 globalloadpointerstoretest.c takes a copy of a global (char, int, struct

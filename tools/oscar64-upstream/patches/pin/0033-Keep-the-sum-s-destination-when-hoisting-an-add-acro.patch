@@ -1,7 +1,7 @@
 From 360acd35a55d89f7ce3b29d885d079ed13c0a54c Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 00:17:53 +0000
-Subject: [PATCH 33/38] Keep the sum's destination when hoisting an add across
+Subject: [PATCH 33/40] Keep the sum's destination when hoisting an add across
  a call
 
 MoveCLCLoadAddZPStoreUp moves "CLC; LDA zp1; ADC zp2; STA zp3" up to where

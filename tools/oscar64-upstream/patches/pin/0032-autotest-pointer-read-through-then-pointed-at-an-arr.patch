@@ -1,7 +1,7 @@
 From bea5242af9c79d7125d9fffe20dab70396db6493 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 00:03:46 +0000
-Subject: [PATCH 32/38] autotest: pointer read through, then pointed at an
+Subject: [PATCH 32/40] autotest: pointer read through, then pointed at an
  array element, in a loop
 
 Regression test for the previous commit (r43): pointers to a struct, a

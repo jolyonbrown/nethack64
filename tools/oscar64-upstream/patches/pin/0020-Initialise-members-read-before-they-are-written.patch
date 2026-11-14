@@ -1,7 +1,7 @@
 From 9ce480660aae4d20a923d4b63bd36132e946968d Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 13 Nov 2026 04:29:21 +0000
-Subject: [PATCH 20/38] Initialise members read before they are written
+Subject: [PATCH 20/40] Initialise members read before they are written
 
 Found with MemorySanitizer on the autotest and on NetHack sources; each
 of these was read while indeterminate:

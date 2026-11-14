@@ -1,7 +1,7 @@
 From 6bcee1a5028f55f3e19cd91a90bedadb38c395dd Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 13 Nov 2026 04:04:25 +0000
-Subject: [PATCH 35/38] Fix forwarding of a global load past a call that
+Subject: [PATCH 35/40] Fix forwarding of a global load past a call that
  overwrites the register
 
 The peephole optimiser replaces reads of a zero page register by reads
