@@ -1,7 +1,7 @@
 From 9f59f411dd8138c7a6c072b3fbc9892fbe0912ce Mon Sep 17 00:00:00 2001
 From: drmortalwombat <90205530+drmortalwombat@users.noreply.github.com>
 Date: Mon, 21 Sep 2026 14:53:41 +0200
-Subject: [PATCH 01/28] Fix return value accu propagation for functions used as
+Subject: [PATCH 01/32] Fix return value accu propagation for functions used as
  function pointers
 
 (cherry picked from commit 116926842d83f18657c5744853a38ac1c5fbc696)

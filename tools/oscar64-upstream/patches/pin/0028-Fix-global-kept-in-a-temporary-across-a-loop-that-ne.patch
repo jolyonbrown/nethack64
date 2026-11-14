@@ -1,7 +1,7 @@
 From b4dc4ebf229aac0c56445150217356936871b2c8 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 13 Nov 2026 08:45:30 +0000
-Subject: [PATCH 28/28] Fix global kept in a temporary across a loop that needs
+Subject: [PATCH 28/32] Fix global kept in a temporary across a loop that needs
  the temporary
 
 SingleBlockLoopOptimisation keeps a global variable that a loop without

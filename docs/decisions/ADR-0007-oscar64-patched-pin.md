@@ -1,7 +1,7 @@
 # ADR-0007: Build with Oscar64 v1.32.273 plus wrong-code fixes
 
 - Status: accepted by Jolyon on 2026-11-12, on the decision page; used by the build since
-  2026-11-13; twenty more commits added on 2026-11-13 (Jolyon, decision page)
+  2026-11-13; twenty more commits added on 2026-11-13 and four on 2026-11-14 (Jolyon, decision page)
 - Date: 2026-11-12 (proposed and accepted); commit ids final 2026-11-13
 - Deciders: Jolyon (+ Claude, who proposed it)
 
@@ -91,15 +91,28 @@ Added on 2026-11-13 (Jolyon chose "Add" for ten rows on the decision page): comm
 
 Their messages were edited on the way, nothing else: no session links, upstream's
 1ae3216 without our co-author line, the backport notes of 3bb084f and of `2da6d7f`
-corrected. Also "Add", once each review is done and if nothing in its row changes (T1.25):
-r42 and r43. r37 and r44 go back to Jolyon: the `-O0` probe they were waiting on is r45
-(T1.26), a wrong-code bug that commit 3 exposes at `-O2`/`-Os`/`-O3`.
+corrected. Added on 2026-11-14 (Jolyon chose "Add" on 2026-11-13, to take effect once the reviews were
+done): commits 29 to 32, on b4dc4eb:
+
+29. `19aae5f` the CoerceType hunk of upstream 57655c5 (r42), and 30. `fb650c5` our guard to
+   integer destinations, without which the hunk zeroes a pointer compared with a pointer
+   conditional (NetHack's `m_at(x, y) == mtmp`);
+31. `0b7dd30` r43, and 32. `bea5242` its regression test, written by Codex.
+
+Reviews: with and without r42's commits, the library's `sscanf`, `fscanf` and formatting
+code and NetHack's `vision_reset()` give the same results in all ten configurations (Codex,
+260 runs); three functions of our C64 program change (+11 bytes), and in VICE, with inverse
+video poked in for all four cell combinations, its bitmap and colour memory come out
+byte-identical. r43's test fails without the fix in four native configurations and passes in
+all ten with it (Codex; re-run here). r37 and r44 went back to Jolyon: the `-O0` probe they
+were waiting on is r45 (T1.26), a wrong-code bug that commit 3 exposes at `-O2`/`-Os`/`-O3`.
 
 `tools/oscar64-upstream/build-pin.sh [DIR]` builds it (`JOBS=N` for `make -jN`). Since
 2026-11-13 the setup scripts (`tools/setup-ubuntu.sh`, `tools/setup-arch.sh`) build the
 release and then this compiler, link this one as `oscar64` (the Makefile takes it from
 PATH) and the release as `oscar64-plain`; `OSCAR64_PLAIN=1` keeps the release as the
-default. Our C64 program (`src/`) compiles to the same bytes with both. Re-pin to a
+default. Our C64 program (`src/`) compiled to the same bytes with both until commits 29 and 30 (r42),
+which change three of its functions (+11 bytes, same screen memory in VICE). Re-pin to a
 plain release once one contains these fixes (or equivalents) and passes the same
 checks, and its `-Os` size is understood.
 
@@ -108,9 +121,10 @@ checks, and its `-Os` size is understood.
 - The six fixed rows above stop being "must be settled before game code runs" once
   the build uses the pin; r18-r23 and r25 pass, and so does r26 (commit 8). r24 stays
   open (T1.15).
-- We carry a patch stack until upstream releases: of the 28 commits, five are upstream's
-  (1169268, bf42402, 1ae3216, 3bb084f, 1073206), one backports upstream fbca293, two are
-  tests for upstream fixes, and twenty are ours. Most of ours have an upstream form as a
+- We carry a patch stack until upstream releases: of the 32 commits, five are upstream's
+  (1169268, bf42402, 1ae3216, 3bb084f, 1073206), two backport upstream fixes (fbca293 and the
+  CoerceType hunk of 57655c5), two are tests for upstream fixes, and twenty-three are ours
+  (one test written by Codex). Most of ours have an upstream form as a
   draft PR in the fork or a local branch on main, on hold (OSCAR64-UPSTREAM.md; nothing
   sent yet), so the stack should shrink. Once
   the build switches, anyone building must run the setup script (or `build-pin.sh`); a
@@ -157,7 +171,7 @@ Upstream main has the same problem. Until it is fixed, the choice is between:
 
 ```sh
 JOBS=2 tools/oscar64-upstream/build-pin.sh /tmp/pin    # v1.32.273 + patches/pin
-make repros OSCAR64=/tmp/pin/bin/oscar64               # 19 of 45 FIXED (run.py caps each compile)
+make repros OSCAR64=/tmp/pin/bin/oscar64               # 21 of 46 FIXED (run.py caps each compile)
 (ulimit -v 3000000; make -k -j2 -C /tmp/pin/make check)  # Oscar64's own autotest
 (ulimit -v 3000000; python3 tools/oscar64-upstream/corpus_diff.py ~/src/oscar64/bin/oscar64 /tmp/pin/bin/oscar64 -j 2 --out /tmp/pin-corpus)
 make OSCAR64=/tmp/pin/bin/oscar64 && make prg OSCAR64=/tmp/pin/bin/oscar64 && make test OSCAR64=/tmp/pin/bin/oscar64
@@ -245,3 +259,17 @@ Results 2026-11-13 (28 commits, tip b4dc4eb; the compiler `build-pin.sh` builds 
 - `make check` re-links `bin/oscar64` before it starts: run it apart from other uses of
   the same compiler (on 2026-11-13 a corpus run started at the same moment failed with
   "Permission denied" and was run again).
+
+Results 2026-11-14 (32 commits, tip bea5242; the patch files give tree 8c07cca, the branch's):
+
+- Oscar64 autotest: 1,351 emulations, all result 0 (the ten more are r43's test).
+- `corpus_diff.py` b4dc4eb against bea5242: 185 files x 5 configurations, 844 compiled by
+  both, 671 byte-identical. The 173 that differ (54 programs, every level, both back ends)
+  are r42's masks, which sit in the intermediate code, and r43's repro and test; no compile
+  status changed.
+- Repros: 21 of 46 pass (r42 and r43 added).
+- nethack64: code 6,925 to 6,936 bytes (`main`, `try_move`, `draw_pair`; r42); `make test`
+  5/5 passed; screen memory identical in VICE (above).
+- NetHack harness: C64 45 of 107 files measured, 256,352 bytes; UNIX 40, 245,965. One file
+  changes in both: `vision.c` +3 bytes, `vision_reset()`'s masks (reviewed above). Under the
+  0xA5 heap fill the C64 listings are still identical.

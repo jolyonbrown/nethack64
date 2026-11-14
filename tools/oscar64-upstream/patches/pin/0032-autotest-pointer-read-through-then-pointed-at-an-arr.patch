@@ -1,0 +1,171 @@
+From bea5242af9c79d7125d9fffe20dab70396db6493 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 00:03:46 +0000
+Subject: [PATCH 32/32] autotest: pointer read through, then pointed at an
+ array element, in a loop
+
+Regression test for the previous commit (r43): pointers to a struct, a
+char and an int, a pointer into a const table, and the assignment made in
+a branch, each read through before it is set to &array[k] in a loop.
+Without the fix it fails with native code at the default level, -O2, -Os
+and -O3; with it all ten configurations pass.  Written by Codex and checked
+by Claude.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat             |   3 +
+ autotest/looppointeraddresstest.c | 131 ++++++++++++++++++++++++++++++
+ 2 files changed, 134 insertions(+)
+ create mode 100644 autotest/looppointeraddresstest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index ff59f52..ac04558 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -384,6 +384,9 @@ rem @echo off
+ @call :test loopglobalforwardtest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test looppointeraddresstest.c
++@if %errorlevel% neq 0 goto :error
++
+ @exit /b 0
+ 
+ :error
+diff --git a/autotest/looppointeraddresstest.c b/autotest/looppointeraddresstest.c
+new file mode 100644
+index 0000000..1b4767b
+--- /dev/null
++++ b/autotest/looppointeraddresstest.c
+@@ -0,0 +1,131 @@
++#include <assert.h>
++
++// A pointer is read through before it is set to an array element in a loop.
++// CheckGlobalAddressSumYPointer must revisit the start of the block when
++// following the back edge: otherwise it misses the read before the address
++// computation and removes a computation needed by the next iteration.
++
++struct obj
++{
++	char ox, oy;
++	int quan;
++};
++
++struct obj objs[4] = {{1, 2, 10}, {3, 4, 20}, {5, 6, 30}, {7, 8, 40}};
++struct obj first = {0, 0, 5};
++char bytes[4] = {11, 22, 33, 44};
++char first_byte = 7;
++int words[4] = {300, 600, 900, 1200};
++int first_word = 257;
++
++__noinline int read_struct(int n, int k)
++{
++	int r = 0;
++	struct obj * p = &first;
++
++	for (int i = 0; i < n; i++)
++	{
++		r += p->quan;
++		p = &objs[k];
++	}
++
++	return r;
++}
++
++__noinline int read_char(int n, int k)
++{
++	int r = 0;
++	char * p = &first_byte;
++
++	for (int i = 0; i < n; i++)
++	{
++		r += *p;
++		p = &bytes[k];
++	}
++
++	return r;
++}
++
++__noinline int read_int(int n, int k)
++{
++	int r = 0;
++	int * p = &first_word;
++
++	for (int i = 0; i < n; i++)
++	{
++		r += *p;
++		p = &words[k];
++	}
++
++	return r;
++}
++
++__noinline int read_const(int n, int k)
++{
++	int r = 0;
++	const struct obj * p = &first;
++
++	for (int i = 0; i < n; i++)
++	{
++		r += p->quan;
++		p = &objs[k];
++	}
++
++	return r;
++}
++
++// Until the branch is taken, every read must still use first.quan.
++__noinline int read_branch(int n, int k, int start)
++{
++	int r = 0;
++	struct obj * p = &first;
++
++	for (int i = 0; i < n; i++)
++	{
++		r += p->quan;
++		if (i >= start)
++			p = &objs[k];
++	}
++
++	return r;
++}
++
++int main(void)
++{
++	assert(read_struct(3, 2) == 5 + 30 + 30);
++	assert(read_struct(2, 1) == 5 + 20);
++	assert(read_struct(4, 0) == 5 + 10 + 10 + 10);
++	assert(read_struct(5, 3) == 5 + 4 * 40);
++	assert(read_struct(0, 2) == 0);
++	assert(read_struct(1, 3) == 5);
++
++	assert(read_char(3, 2) == 7 + 33 + 33);
++	assert(read_char(2, 1) == 7 + 22);
++	assert(read_char(4, 0) == 7 + 11 + 11 + 11);
++	assert(read_char(5, 3) == 7 + 4 * 44);
++	assert(read_char(0, 2) == 0);
++	assert(read_char(1, 3) == 7);
++
++	assert(read_int(3, 2) == 257 + 900 + 900);
++	assert(read_int(2, 1) == 257 + 600);
++	assert(read_int(4, 0) == 257 + 300 + 300 + 300);
++	assert(read_int(5, 3) == 257 + 4 * 1200);
++	assert(read_int(0, 2) == 0);
++	assert(read_int(1, 3) == 257);
++
++	assert(read_const(3, 2) == 5 + 30 + 30);
++	assert(read_const(2, 1) == 5 + 20);
++	assert(read_const(4, 0) == 5 + 10 + 10 + 10);
++	assert(read_const(5, 3) == 5 + 4 * 40);
++	assert(read_const(0, 2) == 0);
++	assert(read_const(1, 3) == 5);
++
++	assert(read_branch(3, 2, 0) == 5 + 30 + 30);
++	assert(read_branch(4, 1, 1) == 5 + 5 + 20 + 20);
++	assert(read_branch(5, 3, 2) == 5 + 5 + 5 + 40 + 40);
++	assert(read_branch(4, 0, 4) == 4 * 5);
++	assert(read_branch(0, 2, 0) == 0);
++	assert(read_branch(1, 3, 0) == 5);
++
++	return 0;
++}

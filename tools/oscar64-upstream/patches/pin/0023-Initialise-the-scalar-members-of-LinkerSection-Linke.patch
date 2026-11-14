@@ -1,7 +1,7 @@
 From 372dc4cc7ffc723d98dde10eeb2f93053921ba3d Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 13 Nov 2026 05:22:56 +0000
-Subject: [PATCH 23/28] Initialise the scalar members of LinkerSection,
+Subject: [PATCH 23/32] Initialise the scalar members of LinkerSection,
  LinkerRegion and Linker
 
 A section that the linker never places keeps the mStart, mEnd and mSize

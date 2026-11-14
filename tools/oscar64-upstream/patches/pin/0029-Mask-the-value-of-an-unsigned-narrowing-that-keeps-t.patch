@@ -1,0 +1,57 @@
+From 19aae5ff440cba0f77b880180836c251913abd40 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 09:12:38 +0000
+Subject: [PATCH 29/32] Mask the value of an unsigned narrowing that keeps the
+ wider temporary
+
+CoerceType narrows an integer to a smaller type by reusing the wider
+temporary under the narrow operand type ("ignore size reduction").  The
+temporary keeps the value range of the wide expression, and a load that
+is forwarded from the store later (LoadStoreForwarding) reads that range
+instead of the stored byte: "gv = -(i & 3)" stored to an unsigned char
+in a loop reads back as constant 0 behind the loop.
+
+Backport of the CoerceType hunk of upstream 57655c56 ("Fix wrapping byte
+index in addressing"): for an unsigned destination type AND the value
+with the type's mask in the wide type first.  Signed narrowing is left
+as it is, as upstream.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/InterCodeGenerator.cpp | 23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index 61e90bf..a52bf5a 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -656,6 +656,29 @@ InterCodeGenerator::ExValue InterCodeGenerator::CoerceType(InterCodeProcedure* p
+ 					}
+ 				}
+ 			}
++			else if (!(type->mFlags & DTF_SIGNED))
++			{
++				InterInstruction* mins = new InterInstruction(MapLocation(exp, inlineMapper), IC_CONSTANT);
++				mins->mDst.mType = InterTypeOf(v.mType);
++				mins->mDst.mTemp = proc->AddTemporary(mins->mDst.mType);
++				mins->mConst.mType = mins->mDst.mType;
++				mins->mConst.mIntConst = (1 << (8 * type->mSize)) - 1;
++				block->Append(mins);
++
++				InterInstruction* xins = new InterInstruction(MapLocation(exp, inlineMapper), IC_BINARY_OPERATOR);
++				xins->mOperator = IA_AND;
++				xins->mSrc[0].mType = mins->mDst.mType;
++				xins->mSrc[0].mTemp = stemp;
++				xins->mSrc[1].mType = mins->mDst.mType;
++				xins->mSrc[1].mTemp = mins->mDst.mTemp;
++
++				xins->mDst.mType = mins->mDst.mType;
++				xins->mDst.mTemp = proc->AddTemporary(xins->mDst.mType);
++				block->Append(xins);
++				stemp = xins->mDst.mTemp;
++
++				v.mTemp = stemp;
++			}
+ 		}
+ 		v.mType = type;
+ 	}

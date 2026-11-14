@@ -1,7 +1,7 @@
 From 3998202aadf35058f3b3655f95e4b9b2e0245fd9 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 09:29:21 +0000
-Subject: [PATCH 05/28] Fix sign extension when folding loads of signed values
+Subject: [PATCH 05/32] Fix sign extension when folding loads of signed values
  from known bytes
 
 Backport of 904530b907913e860b4ca361273a0315fd104009 (branch

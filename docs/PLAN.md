@@ -72,7 +72,13 @@ Exit: `make test` includes a "walk downstairs" test on the real game.
 - [ ] Long games by a NetHack-playing AI agent (Jolyon's suggestion, 2026-11-13: one
       such agent has reportedly ascended), driving VICE through `tools/vice.py`; and the
       same games recorded on the host build and replayed seed for seed on the C64 build,
-      where any screen that differs is a port bug (needs T2.7's exact RNG)
+      where any screen that differs is a port bug (needs T2.7's exact RNG). Model:
+      Antithesis's deterministic NetHack fuzzer (blog "Beating the frontier on
+      NetHack", 2026-11-13, on 3.6.x; harness not released): one seeded RNG, runs
+      branched from saved states (VICE snapshots here), inputs limited to keys valid
+      at the prompt, a score over depth/XP/coverage to steer, crashes and assertions
+      as the oracle. It reports a path to victory within 5 minutes on nearly 80% of
+      seeds, and real bugs found on the way
 
 Exit: FEATURES.md checklist ticked by scripted or manual play.
 
@@ -97,9 +103,9 @@ Exit: FEATURES.md checklist ticked by scripted or manual play.
    code needs run-time checks, not just a clean compile. By 2026-11-13, 22 of
    the 45 repros are silent wrong code, most of them found while reviewing
    fixes for others, and each round of review has found more; one (r45) is exposed
-   by an upstream fix the pin carries. Pinned: v1.32.273 plus 28 commits
-   (ADR-0007: eight accepted 2026-11-12, twenty added 2026-11-13); the build uses
-   it since 2026-11-13 (T1.20).
+   by an upstream fix the pin carries. Pinned: v1.32.273 plus the commits
+   ADR-0007 lists (eight accepted 2026-11-12, more added since); the build uses it
+   since 2026-11-13 (T1.20).
 4. **EF + REU bus conflict on real hardware** — sub-type 1 on Ultimate; REU-only fallback.
 5. **Speed** — NetHack waits for input; vision recalculation and level
    creation are the hot spots to profile (Oscar64 `-ep` profiler, VICE).

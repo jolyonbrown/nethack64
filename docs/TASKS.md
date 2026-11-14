@@ -217,8 +217,9 @@ Add new tasks at the bottom of the right section.
       (`gs = 126 + (i & 3)`) wrong everywhere, no repro yet; which join the pin (T1.25).
       Also seen, not exposed: a `long` accumulated in a loop is wrong in bytecode at
       `-O2`/`-Os`/`-O3` on v1.32.273 and the pin (main right; NetHack is native code).
-      — 2026-11-13 Claude: r36, r40 and r41 are in the pin (commits 24-28). r42 and r43
-      wait for their reviews (T1.25).
+      — 2026-11-13 Claude: r36, r40 and r41 are in the pin (commits 24-28); r42 and r43
+      joined on 2026-11-14 (commits 29-32). Still open: signed narrowing (no repro yet)
+      and full autotests of the main builds.
 - [ ] T1.23 r37 and its sibling (OSCAR64-COMPAT.md #39, #46; r37, r44). r37: the native
       peephole pass forwards a stored byte past a call that overwrites the register it
       came from, so the low byte of the call's result is read from the stored byte
@@ -251,9 +252,8 @@ Add new tasks at the bottom of the right section.
       fixes for r36, r40 and r41 (T1.22). Messages as planned: no session links,
       upstream's c5ac062 without our trailer, b52c9fe and 8286734 corrected. Five of the
       first eight patches keep their session links: rewording them would change every
-      commit id from commit 2 on. Also "Add", once each review is done and if nothing in
-      its row changes: r42 (read the scanf/fscanf and `vision_reset()` differences) and
-      r43 (an autotest of its own). r37+r44 goes back to Jolyon: the `-O0` probe it was
+      commit id from commit 2 on. r42 and r43 joined on 2026-11-14 as commits 29-32, once
+      their reviews were done (ADR-0007). r37+r44 goes back to Jolyon: the `-O0` probe it was
       waiting on is r45 (T1.26), which the pin already has at `-Os`.
 - [ ] T1.26 r45 (OSCAR64-COMPAT.md #47): a `char` result made from two values read
       before a direct call to an address-taken function is never computed (native code;
@@ -263,6 +263,11 @@ Add new tasks at the bottom of the right section.
       (ours first; upstream when PRs resume), and search NetHack for the shape with an
       instrumented build, as for r36. Until then: the repro's workarounds. Then decide
       r37+r44 (T1.25).
+      — 2026-11-14: cause found by Codex and checked by Claude (OSCAR64-COMPAT.md #47):
+      `MoveCLCLoadAddZPStoreUp` moves an add and its store into `$1b` above a call that
+      writes `$1b`. Fix and autotest on `codex/r45-fix` (e8207f5, b7d5ea1): 0 in all ten,
+      autotest 1,351 with no failure; no NetHack site in the 45 files that compile.
+      Waiting for Jolyon on the decision page, with r37+r44.
 - [ ] T1.27 r46 (OSCAR64-COMPAT.md #48): a pointer argument kept in a parameter
       register is reused after a call whose callee advanced it through its address
       (`sscanf` then `strcmp` with the same literal; native code at `-Os` only, on

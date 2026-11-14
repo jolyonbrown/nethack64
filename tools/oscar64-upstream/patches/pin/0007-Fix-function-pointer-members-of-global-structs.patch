@@ -1,7 +1,7 @@
 From f0b9ee6fcc3e51edfb04e2592276a0dabed328d4 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 09:44:44 +0000
-Subject: [PATCH 07/28] Fix function pointer members of global structs
+Subject: [PATCH 07/32] Fix function pointer members of global structs
 
 Backport of the GlobalAnalyzer part of
 3efe094c8e941d600cd13e0fd50c7557287d95ad (branch fix/fnptr-member, on

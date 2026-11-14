@@ -1,7 +1,7 @@
 From 2da6d7f44dc5db9fbf435977077d114108751e06 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 13 Nov 2026 05:01:58 +0000
-Subject: [PATCH 22/28] Do not forward a load across a call to a procedure that
+Subject: [PATCH 22/32] Do not forward a load across a call to a procedure that
  is not analysed
 
 InterCodeBasicBlock::DestroyingMem asks the callee whether it stores

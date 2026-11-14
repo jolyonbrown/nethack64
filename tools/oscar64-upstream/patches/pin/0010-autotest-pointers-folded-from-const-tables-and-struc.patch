@@ -1,7 +1,7 @@
 From 2ccb958ec543e9a119dfe66fa5ebe14de44fd387 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 19:43:50 +0000
-Subject: [PATCH 10/28] autotest: pointers folded from const tables and structs
+Subject: [PATCH 10/32] autotest: pointers folded from const tables and structs
 
 Regression test for the previous commit (upstream 1ae3216), which has no
 test upstream: pointers read from const aggregates with a constant index

@@ -1,0 +1,31 @@
+From fb650c5170266cf28b2bcabc7d307f8b826b3ce5 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 09:57:34 +0000
+Subject: [PATCH 30/32] Mask an unsigned narrowing only when the destination is
+ an integer type
+
+The mask added by the previous commit (upstream 57655c56) is built from
+type->mSize.  The pointer type that the conditional operator makes up for
+"c ? p : q" has no size set, so the mask was 0 and every value coerced to
+it became 0: "(c ? p : q) == m" compared against a null pointer.  NetHack's
+"m_at(x, y) == mtmp" (uhitm.c known_hitum) is of that form.  Upstream main
+4da3147 has the same fault.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/InterCodeGenerator.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index a52bf5a..78a56b3 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -656,7 +656,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::CoerceType(InterCodeProcedure* p
+ 					}
+ 				}
+ 			}
+-			else if (!(type->mFlags & DTF_SIGNED))
++			else if (type->IsIntegerType() && !(type->mFlags & DTF_SIGNED))
+ 			{
+ 				InterInstruction* mins = new InterInstruction(MapLocation(exp, inlineMapper), IC_CONSTANT);
+ 				mins->mDst.mType = InterTypeOf(v.mType);

@@ -1,7 +1,7 @@
 From f001ebae42d3eb649d873c97978fc31ae1261b23 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 12:35:04 +0000
-Subject: [PATCH 08/28] Fix exponential walks over chains of conditionals
+Subject: [PATCH 08/32] Fix exponential walks over chains of conditionals
 
 Three recursive walks over the predecessor graph (four functions, with
 the X and Y register variants of the native check) had no visited set,

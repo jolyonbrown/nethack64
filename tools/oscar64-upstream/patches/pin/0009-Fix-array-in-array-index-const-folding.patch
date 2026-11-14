@@ -1,7 +1,7 @@
 From 7a40c79dce35025ef443275f22073e25d62a0462 Mon Sep 17 00:00:00 2001
 From: drmortalwombat <90205530+drmortalwombat@users.noreply.github.com>
 Date: Sat, 24 Oct 2026 15:41:04 +0200
-Subject: [PATCH 09/28] Fix array in array index const folding
+Subject: [PATCH 09/32] Fix array in array index const folding
 
 (cherry picked from commit 1ae3216fa3699465746fa8fd8e09617f7b8c742a)
 

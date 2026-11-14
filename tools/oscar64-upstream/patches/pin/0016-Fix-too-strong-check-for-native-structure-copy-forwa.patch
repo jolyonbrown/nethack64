@@ -1,7 +1,7 @@
 From 01cfa3a7ae6b2027620c21534073f1770d65190c Mon Sep 17 00:00:00 2001
 From: drmortalwombat <90205530+drmortalwombat@users.noreply.github.com>
 Date: Mon, 19 Oct 2026 20:42:09 +0200
-Subject: [PATCH 16/28] Fix too strong check for native structure copy
+Subject: [PATCH 16/32] Fix too strong check for native structure copy
  forwarding
 
 (cherry picked from commit 107320637da1897afc7fdcea0c8a52d8bb449e0f)

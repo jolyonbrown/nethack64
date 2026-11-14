@@ -1,7 +1,7 @@
 From 05b403aa98344cafc1e3dc919769c2925f6ba849 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 13 Nov 2026 05:01:43 +0000
-Subject: [PATCH 21/28] Initialise the remaining members of InterCodeProcedure
+Subject: [PATCH 21/32] Initialise the remaining members of InterCodeProcedure
 
 The constructor left mLoadsIndirect, mStoresIndirect, mEntryBlock, the
 frame and parameter sizes and a few flags unset.  mStoresIndirect is

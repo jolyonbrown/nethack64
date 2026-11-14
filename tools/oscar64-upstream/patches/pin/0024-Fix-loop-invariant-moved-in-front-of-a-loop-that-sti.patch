@@ -1,7 +1,7 @@
 From efd669b3fdee01af2c7dbb1783ee556264106815 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 13 Nov 2026 04:22:35 +0000
-Subject: [PATCH 24/28] Fix loop invariant moved in front of a loop that still
+Subject: [PATCH 24/32] Fix loop invariant moved in front of a loop that still
  reads the old value
 
 InnerLoopOptimization moves an instruction that is executed in every

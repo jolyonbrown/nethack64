@@ -283,3 +283,6 @@ file); the compiler built by `build-pin.sh` from the 28 patch files (tree 229e43
 - **Repeatable now:** with every heap block filled with 0xA5 before use, the C64 run
   gives byte-identical listings, intermediate code and maps for the 90 files that reach
   code generation, and the same report.
+- **With commits 29-32** (r42, r43; 2026-11-14) one file changes, in both
+  configurations: `vision.c` +3 B, `vision_reset()`'s narrowing masks. C64 45 files,
+  256,352 B; UNIX 40, 245,965 B.

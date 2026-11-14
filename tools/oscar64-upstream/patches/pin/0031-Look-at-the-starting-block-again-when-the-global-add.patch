@@ -1,0 +1,50 @@
+From 0b7dd3097ab12d68a9839de13a0cd14a88e59cec Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 08:42:54 +0000
+Subject: [PATCH 31/32] Look at the starting block again when the global
+ address walk comes round to it
+
+CheckGlobalAddressSumYPointer starts in the middle of a block, behind an
+address computation "reg = global + index", and marked that block as visited
+at once.  When the block is in a loop the walk comes back to its top, found
+the mark and returned success without looking at the instructions in front
+of the computation.  A read through (reg),y there, which the first
+iteration reaches with the pointer the loop was entered with, was never
+seen: the computation was removed, the read was not patched, and it read
+through the index in the low byte and a stale high byte.
+
+    struct obj * otmp = &first;
+    for (i = 0; i < n; i++)
+    {
+        r += otmp->quan;
+        otmp = &objs[k];
+    }
+
+Mark the block only when it is entered at its top, as
+CheckBoolBitPropagation and CheckForwardSumYPointer do, so that the entry
+tests (pointer required on entry, loop head, entries dominated by the
+starting block) and the walk over its front part apply to it as to any
+other block.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/NativeCodeGenerator.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 4605c4a..527f32d 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -38102,10 +38102,10 @@ bool NativeCodeBasicBlock::CheckGlobalAddressSumYPointer(const NativeCodeBasicBl
+ {
+ 	if (!mPatched)
+ 	{
+-		mPatched = true;
+-
+ 		if (at == 0)
+ 		{
++			mPatched = true;
++
+ 			if (!mEntryRequiredRegs[reg] && !mEntryRequiredRegs[reg + 1])
+ 				return CheckPatchFailUse();
+ 
