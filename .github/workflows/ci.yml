@@ -39,3 +39,9 @@ jobs:
           tools/check_ansi.sh port   # regenerates makedefs headers if missing
       - name: host build + smoke (behaviour oracle)
         run: tools/host-build.sh && python3 tests/host_smoke.py
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: host-smoke-transcripts
+          path: build/host-install/smoke-*.txt
+          if-no-files-found: ignore

@@ -10,6 +10,8 @@
 #   tools/host-build.sh                  full build + install to build/host-install
 #   tools/host-build.sh --generate-only  just makedefs -> port/include/{pm,onames,date,vis_tab}.h,
 #                                        port/src/vis_tab.c
+#   tools/host-build.sh --sanitize       full build with AddressSanitizer + UBSan, installed to
+#                                        build/host-asan-install (known reports: NETHACK-SURVEY.md)
 #
 # Needs: gcc, make, ncurses headers, bison/yacc, flex/lex.
 set -euo pipefail
@@ -17,7 +19,11 @@ cd "$(dirname "$0")/.."
 ROOT=$(pwd)
 [ -d port ] || { echo "no port/ tree; run tools/prepare-port-tree.sh" >&2; exit 1; }
 
-H=build/host
+H=build/host; INSTALL=host-install; SAN=
+if [ "${1:-}" = "--sanitize" ]; then
+  H=build/host-asan; INSTALL=host-asan-install
+  SAN="-fsanitize=address,undefined -fsanitize-recover=address -fno-omit-frame-pointer"
+fi
 rm -rf "$H"; mkdir -p "$H"
 cp -r port/. "$H"/
 cd "$H"
@@ -25,7 +31,9 @@ sh sys/unix/setup.sh > /dev/null
 
 # compiler flags: the converted source is ANSI; keep prototypes narrow like
 # the C64 build (UNWIDENED_PROTOTYPES), silence 1990s-era warnings.
-sed -i 's|^CFLAGS = -O -I../include|CFLAGS = -O -g -std=gnu89 -w -DUNWIDENED_PROTOTYPES -I../include|' src/Makefile
+sed -i "s|^CFLAGS = -O -I../include|CFLAGS = -O -g $SAN -std=gnu89 -w -DUNWIDENED_PROTOTYPES -I../include|" src/Makefile
+# util/ links some of src/'s objects, so it needs the sanitizer runtime too
+[ -z "$SAN" ] || sed -i "s|^LFLAGS =.*|LFLAGS = $SAN|" src/Makefile util/Makefile
 sed -i 's|^CFLAGS = -O -I../include|CFLAGS = -O -g -std=gnu89 -w -I../include|' util/Makefile
 sed -i 's|^WINTTYLIB = -ltermlib|WINTTYLIB = -lncurses|' src/Makefile
 # modern ncurses declares tparm() with a prototype
@@ -41,7 +49,7 @@ if [ "${1:-}" = "--generate-only" ]; then
 fi
 
 make -C src -j"$(nproc)" > ../host-build.log 2>&1 || { tail -30 ../host-build.log; exit 1; }
-I="$ROOT/build/host-install"
+I="$ROOT/build/$INSTALL"
 rm -rf "$I"
 make install PREFIX="$I" GAMEDIR="$I/nethackdir" SHELLDIR="$I/bin" \
   CHOWN=true CHGRP=true >> ../host-build.log 2>&1 || { tail -30 ../host-build.log; exit 1; }

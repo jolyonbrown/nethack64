@@ -279,9 +279,25 @@ Add new tasks at the bottom of the right section.
       search NetHack for callees that advance a pointer parameter through its address.
       — 2026-11-14: cause found and fixed by Codex, checked by Claude (OSCAR64-COMPAT.md
       #48); in the pin as commits 39-40 under Jolyon's go-ahead. No NetHack site goes wrong.
-- [ ] T1.28 `tests/host_smoke.py` types keys on a fixed 0.1 s clock and never waits for the
+- [x] T1.28 `tests/host_smoke.py` types keys on a fixed 0.1 s clock and never waits for the
       game: on 2026-11-14 a CI runner missed the restore greeting (run 43536929831, green
       on re-run, nothing host-related changed). Wait for each screen with pexpect instead.
+      — 2026-11-14: rewritten. After each command the driver types `v` and reads up to the
+      version line, answering --More--, menus, y/n and naming prompts on the way; both
+      sessions must then exit by themselves with status 0, so a crash shows as a signal.
+      0.6 s instead of about 100 s. The old clock had let the first --More-- swallow the
+      rest of the walk and, at times, the scripted quit. That CI failure was not a slow
+      runner: no key is read during a restore, and its restore ended inside `dorecover()`
+      with no message. Not reproduced (NETHACK-SURVEY.md: `tools/smoke_stress.py`, and
+      `tools/host-build.sh --sanitize`). CI now uploads the transcripts when the job fails.
+- [ ] T1.29 The sanitizer host build reports three over-reads, all in NetHack 3.4.3 itself
+      (NETHACK-SURVEY.md). `savefruitchn()` writes its 48-byte terminator from the
+      40-byte `nul`, and `free_window_info()` reads `wins[WIN_MESSAGE]` once the message
+      window is gone (`wins[-1]`, at each death): host-only (36-byte `struct fruit` and
+      our own window port on the C64). `makeplural()` tests `strcmp(spot-7, "shuriken")`
+      for names of 5 letters or more, so it reads up to 3 bytes before `bufs[0]`: on the
+      C64 too, harmless unless `bufs` follows the `$DF00-$DFFF` page. Fix all three in
+      `port/` (3.6 tests "shuriken" only from 8 letters); no fix changes behaviour.
 
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 

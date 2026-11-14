@@ -293,3 +293,43 @@ file); the compiler built by `build-pin.sh` from the 28 patch files (tree 229e43
   `docs/data/oscar64-pin38-baseline-2026-11-14.json`.
 - **With commits 39-40** (r46): no change; every listing is identical to the 38-commit
   compiler's.
+
+## The host game under a waiting smoke test and AddressSanitizer (2026-11-14)
+
+`tests/host_smoke.py` was rewritten for T1.28: after each command it types `v` and reads
+up to the version line, answering --More--, menus, y/n and naming prompts on the way,
+and each session must exit by itself with status 0. `tools/smoke_stress.py` runs it many
+times on separate install copies, seeding the walk per cycle (the game seeds its dungeon
+from the clock). `tools/host-build.sh --sanitize` builds the host game with
+AddressSanitizer (recover mode) and UBSan. gcc 13.3.0, Python 3.12.4, pexpect 4.9.0;
+port as at `543fcd3`.
+
+- **What the old driver did:** it typed on a fixed 0.1 s clock, so the first --More--
+  swallowed the rest of the walk (its keys only beep), the save session always ended at
+  the --More-- after "Saving..." and was killed at its 15 s timeout, and in the restore
+  session the `q` of `#quit` could land as quaff. It passed on strings alone.
+- **CI run 43536929831 (attempt 1):** the restore session printed "Restoring save
+  file..." and reached end-of-file with no timeout. The redraw and --More-- that close
+  `dorecover()` never came, and no key is read during a restore, so a slow runner cannot
+  explain it: the game ended inside `dorecover()` without a message. Not reproduced:
+  every restore in the runs below greeted the player.
+- **Plain build, 2,400 cycles** (four runs of 6 x 100). In the first run the hero died
+  before the save in 20 of 600 games: 11 under a falling-rock trap the walk kept
+  stepping on, one by an arrow trap, eight by small monsters (a newt, sewer rats, a
+  jackal, foxes, a small mimic, something unseen). The test now plays a new game, in a
+  new clock second, when that happens. With that rule, 1,800 of 1,800 passed: 26 needed
+  a second game, and in 10 the hero died after the restore had been checked.
+- **Sanitizer build, 900 cycles** (three runs of 6 x 50): all passed bar one, which sat
+  60 s at "Call a purple-red potion:" (a goblin's potion broke by the pet; the driver
+  typed `v` into the name). The driver now cancels naming prompts; the last 300, on the
+  final driver, all passed. UBSan reported nothing. ASan reported three over-reads, all
+  NetHack 3.4.3's own (T1.29), none on the restore path:
+  - `savefruitchn()` (`save.c`) writes the terminating `struct fruit` (48 bytes here)
+    from `nul` (40 bytes, `decl.c`): 8 bytes over at every save and checkpoint. Restore
+    discards them (the terminator's `nextf`). On the C64 `struct fruit` is 36 bytes.
+  - `free_window_info()` (`wintty.c`) compares with `wins[WIN_MESSAGE]` after the
+    message window is destroyed, so it reads `wins[-1]`; in `done()`, at each death.
+    The C64 build has its own window port.
+  - `makeplural()` (`objnam.c`) tests `strcmp(spot-7, "shuriken")` for any name of 5
+    letters or more: up to 3 bytes before the string, which can be the start of `bufs`.
+    The test can never match, and the same code runs on the C64.
