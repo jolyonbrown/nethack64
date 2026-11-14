@@ -9,7 +9,7 @@
 #
 #   tools/host-build.sh                  full build + install to build/host-install
 #   tools/host-build.sh --generate-only  just makedefs -> port/include/{pm,onames,date,vis_tab}.h,
-#                                        port/src/vis_tab.c
+#                                        port/src/vis_tab.c, port/src/monstr.c
 #   tools/host-build.sh --sanitize       full build with AddressSanitizer + UBSan, installed to
 #                                        build/host-asan-install (known reports: NETHACK-SURVEY.md)
 #
@@ -41,9 +41,9 @@ sed -i 's|^extern char \*tparm();|/* tparm() comes from <term.h> */|' win/tty/te
 
 if [ "${1:-}" = "--generate-only" ]; then
   make -C util makedefs > ../host-gen.log 2>&1 || { tail -20 ../host-gen.log; exit 1; }
-  (cd util && ./makedefs -o && ./makedefs -p && ./makedefs -v && ./makedefs -z)
+  (cd util && ./makedefs -o && ./makedefs -p && ./makedefs -v && ./makedefs -z && ./makedefs -m)
   cp include/onames.h include/pm.h include/date.h include/vis_tab.h "$ROOT/port/include/"
-  cp src/vis_tab.c "$ROOT/port/src/"
+  cp src/vis_tab.c src/monstr.c "$ROOT/port/src/"
   echo "generated headers copied into port/"
   exit 0
 fi

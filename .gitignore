@@ -6,6 +6,7 @@ port/include/onames.h
 port/include/date.h
 port/include/vis_tab.h
 port/src/vis_tab.c
+port/src/monstr.c
 compile_flags.txt
 CLAUDE.local.md
 .claude/settings.local.json

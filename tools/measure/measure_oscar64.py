@@ -196,7 +196,8 @@ def struct_sizes():
 
 
 # git-ignored makedefs output (tools/host-build.sh --generate-only)
-GENERATED = ("include/pm.h", "include/onames.h", "include/date.h", "include/vis_tab.h", "src/vis_tab.c")
+GENERATED = ("include/pm.h", "include/onames.h", "include/date.h", "include/vis_tab.h", "src/vis_tab.c",
+             "src/monstr.c")
 
 
 def provenance():

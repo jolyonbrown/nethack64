@@ -84,45 +84,42 @@ for extra in also:
 # Arrays declared `extern T name[];` that the file uses but no file in this program
 # defines (hu_stat is in eat.c, killed_by_prefix in topten.c, ...): Oscar64 stops
 # with "Undefined variable type".  Their definitions are copied from the file that
-# has them, so that the array, and code that indexes it, keep their real size.  A
-# definition whose size needs a macro the headers do not give (SAVEF[SAVESIZE]) or
-# that is not in port/src (the generated monstr[]) is left out: the error stays.
+# has them, so that the array, and code that indexes it, keep their real size.  The
+# copy comes from that file's preprocessed text, so macros are expanded and #if
+# resolved for this configuration (SAVEF[SAVESIZE]: SAVESIZE is files.c's own).
 EXTERN_ARRAY = re.compile(r"\bextern\s+[^;()]*?\b([A-Za-z_]\w*)\s*\[\s*\]\s*;")
-FILE_SCOPE_ARRAY = r"(?m)^(?!extern\b|E\b)[A-Za-z_][^;\n(=]*\b%s\s*\[([^\]\n]*)\]"
+# raw source: file-scope definitions start in column 0 (indented ones are locals)
+RAW_ARRAY = r"(?m)^(?!extern\b|E\b)[A-Za-z_][^;\n(=]*\b%s\s*\[([^\]\n]*)\]"
+# preprocessed text: macros such as NEARDATA leave a leading blank, so allow one and
+# check the brace depth instead
+FILE_SCOPE_ARRAY = r"(?m)^(?!\s*extern\b|E\b)\s*[A-Za-z_][^;\n(=]*\b%s\s*\[([^\]\n]*)\]"
 
 def raw(name):
     return open(os.path.join(srcdir, name), encoding="latin-1").read()
 
 def definition(text, name):
-    """The file-scope definition of array `name` in raw source, through its ';'."""
-    m = re.search(FILE_SCOPE_ARRAY % re.escape(name), text)
-    if not m:
-        return None, None
-    i = j = m.start()
-    depth = 0
-    while j < len(text):
-        if text.startswith("/*", j):
-            j = text.index("*/", j) + 2
-            continue
-        c = text[j]
-        if c in "\"'":
+    """The file-scope (brace depth 0) definition of array `name`, through its ';'."""
+    for m in re.finditer(FILE_SCOPE_ARRAY % re.escape(name), text):
+        toks = TOKEN.findall(text[:m.start()])
+        if toks.count("{") != toks.count("}"):
+            continue                                   # inside a function or initializer
+        i = j = m.start()
+        depth = 0
+        while j < len(text):
+            c = text[j]
+            if c in "\"'":
+                j += 1
+                while text[j] != c:
+                    j += 2 if text[j] == "\\" else 1
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+            elif c == ";" and depth == 0:
+                return text[i:j + 1].strip()
             j += 1
-            while text[j] != c:
-                j += 2 if text[j] == "\\" else 1
-        elif c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-        elif c == ";" and depth == 0:
-            return text[i:j + 1], m.group(1).strip()
-        j += 1
-    return None, None
+    return None
 
-header_macros = set()
-for h in os.listdir(inc):
-    if h.endswith(".h"):
-        header_macros |= set(re.findall(r"(?m)^\s*#\s*define\s+([A-Za-z_]\w*)",
-                                        open(os.path.join(inc, h), encoding="latin-1").read()))
 program = [raw(target)] + [raw(x) for x in also]
 array_defs = []
 
@@ -132,16 +129,16 @@ wanted = sorted(set(EXTERN_ARRAY.findall(preprocess(os.path.join(srcdir, target)
 for name in wanted:
     if re.search(r"\b%s\b" % re.escape(name), target_uses) is None:
         continue                                   # declared, never used here
-    if any(re.search(FILE_SCOPE_ARRAY % re.escape(name), t) for t in program):
+    if any(re.search(RAW_ARRAY % re.escape(name), t) for t in program):
         continue                                   # defined in this program
     for f in sorted(os.listdir(srcdir)):
         if not f.endswith(".c") or f == target or f in also:
             continue
-        found, size = definition(raw(f), name)
-        if found is None:
+        if re.search(RAW_ARRAY % re.escape(name), raw(f)) is None:
             continue
-        if all(w in header_macros or w.isdigit() for w in re.findall(r"\w+", size)):
-            array_defs.append("/* from %s */\n%s" % (f, found))
+        found = definition(own_lines(os.path.join(srcdir, f)), name)
+        if found:
+            array_defs.append("/* from %s, preprocessed */\n%s" % (f, found))
         break
 static_names = {n for n, st in own_defs.items() if st}
 # measure_oscar64.py counts the code of exactly these functions as the file's own
