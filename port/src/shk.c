@@ -2665,10 +2665,12 @@ move_on:
 			    if (!obj->unpaid && !saleitem) obj->no_charge = 1;
 			    subfrombill(obj, shkp);
 			    pay(-offer, shkp);
+			    /* parentheses round the middle operand: Oscar64
+			     * cannot parse a conditional there (r48) */
 			    shk_names_obj(shkp, obj, (sell_how != SELL_NORMAL) ?
-				    (!ltmp && cltmp && only_partially_your_contents) ?
+				    ((!ltmp && cltmp && only_partially_your_contents) ?
 			    	    "sold some items inside %s for %ld gold pieces%s.%s" :
-				    "sold %s for %ld gold piece%s.%s" :
+				    "sold %s for %ld gold piece%s.%s") :
 	       "relinquish %s and receive %ld gold piece%s in compensation.%s",
 				    offer, "");
 			    break;

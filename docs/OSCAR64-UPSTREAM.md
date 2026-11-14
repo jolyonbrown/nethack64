@@ -147,6 +147,12 @@ for nethack64 (C, native code, `-Os`, v1.32.273):
   calls through it are wrong at `-Os` with native code (r16 review, `v02b`).
 - Compiler crashes (not wrong code): calling the result of a call, `pick(1)(4)`, and a
   variable-index call through an array member of a global struct, `ap.fn[i](x)`.
+- Two parser gaps, not wrong code, both also on main 16acc53: `if (c) goto L; else ...`
+  is rejected because the `TK_GOTO` case of `Parser::ParseStatement` leaves its `;` (r47,
+  compat #49; `oscar_normalize.py` works round it), and `a ? b ? x : y : z` because
+  `ParseConditionalExpression` reads the middle operand as a logical-OR expression (r48,
+  compat #50; parentheses at three sites). Issue texts are drafted in
+  `docs/sessions/2026-11-14-claude.md`, unfiled like the rest.
 
 **Not at `-Os`:** `for (unsigned char c = 250; c != 4; c++)` loops the wrong number of
 times at `-O2`/`-O3`; four or more inline-asm stores into a global array read back

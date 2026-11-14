@@ -785,11 +785,13 @@ pleased(aligntyp g_align)
 	int trouble = in_trouble();	/* what's your worst difficulty? */
 	int pat_on_head = 0, kick_on_butt;
 
+	/* parentheses round the middle operands: Oscar64 cannot parse a
+	 * conditional there (r48) */
 	You_feel("that %s is %s.", align_gname(g_align),
 	    u.ualign.record >= DEVOUT ?
-	    Hallucination ? "pleased as punch" : "well-pleased" :
+	    (Hallucination ? "pleased as punch" : "well-pleased") :
 	    u.ualign.record >= STRIDENT ?
-	    Hallucination ? "ticklish" : "pleased" :
+	    (Hallucination ? "ticklish" : "pleased") :
 	    Hallucination ? "full" : "satisfied");
 
 	/* not your deity */

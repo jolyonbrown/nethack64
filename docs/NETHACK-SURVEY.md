@@ -348,3 +348,31 @@ port as at `543fcd3`.
   passed. NetHack 3.6 moved "shuriken" into a table checked through `BSTRCMPI`, compares
   "matza" at `spot-4` (a behaviour change from 3.4.3) and writes static zero structs;
   it still reads `wins[WIN_MESSAGE]` there.
+
+## Oscar64 compile status after T1.29-T1.32 (2026-11-14, later)
+
+Same harness and caps; the 40-commit pin, whose NetHack listings match the 38-commit
+pin's, so what moved is the port: T1.29's over-read fixes, T1.30's `sizeof "literal"`
+and r47's goto/else rule (port at `f060c52`). Per-file results:
+`docs/data/oscar64-pin40-c64conf-2026-11-14.json` (C64) and
+`docs/data/oscar64-pin40-baseline-2026-11-14.json` (UNIX).
+
+| Result | UNIX config | C64 config |
+|---|---|---|
+| compile through to placement | 41 (256,261 B) | **47 (276,030 B)** |
+| stop on a compile error | 66 | 60 |
+| crash or hang the compiler | 0 | 0 |
+
+- **New:** `detect.c` in both configurations (10,289 B, 22 of 25 functions placed) and,
+  C64 only, `mklev.c` (9,381 B, 22 of 36). No other file's code changed: T1.29's `nul`
+  and T1.30's parentheses move nothing.
+- **`hack.c`** now generates 23,539 B (30 of 34 functions) and stops at "Static stack
+  usage exceeds stack segment", a placement limit the harness counts as a compile error.
+- **Further on, still stopped** (r47 was the first error of most): `artifact.c` 237
+  ("Pointer expected"), `bones.c` (C64: `extern char bones[]`, the harness's
+  extern-array gap; UNIX: `close`), `objnam.c` 891 (compat #20, r16: a function pointer
+  compared with `xname`; T1.14), `pline.c` (the harness's own stub for `pline`, T1.10),
+  `shk.c` and `sp_lev.c` (`mkmap` is not stubbed).
+- **With r48** (parentheses at three sites, measured after this run): `pray.c` stops at
+  the harness's missing stub for `pline` instead of line 790, `shk.c` at line 693
+  ("Incompatible conditional types"; UNIX: `sleep`) instead of 2669. Totals unchanged.

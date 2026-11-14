@@ -308,6 +308,17 @@ Add new tasks at the bottom of the right section.
       fills of the 4 bytes before the buffer, except where those bytes decided the old
       answer ("riken", "uriken", "huriken" after "shu", "sh", "s"). C64 assembly and
       map of `decl.c` unchanged.
+- [x] T1.32 r48 (OSCAR64-COMPAT.md #50): `a ? b ? x : y : z` is rejected ("':' expected"),
+      `pray.c`'s first compile error. — 2026-11-14: the middle operand is parsed as a
+      logical-OR expression (also on upstream main). Parentheses at the 3 sites a token
+      scan of `port/` finds (`pray.c` 789 and 791, `shk.c` 2668). Issue text drafted.
+- [x] T1.31 r47 (OSCAR64-COMPAT.md #49): an `else` after a braceless `if (c) goto L;` is
+      rejected; it was the first compile error in seven files (artifact, bones, detect,
+      hack, mklev, shk, sp_lev). — 2026-11-14: the `TK_GOTO` case of
+      `Parser::ParseStatement` leaves its `;` (also on upstream main). `oscar_normalize.py`
+      wraps such a goto in braces: 10 sites. Issue text drafted in the session note.
+      `detect.c` (both configs) and `mklev.c` (C64) now reach placement: C64 47/107,
+      UNIX 41/107 (NETHACK-SURVEY.md).
 - [x] T1.30 `tools/oscar_normalize.py` parenthesizes `sizeof x` (compat #6) but not
       `sizeof` of a string literal: five sites (`invent.c` 2553, `objnam.c` 1166 and
       1190, `options.c` 303, `pline.c` 196). It is the first compile error in `objnam.c`
