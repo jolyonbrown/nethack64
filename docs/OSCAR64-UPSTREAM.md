@@ -153,6 +153,12 @@ for nethack64 (C, native code, `-Os`, v1.32.273):
   `ParseConditionalExpression` reads the middle operand as a logical-OR expression (r48,
   compat #50; parentheses at three sites). Issue texts are drafted in
   `docs/sessions/2026-11-14-claude.md`, unfiled like the rest.
+- Two found by Codex while fixing r51 (2026-11-14), neither with a NetHack site: calling a
+  conditional function-pointer expression directly crashes the compiler (SIGSEGV), even
+  with an explicitly cast null: `typedef int (*fp)(int); int f(int x) { return x + 1; }
+  volatile int c = 1; int main(void) { fp p = f; return (c ? p : (fp)0)(1) != 2; }`; and
+  `const int a = 31; const int *p = &a;` is rejected ("Not an addressable value"), a
+  scalar `const` being kept as a constant with no storage. Release, pin and main alike.
 - Two compiler crashes surfaced by the corrected harness (T1.10). r49 (compat #51),
   `SplitAt` on a function's exit block, is fixed upstream by 46e60d6 (2026-10-04): a
   backport for the pin, on the decision page. r50 (compat #52), a `LoadStoreForwarding`

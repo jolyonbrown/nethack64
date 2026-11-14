@@ -333,11 +333,19 @@ Add new tasks at the bottom of the right section.
       since 2026-11-14. If added: ADR-0007's checks, as for the earlier rounds.
       — 2026-11-14: added on his go-ahead ("you go ahead") as commits 41-42; ADR-0007's
       checks passed (results there). It fixes r9 as well.
-- [ ] T1.39 Codex's r51 work found two more compiler bugs, not yet reduced into repros:
+- [ ] T1.40 Jolyon: add our r15 fix (a8ecf65, fork draft #7; compat #19) to the pin as
+      commit 48? On the decision page since 2026-11-14, checked on top of the 47 commits
+      (`build/oscar64-wt/pin-r15`): autotest 1,461, corpus 910/910 identical, NetHack
+      unchanged where it compiled; C64 85/108, UNIX 71/108.
+- [x] T1.39 Codex's r51 work found two more compiler bugs, not yet reduced into repros:
       calling a conditional function-pointer expression directly crashes the compiler
       (also with an explicitly cast null), and taking the address of a scalar `const
       int` is rejected (`build/oscar64-wt/r51-fix/r51-evidence/existing-*`). Reduce, check
       NetHack for the shapes, file as repros.
+      — 2026-11-14: Codex's reductions are already minimal (4 and 2 lines). NetHack has
+      neither shape (no direct call of a `?:`; no address taken of a file-scope `const`
+      scalar), so they are recorded in OSCAR64-UPSTREAM.md's list of bugs found on the
+      way, not as repros.
 - [x] T1.38 Jolyon: add upstream 160c92b (r1, the cast before `->`: the "Pointer expected"
       class) and the r51 fix as commits 45-47? On the decision page since 2026-11-14,
       checked as a stack on top of the 44 commits (`build/oscar64-wt/pin-cast`): C64
