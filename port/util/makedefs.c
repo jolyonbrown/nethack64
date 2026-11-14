@@ -1366,7 +1366,9 @@ do_monstr()
 
     Fprintf(ofp,"\nvoid NDECL(monstr_init);\n");
     Fprintf(ofp,"\nvoid\n");
-    Fprintf(ofp,"monstr_init()\n");
+    /* an ANSI definition: tools/check_ansi.sh builds port/src with
+     * -Werror=old-style-definition, and monstr.c is generated into it */
+    Fprintf(ofp,"monstr_init(void)\n");
     Fprintf(ofp,"{\n");
     Fprintf(ofp,"    return;\n");
     Fprintf(ofp,"}\n");
