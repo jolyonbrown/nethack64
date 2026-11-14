@@ -333,11 +333,25 @@ Add new tasks at the bottom of the right section.
       since 2026-11-14. If added: ADR-0007's checks, as for the earlier rounds.
       — 2026-11-14: added on his go-ahead ("you go ahead") as commits 41-42; ADR-0007's
       checks passed (results there). It fixes r9 as well.
+- [ ] T1.39 Codex's r51 work found two more compiler bugs, not yet reduced into repros:
+      calling a conditional function-pointer expression directly crashes the compiler
+      (also with an explicitly cast null), and taking the address of a scalar `const
+      int` is rejected (`build/oscar64-wt/r51-fix/r51-evidence/existing-*`). Reduce, check
+      NetHack for the shapes, file as repros.
+- [ ] T1.38 Jolyon: add upstream 160c92b (r1, the cast before `->`: the "Pointer expected"
+      class) and the r51 fix as commits 45-47? On the decision page since 2026-11-14,
+      checked as a stack on top of the 44 commits (`build/oscar64-wt/pin-cast`): C64
+      73/108 with 160c92b, 80/108 with both.
 - [ ] T1.37 r51 (OSCAR64-COMPAT.md #53): `c ? p : 0` is rejected ("Incompatible
       conditional types"), the null pointer constant not being taken for a pointer; the
       first error of `pray.c`, `muse.c`, `shk.c`, `mon.c`. A compiler fix (Codex, own
       worktree `codex/r51-fix`), then a pin decision for Jolyon; a `port/` workaround
       would mean a cast at every site.
+      — 2026-11-14: Codex's fix (`codex/r51-fix` ffa7192, test c41f07e) turns an integer
+      constant expression of value 0 opposite a pointer into a typed null, in
+      `ParseConditionalExpression`, and keeps a flag through constant folding so `const`
+      variables and float zeros do not qualify. Checked by Claude (enum/macro/sizeof
+      zeros accepted; `const int` 0, 1 rejected). Decision: T1.38.
 - [x] T1.36 Jolyon: add the r50 fix (T1.33) to the pin as commits 43-44? On the decision
       page since 2026-11-14, checked on top of commits 41-42.
       — 2026-11-14: added on his go-ahead ("add the r50 fix to the pin too").

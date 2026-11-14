@@ -338,8 +338,11 @@ and that of the candidate the checks below ran on): autotest 1,411 emulations, a
 new test in all ten configurations; with 42 commits it crashes the native ones at `-O2`,
 `-Os` and `-O3`); corpus against 42 commits: 878 of the 879 programs both compile are
 identical, the other is `opp_hashmap.cpp` at `-bc -O2`, where two blocks of a
-number-formatting routine change places with the same effect (its test passes), and six
-crashes now compile (the new test and r50, three configurations each); repros 28 of 51
+number-formatting routine change places with the same effect (its test passes). That
+layout follows where the compiler is installed, not the fix: one binary copied to other
+directories gives either layout (compilers under paths of 28 and 34 characters give one,
+47 and more the other), so the file is noise in these comparisons; NetHack's native
+listings showed no such dependence. Six crashes now compile (the new test and r50, three configurations each); repros 28 of 51
 (r50 now passes); nethack64 `.crt` and `.prg` byte-identical, `make test` 5/5; NetHack:
 listings and maps identical, the intermediate code of `files.c` and `rumors.c` now names
 `cbmname` where the 42-commit compiler printed `'null'` (the tag the fix corrects), and
