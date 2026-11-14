@@ -44,12 +44,14 @@ Add new tasks at the bottom of the right section.
       only through the harness's pointer stubs (r34). Fixes: fork PRs #17 and #18 (T1.9)
       and the pin candidates `pin-shknam-crash` and `pin-makemon-hang` (T1.25).
 - [ ] T1.7 Parenthesise the nested `?:` sites (r2) — list them with a grep first.
-- [ ] T1.8 Work around r15 (`union T *` does not convert to `const union T *`), which
+- [x] T1.8 Work around r15 (`union T *` does not convert to `const union T *`), which
       stops every `add_menu(..., &any, ...)`: NetHack is const-correct here, so this is a
       compiler workaround, not const-correctness fixes. One cast in `winprocs.h`'s
       `add_menu` macro would cover all 87 calls (the 2026-11-09 review saw `apply.c`,
       `pager.c` and `spell.c` reach placement with it in a scratch copy). check_ansi +
       host_smoke; re-measure.
+      — 2026-11-14: not needed: the compiler is fixed instead (pin commit 48, T1.40);
+      `apply.c`, `artifact.c`, `dungeon.c`, `pager.c` and `spell.c` reach placement.
 - [ ] T1.9 Upstream Oscar64 fixes. — 2026-11-12 Claude: instead of issues, 14 fixes
       were written on a local clone of upstream main, reviewed twice each and revised;
       they wait for Jolyon's per-PR decision (`docs/OSCAR64-UPSTREAM.md`, one page per PR
@@ -333,10 +335,11 @@ Add new tasks at the bottom of the right section.
       since 2026-11-14. If added: ADR-0007's checks, as for the earlier rounds.
       — 2026-11-14: added on his go-ahead ("you go ahead") as commits 41-42; ADR-0007's
       checks passed (results there). It fixes r9 as well.
-- [ ] T1.40 Jolyon: add our r15 fix (a8ecf65, fork draft #7; compat #19) to the pin as
+- [x] T1.40 Jolyon: add our r15 fix (a8ecf65, fork draft #7; compat #19) to the pin as
       commit 48? On the decision page since 2026-11-14, checked on top of the 47 commits
       (`build/oscar64-wt/pin-r15`): autotest 1,461, corpus 910/910 identical, NetHack
       unchanged where it compiled; C64 85/108, UNIX 71/108.
+      — 2026-11-14: added as commit 48 on his go-ahead ("add the r15 fix to the pin too").
 - [x] T1.39 Codex's r51 work found two more compiler bugs, not yet reduced into repros:
       calling a conditional function-pointer expression directly crashes the compiler
       (also with an explicitly cast null), and taking the address of a scalar `const

@@ -8,8 +8,8 @@
  * unused parameter skips the check).
  * Expect when fixed: compiles, emulation result 0.  Actual: error 3012 "Cannot assign
  * incompatible types 'const union u*' != 'union u*'".
- * Workaround: none applied yet.  An explicit cast compiles; one cast inside winprocs.h's
- * add_menu macro would cover every call (TASKS T1.8).
+ * Workaround: none needed: fixed by the ADR-0007 compiler (commit 48, 2026-11-14).  An
+ * explicit cast also compiles.
  * FLAGS: -e
  */
 union u { int i; char c; };

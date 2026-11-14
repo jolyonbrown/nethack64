@@ -140,6 +140,11 @@ expression of value 0 opposite a pointer in `?:` becomes a null pointer of that 
 with constant folding keeping track of what is a constant expression; and 47. `8cd7d98`
 its test (Codex).
 
+Added the same day on Jolyon's go-ahead ("add the r15 fix to the pin too"): 48. `8c24ec2`
+r15 (compat #19), our fix of 2026-11-12 for fork draft #7, with its two tests: a pointer
+to a union converts to a pointer to a `const` or `volatile` union, as struct pointers do
+(unions take the struct branch of `IsSubType`, `IsSameMutable` and `IsConstSame`).
+
 `tools/oscar64-upstream/build-pin.sh [DIR]` builds it (`JOBS=N` for `make -jN`). Since
 2026-11-13 the setup scripts (`tools/setup-ubuntu.sh`, `tools/setup-arch.sh`) build the
 release and then this compiler, link this one as `oscar64` (the Makefile takes it from
@@ -154,10 +159,10 @@ checks, and its `-Os` size is understood.
 - The six fixed rows above stop being "must be settled before game code runs" once
   the build uses the pin; r18-r23 and r25 pass, and so does r26 (commit 8). r24 stays
   open (T1.15).
-- We carry a patch stack until upstream releases: of the 47 commits, seven are upstream's
+- We carry a patch stack until upstream releases: of the 48 commits, seven are upstream's
   (1169268, bf42402, 1ae3216, 3bb084f, 1073206, 46e60d6, 160c92b), two backport upstream fixes
   (fbca293 and the CoerceType hunk of 57655c5), three are tests for upstream fixes, and
-  thirty-five are ours (the r45, r46, r50 and r51 fixes and five tests written by Codex). Most of ours have an upstream form as a
+  thirty-six are ours (the r45, r46, r50 and r51 fixes and five tests written by Codex). Most of ours have an upstream form as a
   draft PR in the fork or a local branch on main, on hold (OSCAR64-UPSTREAM.md; nothing
   sent yet), so the stack should shrink. Once
   the build switches, anyone building must run the setup script (or `build-pin.sh`); a
@@ -204,7 +209,7 @@ Upstream main has the same problem. Until it is fixed, the choice is between:
 
 ```sh
 JOBS=2 tools/oscar64-upstream/build-pin.sh /tmp/pin    # v1.32.273 + patches/pin
-make repros OSCAR64=/tmp/pin/bin/oscar64               # 30 of 51 FIXED (run.py caps each compile)
+make repros OSCAR64=/tmp/pin/bin/oscar64               # 31 of 51 FIXED (run.py caps each compile)
 (ulimit -v 3000000; make -k -j2 -C /tmp/pin/make check)  # Oscar64's own autotest
 (ulimit -v 3000000; python3 tools/oscar64-upstream/corpus_diff.py ~/src/oscar64/bin/oscar64 /tmp/pin/bin/oscar64 -j 2 --out /tmp/pin-corpus)
 make OSCAR64=/tmp/pin/bin/oscar64 && make prg OSCAR64=/tmp/pin/bin/oscar64 && make test OSCAR64=/tmp/pin/bin/oscar64
@@ -366,3 +371,11 @@ r51 now pass); nethack64 `.crt` and `.prg` byte-identical, `make test` 5/5; NetH
 listing, intermediate code and map of the files that compiled before is identical, five
 more files reach placement with 160c92b and seven with the r51 fix: C64 80/108
 (522,868 B), UNIX 67/108 (461,311 B).
+
+Results 2026-11-14 (48 commits, tip 8c24ec2; the patch files give tree 59ec5f1, the branch's
+and the checked candidate's): autotest 1,461 emulations, all 0 (the two union tests in all
+ten configurations each); corpus against 47 commits: 910 of 910 identical, and 15 rejections
+now compile (the two tests and r15); repros 31 of 51; nethack64 `.crt` and `.prg`
+byte-identical, `make test` 5/5; NetHack: every listing, intermediate code and map of the
+files that compiled before identical, and `apply.c`, `artifact.c`, `dungeon.c`, `pager.c`
+(C64) and `spell.c` reach placement: C64 85/108 (585,948 B), UNIX 71/108 (514,789 B).

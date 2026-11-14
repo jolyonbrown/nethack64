@@ -468,3 +468,27 @@ and `docs/data/oscar64-pin47-baseline-2026-11-14.json`.
   types" 2 (`mon`, `timeout`); `static` where a declaration starts 2 (`version`,
   `weapon`); one each for `allmain`, `mail`, `mkroom`, `options`, `restore`, `shk`,
   `sp_lev`, `trap`.
+
+## Oscar64 compile status with 48 commits (2026-11-14, evening)
+
+Commit 48 is our r15 fix (compat #19: a `union T *` now converts to a `const union T *`,
+which every `add_menu(..., &any, ...)` needs). Measured with the candidate whose tree the
+patch files reproduce. Data: `docs/data/oscar64-pin48-c64conf-2026-11-14.json` and
+`docs/data/oscar64-pin48-baseline-2026-11-14.json`.
+
+| Result | UNIX config | C64 config |
+|---|---|---|
+| compile through to placement | 71 (514,789 B) | **85 (585,948 B)** |
+| of which place no code | 3 | 3 |
+| stop on a compile error | 37 | 23 |
+| crash the compiler | 0 | 0 |
+
+- **New:** `apply.c` (23,486 B), `dungeon.c` (12,254 B), `artifact.c` (11,545 B), `spell.c`
+  (6,193 B), and under C64 `pager.c` (9,602 B). Every file that compiled with 47 commits
+  gives an identical listing, intermediate code and map.
+- **What stops the 23 C64 files** (first error only): "Incompatible pointer types" 8 (`cmd`,
+  `dig`, `do_wear`, `eat`, `invent`, `lock`, `objnam`, `windows`; r16, the function pointer
+  compared with a function, in two: T1.14); incompatible assignments 3 (`do`, `pickup`,
+  `zap`); "Incompatible conditional types" 2 (`mon`, `timeout`); `static` where a
+  declaration starts 2 (`version`, `weapon`); one each for `allmain`, `mail`, `mkroom`,
+  `options`, `restore`, `shk`, `sp_lev`, `trap`.
