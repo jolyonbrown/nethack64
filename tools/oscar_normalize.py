@@ -28,6 +28,14 @@ NetHack 3.4.3's headers trip over (verified against oscar64 v1.32.273):
     the enclosing block, so the if ends before the else (repro r47).  The
     goto is wrapped in braces: `if (c) { goto L; } else ...`.
 
+ 7. A storage class after a type qualifier, `const static`, is rejected
+    (repro r55); it becomes `static const`.
+
+ 8. A comma expression as the condition of if, while, do-while or switch is
+    rejected (repro r54): those conditions are parsed without the comma
+    operator.  A parenthesised comma expression is fine, so such a condition
+    gets a second pair of parentheses: `while ((a = f(), a > 0))`.
+
 All rewrites are behaviour-preserving for any conforming compiler, so the
 normalised tree still builds with gcc/cc65.
 
@@ -86,6 +94,51 @@ CAST_ARROW_RE = re.compile(
 FNPTR_NULL_RE = re.compile(
     r"\(\s*[A-Za-z_]\w*\s+(?:NDECL\(\s*\(\*\)\s*\)|FDECL\(\s*\(\*\)\s*,\s*\([^()]*\)\s*\))\s*\)\s*0\b")
 
+# `const static struct ...`: C89 allows the specifiers in any order (r55)
+CONST_STORAGE_RE = re.compile(r"\bconst(\s+)(static|extern)\b")
+
+# strings, character constants and comments, which the condition scan skips
+SKIP = r'"(?:[^"\\\n]|\\.)*"|\'(?:[^\'\\\n]|\\.)*\'|' + COMMENT + r"|//[^\n]*"
+# the opening parenthesis of an if/while/switch condition; not `#if (`
+COND_SCAN_RE = re.compile(r"(?P<skip>%s)|(?<![\w#])(?:if|while|switch)\s*\(" % SKIP)
+PAREN_SCAN_RE = re.compile(r"(?P<skip>%s)|[()\[\]{},]" % SKIP)
+
+
+def wrap_comma_conditions(text):
+    """`while (a, b)` -> `while ((a, b))` (r54).  Only a comma at the condition's
+    own level counts; `while (f(a, b))` stays as it is."""
+    out, pos, i = [], 0, 0
+    while True:
+        m = COND_SCAN_RE.search(text, i)
+        if not m:
+            break
+        i = m.end()
+        if m.group("skip"):
+            continue
+        line = text[text.rfind("\n", 0, m.start()) + 1:m.start()]
+        if line.lstrip().startswith("#"):
+            continue                                  # `# if (` and the like
+        j, depth, comma = m.end(), 1, False
+        while depth:
+            t = PAREN_SCAN_RE.search(text, j)
+            if not t:
+                break
+            j = t.end()
+            if t.group("skip"):
+                continue
+            c = t.group(0)
+            if c in "([{":
+                depth += 1
+            elif c in ")]}":
+                depth -= 1
+            elif depth == 1:
+                comma = True
+        if comma and depth == 0:
+            out.append(text[pos:m.end()] + "(" + text[m.end():j - 1] + "))")
+            pos = i = j
+    out.append(text[pos:])
+    return "".join(out)
+
 
 def normalise_text(text, path=""):
     text = TAG_RE.sub(lambda m: "%s%s%s_s" % (m.group(1), m.group(2), m.group(3)), text)
@@ -93,6 +146,8 @@ def normalise_text(text, path=""):
     text = GOTO_ELSE_RE.sub(r"{ goto\1; }\2else", text)
     text = CAST_ARROW_RE.sub(r"\1((\2)->\3)", text)
     text = FNPTR_NULL_RE.sub("0", text)
+    text = CONST_STORAGE_RE.sub(r"\2\1const", text)
+    text = wrap_comma_conditions(text)
     if path.endswith(SPTRAP_FILES):
         for rx, rep in SPTRAP_RULES:
             text = rx.sub(rep, text)

@@ -70,7 +70,8 @@ NEARDATA struct fruit *ffruit = (struct fruit *)0;
 
 NEARDATA char tune[6] = DUMMY;
 
-const char *occtxt = DUMMY;
+/* not DUMMY ({ 0 }): Oscar64 rejects a braced initializer for a scalar (repro r12) */
+const char *occtxt = 0;
 const char quitchars[] = " \r\n\033";
 const char vowels[] = "aeiouAEIOU";
 const char ynchars[] = "yn";

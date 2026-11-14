@@ -27,11 +27,12 @@ text = preprocess(os.path.join(inc, "hack.h"))
 TOKEN = re.compile(r'"(?:[^"\\\n]|\\.)*"|\'(?:[^\'\\\n]|\\.)*\'|[A-Za-z_]\w*|\S')
 MARKER = re.compile(r'^# \d+ "([^"]*)"')
 
-def defs(path):
+def defs(path, decls=None):
     """Functions the file itself defines, name -> static?, found in its preprocessed
     text: `name ( ... ) {` at file scope, in lines that come from the file and not
     from a header.  The raw `^name (` regex this replaced took a call that starts a
-    line for a definition (pray.c's `pline(`) and missed `pline VA_DECL(...)`."""
+    line for a definition (pray.c's `pline(`) and missed `pline VA_DECL(...)`.
+    `decls`, if given, gets each definition's text up to its `{`."""
     toks = []                      # (token, from this file?)
     own = False
     for line in preprocess(path, markers=True).split("\n"):
@@ -56,6 +57,8 @@ def defs(path):
                 name, mine = toks[k - 1] if k > start else ("", False)
                 if mine and re.match(r"[A-Za-z_]\w*$", name):
                     found[name] = "static" in (x for x, _ in toks[start:k - 1])
+                    if decls is not None:
+                        decls[name] = " ".join(x for x, _ in toks[start:i])
             depth += 1
         elif t == "}":
             depth -= 1
@@ -76,7 +79,8 @@ def own_lines(path):
             keep.append(line)
     return "\n".join(keep)
 
-own_defs = defs(os.path.join(srcdir, target))
+own_decls = {}
+own_defs = defs(os.path.join(srcdir, target), own_decls)
 defined = set(own_defs)
 for extra in also:
     defined |= set(defs(os.path.join(srcdir, extra)))
@@ -120,6 +124,22 @@ def definition(text, name):
             j += 1
     return None
 
+STRING = re.compile(r'"(?:[^"\\\n]|\\.)*"|\'(?:[^\'\\\n]|\\.)*\'')
+
+def dependencies(ftext, found, seen):
+    """File-scope arrays of `ftext` that the initializer of `found` names and the
+    headers do not declare, each before its first use (recursively)."""
+    out = []
+    init = STRING.sub("", found.split("=", 1)[1]) if "=" in found else ""
+    for ident in sorted(set(re.findall(r"\b[A-Za-z_]\w*\b", init))):
+        if ident in seen or re.search(r"\b%s\b" % re.escape(ident), text):
+            continue                                   # done, or known from hack.h
+        dep = definition(ftext, ident)
+        if dep:
+            seen.add(ident)
+            out += dependencies(ftext, dep, seen) + [dep]
+    return out
+
 program = [raw(target)] + [raw(x) for x in also]
 array_defs = []
 
@@ -136,22 +156,150 @@ for name in wanted:
             continue
         if re.search(RAW_ARRAY % re.escape(name), raw(f)) is None:
             continue
-        found = definition(own_lines(os.path.join(srcdir, f)), name)
+        ftext = own_lines(os.path.join(srcdir, f))
+        found = definition(ftext, name)
         if found:
-            array_defs.append("/* from %s, preprocessed */\n%s" % (f, found))
+            # shknam.c's shtypes[] names static arrays of the same file (shkgeneral,
+            # ...): copy those first, else the copy stops with "Unknown identifier"
+            deps = dependencies(ftext, found, {name})
+            array_defs.append("/* from %s, preprocessed */\n%s" % (f, "\n".join(deps + [found])))
         break
 static_names = {n for n, st in own_defs.items() if st}
 # measure_oscar64.py counts the code of exactly these functions as the file's own
 with open(os.path.splitext(out)[0] + ".defs", "w") as f:
     f.write("\n".join(sorted(own_defs)) + "\n")
 
-protos = []
-for m in re.finditer(r"^extern\s+([^;()]*?)\b([A-Za-z_]\w*)\s*\(([^;]*)\)\s*;\s*$", text, re.M):
-    if m.group(2) in ("int", "char", "long", "void", "__attribute__") or "__attribute__" in m.group(3) or "(*" in m.group(1):
-        continue
-    protos.append((m.group(1).strip(), m.group(2), m.group(3).strip()))
+PROTO = re.compile(r"^extern\s+([^;()]*?)\b([A-Za-z_]\w*)\s*\(([^;]*)\)\s*;\s*$", re.M)
 
-lines = ['#include "hack.h"', '#include "dlb.h"', "",
+def prototypes(src):
+    found = []
+    for m in PROTO.finditer(src):
+        if m.group(2) in ("int", "char", "long", "void", "__attribute__") or "__attribute__" in m.group(3) or "(*" in m.group(1):
+            continue
+        found.append((m.group(1).strip(), m.group(2), m.group(3).strip()))
+    return found
+
+protos = prototypes(text)
+# extern.h declares flood_fill_rm and remove_rooms without E (as upstream does):
+# take such bare prototypes from NetHack's headers only, not from Oscar64's libc
+BARE_PROTO = re.compile(r"^(?!extern\b|typedef\b|static\b)([A-Za-z_][^;()]*?)\b([A-Za-z_]\w*)\s*\(([^;]*)\)\s*;\s*$", re.M)
+nh_lines, from_inc = [], False
+for line in preprocess(os.path.join(inc, "hack.h"), markers=True).split("\n"):
+    m = MARKER.match(line)
+    if m:
+        from_inc = os.path.dirname(os.path.abspath(m.group(1))) == os.path.abspath(inc)
+    elif from_inc:
+        nh_lines.append(line)
+for m in BARE_PROTO.finditer("\n".join(nh_lines)):
+    if m.group(2) not in ("int", "char", "long", "void") and "__attribute__" not in m.group(3):
+        protos.append((m.group(1).strip(), m.group(2), m.group(3).strip()))
+# functions the file declares itself (sp_lev.c: `extern void mkmap(lev_init *);`):
+# their types can come from the file's own headers, so the harness includes those
+own_protos = prototypes(own_lines(os.path.join(srcdir, target)))
+protos += own_protos
+# non-static functions the file defines that no prototype declares (mkmap.c's
+# mkmap(), declared in sp_lev.c): nothing would reference them, so the program
+# would drop them and every static function only they call
+declared = {name for _, name, _ in protos}
+undeclared = sorted(n for n, st in own_defs.items() if not st and n not in declared and n != "main")
+headers = ["hack.h", "dlb.h"]
+if own_protos or undeclared:
+    for h in re.findall(r'(?m)^[ \t]*#[ \t]*include[ \t]+"([^"]+\.h)"', raw(target)):
+        if h not in headers and h != "artilist.h" and os.path.exists(os.path.join(inc, h)):
+            headers.append(h)                          # artilist.h defines an array
+
+
+def split_params(params):
+    parts, depth, cur = [], 0, ""
+    for c in params:
+        if c == "," and depth == 0:
+            parts.append(cur.strip())
+            cur = ""
+            continue
+        depth += c in "(["
+        depth -= c in ")]"
+        cur += c
+    return parts + [cur.strip()]
+
+
+C_TYPE_WORDS = {"int", "char", "short", "long", "unsigned", "signed", "void", "float",
+                "double", "const", "volatile", "struct", "union", "enum", "register"}
+
+
+def param_name(p):
+    """The name a prototype parameter already has (extern.h has a few:
+    `struct obj_s *obj`), or None."""
+    m = re.search(r"\(\s*\*\s*([A-Za-z_]\w*)\s*\)", p)
+    if m:
+        return m.group(1)                          # int (*fn)(int)
+    if re.search(r"\(\s*\*\s*\)", p):
+        return None                                # int (*)(int)
+    head = p.split("[", 1)[0].strip()
+    m = re.search(r"\b([A-Za-z_]\w*)$", head)
+    if not m or m.group(1) in C_TYPE_WORDS:
+        return None
+    rest = head[:m.start()].strip()
+    # a type must remain: `xchar` or `const coord` alone is a type with no name
+    if "*" in rest or any(w not in ("const", "volatile", "struct", "union", "enum", "register")
+                          for w in re.findall(r"[A-Za-z_]\w*", rest)):
+        return m.group(1)
+    return None
+
+
+SCALAR_WORDS = {"int", "char", "short", "long", "unsigned", "signed", "float", "double"}
+
+
+def param_kind(ptype, depth=0):
+    """"pointer", "scalar", "struct" or "unknown", following typedefs in hack.h."""
+    if re.search(r"[*\[(]", ptype):
+        return "pointer"
+    words = [w for w in re.findall(r"[A-Za-z_]\w*", ptype) if w not in ("const", "volatile", "register")]
+    if not words or words[0] == "enum" or all(w in SCALAR_WORDS for w in words):
+        return "scalar"
+    if words[0] in ("struct", "union"):
+        return "struct"
+    m = re.search(r"\btypedef\s+([^;{}]*?)\b%s\s*;" % re.escape(words[-1]), text)
+    if m and depth < 8:
+        return param_kind(m.group(1), depth + 1)
+    if re.search(r"\}\s*%s\s*;" % re.escape(words[-1]), text):
+        return "struct"                            # typedef struct { ... } coord;
+    return "unknown"
+
+
+def named_params(params):
+    """`(const char *, int (*)(int))` -> names a0, a1, ... and a statement that uses
+    each value.  An unused parameter lets the optimiser drop the argument at the call
+    (and a call to an empty void stub altogether), so the file being measured would
+    lose that code, and a `?:` argument then hits r58.  Taking the parameter's address
+    instead would change how every call passes it, which costs the caller more code."""
+    if params in ("", "void"):
+        return "void", ""
+    named, uses = [], []
+    for k, p in enumerate(split_params(params)):
+        if p == "...":
+            named.append(p)
+            continue
+        n = param_name(p)
+        if n:
+            named.append(p)
+            ptype = p if re.search(r"[*\[(]", p) else p[:p.rindex(n)]
+        else:
+            n, ptype = "a%d" % k, p
+            if re.search(r"\(\s*\*\s*\)", p):
+                named.append(re.sub(r"\(\s*\*\s*\)", "(*%s)" % n, p, count=1))
+            elif "[" in p:
+                named.append(p.replace("[", " %s[" % n, 1))
+            else:
+                named.append("%s %s" % (p, n))
+        kind = param_kind(ptype)
+        if kind == "pointer":
+            uses.append("nh_vp = (void *)%s;" % n)
+        elif kind == "scalar":
+            uses.append("nh_vl = (long)%s;" % n)
+    return ", ".join(named), " ".join(uses)
+
+lines = ['#include "%s"' % h for h in headers] + [
+         "",
          "/* opaque return values so the optimiser cannot fold stubbed calls */",
          "volatile long nh_vl; void * volatile nh_vp;", ""] + array_defs + [""]
 refs, seen = [], set()
@@ -163,19 +311,23 @@ for ret, name, args in protos:
         if name not in static_names:
             refs.append(name)
         continue
-    params = args if args else "void"
+    params, uses = named_params(args)
     is_void = re.fullmatch(r"(?:static\s+)?void", ret) is not None
     lines.append("#undef %s" % name)
     if is_void:
         # r14: a variadic function with an empty body cannot be called with arguments
-        body = " nh_vl = 0; " if "..." in params else ""
+        body = " %s " % uses if uses else (" nh_vl = 0; " if "..." in params else "")
     elif "*" in ret:
         # r34: Oscar64 merges two reads of the volatile pointer nh_vp; a read of
         # nh_vl through a cast keeps every call's result opaque
-        body = " return (%s)(unsigned)nh_vl; " % ret
+        body = " %sreturn (%s)(unsigned)nh_vl; " % (uses + " " if uses else "", ret)
     else:
-        body = " return (%s)nh_vl; " % ret
+        body = " %sreturn (%s)nh_vl; " % (uses + " " if uses else "", ret)
     lines.append("%s %s(%s) {%s}" % (ret, name, params, body))
+
+for name in undeclared:
+    lines.append("extern %s;" % own_decls[name])
+    refs.append(name)
 
 lines += ["", "void *nh_refs[] = {"] + ["  (void *)%s," % r for r in refs] + [
     "  0 };", "int main(void) { volatile int i; for (i = 0; nh_refs[i]; i++) ; return i; }"]

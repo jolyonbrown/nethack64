@@ -27,7 +27,8 @@ environment: OSCAR64 (the compiler), MEASURE_TIMEOUT (seconds per file, default 
   MEASURE_MEMORY_MB (address-space cap per compile, default 3000; "compiler-oom" if hit),
   MEASURE_BC=1 (compile to Oscar64 bytecode, -bc; sizes then count BYTE_CODE functions),
   MEASURE_KEEP=1 (keep each file's map, listings and generated stub file in the output
-  directory, e.g. to size what the runtime links in)
+  directory, e.g. to size what the runtime links in),
+  MEASURE_OUT (the output directory; default build/measure or build/measure-c64)
 """
 import argparse
 import collections
@@ -252,6 +253,12 @@ def main():
                  % ", port/".join(missing))
     CONFIG = args.config
     OUT = os.path.join(ROOT, "build", CONFIGS[CONFIG]["out"])
+    if os.environ.get("MEASURE_OUT"):
+        # another output directory, so that two compilers can be measured at once;
+        # setup() deletes it first, so only a directory under build/ will do
+        OUT = os.path.abspath(os.environ["MEASURE_OUT"])
+        if not OUT.startswith(os.path.join(ROOT, "build") + os.sep):
+            sys.exit("MEASURE_OUT must be a directory under build/ (it is deleted first)")
     DEFS = CONFIGS[CONFIG]["defs"]
     setup()
     files = args.files or sorted(os.path.basename(p) for p in glob.glob(os.path.join(OUT, "src", "*.c")))

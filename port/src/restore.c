@@ -307,9 +307,9 @@ loadfruitchn(int fd)
 	register struct fruit *flist, *fnext;
 
 	flist = 0;
-	while (fnext = newfruit(),
+	while ((fnext = newfruit(),
 	       mread(fd, (genericptr_t)fnext, sizeof(*fnext)),
-	       fnext->fid != 0) {
+	       fnext->fid != 0)) {
 		fnext->nextf = flist;
 		flist = fnext;
 	}
@@ -793,9 +793,9 @@ getlev(int fd, int pid, xchar lev, boolean ghostly)
 
 	rest_worm(fd);	/* restore worm information */
 	ftrap = 0;
-	while (trap = newtrap(),
+	while ((trap = newtrap(),
 	       mread(fd, (genericptr_t)trap, sizeof(struct trap_s)),
-	       trap->tx != 0) {	/* need "!= 0" to work around DICE 3.0 bug */
+	       trap->tx != 0)) {	/* need "!= 0" to work around DICE 3.0 bug */
 		trap->ntrap = ftrap;
 		ftrap = trap;
 	}

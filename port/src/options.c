@@ -44,7 +44,8 @@ static struct Bool_Opt
 #else
 	{"altmeta", (boolean *)0, TRUE, DISP_IN_GAME},
 #endif
-	{"ascii_map",     &iflags.wc_ascii_map, !PREFER_TILED, SET_IN_GAME},	/*WC*/
+	/* not !PREFER_TILED: Oscar64 does not fold `!` in an initializer (repro r53) */
+	{"ascii_map",     &iflags.wc_ascii_map, (PREFER_TILED ? FALSE : TRUE), SET_IN_GAME},	/*WC*/
 #ifdef MFLOPPY
 	{"asksavedisk", &flags.asksavedisk, FALSE, SET_IN_GAME},
 #else

@@ -18,7 +18,11 @@
 #ifdef OVLB
 STATIC_DCL boolean FDECL(isbig, (struct mkroom_s *));
 STATIC_DCL struct mkroom_s * FDECL(pick_room,(BOOLEAN_P));
-STATIC_DCL void NDECL(mkshop), FDECL(mkzoo,(int)), NDECL(mkswamp);
+/* one declaration each: several function declarators in one declaration make
+ * Oscar64 report an "Ambiguous function call" (repro r57) */
+STATIC_DCL void NDECL(mkshop);
+STATIC_DCL void FDECL(mkzoo,(int));
+STATIC_DCL void NDECL(mkswamp);
 STATIC_DCL void NDECL(mktemple);
 STATIC_DCL coord * FDECL(shrine_pos, (int));
 STATIC_DCL struct permonst * NDECL(morguemon);

@@ -435,7 +435,9 @@ ckmailstatus(void)
 void
 readmail(struct obj_s *otmp)
 {
-    static char *junk[] = {
+    /* const: Oscar64 types string literals const char[] and will not let them
+     * initialise a char * (repro r13); the strings are only ever read */
+    static const char *junk[] = {
     "Please disregard previous letter.",
     "Welcome to NetHack.",
 #ifdef AMIGA

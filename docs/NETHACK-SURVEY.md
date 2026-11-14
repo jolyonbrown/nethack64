@@ -105,6 +105,14 @@ tables): **cc65 ≈ 1.6 MB, Oscar64 ≈ 0.85 MB of native code** (treat as
 ±20%: it is a line-count extrapolation, and inlined statics move bytes
 between files). The window port and runtime add a few tens of KB.
 
+**Correction (2026-11-14):** the harness's stubs let Oscar64 delete every call to an
+empty stub and drop arguments nothing read, so the Oscar64 numbers above are about a
+quarter too low (cc65 compiles each file on its own, so its numbers were not affected).
+With stubs that read their parameters the same 18 files are 120,243 B (9.1 B/line, 0.71
+of cc65), and the 52 files both compilers build (45,697 lines) give 8.1 B/line against
+cc65's 10.7 (0.76): **Oscar64 ≈ 1.0 MB** for the whole game (±20%). Details in the
+section "Oscar64 compile status with stubs that read their parameters" below.
+
 ## Data that ships with the game
 
 | Item | Bytes (uncompressed) |
@@ -119,8 +127,8 @@ between files). The window port and runtime add a few tens of KB.
 
 ## What it adds up to
 
-Code ~0.85 MB + strings ~0.17 MB + tables ~0.05 MB + levels 0.21 MB + text
-0.42 MB ≈ **1.7 MB of static content** before compression. An EasyFlash is
+Code ~1.0 MB (re-estimated 2026-11-14; was ~0.85) + strings ~0.17 MB + tables ~0.05 MB +
+levels 0.21 MB + text 0.42 MB ≈ **1.85 MB of static content** before compression. An EasyFlash is
 1 MB. That single fact drives `docs/ARCHITECTURE.md`: text and level data
 must be compressed and/or live in an REU or on disk, and code must be banked.
 
@@ -492,3 +500,53 @@ patch files reproduce. Data: `docs/data/oscar64-pin48-c64conf-2026-11-14.json` a
   `zap`); "Incompatible conditional types" 2 (`mon`, `timeout`); `static` where a
   declaration starts 2 (`version`, `weapon`); one each for `allmain`, `mail`, `mkroom`,
   `options`, `restore`, `shk`, `sp_lev`, `trap`.
+
+## Oscar64 compile status with stubs that read their parameters (2026-11-14, night)
+
+The same 48-commit compiler as the previous section; the harness and `port/` changed.
+
+- **The harness under-counted every file's code.** Void stubs had empty bodies and
+  the other stubs ignored their parameters, so at `-Os` Oscar64 deleted every call to an
+  empty void stub, arguments and all, and dropped argument code nothing read. A
+  three-call test function: 1 byte with empty stubs, 77 with stubs that read each
+  parameter, 136 with stubs that take each parameter's address (which changes how the
+  arguments are passed). Variadic arguments were never dropped. The stubs now read each
+  parameter's value (`tools/measure/mkstubs.py`: pointers into `nh_vp`, scalars into
+  `nh_vl`, typedefs followed through `hack.h`). For the 81 C64 files that place code
+  with both: 566,087 B → 755,006 B (×1.33; per file ×1.00 to ×1.82, `bones.c`); UNIX
+  ×1.34. The same 18 files as the 2026-11-08 comparison: 89,157 → 120,243 B.
+- **Other harness gaps closed:** prototypes that `extern.h` writes without `E`
+  (`flood_fill_rm`, `remove_rooms`) and functions a file declares itself (`sp_lev.c`'s
+  `extern void mkmap(lev_init *)`) get stubs, with the file's own headers included for
+  their types; a non-static function that no header declares (`mkmap()` in `mkmap.c`)
+  is referenced, so it and the static functions it calls are kept (`mkmap.c`: 0 →
+  5,068 B); and static arrays named by a copied array's initializer are copied with it
+  (`shk.c`: `shtypes[]` names `shkgeneral` and nine more). `MEASURE_OUT` lets two
+  compilers be measured at once.
+- **`port/` works round** r12 and r13 (T1.12) and r53-r57 (compat #55-#59). `timeout.c`
+  and `do.c` also met r58 (compat #60), which only the empty stubs provoked.
+
+| Result | UNIX config | C64 config |
+|---|---|---|
+| compile through to placement | 86 (915,572 B) | **95 (954,832 B)** |
+| of which place no code | 2 | 2 |
+| stop on a compile error | 21 | 12 |
+| crash the compiler | 1 | 1 |
+
+- **New under C64:** `allmain`, `mail`, `mkroom`, `options`, `restore`, `shk`, `sp_lev`,
+  `timeout`, `trap`, `version`, `weapon`. **Lost:** `muse.c` now aborts the compiler (an
+  index assertion in `NativeCodeBasicBlock::BinaryAddCarry`, in `rnd_defensive_item`):
+  with its calls' arguments kept, the native code generator meets a case it
+  mishandles. Being reduced.
+- **What stops the other 12 C64 files:** r16, a function pointer compared with a
+  function, 8 (`cmd`, `dig`, `do_wear`, `eat`, `invent`, `lock`, `objnam`, `windows`);
+  r17, `?:` over two functions, 2 (`do`, `pickup`); r52, `!!p`, 2 (`mon`, `zap`).
+  Each has a fix among the next pin candidates (T1.43).
+- **Code size, re-estimated:** over the 52 files both cc65 (2026-11-08) and Oscar64
+  compile under the UNIX config, 45,697 lines: cc65 10.7 B/line, Oscar64 8.1 B/line, a
+  ratio of 0.76 (0.53 on the 18 files before). At 8.0 B/line over all compiled files
+  with a line count, NetHack's ~126K code-bearing lines need **≈ 1.0 MB** of Oscar64
+  code (was ≈ 0.85 MB), ±20% as before.
+
+Data: `docs/data/oscar64-pin48h-c64conf-2026-11-14.json` and
+`docs/data/oscar64-pin48h-baseline-2026-11-14.json`.

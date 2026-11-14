@@ -159,6 +159,21 @@ for nethack64 (C, native code, `-Os`, v1.32.273):
   volatile int c = 1; int main(void) { fp p = f; return (c ? p : (fp)0)(1) != 2; }`; and
   `const int a = 31; const int *p = &a;` is rejected ("Not an addressable value"), a
   scalar `const` being kept as a constant with no storage. Release, pin and main alike.
+- Seven more from the 48-commit C64 run (2026-11-14, evening), each with a repro and all
+  on main 16acc53 too. **r52 (compat #54) is wrong code**: `!!x` is folded to `x`
+  (`Expression::LogicInvertExpression`), so `!!5` is 5 and `!!p` keeps the pointer type;
+  NetHack writes `!!` 98 times. Our fix (two lines) and test are pin candidates. The rest
+  reject valid C and are worked round in `port/`: `!0` not folded in an initializer
+  (r53), a comma expression as an `if`/`while`/`switch` condition (r54, the condition is
+  parsed without the comma operator), `const static` (r55), a `case`/`default` label in
+  a block nested in the switch (r56), several function declarators in one declaration
+  (r57), and a `?:` with a literal and a call passed for a parameter the callee never
+  reads, at `-O2`/`-Os` (r58; only the measurement harness's empty stubs met it).
+- Found on the way (2026-11-14, no NetHack site, so no repro): a function that returns a
+  function pointer, `ifunc pick(int c) { if (c) return fa; return fb; }`, crashes the
+  compiler at `-O2`/`-Os`/`-O3` once its result is used, even only compared
+  (`pick(1) == fa`); release, pin and main alike. Upstream's c8da6bd (the r17 fix, a pin
+  candidate) also cures Codex's `(c ? p : (fp)0)(1)` crash above.
 - Two compiler crashes surfaced by the corrected harness (T1.10). r49 (compat #51),
   `SplitAt` on a function's exit block, is fixed upstream by 46e60d6 (2026-10-04): a
   backport for the pin, on the decision page. r50 (compat #52), a `LoadStoreForwarding`

@@ -114,8 +114,11 @@ Add new tasks at the bottom of the right section.
       `dealloc_obj()` once T1.10's stubs keep calls, are r49 (`SplitAt` on a function's
       exit block), fixed upstream by 46e60d6 (T1.34). `questpgr.c` `load_qtlist()` is
       r50, a `LoadStoreForwarding` crash still on main 16acc53 (T1.33).
-- [ ] T1.12 Work around r12 (`decl.c` `occtxt = DUMMY` → `= 0`) and r13 (`mail.c`
+- [x] T1.12 Work around r12 (`decl.c` `occtxt = DUMMY` → `= 0`) and r13 (`mail.c`
       `junk[]` → `const char *`) in `port/`; check_ansi + host_smoke; re-measure.
+      — 2026-11-14: done, each with a comment naming its repro; check_ansi 108 clean,
+      host build and smoke pass. `allmain.c` and `mail.c` compile; `cmd.c` met r12 as
+      its second error.
 - [x] T1.13 **r18, wrong code:** Oscar64 reads the `char`/`boolean` result of a call
       through a function pointer from `ACCU` while the callee leaves it in A, with no
       diagnostic: at `-Os`/`-O2` once the target is unknown at compile time, at `-O0`
@@ -132,6 +135,8 @@ Add new tasks at the bottom of the right section.
       so do it after T1.13. (r17 is fixed on upstream main, c8da6bd; r16 has a fix
       branch, PR #6 in OSCAR64-UPSTREAM.md. Both stay port-side work while we build
       with v1.32.273.)
+      — 2026-11-14: r18 is fixed in the pin, and both fixes are pin candidates instead
+      (T1.43): r16 is the first error of eight files, r17 of two. No `port/` change.
 - [ ] T1.15 **Wrong code to settle before game code runs** (OSCAR64-COMPAT.md #22-#28):
       r19 (`p == 0` on a pointer initialised to 0), r20-r22 (negative initialised data
       read as unsigned), r23 (a call through `windowprocs.win_*` overwrites the
@@ -335,6 +340,40 @@ Add new tasks at the bottom of the right section.
       since 2026-11-14. If added: ADR-0007's checks, as for the earlier rounds.
       — 2026-11-14: added on his go-ahead ("you go ahead") as commits 41-42; ADR-0007's
       checks passed (results there). It fixes r9 as well.
+- [ ] T1.44 Two compiler aborts left in the C64 run, both in the native code generator
+      at `-Os`: `muse.c` (`rnd_defensive_item`: an index assertion in
+      `NativeCodeBasicBlock::BinaryAddCarry`, with the 48 commits; it showed once the
+      stubs kept the calls' arguments, T1.42) and `invent.c` (`display_pickinv`: the
+      assertion `linkerObject || (address >= 0 && address < 256)` in
+      `BlockSizeCopyReduction`, once T1.43's candidates let it compile that far).
+      Codex is reducing each and writing a fix and a test (`build/oscar64-wt/r60-fix`,
+      `r59-fix`); then repros, compat rows, and pin candidates if the fixes hold.
+- [ ] T1.43 Jolyon: add seven commits to the pin as 49-55? Our r16 fix (fork draft #6,
+      compat #20), upstream's c8da6bd for r17 (compat #21) with our test, our fold of
+      `!` on constants (r53, compat #55) with a test, and our r52 fix (`!!x` folded to
+      `x`, wrong code, compat #54) with a test. Branch `nethack64/pin-cand-49c`
+      (`build/oscar64-wt/pin-c49c`); ADR-0007's checks are running. With them 11 of the 12
+      remaining C64 files compile; `invent.c` then aborts (T1.44).
+- [x] T1.42 The harness's stubs (T1.10) let `-Os` delete every call to an empty void stub
+      and drop arguments nothing read, so each file's code was under-counted; a `?:`
+      argument for such a parameter also hit r58 (`timeout.c`, `do.c`). Make stubs read
+      their parameters; also stub `extern.h`'s two prototypes without `E` and functions a
+      file declares itself (`sp_lev.c`), reference non-static functions no header declares
+      (`mkmap.c`), and copy the static arrays a copied array names (`shk.c`).
+      — 2026-11-14: done. Code measured ×1.33 for the same files (C64; UNIX ×1.34), and the
+      code-size estimate is ≈ 1.0 MB, not ≈ 0.85 MB (NETHACK-SURVEY.md, ARCHITECTURE.md).
+      With 48 commits: C64 95/108, UNIX 86/108; `muse.c` now aborts the compiler (T1.44).
+- [x] T1.41 The first errors of the 23 C64 files left with 48 commits, sorted out: r16 (8
+      files) and r17 (2) have fixes (T1.43); new repros r52 (`!!x`, wrong code), r53 (`!`
+      of a constant in an initializer), r54 (comma expression as a condition), r55 (`const
+      static`), r56 (`default:` in a nested block), r57 (several function declarators in
+      one declaration), r58 (harness only; T1.42), compat #54-#60; and harness gaps in
+      `shk.c` and `sp_lev.c` (T1.42).
+      — 2026-11-14: r53-r57 worked round in `port/` (the normaliser for r54 and r55, one
+      commented edit each in `options.c`, `trap.c`, `mkroom.c`), and r12/r13 (T1.12).
+      check_ansi 108 clean, host build and smoke pass, `make test` 5/5 with the `.crt` and
+      `.prg` unchanged. All seven are on upstream main (16acc53) too; issue texts drafted
+      in the session note.
 - [x] T1.40 Jolyon: add our r15 fix (a8ecf65, fork draft #7; compat #19) to the pin as
       commit 48? On the decision page since 2026-11-14, checked on top of the 47 commits
       (`build/oscar64-wt/pin-r15`): autotest 1,461, corpus 910/910 identical, NetHack

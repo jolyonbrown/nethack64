@@ -1252,9 +1252,14 @@ steedintrap(struct trap_s *trap, struct obj_s *otmp)
 		    }
 		    steedhit = TRUE;
 		    break;
+	    }
+		    /* Upstream's braces put the default: label inside the
+		     * resists_magm() block above, which Oscar64 rejects (repro
+		     * r56); the label now follows the block, and this break does
+		     * what reaching the end of the switch did. */
+		    break;
 		default:
 			return 0;
-	    }
 	}
 	if(trapkilled) {
 		dismount_steed(DISMOUNT_POLY);

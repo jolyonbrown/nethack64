@@ -29,12 +29,12 @@ Static content, uncompressed:
 
 | Item | Size | Where it can live |
 |---|---|---|
-| Game code (Oscar64 -Os, estimate) | ~0.85 MB (0.7-1.0) | EF banks (execute in place) or REU (DMA into RAM) |
+| Game code (Oscar64 -Os, estimate) | ~1.0 MB (0.8-1.2; ~0.85 before the harness fix of 2026-11-14) | EF banks (execute in place) or REU (DMA into RAM) |
 | String literals | ~165 KB | with the code that uses them (same bank) |
 | `mons[]` + `objects[]` + names | ~45 KB | ROM/REU; the writable bits of `objects[]` (~2 KB) in RAM |
 | 113 special levels | 213 KB | compressed in EF/REU, decompressed on level creation |
 | Encyclopedia, quest text, rumors, help | 415 KB | compressed (text ~50%), REU or disk |
-| **Total** | **~1.7 MB** | EasyFlash holds 1 MB |
+| **Total** | **~1.85 MB** | EasyFlash holds 1 MB |
 
 Dynamic state while playing (Oscar64 layout):
 
