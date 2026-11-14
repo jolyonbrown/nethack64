@@ -1,0 +1,187 @@
+From 2200134cbcaf7e6b934eea28894eda4591a5609b Mon Sep 17 00:00:00 2001
+From: John Schneiderman <JohnMS@member.fsf.org>
+Date: Sun, 11 Oct 2026 12:23:32 +0200
+Subject: [PATCH 45/47] Fix cast operand precedence for parenthesised
+ expressions while preserving C++ expression parsing.
+
+(cherry picked from commit 160c92b1ff614b3afa760c8d45bbfecf35984b2e)
+
+Backport to v1.32.273 for nethack64.  The Parser change applies as is:
+ParseCastExpression took a parenthesised operand without its postfix
+operators, so `(int) (p)->f` and `(char *)(p)->f` cast p and then
+applied ->f to the result ("Pointer expected").  It is nethack64's repro
+r1 and the first compile error of ten NetHack files (obj_to_glyph,
+get_artifact, EPRI).  The commit's two tests come with it; only their
+registration in autotest.bat is merged by hand next to ours.
+---
+ autotest/autotest.bat        |  6 ++++
+ autotest/castoperandtest.cpp | 37 +++++++++++++++++++++++
+ autotest/nestedviccasttest.c | 57 ++++++++++++++++++++++++++++++++++++
+ oscar64/Parser.cpp           |  7 +++--
+ oscar64/Parser.h             |  2 +-
+ 5 files changed, 106 insertions(+), 3 deletions(-)
+ create mode 100644 autotest/castoperandtest.cpp
+ create mode 100644 autotest/nestedviccasttest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 156e77c..c1b80fb 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -312,6 +312,12 @@ rem @echo off
+ @call :test elementforwardwalktest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test nestedviccasttest.c
++@if %errorlevel% neq 0 goto :error
++
++@call :test castoperandtest.cpp
++@if %errorlevel% neq 0 goto :error
++
+ @call :test structarraycopy.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/castoperandtest.cpp b/autotest/castoperandtest.cpp
+new file mode 100644
+index 0000000..646bc95
+--- /dev/null
++++ b/autotest/castoperandtest.cpp
+@@ -0,0 +1,37 @@
++/* Keep expression parsing inside a cast operand's parentheses. */
++#include <assert.h>
++#include <stdint.h>
++
++static unsigned constructorCalls;
++
++struct Number
++{
++	int value;
++
++	Number(int initial) : value(initial)
++	{
++		constructorCalls++;
++	}
++
++	operator int() const
++	{
++		return value;
++	}
++};
++
++int main(void)
++{
++	/* Parsing these parentheses as a declaration breaks the constructor call. */
++	assert((int)(Number(202)) == 202);
++	assert(constructorCalls == 1u);
++	assert((int)(uint16_t(203)) == 203);
++	assert((int)(Number(204).value) == 204);
++	assert(constructorCalls == 2u);
++
++	/* A postfix member access outside the parentheses still belongs to the operand. */
++	assert((int)(Number(205)).value == 205);
++	assert(constructorCalls == 3u);
++	int value = 206;
++	assert((int)(int&)(value) == 206);
++	return 0;
++}
+diff --git a/autotest/nestedviccasttest.c b/autotest/nestedviccasttest.c
+new file mode 100644
+index 0000000..82bb806
+--- /dev/null
++++ b/autotest/nestedviccasttest.c
+@@ -0,0 +1,57 @@
++/* Casts must consume the complete operand, including its postfix operators. */
++#include <assert.h>
++#include <stdint.h>
++#include <c64/vic.h>
++
++struct Positions
++{
++	struct Position
++	{
++		volatile uint8_t x, y;
++	} spr_pos[8];
++};
++
++static __noinline uint8_t readColumn(void)
++{
++	return vic.spr_pos[7].x;
++}
++
++int main(void)
++{
++	const uint8_t spriteIndex = 7u;
++	struct Positions positions;
++	struct Positions *pointer = &positions;
++	uint8_t values[2] = {200u, 201u};
++	uint8_t index = 0u;
++	uint8_t counter = 200u;
++
++	vic.spr_pos[spriteIndex].x = 200u;
++	vic.spr_pos[spriteIndex].y = 201u;
++	const uint16_t column = (uint16_t)vic.spr_pos[spriteIndex].x;
++	const int16_t row = (int16_t)vic.spr_pos[spriteIndex].y;
++	assert(column == 200u);
++	assert(row == 201);
++
++	/* Retain the former workaround as an equivalent syntax control. */
++	assert(column == (uint16_t)(vic.spr_pos[spriteIndex].x));
++	assert(row == (int16_t)(vic.spr_pos[spriteIndex].y));
++
++	positions.spr_pos[spriteIndex].x = 200u;
++	positions.spr_pos[spriteIndex].y = 201u;
++	assert((uint16_t)(positions).spr_pos[spriteIndex].x == 200u);
++	assert((int16_t)(pointer)->spr_pos[spriteIndex].y == 201);
++	assert((uint16_t)(*pointer).spr_pos[spriteIndex].x == 200u);
++	assert((int16_t)((struct Positions *)pointer)->spr_pos[spriteIndex].y == 201);
++
++	/* Indexing, calls and increments bind before the cast as well. */
++	assert((uint16_t)(values)[index++] == 200u);
++	assert(index == 1u);
++	assert((int16_t)(readColumn)() == 200);
++	assert((uint16_t)(counter)++ == 200u);
++	assert(counter == 201u);
++	assert((int16_t)(uint8_t)(counter) == 201);
++	assert((int16_t)-(counter) == -201);
++	assert((int16_t)(index++, counter) == 201);
++	assert(index == 2u);
++	return 0;
++}
+diff --git a/oscar64/Parser.cpp b/oscar64/Parser.cpp
+index cbf7f28..c0a32f2 100644
+--- a/oscar64/Parser.cpp
++++ b/oscar64/Parser.cpp
+@@ -7670,6 +7670,8 @@ Expression* Parser::ParseCastExpression(Expression* exp)
+ 				ConsumeToken(TK_CLOSE_PARENTHESIS);
+ 
+ 				nexp->mLeft = ParseCastExpression(nexp->mLeft);
++				// Complete the operand's postfix operators before applying the cast.
++				nexp->mLeft = ParsePostfixExpression(false, nexp->mLeft);
+ 			}
+ 			else
+ 				nexp->mLeft = ParsePrefixExpression(false);
+@@ -9347,9 +9349,10 @@ Expression* Parser::ParseConstruction(Declaration* type)
+ 	return exp;
+ }
+ 
+-Expression* Parser::ParsePostfixExpression(bool lhs)
++Expression* Parser::ParsePostfixExpression(bool lhs, Expression* exp)
+ {
+-	Expression* exp = ParseSimpleExpression(lhs);
++	if (exp == nullptr)
++		exp = ParseSimpleExpression(lhs);
+ 
+ 	if (exp->mType == EX_LABEL)
+ 		return exp;
+diff --git a/oscar64/Parser.h b/oscar64/Parser.h
+index b73e9cf..2277bd1 100644
+--- a/oscar64/Parser.h
++++ b/oscar64/Parser.h
+@@ -147,7 +147,7 @@ protected:
+ 	Expression* ParseIdentExpression(const Location & eloc, Declaration* dec, bool lhs, bool tid = false);
+ 	Expression* ParseSimpleExpression(bool lhs, bool tid = false);
+ 	Expression* ParsePrefixExpression(bool lhs);
+-	Expression* ParsePostfixExpression(bool lhs);
++	Expression* ParsePostfixExpression(bool lhs, Expression* exp = nullptr);
+ 	Expression* ParseMulExpression(bool lhs);
+ 	Expression* ParseAddExpression(bool lhs);
+ 	Expression* ParseShiftExpression(bool lhs);

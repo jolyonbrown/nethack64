@@ -1,7 +1,7 @@
 From 794954eed10f4dba1d32697c0cdb3ceb6fcd4e72 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 18:33:07 +0000
-Subject: [PATCH 44/44] Test static-stack address forwarding across filename
+Subject: [PATCH 44/47] Test static-stack address forwarding across filename
  branches
 
 Reproduce r50 with fopen-style filename formatting and emulator-safe callees. Keep the conditional buffer index, global pointer result, and following pointer-argument call that expose the stale memory-base tag. Assert the captured filename, returned slot, and global store.

@@ -11,7 +11,8 @@
  * whenever only one operand has a pointer base type, without allowing for a null
  * pointer constant.  On v1.32.273, the pin (42 commits) and upstream main 16acc53.
  * Expect when fixed: compiles, emulation result 0.
- * Workaround: none yet (TASKS T1.37).
+ * Workaround: none in port/; fixed by the ADR-0007 compiler (commits 46-47, Codex's fix
+ * and test, 2026-11-14).
  * FLAGS: -e
  */
 struct s { int x; };

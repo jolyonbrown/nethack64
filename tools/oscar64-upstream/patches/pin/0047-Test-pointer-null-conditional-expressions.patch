@@ -1,0 +1,153 @@
+From 8cd7d988ac8ae06ec8287891543214f88996a50a Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 19:47:26 +0000
+Subject: [PATCH 47/47] Test pointer/null conditional expressions
+
+Exercise both operand orders and runtime outcomes in returns, initializers,
+assignments and arguments, with struct, char, int, qualified and function
+pointers. Cover zero's integer, long, character and arithmetic spellings,
+nested conditionals, pointer-returning calls with side effects, and array
+and function decay.
+
+Use assertions and register the test first in the batch driver. The existing
+makefile wildcard discovers it for all ten native/bytecode configurations.
+
+Written by Codex; checked by Claude.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat          |   3 +
+ autotest/conditionalnulltest.c | 111 +++++++++++++++++++++++++++++++++
+ 2 files changed, 114 insertions(+)
+ create mode 100644 autotest/conditionalnulltest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index c1b80fb..c0d97cc 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test conditionalnulltest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test staticstackaliastest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/conditionalnulltest.c b/autotest/conditionalnulltest.c
+new file mode 100644
+index 0000000..a42e8a0
+--- /dev/null
++++ b/autotest/conditionalnulltest.c
+@@ -0,0 +1,111 @@
++#include <assert.h>
++
++struct item { int value; };
++struct item object = { 17 };
++char character = 'x';
++int integer = 23;
++char characters[2] = "x";
++int integers[1] = { 42 };
++typedef int (*function_pointer)(int);
++
++__noinline int increment(int x) { return x + 1; }
++
++// Volatile conditions and noinline calls exercise both choices at run time.
++volatile int condition;
++
++#define TEST_POINTER(TYPE, NAME, POINTER) \
++__noinline TYPE NAME##_pick(int c, TYPE p) { return c ? p : 0; } \
++__noinline TYPE NAME##_swapped(int c, TYPE p) { return c ? 0 : p; } \
++__noinline void NAME##_argument(TYPE p, TYPE expected) { assert(p == expected); } \
++__noinline void NAME##_test(int c) \
++{ \
++    TYPE p = POINTER; \
++    TYPE expected = c ? p : (TYPE)0; \
++    TYPE reverse = c ? (TYPE)0 : p; \
++    TYPE a = c ? p : 0L; \
++    TYPE b = c ? 0L : p; \
++    assert(a == expected); \
++    assert(b == reverse); \
++    assert(NAME##_pick(c, p) == expected); \
++    assert(NAME##_swapped(c, p) == reverse); \
++    a = c ? p : '\0'; \
++    b = c ? '\0' : p; \
++    assert(a == expected); \
++    assert(b == reverse); \
++    NAME##_argument(c ? p : (1 - 1), expected); \
++    NAME##_argument(c ? (1 - 1) : p, reverse); \
++    assert((c ? p : (void *)0) == expected); \
++    assert((c ? (void *)0 : p) == reverse); \
++}
++
++TEST_POINTER(struct item *, item, &object)
++TEST_POINTER(char *, character, &character)
++TEST_POINTER(int *, integer, &integer)
++TEST_POINTER(const int *, constant, &integer)
++TEST_POINTER(function_pointer, function, increment)
++
++int calls;
++__noinline struct item *get_object(void)
++{
++    ++calls;
++    return &object;
++}
++
++__noinline void test_branches(int c)
++{
++    // Calls force the branch-based conditional path rather than IC_SELECT.
++    struct item *p = c ? get_object() : 0L;
++    assert(p == (c ? &object : (struct item *)0));
++    assert(calls == c);
++    p = c ? '\0' : get_object();
++    assert(p == (c ? (struct item *)0 : &object));
++    assert(calls == 1);
++    calls = 0;
++}
++
++int main(void)
++{
++    int i, j;
++    int *const fixed = &integer;
++    function_pointer fp = increment;
++    for (i = 0; i != 2; ++i)
++    {
++        condition = i;
++        item_test(condition);
++        character_test(condition);
++        integer_test(condition);
++        constant_test(condition);
++        function_test(condition);
++        test_branches(condition);
++        // Arrays and function designators undergo the usual pointer conversion.
++        {
++            char *cp = condition ? characters : 0;
++            int *ip = condition ? 0L : integers;
++            function_pointer f = condition ? &increment : 0;
++            function_pointer g = condition ? 0 : increment;
++            assert(cp == (i ? characters : (char *)0));
++            assert(ip == (i ? (int *)0 : integers));
++            assert(f == (i ? fp : (function_pointer)0));
++            assert(g == (i ? (function_pointer)0 : fp));
++            if (f) assert(f(7) == 8);
++            if (g) assert(g(8) == 9);
++        }
++        assert((condition ? fixed : 0) == (i ? fixed : (int *)0));
++        assert((condition ? 0 : fixed) == (i ? (int *)0 : fixed));
++        for (j = 0; j != 2; ++j)
++        {
++            struct item *p = condition ? (j ? 0 : &object) : 0L;
++            struct item *q = condition ? 0 : (j ? &object : '\0');
++            assert(p == (i && !j ? &object : (struct item *)0));
++            assert(q == (!i && j ? &object : (struct item *)0));
++        }
++    }
++    // Other integer constant expressions must retain their eligibility.
++    assert((condition ? &integer : !1) == &integer);
++    assert((condition ? (!1 + 0) : &integer) == 0);
++    assert((condition ? (int)0.0 : &integer) == 0);
++    assert((condition ? (sizeof(int) - sizeof(int)) : &integer) == 0);
++    fp = condition ? fp : 0;
++    assert(fp(9) == 10);
++    return 0;
++}

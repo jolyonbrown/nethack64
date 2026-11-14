@@ -338,11 +338,12 @@ Add new tasks at the bottom of the right section.
       (also with an explicitly cast null), and taking the address of a scalar `const
       int` is rejected (`build/oscar64-wt/r51-fix/r51-evidence/existing-*`). Reduce, check
       NetHack for the shapes, file as repros.
-- [ ] T1.38 Jolyon: add upstream 160c92b (r1, the cast before `->`: the "Pointer expected"
+- [x] T1.38 Jolyon: add upstream 160c92b (r1, the cast before `->`: the "Pointer expected"
       class) and the r51 fix as commits 45-47? On the decision page since 2026-11-14,
       checked as a stack on top of the 44 commits (`build/oscar64-wt/pin-cast`): C64
       73/108 with 160c92b, 80/108 with both.
-- [ ] T1.37 r51 (OSCAR64-COMPAT.md #53): `c ? p : 0` is rejected ("Incompatible
+      — 2026-11-14: added as commits 45-47 on his go-ahead ("yes, add both to the pin").
+- [x] T1.37 r51 (OSCAR64-COMPAT.md #53): `c ? p : 0` is rejected ("Incompatible
       conditional types"), the null pointer constant not being taken for a pointer; the
       first error of `pray.c`, `muse.c`, `shk.c`, `mon.c`. A compiler fix (Codex, own
       worktree `codex/r51-fix`), then a pin decision for Jolyon; a `port/` workaround

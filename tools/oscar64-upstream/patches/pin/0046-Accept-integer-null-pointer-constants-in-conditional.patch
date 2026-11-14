@@ -1,0 +1,242 @@
+From b24d0c7ff324c57c956cb10ecb6d41d5ca274ef1 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 19:47:26 +0000
+Subject: [PATCH 46/47] Accept integer null pointer constants in conditional
+ expressions
+
+Resolve pointer/zero operands in the parser, before the conditional's type
+is chosen or its condition can be folded away. Convert an integer constant
+expression with value zero to the other operand's pointer type, and apply
+array/function decay when needed. Both existing IR lowering paths then
+receive pointer operands.
+
+Preserve integer-constant-expression provenance through constant folding
+so ordinary and C const variables, floating arithmetic and pointer-to-int
+casts cannot qualify merely because they fold to zero. Reject incompatible
+numeric operands before optimisation can erase them. Fold logical negation
+locally when evaluating a candidate null pointer constant.
+
+Fixes nethack64 repro r51 in both operand orders.
+
+Written by Codex; checked by Claude.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/Declaration.cpp | 57 +++++++++++++++++++++++++++++++++++++--
+ oscar64/Declaration.h   |  3 +++
+ oscar64/Parser.cpp      | 60 +++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 118 insertions(+), 2 deletions(-)
+
+diff --git a/oscar64/Declaration.cpp b/oscar64/Declaration.cpp
+index 240ef94..37ee3e4 100644
+--- a/oscar64/Declaration.cpp
++++ b/oscar64/Declaration.cpp
+@@ -156,7 +156,7 @@ void DeclarationScope::End(const Location& loc)
+ }
+ 
+ Expression::Expression(const Location& loc, ExpressionType type)
+-	:	mLocation(loc), mEndLocation(loc), mType(type), mLeft(nullptr), mRight(nullptr), mConst(false), mDecType(nullptr), mDecValue(nullptr), mToken(TK_NONE), mFlags(0)
++	:	mLocation(loc), mEndLocation(loc), mType(type), mLeft(nullptr), mRight(nullptr), mConst(false), mNonConstExpression(false), mDecType(nullptr), mDecValue(nullptr), mToken(TK_NONE), mFlags(0)
+ {
+ 	static uint32	gUID = 0;
+ 	mUID = gUID++;
+@@ -531,6 +531,7 @@ Expression* Expression::ToVarConst(Declaration* pvar, Declaration* pconst) const
+ 		exp->mDecType = mDecType;
+ 		exp->mDecValue = mDecValue;
+ 		exp->mConst = mConst;
++		exp->mNonConstExpression = mNonConstExpression;
+ 		if (mLeft) exp->mLeft = mLeft->ToVarConst(pvar, pconst);
+ 		if (mRight) exp->mRight = mRight->ToVarConst(pvar, pconst);
+ 		return exp;
+@@ -550,6 +551,7 @@ Expression* Expression::Clone(const Location& loc) const
+ 	exp->mDecType = mDecType;
+ 	exp->mDecValue = mDecValue;
+ 	exp->mConst = mConst;
++	exp->mNonConstExpression = mNonConstExpression;
+ 	if (mLeft) exp->mLeft = mLeft->Clone();
+ 	if (mRight) exp->mRight = mRight->Clone();
+ 	return exp;
+@@ -598,6 +600,7 @@ Expression* Expression::ToAlternateThis(Declaration* pthis, Declaration* nthis)
+ 		nexp->mDecValue = decValue;
+ 		nexp->mToken = mToken;
+ 		nexp->mConst = mConst;
++		nexp->mNonConstExpression = mNonConstExpression;
+ 
+ 		return nexp;
+ 	}
+@@ -639,6 +642,7 @@ Expression* Expression::ConstantDereference(Errors* errors, LinkerSection* dataS
+ 
+ 						ex->mDecValue = mdec;
+ 						ex->mDecType = mDecType;
++						ex->mNonConstExpression = true;
+ 						return ex;
+ 					}
+ 				}
+@@ -710,7 +714,56 @@ static int64 signextend(int64 v, Declaration* type)
+ 	}
+ }
+ 
+-Expression* Expression::ConstantFold(Errors * errors, LinkerSection * dataSection, Linker* linker)
++bool Expression::IsIntegerConstantExpression(void) const
++{
++	if (mNonConstExpression || !mDecType || !mDecType->IsIntegerType())
++		return false;
++
++	switch (mType)
++	{
++	case EX_CONSTANT:
++		return mDecValue->mType == DT_CONST_INTEGER;
++	case EX_PREFIX:
++		if (mToken == TK_SIZEOF)
++			return true;
++		return (mToken == TK_ADD || mToken == TK_SUB || mToken == TK_BINARY_NOT) &&
++			mLeft->IsIntegerConstantExpression();
++	case EX_LOGICAL_NOT:
++		return mLeft->IsIntegerConstantExpression();
++	case EX_TYPECAST:
++		// A floating constant is allowed only as the immediate operand of a cast.
++		return mLeft->IsIntegerConstantExpression() ||
++			(mLeft->mType == EX_CONSTANT && !mLeft->mNonConstExpression &&
++			 mLeft->mDecValue->mType == DT_CONST_FLOAT);
++	case EX_BINARY:
++	case EX_RELATIONAL:
++	case EX_LOGICAL_AND:
++	case EX_LOGICAL_OR:
++		return mLeft->IsIntegerConstantExpression() && mRight->IsIntegerConstantExpression();
++	case EX_CONDITIONAL:
++		return mLeft->IsIntegerConstantExpression() &&
++			mRight->mLeft->IsIntegerConstantExpression() && mRight->mRight->IsIntegerConstantExpression();
++	default:
++		return false;
++	}
++}
++
++Expression* Expression::ConstantFold(Errors* errors, LinkerSection* dataSection, Linker* linker)
++{
++	Expression* exp = ConstantFoldValue(errors, dataSection, linker);
++	// Optimisation can fold variables and floating arithmetic too. Preserve that
++	// distinction when checking for an integer null pointer constant in the parser.
++	if (exp != this && exp->mType == EX_CONSTANT &&
++		(exp->mDecValue->mType == DT_CONST_INTEGER || exp->mDecValue->mType == DT_CONST_FLOAT) &&
++		!IsIntegerConstantExpression())
++	{
++		exp = exp->Clone();
++		exp->mNonConstExpression = true;
++	}
++	return exp;
++}
++
++Expression* Expression::ConstantFoldValue(Errors * errors, LinkerSection * dataSection, Linker* linker)
+ {
+ 	if (mType == EX_PREFIX && mToken == TK_BANKOF && linker)
+ 	{
+diff --git a/oscar64/Declaration.h b/oscar64/Declaration.h
+index 5d5ee47..09fe9f0 100644
+--- a/oscar64/Declaration.h
++++ b/oscar64/Declaration.h
+@@ -282,10 +282,13 @@ public:
+ 	AsmInsType				mAsmInsType;
+ 	AsmInsMode				mAsmInsMode;
+ 	bool					mConst;
++	bool					mNonConstExpression;
+ 	uint8					mFlags;
+ 
+ 	Expression* LogicInvertExpression(void);
+ 	Expression* ConstantFold(Errors * errors, LinkerSection* dataSection, Linker * linker = nullptr);
++	Expression* ConstantFoldValue(Errors* errors, LinkerSection* dataSection, Linker* linker);
++	bool IsIntegerConstantExpression(void) const;
+ 	Expression* ConstantDereference(Errors* errors, LinkerSection* dataSection);
+ 	bool HasSideEffects(void) const;
+ 	Expression* ListAppend(Expression* lexp);
+diff --git a/oscar64/Parser.cpp b/oscar64/Parser.cpp
+index c0a32f2..78bd733 100644
+--- a/oscar64/Parser.cpp
++++ b/oscar64/Parser.cpp
+@@ -7735,6 +7735,8 @@ Expression* Parser::ParseIdentExpression(const Location & eloc, Declaration* dec
+ 				if (dec->mValue->mType == EX_CONSTANT)
+ 				{
+ 					exp = dec->mValue->Clone(eloc);
++					if (!(mCompilerOptions & COPT_CPLUSPLUS))
++						exp->mNonConstExpression = true;
+ 				}
+ 			}
+ 			else if (dec->mBase->mType == DT_TYPE_POINTER)
+@@ -8904,6 +8906,7 @@ Expression* Parser::CoerceExpression(Expression* exp, Declaration* type)
+ 		dec->mInteger = v;
+ 		ex->mDecValue = dec;
+ 		ex->mDecType = type;
++		ex->mNonConstExpression = exp->mNonConstExpression;
+ 		return ex;
+ 	}
+ 
+@@ -10554,6 +10557,29 @@ Expression* Parser::ParseLogicOrExpression(bool lhs)
+ 	return exp;
+ }
+ 
++// The general folder leaves logical negation for code generation. A null
++// pointer constant needs its integer value now, including inside arithmetic.
++static Expression* FoldIntegerConstantExpression(Expression* exp, Errors* errors, LinkerSection* section)
++{
++	if (exp->mType == EX_CONSTANT)
++		return exp;
++
++	exp = exp->Clone();
++	if (exp->mLeft)
++		exp->mLeft = FoldIntegerConstantExpression(exp->mLeft, errors, section);
++	if (exp->mRight)
++		exp->mRight = FoldIntegerConstantExpression(exp->mRight, errors, section);
++	if (exp->mType == EX_LOGICAL_NOT)
++	{
++		exp->mType = EX_RELATIONAL;
++		exp->mToken = TK_EQUAL;
++		exp->mRight = new Expression(exp->mLocation, EX_CONSTANT);
++		exp->mRight->mDecType = TheSignedIntTypeDeclaration;
++		exp->mRight->mDecValue = TheZeroIntegerConstDeclaration;
++	}
++	return exp->ConstantFold(errors, section);
++}
++
+ Expression* Parser::ParseConditionalExpression(bool lhs)
+ {
+ 	Expression* exp = ParseLogicOrExpression(lhs);
+@@ -10569,6 +10595,40 @@ Expression* Parser::ParseConditionalExpression(bool lhs)
+ 		texp->mLeft = ParseLogicOrExpression(false);
+ 		ConsumeToken(TK_COLON);
+ 		texp->mRight = ParseConditionalExpression(false);
++
++		// Resolve pointer/null conditionals before assigning the expression type.
++		// Use the same typed address constant as an explicit pointer cast, so both
++		// conditional code generation paths (select and branches) see pointers.
++		for (int i = 0; i < 2; i++)
++		{
++			Expression*& zexp = i ? texp->mLeft : texp->mRight;
++			Expression*& pexp = i ? texp->mRight : texp->mLeft;
++			Declaration* ptype = pexp->mDecType;
++			if (zexp->mDecType->IsNumericType() &&
++				(ptype->mType == DT_TYPE_ARRAY || ptype->mType == DT_TYPE_FUNCTION))
++			{
++				ptype = (ptype->mType == DT_TYPE_ARRAY ? ptype->mBase : ptype)->BuildPointer(pexp->mLocation);
++				Expression* cexp = new Expression(pexp->mLocation, EX_TYPECAST);
++				cexp->mLeft = pexp;
++				cexp->mDecType = ptype;
++				// Keep decay explicit: a function constant still carries its
++				// function declaration's type when translated to intermediate code.
++				pexp = cexp;
++			}
++			if (ptype->mType == DT_TYPE_POINTER && zexp->IsIntegerConstantExpression())
++				zexp = FoldIntegerConstantExpression(zexp, mErrors, mDataSection);
++			if (zexp->mType == EX_CONSTANT && zexp->IsIntegerConstantExpression() &&
++				zexp->mDecValue->mType == DT_CONST_INTEGER && zexp->mDecValue->mInteger == 0 &&
++				ptype->mType == DT_TYPE_POINTER)
++			{
++				Expression* cexp = new Expression(zexp->mLocation, EX_TYPECAST);
++				cexp->mLeft = zexp;
++				cexp->mDecType = ptype;
++				zexp = cexp->ConstantFold(mErrors, mDataSection);
++			}
++			else if (ptype->mType == DT_TYPE_POINTER && zexp->mDecType->IsNumericType())
++				mErrors->Error(zexp->mLocation, EERR_INCOMPATIBLE_OPERATOR, "Incompatible conditional types");
++		}
+ 		
+ 		texp->mDecType = texp->mLeft->mDecType;
+ 		nexp->mDecType = texp->mLeft->mDecType;

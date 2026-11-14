@@ -439,3 +439,32 @@ The 44-commit pin (r49's and r50's fixes) and T1.35's harness (the generated `mo
   `const union any` assignments 5 (`apply`, `cmd`, `do`, `pager`, `spell`: compat #19);
   `static` where a declaration starts 2 (`version`, `weapon`); one each for `allmain`,
   `mail`, `mkroom`, `options`, `restore`, `shk`, `sp_lev`, `timeout`, `trap`.
+
+## Oscar64 compile status with 47 commits (2026-11-14, later still)
+
+The 47-commit pin: commit 45 backports upstream 160c92b (compat #7, r1: a cast applied
+before its operand's `->`, `.` or `[]`), and commits 46-47 are Codex's fix and test for
+r51 (`c ? p : 0`). Harness and port as for the 44-commit run. Measured with the candidate
+whose tree the patch files reproduce. Data: `docs/data/oscar64-pin47-c64conf-2026-11-14.json`
+and `docs/data/oscar64-pin47-baseline-2026-11-14.json`.
+
+| Result | UNIX config | C64 config |
+|---|---|---|
+| compile through to placement | 67 (461,311 B) | **80 (522,868 B)** |
+| of which place no code | 3 | 3 |
+| stop on a compile error | 41 | 28 |
+| crash the compiler | 0 | 0 |
+
+- **New with 160c92b** (both configurations): `display.c` (16,933 B), `dothrow.c`
+  (10,763 B), `mthrowu.c` (9,822 B), `region.c` (6,030 B), `priest.c` (5,742 B).
+- **New with the r51 fix** (both): `mhitu.c` (21,953 B), `muse.c` (19,861 B), `polyself.c`
+  (9,636 B), `pray.c` (8,825 B), `dog.c` (7,147 B), `rect.c` (1,496 B), `track.c` (337 B).
+- Every file that compiled with 44 commits gives an identical listing, intermediate code
+  and map.
+- **What stops the 28 C64 files** (first error only): incompatible assignments 9 (`apply`,
+  `artifact`, `cmd`, `do`, `dungeon`, `pager`, `pickup`, `spell`, `zap`; most of them
+  compat #19's `const union any`); "Incompatible pointer types" 7 (`dig`, `do_wear`, `eat`,
+  `invent`, `lock`, `objnam`, `windows`; r16 in two, T1.14); "Incompatible conditional
+  types" 2 (`mon`, `timeout`); `static` where a declaration starts 2 (`version`,
+  `weapon`); one each for `allmain`, `mail`, `mkroom`, `options`, `restore`, `shk`,
+  `sp_lev`, `trap`.
