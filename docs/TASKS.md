@@ -263,6 +263,11 @@ Add new tasks at the bottom of the right section.
       (ours first; upstream when PRs resume), and search NetHack for the shape with an
       instrumented build, as for r36. Until then: the repro's workarounds. Then decide
       r37+r44 (T1.25).
+- [ ] T1.27 r46 (OSCAR64-COMPAT.md #48): a pointer argument kept in a parameter
+      register is reused after a call whose callee advanced it through its address
+      (`sscanf` then `strcmp` with the same literal; native code at `-Os` only, on
+      v1.32.273, the pin and main). Found by Codex reviewing r42. Find the cause and
+      search NetHack for callees that advance a pointer parameter through its address.
 
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 
