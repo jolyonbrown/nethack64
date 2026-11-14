@@ -1,7 +1,8 @@
 # ADR-0007: Build with Oscar64 v1.32.273 plus wrong-code fixes
 
 - Status: accepted by Jolyon on 2026-11-12, on the decision page; used by the build since
-  2026-11-13; twenty more commits added on 2026-11-13 and four on 2026-11-14 (Jolyon, decision page)
+  2026-11-13; twenty more commits added on 2026-11-13 and ten on 2026-11-14 (24 chosen by
+  Jolyon on the decision page; the last six by Claude, under Jolyon's go-ahead of 2026-11-14 ("You go ahead ... push what you need"))
 - Date: 2026-11-12 (proposed and accepted); commit ids final 2026-11-13
 - Deciders: Jolyon (+ Claude, who proposed it)
 
@@ -107,6 +108,15 @@ byte-identical. r43's test fails without the fix in four native configurations a
 all ten with it (Codex; re-run here). r37 and r44 went back to Jolyon: the `-O0` probe they
 were waiting on is r45 (T1.26), a wrong-code bug that commit 3 exposes at `-O2`/`-Os`/`-O3`.
 
+Added on 2026-11-14 by Claude, under Jolyon's go-ahead of 2026-11-14 ("You go ahead ... push what you need"): commits 33 to 38, on bea5242:
+
+33. `360acd3` r45 (found by Codex): `MoveCLCLoadAddZPStoreUp` also checks that nothing it
+   moves an add past writes its destination, and 34. `2451a2c` its test (Codex);
+35. `6bcee1a` r37 and 36. `55bad7e` its test; 37. `3a1fe75` r44 and 38. `f21d475` its test.
+
+r45's fix goes first: with r44's alone the r45 probe turns wrong at `-O0` too; with all three
+it gives 0 in all ten configurations.
+
 `tools/oscar64-upstream/build-pin.sh [DIR]` builds it (`JOBS=N` for `make -jN`). Since
 2026-11-13 the setup scripts (`tools/setup-ubuntu.sh`, `tools/setup-arch.sh`) build the
 release and then this compiler, link this one as `oscar64` (the Makefile takes it from
@@ -121,10 +131,10 @@ checks, and its `-Os` size is understood.
 - The six fixed rows above stop being "must be settled before game code runs" once
   the build uses the pin; r18-r23 and r25 pass, and so does r26 (commit 8). r24 stays
   open (T1.15).
-- We carry a patch stack until upstream releases: of the 32 commits, five are upstream's
+- We carry a patch stack until upstream releases: of the 38 commits, five are upstream's
   (1169268, bf42402, 1ae3216, 3bb084f, 1073206), two backport upstream fixes (fbca293 and the
-  CoerceType hunk of 57655c5), two are tests for upstream fixes, and twenty-three are ours
-  (one test written by Codex). Most of ours have an upstream form as a
+  CoerceType hunk of 57655c5), two are tests for upstream fixes, and twenty-nine are ours
+  (r45's fix and two tests written by Codex). Most of ours have an upstream form as a
   draft PR in the fork or a local branch on main, on hold (OSCAR64-UPSTREAM.md; nothing
   sent yet), so the stack should shrink. Once
   the build switches, anyone building must run the setup script (or `build-pin.sh`); a
@@ -171,7 +181,7 @@ Upstream main has the same problem. Until it is fixed, the choice is between:
 
 ```sh
 JOBS=2 tools/oscar64-upstream/build-pin.sh /tmp/pin    # v1.32.273 + patches/pin
-make repros OSCAR64=/tmp/pin/bin/oscar64               # 21 of 46 FIXED (run.py caps each compile)
+make repros OSCAR64=/tmp/pin/bin/oscar64               # 24 of 46 FIXED (run.py caps each compile)
 (ulimit -v 3000000; make -k -j2 -C /tmp/pin/make check)  # Oscar64's own autotest
 (ulimit -v 3000000; python3 tools/oscar64-upstream/corpus_diff.py ~/src/oscar64/bin/oscar64 /tmp/pin/bin/oscar64 -j 2 --out /tmp/pin-corpus)
 make OSCAR64=/tmp/pin/bin/oscar64 && make prg OSCAR64=/tmp/pin/bin/oscar64 && make test OSCAR64=/tmp/pin/bin/oscar64
@@ -273,3 +283,21 @@ Results 2026-11-14 (32 commits, tip bea5242; the patch files give tree 8c07cca, 
 - NetHack harness: C64 45 of 107 files measured, 256,352 bytes; UNIX 40, 245,965. One file
   changes in both: `vision.c` +3 bytes, `vision_reset()`'s masks (reviewed above). Under the
   0xA5 heap fill the C64 listings are still identical.
+
+Results 2026-11-14 (38 commits, tip f21d475; the patch files give tree b16b95d, the branch's):
+
+- Oscar64 autotest: 1,381 emulations, all result 0 (the 30 more are the three new tests).
+- `corpus_diff.py` bea5242 against f21d475: 188 files x 5 configurations, 859 compiled by
+  both, 830 byte-identical. The 29 that differ are repros r37, r44, r45 and their three
+  tests (4 configurations each) and five autotest programs at `-n -O0`, where r44's fix
+  changes code; all five pass. No compile status changed.
+- Repros: 24 of 46 pass (r37, r44, r45 added). The probe behind T1.23's `-O0` worry gives 0
+  in all ten.
+- nethack64: `nethack-ef.crt` and `nethack.prg` byte-identical to the 32-commit build's;
+  `make test` 5/5 passed.
+- NetHack harness: C64 45 of 107 files measured, 256,360 bytes; UNIX 40, 245,972. Four
+  functions change, all r44's: `make_hallucinated()` (`potion.c`, +3; it now tests the copy,
+  as written), `rigid_role_checks()` (`role.c`, +4; right before and after), and in the C64
+  run `getrumor()` (`rumors.c`, +1), which keeps a copy of a value instead of reading the
+  global behind `strcat()` again: a harness stub returns that global, and nothing changes it,
+  so both versions are right. Under the 0xA5 heap fill the listings are still identical.

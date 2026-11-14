@@ -1,7 +1,7 @@
 From 66bd3eb62335b028f038366bccee447642bc0d5c Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 20:02:27 +0000
-Subject: [PATCH 13/32] Fix value range of a scaled index after folding its
+Subject: [PATCH 13/38] Fix value range of a scaled index after folding its
  constant into the address
 
 PeepholeReplaceOptimization rewrites

@@ -1,0 +1,39 @@
+From 360acd35a55d89f7ce3b29d885d079ed13c0a54c Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 00:17:53 +0000
+Subject: [PATCH 33/38] Keep the sum's destination when hoisting an add across
+ a call
+
+MoveCLCLoadAddZPStoreUp moves "CLC; LDA zp1; ADC zp2; STA zp3" up to where
+its operands were last written.  It checked that the instructions it moves
+past do not read zp3 (UsesZeroPage), but not that they do not write it: a
+JSR to a callee that loads its stack parameter into the accumulator
+registers overwrites a sum hoisted into $1b, and RemoveUnusedResultInstructions
+then deletes the sum and its loads.  A char result built from two values
+read before a call to an address-taken function came back as whatever the
+callee left in $1b (nethack64 repro r45; upstream bf42402 exposes it, by
+no longer taking such a callee's parameters as constants).  Check
+ReferencesZeroPage, which covers both.
+
+Found by Codex; checked by Claude.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/NativeCodeGenerator.cpp | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 527f32d..08a31a7 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -44665,7 +44665,9 @@ bool NativeCodeBasicBlock::MoveCLCLoadAddZPStoreUp(int at)
+ 			return false;
+ 		if (mIns[j].ChangesZeroPage(mIns[at + 2].mAddress))
+ 			return false;
+-		if (mIns[j].UsesZeroPage(mIns[at + 3].mAddress))
++		// The hoisted result must survive until the original store, including
++		// calls that clobber its destination without reading it.
++		if (mIns[j].ReferencesZeroPage(mIns[at + 3].mAddress))
+ 			return false;
+ 		if ((mIns[at + 2].mLive & LIVE_CPU_REG_C) && mIns[j].ChangesCarry())
+ 			return false;

@@ -1,0 +1,149 @@
+From 2451a2ceaa6511b3f16a93d156efe66b8f99bbbf Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 00:28:06 +0000
+Subject: [PATCH 34/38] autotest: byte sums returned after calls with stack
+ parameters
+
+Regression test for the previous commit (r45): the sum of two bytes read
+before a direct call to an address-taken function, in both operand orders,
+signed and int results, the sum stored to a global, a call through the
+pointer, callees with no parameter or no store, one operand returned,
+runtime indices and byte wraparound.  Without the fix it fails in native
+code at every level.  Written by Codex and checked by Claude.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat      |   3 +
+ autotest/callcharsumtest.c | 109 +++++++++++++++++++++++++++++++++++++
+ 2 files changed, 112 insertions(+)
+ create mode 100644 autotest/callcharsumtest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index ac04558..7f81416 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -387,6 +387,9 @@ rem @echo off
+ @call :test looppointeraddresstest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test callcharsumtest.c
++@if %errorlevel% neq 0 goto :error
++
+ @exit /b 0
+ 
+ :error
+diff --git a/autotest/callcharsumtest.c b/autotest/callcharsumtest.c
+new file mode 100644
+index 0000000..3e90c5a
+--- /dev/null
++++ b/autotest/callcharsumtest.c
+@@ -0,0 +1,109 @@
++// Hoisting a byte sum across a call must preserve its destination as well
++// as its operands.  A stack-parameter callee uses the return register as
++// scratch space, even when it neither returns nor consumes a value there.
++#include <assert.h>
++
++char ga[4] = {1, 2, 3, 4};
++char t[2];
++void (*fp)(char *);
++char result;
++volatile char index;
++
++__noinline void bump(char *p) { p[0] += 100; }
++__noinline void empty(char *p) { }
++__noinline void noparam(void) { t[0] += 100; }
++
++__noinline char sum(char k)
++{
++	char x = ga[1], y = ga[k];
++	bump(t);
++	return x + y;
++}
++
++__noinline char reversed(char k)
++{
++	char x = ga[1], y = ga[k];
++	bump(t);
++	return y + x;
++}
++
++__noinline signed char signed_sum(char k)
++{
++	signed char x = ga[1], y = ga[k];
++	bump(t);
++	return x + y;
++}
++
++__noinline int wide_sum(char k)
++{
++	char x = ga[1], y = ga[k];
++	bump(t);
++	return x + y;
++}
++
++__noinline void stored_sum(char k)
++{
++	char x = ga[1], y = ga[k];
++	bump(t);
++	result = x + y;
++}
++
++__noinline char indirect_sum(char k)
++{
++	char x = ga[1], y = ga[k];
++	fp(t);
++	return x + y;
++}
++
++__noinline char empty_sum(char k)
++{
++	char x = ga[1], y = ga[k];
++	empty(t);
++	return x + y;
++}
++
++__noinline char noparam_sum(char k)
++{
++	char x = ga[1], y = ga[k];
++	noparam();
++	return x + y;
++}
++
++__noinline char single(char k)
++{
++	char x = ga[k];
++	bump(t);
++	return x;
++}
++
++int main(void)
++{
++	fp = bump;
++	fp(t);
++	assert(sum(0) == 3);
++	for (char i = 0; i < 4; i++)
++	{
++		index = i;
++		char k = index;
++		assert(sum(k) == i + 3);
++		assert(reversed(k) == i + 3);
++		assert(signed_sum(k) == i + 3);
++		assert(wide_sum(k) == i + 3);
++		stored_sum(k);
++		assert(result == i + 3);
++		assert(indirect_sum(k) == i + 3);
++		assert(empty_sum(k) == i + 3);
++		assert(noparam_sum(k) == i + 3);
++		assert(single(k) == i + 1);
++	}
++	ga[0] = 255;
++	assert(sum(0) == 1);
++	assert(reversed(0) == 1);
++	assert(wide_sum(0) == 257);
++	ga[0] = 10;
++	ga[1] = 20;
++	assert(sum(0) == 30);
++	assert(reversed(0) == 30);
++	assert(signed_sum(0) == 30);
++	return 0;
++}

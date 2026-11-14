@@ -1,0 +1,74 @@
+From 6bcee1a5028f55f3e19cd91a90bedadb38c395dd Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 04:04:25 +0000
+Subject: [PATCH 35/38] Fix forwarding of a global load past a call that
+ overwrites the register
+
+The peephole optimiser replaces reads of a zero page register by reads
+of the global it was loaded from or stored to (LDA abs; STA zp and
+STA zp; STA abs), walking forward from the store with
+CheckSingleUseGlobalLoad and rewriting with PatchSingleUseGlobalLoad.
+At a JSR the check continues when the callee is known not to store to
+globals and does not use the register as a parameter or temporary. It
+never asked whether the call changes the register: the branch that
+tests ChangesZeroPage(reg) comes after the JSR branch and is not reached
+for a call. PatchSingleUseGlobalLoad has no notion of calls at all.
+
+With the register in ACCU, where every call leaves its result, the walk
+went past the call and the read of the result's low byte behind it was
+rewritten into a read of the global:
+
+	char t[2]; unsigned r = 0;
+	...
+	t[0] = arr[k + 1];
+	return r + t[0] + use(t);
+
+compiled to r + t[0] + t[0] plus the high byte of use()'s result at
+every native optimisation level above -O0. The byte had passed through
+ACCU on its way into t[0], r + t[0] was added up before the call, and
+liveness keeps ACCU alive across a call.
+
+Both walks now end at a call for which ChangesZeroPage(reg) holds, the
+way they end at a store to the register: the reads in front of the call
+are still forwarded, the ones behind it are left alone.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/NativeCodeGenerator.cpp | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 08a31a7..7b070bb 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -34485,6 +34485,21 @@ bool NativeCodeBasicBlock::CheckSingleUseGlobalLoad(const NativeCodeBasicBlock*
+ 				}
+ 				else
+ 					return false;
++
++				// The call does not disturb the global, but it may overwrite the
++				// zero page register itself (its result in ACCU, its scratch in
++				// WORK, ADDR and the caller saved temporaries).  The value in reg
++				// ends here, as it does at a store: a read of reg behind the call
++				// sees the value the call left there and must not be patched.
++				if (ins.ChangesZeroPage(reg))
++				{
++					if (mTrueJump && !mTrueJump->CheckPatchFailReg(block, reg))
++						return false;
++					if (mFalseJump && !mFalseJump->CheckPatchFailReg(block, reg))
++						return false;
++
++					return true;
++				}
+ 			}
+ 			else if (ains.mMode == ASMIM_ABSOLUTE_X && ins.ChangesXReg())
+ 				return false;
+@@ -34582,6 +34597,8 @@ bool NativeCodeBasicBlock::PatchSingleUseGlobalLoad(const NativeCodeBasicBlock*
+ 				else
+ 					return changed;
+ 			}
++			else if (ins.mType == ASMIT_JSR && ins.ChangesZeroPage(reg))
++				return changed;
+ 
+ 			if (ains.mMode == ASMIM_ABSOLUTE_X)
+ 				ins.mLive |= LIVE_CPU_REG_X;

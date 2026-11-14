@@ -1,0 +1,243 @@
+From 55bad7efad52447f37101dc9c819999d293d343e Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 04:39:14 +0000
+Subject: [PATCH 36/38] autotest: results of calls behind a forwarded global
+ load
+
+callresultforwardtest.c stores a byte to a local or a global while it
+is still in ACCU, uses it once more before a call, and then reads the
+result of the call.  Without the previous commit the read of the
+result's low byte is replaced by a load of the stored byte in native
+code, and the asserts fail at every optimization level; fxor fails
+at -O0 as well.  fxor and fsub also fail with upstream main 4da3147.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat            |   3 +
+ autotest/callresultforwardtest.c | 203 +++++++++++++++++++++++++++++++
+ 2 files changed, 206 insertions(+)
+ create mode 100644 autotest/callresultforwardtest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 7f81416..c453a08 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -267,6 +267,9 @@ rem @echo off
+ @call :test loopconditionpathtest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test callresultforwardtest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test funcvartest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/callresultforwardtest.c b/autotest/callresultforwardtest.c
+new file mode 100644
+index 0000000..b0f9f7f
+--- /dev/null
++++ b/autotest/callresultforwardtest.c
+@@ -0,0 +1,203 @@
++#include <assert.h>
++
++// A byte that is stored to a global or a local and still held in a zero
++// page register may be read from the global instead (single use global
++// load forwarding).  A call ends that: when the register is ACCU, the
++// read behind the call is the low byte of the call's result.
++
++char arr[8] = {10, 20, 30, 40, 50, 60, 70, 80};
++char fl;
++char gt[2];
++unsigned gacc;
++
++struct S
++{
++	char a, b;
++};
++
++__noinline unsigned use(char * q)
++{
++	return q[0] + q[1];
++}
++
++__noinline unsigned use1(char * q)
++{
++	return q[0] + 1;
++}
++
++__noinline unsigned guse(void)
++{
++	return gt[0] + gt[1];
++}
++
++// Local array: r + t[0] is added up before the second call
++
++__noinline unsigned farray(char k)
++{
++	char t[2];
++	unsigned r = 0;
++
++	t[1] = 1;
++	t[0] = arr[k];
++	if (!fl)
++		r += use(t);
++	t[0] = arr[k + 1];
++	return r + t[0] + use(t);
++}
++
++// The same in two statements
++
++__noinline unsigned fstmt(char k)
++{
++	char t[2];
++	unsigned r = 0;
++
++	t[1] = 1;
++	t[0] = arr[k];
++	if (!fl)
++		r += use(t);
++	t[0] = arr[k + 1];
++	r += t[0];
++	return r + use(t);
++}
++
++// Scalar local
++
++__noinline unsigned fscalar(char k)
++{
++	char t;
++	unsigned r = 0;
++
++	t = arr[k];
++	if (!fl)
++		r += use1(&t);
++	t = arr[k + 1];
++	return r + t + use1(&t);
++}
++
++// Struct local
++
++__noinline unsigned fstruct(char k)
++{
++	struct S s;
++	unsigned r = 0;
++
++	s.b = 1;
++	s.a = arr[k];
++	if (!fl)
++		r += use(&s.a);
++	s.a = arr[k + 1];
++	return r + s.a + use(&s.a);
++}
++
++// Global array, callee without parameters reading the global
++
++__noinline unsigned fglobal(char k)
++{
++	unsigned r = 0;
++
++	gt[1] = 1;
++	gt[0] = arr[k];
++	if (!fl)
++		r += guse();
++	gt[0] = arr[k + 1];
++	return r + gt[0] + guse();
++}
++
++// Not __noinline
++
++unsigned finline(char k)
++{
++	char t[2];
++	unsigned r = 0;
++
++	t[1] = 1;
++	t[0] = arr[k];
++	if (!fl)
++		r += use(t);
++	t[0] = arr[k + 1];
++	return r + t[0] + use(t);
++}
++
++// The accumulator is needed for the other operand, so the element is
++// read back from the register for the sum: wrong without optimization
++// as well
++
++__noinline unsigned fxor(char k)
++{
++	char t[2];
++	unsigned r = 0;
++
++	t[1] = 1;
++	t[0] = arr[k];
++	if (!fl)
++		r += use(t);
++	t[0] = arr[k + 1];
++	gacc = (r ^ 0x55) + t[0];
++	return gacc + use(t);
++}
++
++// Subtraction of the element
++
++__noinline unsigned fsub(char k)
++{
++	char t[2];
++	unsigned r = 0;
++
++	t[1] = 1;
++	t[0] = arr[k];
++	if (!fl)
++		r += use(t);
++	t[0] = arr[k + 1];
++	gacc = r - t[0];
++	return gacc + use(t);
++}
++
++// Another store between the element and the sum
++
++__noinline unsigned fstore(char k)
++{
++	char t[2];
++	unsigned r = 0;
++
++	t[1] = 1;
++	t[0] = arr[k];
++	if (!fl)
++		r += use(t);
++	t[0] = arr[k + 1];
++	gt[0] = 5;
++	gacc = r + t[0];
++	return gacc + use(t);
++}
++
++#define CHECK(f) \
++	fl = 0; \
++	assert(f(0) == 11 + 20 + 21); \
++	assert(f(2) == 31 + 40 + 41); \
++	fl = 1; \
++	assert(f(0) == 20 + 21); \
++	assert(f(1) == 30 + 31);
++
++int main(void)
++{
++	CHECK(farray)
++	CHECK(fstmt)
++	CHECK(fscalar)
++	CHECK(fstruct)
++	CHECK(fglobal)
++	CHECK(finline)
++	CHECK(fstore)
++
++	fl = 0;
++	assert(fxor(0) == (11 ^ 0x55) + 20 + 21);
++	assert(fxor(2) == (31 ^ 0x55) + 40 + 41);
++	assert(fsub(0) == 11 - 20 + 21);
++	assert(fsub(2) == 31 - 40 + 41);
++	fl = 1;
++	assert(fxor(0) == 0x55 + 20 + 21);
++	assert(fxor(1) == 0x55 + 30 + 31);
++	assert(fsub(0) == 0 - 20 + 21);
++	assert(fsub(1) == 0 - 30 + 31);
++
++	return 0;
++}

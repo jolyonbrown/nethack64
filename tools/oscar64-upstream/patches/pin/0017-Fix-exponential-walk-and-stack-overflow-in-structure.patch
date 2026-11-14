@@ -1,7 +1,7 @@
 From 870ac02579b07e4056f70545927f9922211d03e7 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 19:50:14 +0000
-Subject: [PATCH 17/32] Fix exponential walk and stack overflow in structure
+Subject: [PATCH 17/38] Fix exponential walk and stack overflow in structure
  copy forwarding check
 
 CheckSingleUseGlobalLoadStruct (can a load be forwarded to the uses of

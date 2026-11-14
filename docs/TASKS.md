@@ -220,7 +220,7 @@ Add new tasks at the bottom of the right section.
       — 2026-11-13 Claude: r36, r40 and r41 are in the pin (commits 24-28); r42 and r43
       joined on 2026-11-14 (commits 29-32). Still open: signed narrowing (no repro yet)
       and full autotests of the main builds.
-- [ ] T1.23 r37 and its sibling (OSCAR64-COMPAT.md #39, #46; r37, r44). r37: the native
+- [x] T1.23 r37 and its sibling (OSCAR64-COMPAT.md #39, #46; r37, r44). r37: the native
       peephole pass forwards a stored byte past a call that overwrites the register it
       came from, so the low byte of the call's result is read from the stored byte
       (v1.32.273, the pin and main). No NetHack site in the files that reach code
@@ -237,14 +237,16 @@ Add new tasks at the bottom of the right section.
       (8890301, cf8dd6f; autotest 1,261, none failing; verified by a second agent).
       Not covered: calls through a function pointer (`JSR bcexec`); with the fix one
       probe turns wrong at `-O0`: that is r45 (T1.26), which the pin already gets wrong
-      at `-O2`/`-Os`/`-O3`.
+      at `-O2`/`-Os`/`-O3`. — 2026-11-14 Claude, under Jolyon's go-ahead: in the pin as
+      commits 35-38, after r45's fix (33, 34); together the `-O0` probe gives 0 in all ten.
+      The main-branch form (`scratch/r37-fix-main`) waits with the other PRs (T1.9).
 - [ ] T1.24 Wrong code at the default optimisation level only, native code (mutual
       recursion; a local's address passed on is taken at the wrong stack offset): on
       v1.32.273, the pin and main; right at `-O0`, `-O2`, `-Os`, `-O3`, so nethack64's
       `-Os` build is not affected as tested. Unreduced:
       `tools/oscar64-upstream/cases/default_level_mutual_recursion_local_address.c`.
       Reduce, find the cause, report upstream when PRs resume.
-- [ ] T1.25 Decide what joins the pin (Jolyon, on the decision page; each then goes
+- [x] T1.25 Decide what joins the pin (Jolyon, on the decision page; each then goes
       through ADR-0007's checks and a new patch export). — 2026-11-13 Jolyon: "Add" on
       ten rows; Claude: they are commits 9-28 of the pin (ADR-0007): the six candidates
       (`nethack64/pin-1ae3216`, `pin-shknam-crash`, `pin-makemon-hang`, `pin-charidx`,
@@ -253,9 +255,11 @@ Add new tasks at the bottom of the right section.
       upstream's c5ac062 without our trailer, b52c9fe and 8286734 corrected. Five of the
       first eight patches keep their session links: rewording them would change every
       commit id from commit 2 on. r42 and r43 joined on 2026-11-14 as commits 29-32, once
-      their reviews were done (ADR-0007). r37+r44 goes back to Jolyon: the `-O0` probe it was
-      waiting on is r45 (T1.26), which the pin already has at `-Os`.
-- [ ] T1.26 r45 (OSCAR64-COMPAT.md #47): a `char` result made from two values read
+      their reviews were done (ADR-0007). r37+r44 went back to Jolyon (its `-O0` probe was r45,
+      T1.26); on 2026-11-14 Claude added r45's fix with r37+r44 as commits 33-38, under
+      Jolyon's go-ahead ("You go ahead ... push what you need"). No candidate is left;
+      new ones get tasks of their own.
+- [x] T1.26 r45 (OSCAR64-COMPAT.md #47): a `char` result made from two values read
       before a direct call to an address-taken function is never computed (native code;
       the pin and main at the default level, `-O2`, `-Os` and `-O3`; v1.32.273 at the
       default level only). The pin's commit 3, upstream bf42402 (the r25 fix), exposes
@@ -267,7 +271,7 @@ Add new tasks at the bottom of the right section.
       `MoveCLCLoadAddZPStoreUp` moves an add and its store into `$1b` above a call that
       writes `$1b`. Fix and autotest on `codex/r45-fix` (e8207f5, b7d5ea1): 0 in all ten,
       autotest 1,351 with no failure; no NetHack site in the 45 files that compile.
-      Waiting for Jolyon on the decision page, with r37+r44.
+      In the pin as commits 33-34 (2026-11-14), with r37+r44 (T1.25).
 - [ ] T1.27 r46 (OSCAR64-COMPAT.md #48): a pointer argument kept in a parameter
       register is reused after a call whose callee advanced it through its address
       (`sscanf` then `strcmp` with the same literal; native code at `-Os` only, on

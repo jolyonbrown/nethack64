@@ -1,7 +1,7 @@
 From a2a42f8f0fa7747ca51e9e0788ac77a2e2cce00a Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 13 Nov 2026 04:41:27 +0000
-Subject: [PATCH 25/32] Fix native loop invariant store moved in front of a
+Subject: [PATCH 25/38] Fix native loop invariant store moved in front of a
  loop that reads the old value
 
 OptimizeSimpleLoopInvariant moves "LDA #c; STA zp" and "LDA zp1; STA zp2"

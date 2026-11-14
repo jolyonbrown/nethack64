@@ -1,0 +1,243 @@
+From f21d47526c640aabc95d0eefdbdb5cc1e4e1860f Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 08:39:40 +0000
+Subject: [PATCH 38/38] autotest: globals re-read behind a call that stores
+ through a pointer
+
+globalloadpointerstoretest.c takes a copy of a global (char, int, struct
+members, array element, zero page variable, element of a local array),
+calls a function that changes the global through a pointer, and uses
+the copy afterwards. Every callee has two different call sites, so that
+its pointer stays a parameter. Without the previous commit the copy is
+read from the global again behind the call in native code, and the
+asserts fail at every optimization level, also with upstream main
+4da3147. fpeek checks that a callee that only reads is still fine.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat                 |   3 +
+ autotest/globalloadpointerstoretest.c | 201 ++++++++++++++++++++++++++
+ 2 files changed, 204 insertions(+)
+ create mode 100644 autotest/globalloadpointerstoretest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index c453a08..82dc8b0 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -270,6 +270,9 @@ rem @echo off
+ @call :test callresultforwardtest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test globalloadpointerstoretest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test funcvartest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/globalloadpointerstoretest.c b/autotest/globalloadpointerstoretest.c
+new file mode 100644
+index 0000000..5d785e3
+--- /dev/null
++++ b/autotest/globalloadpointerstoretest.c
+@@ -0,0 +1,201 @@
++#include <assert.h>
++
++// A byte loaded from a global into a zero page register may be read from
++// the global again later (single use global load forwarding), also behind
++// a call to a function that stores to no global.  A function that stores
++// through a pointer is not such a function: the pointer may be the address
++// of the very global.  Every callee here has two different call sites, so
++// that its pointer stays a parameter.
++
++struct Pos
++{
++	char x, y;
++	int	hp;
++};
++
++char gc = 5, gd = 7;
++int gi = 500, gj = 700;
++struct Pos gp = {5, 6, 20}, gq = {1, 2, 3};
++char garr[4] = {10, 20, 30, 40};
++char * gptr = &gd;
++__zeropage char gz;
++
++__noinline void bump(char * p)
++{
++	p[0] += 100;
++}
++
++__noinline void ibump(int * p)
++{
++	p[0] += 1000;
++}
++
++__noinline void move(struct Pos * p)
++{
++	p->x++;
++	p->hp -= 3;
++}
++
++__noinline void bump2(char * p)
++{
++	bump(p);
++	bump(p);
++}
++
++__noinline void pbump(void)
++{
++	*gptr += 100;
++}
++
++__noinline char peek(const char * p)
++{
++	return p[0];
++}
++
++// Old value alone
++
++__noinline char fold(void)
++{
++	char x = gc;
++
++	bump(&gc);
++	return x;
++}
++
++// Old value compared with the new one
++
++__noinline bool fcmp(void)
++{
++	char x = gc;
++
++	bump(&gc);
++	return x != gc;
++}
++
++// Old value used twice, then the new one
++
++__noinline unsigned fsum(void)
++{
++	char x = garr[1];
++
++	bump(garr + 1);
++	return x * 3 + garr[1];
++}
++
++// Both bytes of an int
++
++__noinline long fint(void)
++{
++	int x = gi;
++
++	ibump(&gi);
++	return (long)x * 3 + gi;
++}
++
++// Members of a global struct
++
++__noinline char fstruct(void)
++{
++	char ox = gp.x;
++	int ohp = gp.hp;
++
++	move(&gp);
++	return (ox == gp.x ? 1 : 0) | (ohp == gp.hp ? 2 : 0);
++}
++
++// Element of a local array that has a fixed address
++
++__noinline unsigned flocal(char k)
++{
++	char t[2];
++	char x;
++
++	t[1] = 1;
++	t[0] = garr[k];
++	x = t[0];
++	bump(t);
++	return x * 3 + t[0];
++}
++
++// The store is two calls down
++
++__noinline unsigned fdeep(void)
++{
++	char x = gd;
++
++	bump2(&gd);
++	return x * 3 + gd;
++}
++
++// The callee gets its pointer from a global
++
++__noinline unsigned fgptr(void)
++{
++	char x = gc;
++
++	pbump();
++	return x * 3 + gc;
++}
++
++// Zero page global
++
++__noinline unsigned fzero(void)
++{
++	char x = gz;
++
++	bump(&gz);
++	return x * 3 + gz;
++}
++
++// A callee that only reads through its pointer
++
++__noinline unsigned fpeek(void)
++{
++	char x = gc;
++
++	return x * 3 + peek(&gc) + gc;
++}
++
++int main(void)
++{
++	char t = 1;
++
++	bump(&t);
++	ibump(&gj);
++	move(&gq);
++	bump2(&t);
++	pbump();
++	assert(t == 45 && gj == 1700 && gq.x == 2 && gq.hp == 0 && gd == 107);
++	assert(peek(&t) == 45);
++
++	assert(fold() == 5);
++	assert(gc == 105);
++	gc = 5;
++	assert(fcmp());
++	assert(gc == 105);
++
++	assert(fsum() == 20 * 3 + 120);
++
++	assert(fint() == 500l * 3 + 1500);
++
++	assert(fstruct() == 0);
++	assert(gp.x == 6 && gp.hp == 17);
++
++	assert(flocal(0) == 10 * 3 + 110);
++	assert(flocal(2) == 30 * 3 + 130);
++
++	gd = 7;
++	assert(fdeep() == 7 * 3 + 207);
++
++	gc = 5;
++	gptr = &gc;
++	assert(fgptr() == 5 * 3 + 105);
++
++	gz = 5;
++	assert(fzero() == 5 * 3 + 105);
++
++	gc = 5;
++	assert(fpeek() == 5 * 3 + 5 + 5);
++
++	return 0;
++}

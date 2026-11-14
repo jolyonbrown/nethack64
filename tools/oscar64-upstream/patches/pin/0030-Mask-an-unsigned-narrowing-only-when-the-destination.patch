@@ -1,7 +1,7 @@
 From fb650c5170266cf28b2bcabc7d307f8b826b3ce5 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 13 Nov 2026 09:57:34 +0000
-Subject: [PATCH 30/32] Mask an unsigned narrowing only when the destination is
+Subject: [PATCH 30/38] Mask an unsigned narrowing only when the destination is
  an integer type
 
 The mask added by the previous commit (upstream 57655c56) is built from

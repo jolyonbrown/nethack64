@@ -1,0 +1,54 @@
+From 3a1fe757cad16ad7db9e6334d9013d216adc31da Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 13 Nov 2026 08:39:40 +0000
+Subject: [PATCH 37/38] Count stores through a pointer as global stores of a
+ function
+
+NativeCodeBasicBlock::CheckGlobalAliasing decides whether a function is
+flagged LOBJF_NO_GLOBAL_STORES. It looked at calls and at stores in the
+absolute, absolute indexed and indirect addressing modes, but not at
+"STA (zp),y" or "STA (zp,x)", so a function whose only store goes
+through a pointer parameter was flagged as storing to no global.
+
+The flag has one reader: CheckSingleUseGlobalLoad, which lets the
+peephole optimiser replace reads of a zero page register by reads of the
+global the register was loaded from, and walks past a JSR to a flagged
+function. With
+
+	char x = g;
+	bump(&g);		// void bump(char * p) { p[0] += 100; }
+	return x;
+
+the copy of g that was taken before the call was dropped and g read
+again behind it, in native code at every optimisation level. The same
+for struct members changed through a struct pointer, for elements of
+local arrays with a fixed address, for zero page globals, for a callee
+that passes the pointer on or takes it from a global, and for the
+library's memset and strcpy.
+
+Stores in the two indirect indexed modes now count. This also covers
+stores into the function's own stack frame, which cannot hit a global;
+the flag is lost for such functions, which only costs forwarding.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/NativeCodeGenerator.cpp | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 7b070bb..13d18c6 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -17205,8 +17205,11 @@ void NativeCodeBasicBlock::CheckGlobalAliasing(bool& globalStores, bool& globalL
+ 					globalStores = true;
+ 				}
+ 			}
+-			else if (ins.mMode == ASMIM_ABSOLUTE || ins.mMode == ASMIM_ABSOLUTE_X || ins.mMode == ASMIM_ABSOLUTE_Y || ins.mMode == ASMIM_INDIRECT)
++			else if (ins.mMode == ASMIM_ABSOLUTE || ins.mMode == ASMIM_ABSOLUTE_X || ins.mMode == ASMIM_ABSOLUTE_Y || ins.mMode == ASMIM_INDIRECT ||
++				ins.mMode == ASMIM_INDIRECT_X || ins.mMode == ASMIM_INDIRECT_Y)
+ 			{
++				// A store through a pointer may hit any global: "STA (P0),y" in
++				// a function called with the address of one.
+ 				if (ins.mType == ASMIT_INC || ins.mType == ASMIT_DEC || ins.mType == ASMIT_ASL || ins.mType == ASMIT_LSR || ins.mType == ASMIT_ROL || ins.mType == ASMIT_ROR)
+ 				{
+ 					globalLoads = true;

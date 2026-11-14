@@ -1,7 +1,7 @@
 From bf5e1ea5a1b71ff611a993c0ecdb1fef10456ad1 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 13 Nov 2026 04:29:21 +0000
-Subject: [PATCH 18/32] Fix uninitialized variable in cheap inlining of
+Subject: [PATCH 18/38] Fix uninitialized variable in cheap inlining of
  recursive functions
 
 Backport of upstream fbca293 (drmortalwombat, 2026-10-18), without its

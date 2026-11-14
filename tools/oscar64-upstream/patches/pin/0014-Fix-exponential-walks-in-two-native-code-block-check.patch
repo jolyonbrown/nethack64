@@ -1,7 +1,7 @@
 From e3995c02465f51308d6e6071a38e6a0496665287 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 19:46:12 +0000
-Subject: [PATCH 14/32] Fix exponential walks in two native code block checks
+Subject: [PATCH 14/38] Fix exponential walks in two native code block checks
 
 Two checks in the native code generator walk the flow graph recursively
 and visited a block once per path instead of once. A run of N

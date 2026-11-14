@@ -286,3 +286,8 @@ file); the compiler built by `build-pin.sh` from the 28 patch files (tree 229e43
 - **With commits 29-32** (r42, r43; 2026-11-14) one file changes, in both
   configurations: `vision.c` +3 B, `vision_reset()`'s narrowing masks. C64 45 files,
   256,352 B; UNIX 40, 245,965 B.
+- **With commits 33-38** (r45, r37, r44; 2026-11-14): four functions change, all from
+  r44's fix: `make_hallucinated()` (`potion.c` +3 B), `rigid_role_checks()` (`role.c` +4 B)
+  and, C64 only, `getrumor()` (`rumors.c` +1 B). C64 45 files, 256,360 B; UNIX 40,
+  245,972 B. Data: `docs/data/oscar64-pin38-c64conf-2026-11-14.json` and
+  `docs/data/oscar64-pin38-baseline-2026-11-14.json`.

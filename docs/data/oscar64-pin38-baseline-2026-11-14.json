@@ -1,0 +1,676 @@
+{
+ "allmain.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/6",
+  "error": "allmain.c(507, 8) : error 3006: Term starts with invalid token '')''"
+ },
+ "alloc.c": {
+  "status": "fits-not",
+  "code": 104,
+  "funcs": "2/5",
+  "error": ""
+ },
+ "apply.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/47",
+  "error": "apply.c(2491, 33) : error 3012: Cannot assign incompatible types 'const union any_s*' != 'union any_s*'"
+ },
+ "artifact.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/34",
+  "error": "artifact.c(141, 3) : error 3006: Term starts with invalid token ''else''"
+ },
+ "attrib.c": {
+  "status": "fits-not",
+  "code": 4359,
+  "funcs": "17/19",
+  "error": ""
+ },
+ "ball.c": {
+  "status": "fits-not",
+  "code": 4284,
+  "funcs": "9/10",
+  "error": ""
+ },
+ "bones.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/7",
+  "error": "bones.c(208, 4) : error 3006: Term starts with invalid token ''else''"
+ },
+ "botl.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/11",
+  "error": "botl.c(8, 20) : error 3010: Undefined variable type for 'hu_stat'"
+ },
+ "cmd.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/58",
+  "error": "cmd.c(2405, 3) : error 3005: Unknown identifier 'clearerr'"
+ },
+ "dbridge.c": {
+  "status": "fits-not",
+  "code": 8483,
+  "funcs": "21/24",
+  "error": ""
+ },
+ "decl.c": {
+  "status": "fits-not",
+  "code": 1,
+  "funcs": "1/1",
+  "error": ""
+ },
+ "detect.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/25",
+  "error": "detect.c(678, 2) : error 3006: Term starts with invalid token ''else''"
+ },
+ "dig.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/28",
+  "error": "dig.c(147, 17) : error 3013: Incompatible pointer types"
+ },
+ "display.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/45",
+  "error": "display.c(246, 227) : error 3013: Pointer expected"
+ },
+ "dlb.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/22",
+  "error": "permonst.h(67, 3) : error 3034: Could not place object 'mons'"
+ },
+ "do.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/29",
+  "error": "c64meas.h(19, 5) : error 3022: Calling undefined function 'close(i16)->i16'"
+ },
+ "do_name.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/27",
+  "error": "do_name.c(12, 19) : error 3010: Undefined variable type for 'what_is_an_unknown_object'"
+ },
+ "do_wear.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/51",
+  "error": "do_wear.c(990, 21) : error 3013: Incompatible pointer types"
+ },
+ "dog.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/14",
+  "error": "dog.c(842, 28) : error 3013: Incompatible conditional types"
+ },
+ "dogmove.c": {
+  "status": "fits-not",
+  "code": 8047,
+  "funcs": "7/11",
+  "error": ""
+ },
+ "dokick.c": {
+  "status": "fits-not",
+  "code": 12352,
+  "funcs": "10/13",
+  "error": ""
+ },
+ "dothrow.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/25",
+  "error": "dothrow.c(830, 227) : error 3013: Pointer expected"
+ },
+ "drawing.c": {
+  "status": "fits-not",
+  "code": 723,
+  "funcs": "5/5",
+  "error": ""
+ },
+ "dungeon.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/62",
+  "error": "dungeon.c(387, 16) : error 3013: Pointer expected"
+ },
+ "eat.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/49",
+  "error": "eat.c(2272, 17) : error 3013: Incompatible pointer types"
+ },
+ "end.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/17",
+  "error": "end.c(94, 23) : error 3005: Unknown identifier 'SIG_IGN'"
+ },
+ "engrave.c": {
+  "status": "fits-not",
+  "code": 8162,
+  "funcs": "19/19",
+  "error": ""
+ },
+ "exper.c": {
+  "status": "fits-not",
+  "code": 2405,
+  "funcs": "8/8",
+  "error": ""
+ },
+ "explode.c": {
+  "status": "fits-not",
+  "code": 4441,
+  "funcs": "3/3",
+  "error": ""
+ },
+ "extralev.c": {
+  "status": "fits-not",
+  "code": 3254,
+  "funcs": "6/6",
+  "error": ""
+ },
+ "files.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/51",
+  "error": "files.c(517, 24) : error 3005: Unknown identifier 'SIG_IGN'"
+ },
+ "fountain.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/12",
+  "error": "fountain.c(18, 44) : error 3017: Too many arguments for function call"
+ },
+ "hack.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/34",
+  "error": "hack.c(1463, 3) : error 3006: Term starts with invalid token ''else''"
+ },
+ "hacklib.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/34",
+  "error": "hacklib.c(453, 2) : error 3005: Unknown identifier 'srand48'"
+ },
+ "invent.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/77",
+  "error": "invent.c(1736, 227) : error 3013: Pointer expected"
+ },
+ "light.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/18",
+  "error": "light.c(53, 13) : error 3010: Undefined variable type for 'circle_data'"
+ },
+ "lock.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/14",
+  "error": "lock.c(26, 17) : error 3013: Incompatible pointer types"
+ },
+ "mail.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/7",
+  "error": "mail.c(109, 17) : error 3006: ')' expected"
+ },
+ "makemon.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/25",
+  "error": "makemon.c(34, 18) : error 3010: Undefined variable type for 'monstr'"
+ },
+ "mapglyph.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/1",
+  "error": "wintty.h(147, 1) : error 3022: Calling undefined function 'has_color(i16)->i16'"
+ },
+ "mcastu.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/9",
+  "error": "mcastu.c(43, 27) : error 3010: Undefined variable type for 'flash_types'"
+ },
+ "mhitm.c": {
+  "status": "fits-not",
+  "code": 16530,
+  "funcs": "15/17",
+  "error": ""
+ },
+ "mhitu.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/24",
+  "error": "mhitu.c(834, 29) : error 3013: Incompatible conditional types"
+ },
+ "minion.c": {
+  "status": "fits-not",
+  "code": 2579,
+  "funcs": "9/9",
+  "error": ""
+ },
+ "mklev.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/36",
+  "error": "mklev.c(707, 4) : error 3006: Term starts with invalid token ''else''"
+ },
+ "mkmap.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/13",
+  "error": "permonst.h(67, 3) : error 3034: Could not place object 'mons'"
+ },
+ "mkmaze.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/26",
+  "error": "h_mkmaze.c(1324, 42) : error 3023: Duplicate function definition 'waterbody_name'"
+ },
+ "mkobj.c": {
+  "status": "fits-not",
+  "code": 11297,
+  "funcs": "44/45",
+  "error": ""
+ },
+ "mkroom.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/26",
+  "error": "mkroom.c(50, 9) : error 3045: Ambiguous function call 'mkshop'"
+ },
+ "mon.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/63",
+  "error": "extern.h(1515, 1) : error 3022: Calling undefined function 'impossible(const u8*)->void'"
+ },
+ "mondata.c": {
+  "status": "fits-not",
+  "code": 5119,
+  "funcs": "30/30",
+  "error": ""
+ },
+ "monmove.c": {
+  "status": "fits-not",
+  "code": 13321,
+  "funcs": "13/16",
+  "error": ""
+ },
+ "monst.c": {
+  "status": "fits-not",
+  "code": 1,
+  "funcs": "1/1",
+  "error": ""
+ },
+ "mplayer.c": {
+  "status": "fits-not",
+  "code": 2160,
+  "funcs": "4/6",
+  "error": ""
+ },
+ "mthrowu.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/12",
+  "error": "mthrowu.c(318, 227) : error 3013: Pointer expected"
+ },
+ "muse.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/22",
+  "error": "muse.c(672, 54) : error 3013: Incompatible conditional types"
+ },
+ "music.c": {
+  "status": "fits-not",
+  "code": 4670,
+  "funcs": "5/12",
+  "error": ""
+ },
+ "o_init.c": {
+  "status": "fits-not",
+  "code": 3623,
+  "funcs": "10/13",
+  "error": ""
+ },
+ "objects.c": {
+  "status": "fits-not",
+  "code": 1,
+  "funcs": "1/23",
+  "error": ""
+ },
+ "objnam.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/38",
+  "error": "objnam.c(1166, 46) : error 3006: '(' expected"
+ },
+ "options.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/43",
+  "error": "options.c(47, 11) : error 3008: Constant initializer expected"
+ },
+ "pager.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/13",
+  "error": "c64meas.h(45, 5) : error 3022: Calling undefined function 'fseek(struct FILE*,i32,i16)->i16'"
+ },
+ "pickup.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/37",
+  "error": "pickup.c(731, 227) : error 3013: Pointer expected"
+ },
+ "pline.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/8",
+  "error": "pline.c(196, 43) : error 3006: '(' expected"
+ },
+ "polyself.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/24",
+  "error": "polyself.c(689, 24) : error 3013: Incompatible conditional types"
+ },
+ "potion.c": {
+  "status": "fits-not",
+  "code": 18230,
+  "funcs": "23/24",
+  "error": ""
+ },
+ "pray.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/29",
+  "error": "pray.c(790, 20) : error 3006: ':' expected"
+ },
+ "priest.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/18",
+  "error": "priest.c(272, 44) : error 3013: Pointer expected"
+ },
+ "quest.c": {
+  "status": "fits-not",
+  "code": 1278,
+  "funcs": "13/20",
+  "error": ""
+ },
+ "questpgr.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/20",
+  "error": "c64meas.h(45, 5) : error 3022: Calling undefined function 'fseek(struct FILE*,i32,i16)->i16'"
+ },
+ "read.c": {
+  "status": "fits-not",
+  "code": 12950,
+  "funcs": "20/25",
+  "error": ""
+ },
+ "rect.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/8",
+  "error": "rect.c(85, 26) : error 3013: Incompatible conditional types"
+ },
+ "region.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/30",
+  "error": "region.c(377, 17) : error 3013: Pointer expected"
+ },
+ "restore.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/22",
+  "error": "restore.c(310, 27) : error 3006: ')' expected"
+ },
+ "rip.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/2",
+  "error": "rip.c(9, 27) : error 3010: Undefined variable type for 'killed_by_prefix'"
+ },
+ "rnd.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/6",
+  "error": "rnd.c(32, 1) : error 3005: Unknown identifier 'lrand48'"
+ },
+ "role.c": {
+  "status": "fits-not",
+  "code": 6809,
+  "funcs": "28/30",
+  "error": ""
+ },
+ "rumors.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/8",
+  "error": "rumors.c(101, 1) : error 3005: Unknown identifier 'lrand48'"
+ },
+ "save.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/25",
+  "error": "save.c(125, 24) : error 3005: Unknown identifier 'SIG_IGN'"
+ },
+ "shk.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/93",
+  "error": "shk.c(2562, 3) : error 3006: Term starts with invalid token ''else''"
+ },
+ "shknam.c": {
+  "status": "fits-not",
+  "code": 2578,
+  "funcs": "3/7",
+  "error": ""
+ },
+ "sit.c": {
+  "status": "fits-not",
+  "code": 1967,
+  "funcs": "4/4",
+  "error": ""
+ },
+ "sounds.c": {
+  "status": "fits-not",
+  "code": 5969,
+  "funcs": "9/12",
+  "error": ""
+ },
+ "sp_lev.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/38",
+  "error": "sp_lev.c(768, 6) : error 3006: Term starts with invalid token ''else''"
+ },
+ "spell.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/23",
+  "error": "spell.c(1061, 29) : error 3012: Cannot assign incompatible types 'const union any_s*' != 'union any_s*'"
+ },
+ "steal.c": {
+  "status": "fits-not",
+  "code": 1425,
+  "funcs": "9/12",
+  "error": ""
+ },
+ "steed.c": {
+  "status": "fits-not",
+  "code": 5344,
+  "funcs": "11/11",
+  "error": ""
+ },
+ "teleport.c": {
+  "status": "fits-not",
+  "code": 9429,
+  "funcs": "23/25",
+  "error": ""
+ },
+ "timeout.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/40",
+  "error": "timeout.c(1590, 60) : error 3013: Struct expected"
+ },
+ "topten.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/15",
+  "error": "c64meas.h(26, 5) : error 3022: Calling undefined function 'getuid()->i16'"
+ },
+ "track.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/3",
+  "error": "track.c(60, 19) : error 3013: Incompatible conditional types"
+ },
+ "trap.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/51",
+  "error": "trap.c(1255, 3) : error 3006: Term starts with invalid token ''default''"
+ },
+ "u_init.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/5",
+  "error": "c64meas.h(14, 8) : error 3022: Calling undefined function 'time(i32*)->i32'"
+ },
+ "uhitm.c": {
+  "status": "fits-not",
+  "code": 24468,
+  "funcs": "17/26",
+  "error": ""
+ },
+ "vault.c": {
+  "status": "fits-not",
+  "code": 7525,
+  "funcs": "11/13",
+  "error": ""
+ },
+ "version.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/10",
+  "error": "version.c(125, 8) : error 3006: Declaration starts with invalid token ''static''"
+ },
+ "vis_tab.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/0",
+  "error": "permonst.h(67, 3) : error 3034: Could not place object 'mons'"
+ },
+ "vision.c": {
+  "status": "fits-not",
+  "code": 13431,
+  "funcs": "11/23",
+  "error": ""
+ },
+ "weapon.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/27",
+  "error": "weapon.c(815, 7) : error 3006: Declaration starts with invalid token ''static''"
+ },
+ "were.c": {
+  "status": "fits-not",
+  "code": 1976,
+  "funcs": "5/6",
+  "error": ""
+ },
+ "wield.c": {
+  "status": "fits-not",
+  "code": 3560,
+  "funcs": "19/19",
+  "error": ""
+ },
+ "windows.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/4",
+  "error": "wintty.h(165, 1) : error 3022: Calling undefined function 'win_tty_init()->void'"
+ },
+ "wizard.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/19",
+  "error": "wizard.c(14, 18) : error 3010: Undefined variable type for 'monstr'"
+ },
+ "worm.c": {
+  "status": "fits-not",
+  "code": 2947,
+  "funcs": "18/20",
+  "error": ""
+ },
+ "worn.c": {
+  "status": "fits-not",
+  "code": 8444,
+  "funcs": "14/15",
+  "error": ""
+ },
+ "write.c": {
+  "status": "fits-not",
+  "code": 1726,
+  "funcs": "1/2",
+  "error": ""
+ },
+ "zap.c": {
+  "status": "compile-error",
+  "code": 0,
+  "funcs": "0/49",
+  "error": "zap.c(2604, 227) : error 3013: Pointer expected"
+ },
+ "_struct_sizes": [
+  "rm 6",
+  "dlevel_t 16813",
+  "obj 48",
+  "monst 80",
+  "permonst 55 x 382",
+  "objclass 26 x 433",
+  "you 1381",
+  "trap 11",
+  "flag 127",
+  "int 2 long 4 ptr 2"
+ ],
+ "_meta": {
+  "config": "unix",
+  "oscar64_defs": [
+   "-dSYSTEM_H",
+   "-dNHSTDC",
+   "-dUNWIDENED_PROTOTYPES",
+   "-dregister="
+  ],
+  "mkstubs_defs": null,
+  "oscar64": "1.32.273",
+  "oscar64_sha256": "1491cf5dfc5f5bbd",
+  "memory_limit_mb": 3000,
+  "gcc": "13.3.0",
+  "git": "48b8e23-dirty",
+  "generated_tables_sha256": "12cb8cf1a158df80",
+  "bytecode": false,
+  "date": "2026-11-14 00:43:14 UTC",
+  "oscar64_build": "the ADR-0007 compiler with 38 commits (tip f21d475, tree b16b95d), built by build-pin.sh from those patch files before they were committed",
+  "heap": "no heap shim; with every heap block filled with 0xA5 the c64 run gives identical listings and report"
+ }
+}
