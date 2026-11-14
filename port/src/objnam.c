@@ -1299,11 +1299,13 @@ makeplural(const char *oldstr)
 			!strcmp(spot-4, "ninja") ||
 			!strcmp(spot-4, "ronin") ||
 			!strcmp(spot-4, "shito") ||
-			!strcmp(spot-7, "shuriken") ||
 			!strcmp(spot-4, "tengu") ||
 			!strcmp(spot-4, "manes"))) ||
 	    (len >= 6 && !strcmp(spot-5, "ki-rin")) ||
-	    (len >= 7 && !strcmp(spot-6, "gunyoki")))
+	    (len >= 7 && !strcmp(spot-6, "gunyoki")) ||
+	    /* upstream tested this under len >= 5, reading up to 3 bytes
+	     * before str (T1.29) */
+	    (len >= 8 && !strcmp(spot-7, "shuriken")))
 		goto bottom;
 
 	/* man/men ("Wiped out all cavemen.") */
@@ -1406,8 +1408,11 @@ makeplural(const char *oldstr)
 		Strcpy(spot-1, "ot");
 		goto bottom;
 	}
+	/* Upstream compares six characters with "matza" here, so it never
+	 * matches ("matza" becomes "matzas"; 3.6 compares at spot-4).  Kept as
+	 * it was, without reading before str when len is 5 (T1.29). */
 	if (len >= 5 && (!strcmp(spot-4, "matzo")
-					|| !strcmp(spot-5, "matza"))) {
+			 || (len >= 6 && !strcmp(spot-5, "matza")))) {
 		Strcpy(spot, "ot");
 		goto bottom;
 	}

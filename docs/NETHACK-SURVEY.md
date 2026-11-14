@@ -323,13 +323,28 @@ port as at `543fcd3`.
   60 s at "Call a purple-red potion:" (a goblin's potion broke by the pet; the driver
   typed `v` into the name). The driver now cancels naming prompts; the last 300, on the
   final driver, all passed. UBSan reported nothing. ASan reported three over-reads, all
-  NetHack 3.4.3's own (T1.29), none on the restore path:
+  NetHack 3.4.3's own (fixed by T1.29, below), none on the restore path:
   - `savefruitchn()` (`save.c`) writes the terminating `struct fruit` (48 bytes here)
     from `nul` (40 bytes, `decl.c`): 8 bytes over at every save and checkpoint. Restore
     discards them (the terminator's `nextf`). On the C64 `struct fruit` is 36 bytes.
   - `free_window_info()` (`wintty.c`) compares with `wins[WIN_MESSAGE]` after the
     message window is destroyed, so it reads `wins[-1]`; in `done()`, at each death.
-    The C64 build has its own window port.
+    `wintty.c` is not in the C64 build, whose window port comes in Phase 3.
   - `makeplural()` (`objnam.c`) tests `strcmp(spot-7, "shuriken")` for any name of 5
     letters or more: up to 3 bytes before the string, which can be the start of `bufs`.
-    The test can never match, and the same code runs on the C64.
+    The same code runs on the C64.
+- **T1.29's fixes** (same day): `nul` (`decl.c`) is sized to the longest zero record
+  `save.c` writes from it: 48 bytes on the host, still 40 under Oscar64 (`struct fruit`
+  36, `struct trap` 11, printed by a probe built like `struct_sizes.c`). The C64 assembly
+  and map of `decl.c` are unchanged. `free_window_info()` checks `WIN_ERR` first.
+  `makeplural()` tests "shuriken" from 8 letters and has a length guard on a fourth
+  read found by reading the function, `strcmp(spot-5, "matza")` under `len >= 5`, which
+  compares six characters with five and so never matches ("matza" stays "matzas").
+  Old and new `makeplural()` give the same plural for 105,034 words (the dictionary and
+  every string in `monst.c` and `objects.c`) under seven fills of the 4 bytes before
+  the buffer. The exceptions are three: "riken", "uriken" and "huriken" after "shu",
+  "sh" and "s", where those bytes decided the old answer. After the fixes the sanitizer
+  build ran 300 cycles (11 with a death) with no report, and the plain build 600, all
+  passed. NetHack 3.6 moved "shuriken" into a table checked through `BSTRCMPI`, compares
+  "matza" at `spot-4` (a behaviour change from 3.4.3) and writes static zero structs;
+  it still reads `wins[WIN_MESSAGE]` there.

@@ -291,14 +291,27 @@ Add new tasks at the bottom of the right section.
       ended inside `dorecover()` with no message. Not reproduced (NETHACK-SURVEY.md:
       `tools/smoke_stress.py`, and `tools/host-build.sh --sanitize`). CI now uploads the
       transcripts when the job fails.
-- [ ] T1.29 The sanitizer host build reports three over-reads, all in NetHack 3.4.3 itself
+- [x] T1.29 The sanitizer host build reports three over-reads, all in NetHack 3.4.3 itself
       (NETHACK-SURVEY.md). `savefruitchn()` writes its 48-byte terminator from the
       40-byte `nul`, and `free_window_info()` reads `wins[WIN_MESSAGE]` once the message
-      window is gone (`wins[-1]`, at each death): host-only (36-byte `struct fruit` and
-      our own window port on the C64). `makeplural()` tests `strcmp(spot-7, "shuriken")`
-      for names of 5 letters or more, so it reads up to 3 bytes before `bufs[0]`: on the
-      C64 too, harmless unless `bufs` follows the `$DF00-$DFFF` page. Fix all three in
-      `port/` (3.6 tests "shuriken" only from 8 letters); no fix changes behaviour.
+      window is gone (`wins[-1]`, at each death): host-only (`struct fruit` is 36 bytes
+      on the C64, and `wintty.c` is not in the C64 build). `makeplural()` tests
+      `strcmp(spot-7, "shuriken")` for names of 5 letters or more, so it reads up to 3
+      bytes before `bufs[0]`: on the C64 too, harmless unless `bufs` follows the
+      `$DF00-$DFFF` page. Fix all three in `port/`; no fix changes behaviour.
+      — 2026-11-14: fixed, with a fourth read found by checking every `spot-N` in
+      `makeplural()`: `strcmp(spot-5, "matza")` under `len >= 5`, which can never match
+      (six characters against five). `nul` is sized to the longest record save.c
+      writes from it (48 bytes on the host; still 40 under Oscar64, `struct fruit` 36,
+      `struct trap` 11), `free_window_info()` checks `WIN_ERR`, and both plural tests
+      have length guards. Old and new `makeplural()` agree on 105,034 words under 7
+      fills of the 4 bytes before the buffer, except where those bytes decided the old
+      answer ("riken", "uriken", "huriken" after "shu", "sh", "s"). C64 assembly and
+      map of `decl.c` unchanged.
+- [ ] T1.30 `tools/oscar_normalize.py` parenthesizes `sizeof x` (compat #6) but not
+      `sizeof` of a string literal: five sites (`invent.c` 2553, `objnam.c` 1166 and
+      1190, `options.c` 303, `pline.c` 196). It is the first compile error in `objnam.c`
+      and `pline.c`. Extend `SIZEOF_RE`, re-run it on `port/`, re-measure.
 
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 

@@ -55,7 +55,11 @@ NEARDATA long done_money = 0;
 #endif
 char killer_buf[BUFSZ] = DUMMY;
 const char *nomovemsg = 0;
-const char nul[40] = DUMMY;			/* contains zeros */
+/* nul doubles as the zero record that save.c writes after the trap and fruit
+ * chains (its "nulls"), so it must be at least as long as either: struct fruit
+ * is 48 bytes on a 64-bit host (T1.29).  Under Oscar64 both are shorter, and
+ * nul stays 40 bytes. */
+const char nul[max(40, max(sizeof(struct fruit), sizeof(struct trap_s)))] = DUMMY;
 NEARDATA char plname[PL_NSIZ] = DUMMY;		/* player name */
 NEARDATA char pl_character[PL_CSIZ] = DUMMY;
 NEARDATA char pl_race = '\0';
