@@ -11,7 +11,8 @@
  * `!!(index(str, otmp->oclass))` as a `?:` operand (mon.c 868), the first error of
  * each file (2026-11-14).  Integer operands compile, to the wrong value.
  * Expect when fixed: compiles, emulation result 0.
- * Workaround: none (wrong code: a compiler fix, ADR-0007).
+ * Workaround: none in port/; fixed by the ADR-0007 compiler (commits 54-55, with the fold
+ * of `!` on constants, commits 52-53, 2026-11-14).
  * FLAGS: -e
  */
 struct s { int x; };

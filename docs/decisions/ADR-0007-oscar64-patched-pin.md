@@ -145,6 +145,24 @@ r15 (compat #19), our fix of 2026-11-12 for fork draft #7, with its two tests: a
 to a union converts to a pointer to a `const` or `volatile` union, as struct pointers do
 (unions take the struct branch of `IsSubType`, `IsSameMutable` and `IsConstSame`).
 
+Added the same day on Jolyon's go-ahead ("add all of them to the pin"): 49. `b496c4e` r16
+(compat #20), our fix of 2026-11-12 for fork draft #6: a function compared with a
+function pointer is converted to a pointer to it first, and the global optimiser counts a
+compared function as one whose address is taken; 50. `c092da2` upstream c8da6bd (r17,
+compat #21: `c ? f : g` over two functions gets a function pointer type) and 51. `b8be83c`
+its test, ours; 52. `e183983` r53 (compat #55): `!` of an integer constant folds, so `!0`
+is a constant expression, and 53. `8949cef` its test; 54. `df4e773` r52 (compat #54, wrong
+code): `!!x` folds to `x` only when `x` is 0 or 1 already (a relational, `&&`, `||` or `!`)
+or of class type, and 55. `1b95989` its test; 56. `d988c5c` r31 (compat #33; found
+2026-11-12, fixed by Codex as the repro proposed): `BlockSizeCopyReduction` masks a fill
+loop's starting index to a byte, so a fill from offset 0 starts at `LDY #$ff` instead of
+aborting, and 57. `ebfdbe6` its test (Codex); 58. `bbc2f32` r59 (compat #61, found and
+fixed by Codex): `BinaryAddCarry` loads a constant first addend as an immediate instead of
+indexing the temporary table with its `-1`, and 59. `eb5a37d` its test (Codex). Codex
+reviewed the first version of commit 54 and found that `!!1` stopped being a constant and
+that C++'s `!!obj` through `operator bool` aborted; commit 52 and the class-type case
+answer both, and its 29 probes give the same or better results than the 48 commits.
+
 `tools/oscar64-upstream/build-pin.sh [DIR]` builds it (`JOBS=N` for `make -jN`). Since
 2026-11-13 the setup scripts (`tools/setup-ubuntu.sh`, `tools/setup-arch.sh`) build the
 release and then this compiler, link this one as `oscar64` (the Makefile takes it from
@@ -159,10 +177,11 @@ checks, and its `-Os` size is understood.
 - The six fixed rows above stop being "must be settled before game code runs" once
   the build uses the pin; r18-r23 and r25 pass, and so does r26 (commit 8). r24 stays
   open (T1.15).
-- We carry a patch stack until upstream releases: of the 48 commits, seven are upstream's
-  (1169268, bf42402, 1ae3216, 3bb084f, 1073206, 46e60d6, 160c92b), two backport upstream fixes
-  (fbca293 and the CoerceType hunk of 57655c5), three are tests for upstream fixes, and
-  thirty-six are ours (the r45, r46, r50 and r51 fixes and five tests written by Codex). Most of ours have an upstream form as a
+- We carry a patch stack until upstream releases: of the 59 commits, eight are upstream's
+  (1169268, bf42402, 1ae3216, 3bb084f, 1073206, 46e60d6, 160c92b, c8da6bd), two backport
+  upstream fixes (fbca293 and the CoerceType hunk of 57655c5), four are tests for upstream
+  fixes, and forty-five are ours (the r31, r45, r46, r50, r51 and r59 fixes and seven tests
+  written by Codex). Most of ours have an upstream form as a
   draft PR in the fork or a local branch on main, on hold (OSCAR64-UPSTREAM.md; nothing
   sent yet), so the stack should shrink. Once
   the build switches, anyone building must run the setup script (or `build-pin.sh`); a
@@ -209,7 +228,7 @@ Upstream main has the same problem. Until it is fixed, the choice is between:
 
 ```sh
 JOBS=2 tools/oscar64-upstream/build-pin.sh /tmp/pin    # v1.32.273 + patches/pin
-make repros OSCAR64=/tmp/pin/bin/oscar64               # 31 of 51 FIXED (run.py caps each compile)
+make repros OSCAR64=/tmp/pin/bin/oscar64               # 37 of 59 FIXED (run.py caps each compile)
 (ulimit -v 3000000; make -k -j2 -C /tmp/pin/make check)  # Oscar64's own autotest
 (ulimit -v 3000000; python3 tools/oscar64-upstream/corpus_diff.py ~/src/oscar64/bin/oscar64 /tmp/pin/bin/oscar64 -j 2 --out /tmp/pin-corpus)
 make OSCAR64=/tmp/pin/bin/oscar64 && make prg OSCAR64=/tmp/pin/bin/oscar64 && make test OSCAR64=/tmp/pin/bin/oscar64
@@ -379,3 +398,17 @@ now compile (the two tests and r15); repros 31 of 51; nethack64 `.crt` and `.prg
 byte-identical, `make test` 5/5; NetHack: every listing, intermediate code and map of the
 files that compiled before identical, and `apply.c`, `artifact.c`, `dungeon.c`, `pager.c`
 (C64) and `spell.c` reach placement: C64 85/108 (585,948 B), UNIX 71/108 (514,789 B).
+
+Results 2026-11-14 (59 commits, tip eb5a37d; the patch files give tree 45d5c29, the branch's
+and the checked candidate's). The NetHack numbers from here on use the harness of TASKS
+T1.42, whose stubs read their parameters (code measured about a third larger than before).
+Autotest 1,521 emulations, all 0 (the six new tests in all ten configurations each); corpus
+against 48 commits: 932 of 932 identical, and 50 rejections or crashes now compile (the six
+new tests, r16, r17, r31, r52, r53, r59); repros 37 of 59; nethack64 `.crt` and `.prg`
+byte-identical, `make test` 5/5. NetHack: every listing, intermediate code and map of the
+files that compiled with 48 commits is identical except in the functions that use `!!`,
+whose code now computes 0 or 1 (13 files under C64, 12 under UNIX; one of them,
+`castmu()`, kept a truncated `long` in `boolean oldprop = !!Confusion`), and the
+intermediate code of `mapglyph()`, where `!((boolean)1)` now folds when parsed (same
+machine code). All 108 files reach placement under C64 (1,252,234 B in the 106 that place
+code); UNIX 97/108 (1,185,691 B).

@@ -1,0 +1,71 @@
+From c092da2522def0cba9d106a66aa49d69eda19b33 Mon Sep 17 00:00:00 2001
+From: drmortalwombat <90205530+drmortalwombat@users.noreply.github.com>
+Date: Sat, 24 Oct 2026 16:28:36 +0200
+Subject: [PATCH 50/59] Fix functions as arguments to ternary condition
+ operator
+
+(cherry picked from commit c8da6bd8b727b1e2f3315fe8e0019e312db8968f)
+
+Backport to v1.32.273 for nethack64.  The three changes apply as is:
+`c ? f : g` over two functions was typed as a pointer to the return
+type, not to the function, so a function pointer parameter or variable
+rejected it ("Cannot assign incompatible types").  It is nethack64's
+repro r17 and the first compile error of do.c and pickup.c
+(query_objlist(..., all ? allow_all : allow_category)).  The commit has
+no test; the next one adds it.
+---
+ oscar64/GlobalAnalyzer.cpp     | 4 +++-
+ oscar64/GlobalOptimizer.cpp    | 4 +++-
+ oscar64/InterCodeGenerator.cpp | 7 +++++++
+ 3 files changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/oscar64/GlobalAnalyzer.cpp b/oscar64/GlobalAnalyzer.cpp
+index e01976c..d9b147d 100644
+--- a/oscar64/GlobalAnalyzer.cpp
++++ b/oscar64/GlobalAnalyzer.cpp
+@@ -1328,8 +1328,10 @@ Declaration * GlobalAnalyzer::Analyze(Expression* exp, Declaration* procDec, uin
+ 		procDec->mComplexity += exp->mDecType->mSize * 10;
+ 
+ 		ldec = Analyze(exp->mLeft, procDec, 0);
+-		RegisterProc(Analyze(exp->mRight->mLeft, procDec, flags));
++		rdec = Analyze(exp->mRight->mLeft, procDec, flags);
++		RegisterProc(rdec);
+ 		RegisterProc(Analyze(exp->mRight->mRight, procDec, flags));
++		return rdec;
+ 		break;
+ 	}
+ 
+diff --git a/oscar64/GlobalOptimizer.cpp b/oscar64/GlobalOptimizer.cpp
+index 69938b7..566985a 100644
+--- a/oscar64/GlobalOptimizer.cpp
++++ b/oscar64/GlobalOptimizer.cpp
+@@ -1745,8 +1745,10 @@ Declaration* GlobalOptimizer::Analyze(Expression* exp, Declaration* procDec, uin
+ 		break;
+ 	case EX_CONDITIONAL:
+ 		ldec = Analyze(exp->mLeft, procDec, ANAFL_RHS);
+-		RegisterProc(Analyze(exp->mRight->mLeft, procDec, flags));
++		rdec = Analyze(exp->mRight->mLeft, procDec, flags);
++		RegisterProc(rdec);
+ 		RegisterProc(Analyze(exp->mRight->mRight, procDec, flags));
++		return rdec;
+ 		break;
+ 	}
+ 
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index 840ac8c..001b475 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -5256,6 +5256,13 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 					dtype = dtype->mBase;
+ 					ttype = IT_POINTER;
+ 				}
++				else if (dtype->mType == DT_TYPE_FUNCTION)
++				{
++					vl = Dereference(proc, exp, block, inlineMapper, vl);
++					vr = Dereference(proc, exp, block, inlineMapper, vr);
++
++					ttype = IT_POINTER;
++				}
+ 				else if (stypel == IT_POINTER || styper == IT_POINTER)
+ 				{
+ 					if (vl.mType->mType == DT_TYPE_ARRAY)

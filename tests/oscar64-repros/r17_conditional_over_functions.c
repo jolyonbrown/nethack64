@@ -9,7 +9,8 @@
  * Expect when fixed: compiles, emulation result 0.  Actual: error 3012 "Cannot assign
  * incompatible types 'i16(*)(struct o*)*' != 'i16*'", at every optimisation level;
  * `&fa : &fb` fails the same way.
- * Workaround: none applied yet (TASKS T1.14).  Choosing the function into a pointer
+ * Workaround: none in port/; fixed by the ADR-0007 compiler (commits 50-51, upstream
+ * c8da6bd and our test, 2026-11-14).  Choosing the function into a pointer
  * variable first compiles, but for NetHack's boolean functions the call through the
  * pointer then hits r18.
  * FLAGS: -e

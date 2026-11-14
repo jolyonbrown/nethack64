@@ -1,0 +1,95 @@
+From ebfdbe684644a929883cc2ce6eeda7c9ced6c6c8 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 22:02:18 +0000
+Subject: [PATCH 57/59] Test indirect fill reduction at byte-index boundaries
+
+Check a pointer-based -1L store starting at offset zero, a repeated-byte
+store starting at offset four, and a store ending at offset 255. Assert
+every byte, including untouched gaps and a trailing guard, as well as
+the resulting long values.
+
+Register indirectfilltest.c in the batch driver; the makefile's existing
+wildcard discovers it. Before the fix, native -Os aborts and the other
+nine configurations pass. With the fix, all ten compile and run.
+
+Written by Codex; checked by Claude.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat       |  3 +++
+ autotest/indirectfilltest.c | 53 +++++++++++++++++++++++++++++++++++++
+ 2 files changed, 56 insertions(+)
+ create mode 100644 autotest/indirectfilltest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index f70a148..374455c 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test indirectfilltest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test doublenottest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/indirectfilltest.c b/autotest/indirectfilltest.c
+new file mode 100644
+index 0000000..45b1fdc
+--- /dev/null
++++ b/autotest/indirectfilltest.c
+@@ -0,0 +1,53 @@
++#include <assert.h>
++
++// Repeated bytes in a long store become an indirect Y-indexed fill at -Os.
++__noinline void fill(long *p)
++{
++    *p = -1L;
++}
++
++struct Buffer
++{
++    long first;
++    long second;
++    char gap[244];
++    long last;
++    char guard;
++};
++
++// Exercise a nonzero start and the final possible byte offset (255).
++__noinline void fill_offsets(struct Buffer *p)
++{
++    p->second = 0x55555555L;
++    p->last = 0x33333333L;
++}
++
++int main(void)
++{
++    struct Buffer b;
++    char *bytes = (char *)&b;
++    unsigned i;
++
++    for (i = 0; i < sizeof(b); i++)
++        bytes[i] = 0x23;
++    fill(&b.first);
++    for (i = 0; i < sizeof(b); i++)
++        assert((unsigned char)bytes[i] == (i < 4 ? 0xff : 0x23));
++
++    fill_offsets(&b);
++    for (i = 0; i < sizeof(b); i++)
++    {
++        unsigned char expected = 0x23;
++        if (i < 4)
++            expected = 0xff;
++        else if (i < 8)
++            expected = 0x55;
++        else if (i >= 252 && i < 256)
++            expected = 0x33;
++        assert((unsigned char)bytes[i] == expected);
++    }
++    assert(b.first == -1L);
++    assert(b.second == 0x55555555L);
++    assert(b.last == 0x33333333L);
++    return 0;
++}

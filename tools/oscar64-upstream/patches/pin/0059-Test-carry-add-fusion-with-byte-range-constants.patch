@@ -1,0 +1,90 @@
+From eb5a37dc0b78bfe91dea9ac95d4ddc436207ebed Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 22:12:47 +0000
+Subject: [PATCH 59/59] Test carry-add fusion with byte-range constants
+
+Check the NetHack defensive-item threshold expression, both boolean
+values, byte carry-out, and temporary addends. Assert runtime results
+for thresholds 0 through 11 and all byte values with carry 0 and 1.
+
+Before the fix this test and the standalone repro abort in
+BinaryAddCarry in all five native autotest configurations; bytecode
+passes. With the fix both pass all ten configurations. Register the
+test at the top of the batch driver; the makefile discovers it through
+its existing wildcard.
+
+Written by Codex; checked by Claude.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/addcarryconsttest.c | 47 ++++++++++++++++++++++++++++++++++++
+ autotest/autotest.bat        |  3 +++
+ 2 files changed, 50 insertions(+)
+ create mode 100644 autotest/addcarryconsttest.c
+
+diff --git a/autotest/addcarryconsttest.c b/autotest/addcarryconsttest.c
+new file mode 100644
+index 0000000..5f6d35e
+--- /dev/null
++++ b/autotest/addcarryconsttest.c
+@@ -0,0 +1,47 @@
++#include <assert.h>
++
++volatile int difficulty;
++volatile unsigned char left, right, carry;
++
++__noinline int check_defensive(void)
++{
++	// A byte-range immediate is not a temporary register. Keep the
++	// comparisons live across the additions, as in NetHack's muse.c.
++	for (int i = 0; i < 12; ++i)
++	{
++		int expected = 8;
++		difficulty = i;
++		int d = difficulty;
++		if (i > 3) ++expected;
++		if (i > 6) ++expected;
++		if (i > 8) ++expected;
++		if (8 + (d > 3) + (d > 6) + (d > 8) != expected)
++			return 1;
++	}
++
++	return 0;
++}
++
++int main(void)
++{
++	assert(check_defensive() == 0);
++
++	// Include carry out of the low byte, both boolean values, and
++	// ordinary temporary addends (the original fast path).
++	for (int i = 0; i < 256; ++i)
++	{
++		left = i;
++		right = 255 - i;
++		for (int c = 0; c < 2; ++c)
++		{
++			carry = c;
++			int a = left, b = right, bit = carry != 0;
++			assert(255 + a + bit == 255 + i + c);
++			assert(a + 255 + bit == 255 + i + c);
++			assert(bit + (255 + a) == 255 + i + c);
++			assert(a + b + bit == 255 + c);
++			assert(bit + (a + b) == 255 + c);
++		}
++	}
++	return 0;
++}
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 374455c..6cd0e95 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test addcarryconsttest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test indirectfilltest.c
+ @if %errorlevel% neq 0 goto :error
+ 

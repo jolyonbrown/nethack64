@@ -1,7 +1,7 @@
 From 8cd7d988ac8ae06ec8287891543214f88996a50a Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 19:47:26 +0000
-Subject: [PATCH 47/48] Test pointer/null conditional expressions
+Subject: [PATCH 47/59] Test pointer/null conditional expressions
 
 Exercise both operand orders and runtime outcomes in returns, initializers,
 assignments and arguments, with struct, char, int, qualified and function

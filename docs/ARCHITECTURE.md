@@ -13,7 +13,7 @@ fitted to the machine. Our own code is the platform layer underneath:
 
 ```
 +---------------------------------------------------------------+
-|  NetHack 3.4.3 game code (port/src)        ~0.85 MB 6502 code |
+|  NetHack 3.4.3 game code (port/src)        ~1.25 MB 6502 code |
 +------------------+--------------------+-----------------------+
 | window port      | file/dlb layer     | system layer          |
 | (80x25 soft text,| (level files, save,| (RNG, time, getenv,   |
@@ -29,12 +29,12 @@ Static content, uncompressed:
 
 | Item | Size | Where it can live |
 |---|---|---|
-| Game code (Oscar64 -Os, estimate) | ~1.0 MB (0.8-1.2; ~0.85 before the harness fix of 2026-11-14) | EF banks (execute in place) or REU (DMA into RAM) |
+| Game code (Oscar64 -Os, measured) | ~1.25 MB (all 108 files, 2026-11-14; the line-count estimate was ~0.85) | EF banks (execute in place) or REU (DMA into RAM) |
 | String literals | ~165 KB | with the code that uses them (same bank) |
 | `mons[]` + `objects[]` + names | ~45 KB | ROM/REU; the writable bits of `objects[]` (~2 KB) in RAM |
 | 113 special levels | 213 KB | compressed in EF/REU, decompressed on level creation |
 | Encyclopedia, quest text, rumors, help | 415 KB | compressed (text ~50%), REU or disk |
-| **Total** | **~1.85 MB** | EasyFlash holds 1 MB |
+| **Total** | **~2.1 MB** | EasyFlash holds 1 MB |
 
 Dynamic state while playing (Oscar64 layout):
 
@@ -69,14 +69,15 @@ $E000-$FF3F  80-col bitmap (RAM under KERNAL ROM)
 
 ## Code: banking (OPEN — Phase 2 spike)
 
-Three ways to run ~0.85 MB of code through a 64 KB address space:
+Three ways to run ~1.25 MB of code (measured 2026-11-14) through a 64 KB address space:
 
 **Option A — EasyFlash execute-in-place.** Each 16 KB bank holds a group of
 functions + their strings. A call into another bank goes through a trampoline
 in resident RAM (save bank, switch `$DE00`, call, restore). Oscar64 supports
 bank regions; trampolines are ours (or its C++ `EF_CALL`). Zero copy cost;
-but code must be partitioned so hot paths stay in one bank, and ~55 banks of
-code use most of the cartridge, leaving little for data.
+but code must be partitioned so hot paths stay in one bank. At the measured
+~1.25 MB the code alone needs about 80 banks, more than the cartridge's 64, so
+flash cannot hold all of it (it was ~55 banks at the old ~0.85 MB estimate).
 
 **Option B — REU overlays.** All code (and data) lives in a >= 2 MB REU,
 loaded once at boot (from disk or a cartridge). A call into a non-resident

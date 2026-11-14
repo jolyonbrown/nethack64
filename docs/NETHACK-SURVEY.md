@@ -113,6 +113,12 @@ of cc65), and the 52 files both compilers build (45,697 lines) give 8.1 B/line a
 cc65's 10.7 (0.76): **Oscar64 ≈ 1.0 MB** for the whole game (±20%). Details in the
 section "Oscar64 compile status with stubs that read their parameters" below.
 
+**Measured (2026-11-14, later):** with all 108 files compiling, the total is no longer an
+extrapolation: **1,252,234 B** of Oscar64 `-Os` native code for `src/` under the C64
+configuration (9.5 B/line over 131,999 lines), without the window port and the runtime.
+The files cc65 could compile average 7.9 B/line, the other 49 10.4: the extrapolation's
+sample was the easy files. See "Oscar64 compile status with 59 commits".
+
 ## Data that ships with the game
 
 | Item | Bytes (uncompressed) |
@@ -127,8 +133,8 @@ section "Oscar64 compile status with stubs that read their parameters" below.
 
 ## What it adds up to
 
-Code ~1.0 MB (re-estimated 2026-11-14; was ~0.85) + strings ~0.17 MB + tables ~0.05 MB +
-levels 0.21 MB + text 0.42 MB ≈ **1.85 MB of static content** before compression. An EasyFlash is
+Code ~1.25 MB (measured 2026-11-14; the estimate was ~0.85) + strings ~0.17 MB + tables
+~0.05 MB + levels 0.21 MB + text 0.42 MB ≈ **2.1 MB of static content** before compression. An EasyFlash is
 1 MB. That single fact drives `docs/ARCHITECTURE.md`: text and level data
 must be compressed and/or live in an REU or on disk, and code must be banked.
 
@@ -541,7 +547,8 @@ The same 48-commit compiler as the previous section; the harness and `port/` cha
 - **What stops the other 12 C64 files:** r16, a function pointer compared with a
   function, 8 (`cmd`, `dig`, `do_wear`, `eat`, `invent`, `lock`, `objnam`, `windows`);
   r17, `?:` over two functions, 2 (`do`, `pickup`); r52, `!!p`, 2 (`mon`, `zap`).
-  Each has a fix among the next pin candidates (T1.43).
+  Each has a fix among the next pin candidates (T1.43); with them `invent.c` reaches r31
+  (compat #33), whose fix is a candidate too.
 - **Code size, re-estimated:** over the 52 files both cc65 (2026-11-08) and Oscar64
   compile under the UNIX config, 45,697 lines: cc65 10.7 B/line, Oscar64 8.1 B/line, a
   ratio of 0.76 (0.53 on the 18 files before). At 8.0 B/line over all compiled files
@@ -550,3 +557,37 @@ The same 48-commit compiler as the previous section; the harness and `port/` cha
 
 Data: `docs/data/oscar64-pin48h-c64conf-2026-11-14.json` and
 `docs/data/oscar64-pin48h-baseline-2026-11-14.json`.
+
+## Oscar64 compile status with 59 commits (2026-11-14, night)
+
+Commits 49-59 (ADR-0007): our r16 fix, upstream c8da6bd (r17), our fold of `!` on constants
+(r53) and r52 fix (`!!x`), and Codex's fixes for r31 and r59, each with a test. Measured with
+the candidate whose tree the patch files reproduce (45d5c29), harness as in the previous
+section. Data: `docs/data/oscar64-pin59-c64conf-2026-11-14.json` and
+`docs/data/oscar64-pin59-baseline-2026-11-14.json`.
+
+| Result | UNIX config | C64 config |
+|---|---|---|
+| compile through to placement | 97 (1,185,691 B) | **108 (1,252,234 B)** |
+| of which place no code | 2 | 2 |
+| stop on a compile error | 11 | 0 |
+| crash the compiler | 0 | 0 |
+
+- **Every C64 file compiles** (to placement: a file with the five base files and its
+  stubs does not fit one 64 KB program, which the banked build will not ask of it). New:
+  `cmd`, `dig`, `do`, `do_wear`, `eat`, `invent`, `lock`, `mon`, `muse`, `objnam`,
+  `pickup`, `windows`, `zap`.
+- **Files that compiled with 48 commits** give identical listings, intermediate code and
+  maps, except in the functions of 13 files (C64) that use `!!`, which now compute 0 or 1
+  (`castmu()`'s `boolean oldprop = !!Confusion` had kept only the low byte of a `long`),
+  and the intermediate code of `mapglyph()`, where r53's fold takes `!((boolean)1)` when
+  parsing (same machine code).
+- **The 11 UNIX files:** libc gaps that belong to a Unix system layer (`SIG_IGN` in `end`,
+  `files`, `save`; `srand48`/`lrand48` in `hacklib`, `rnd`, `rumors`; `clearerr` in `cmd`),
+  `wintty.h` prototypes the harness does not stub yet (`mapglyph`, `windows`), and
+  Unix-only code in `allmain` (507) and `mail` (109), not looked at yet.
+- **Code size, measured:** 1,252,234 B over the 106 C64 files that place code, 9.5 B/line
+  of `src/`; the largest are `zap.c` 49,682, `trap.c` 48,149, `shk.c` 46,187, `apply.c`
+  36,933 and `uhitm.c` 35,172. Files cc65 compiled average 7.9 B/line and the rest 10.4,
+  which is why the line-count estimates (0.85, then 1.0 MB) came out low. Not included:
+  the window port, the C64 runtime and libc, and string literals (counted with the data).

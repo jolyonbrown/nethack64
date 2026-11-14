@@ -1,0 +1,47 @@
+From df4e773d4d031776cda6faba3c16b88196ed791e Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 22:06:32 +0000
+Subject: [PATCH 54/59] Fix double logical not folding to its operand
+
+The parser applies ! through LogicInvertExpression, which removed an
+inner ! by returning its operand: !!x became x.  That keeps the truth
+value, all a condition needs, but !!x is a value, 0 or 1: !!5 was 5,
+char c = !!(f & 0x100) was 0, and !!p kept the pointer's type, so
+int r = !!p was rejected ("Cannot assign incompatible types").  The
+inner ! now goes only when its operand is 0 or 1 already (a relational,
+&&, || or ! expression), or is of class type: a class without an
+operator! still reaches bool through its operator bool(), as before.
+The previous commit folds ! of a constant, so !!1 stays a constant.
+
+!!x now has the type ! gives, Oscar64's one-byte bool, so sizeof(!!x)
+is 1 as sizeof(!x) already was; C would say sizeof(int).
+
+It is nethack64's repro r52.  NetHack writes !! 98 times, such as
+res = !!revive(obj); the integer ones compiled to the wrong value with
+no diagnostic.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/Declaration.cpp | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/oscar64/Declaration.cpp b/oscar64/Declaration.cpp
+index 60c9807..cdc4e54 100644
+--- a/oscar64/Declaration.cpp
++++ b/oscar64/Declaration.cpp
+@@ -452,9 +452,13 @@ bool Expression::IsSame(const Expression* exp) const
+ 	}
+ }
+ 
+-Expression* Expression::LogicInvertExpression(void) 
++Expression* Expression::LogicInvertExpression(void)
+ {
+-	if (mType == EX_LOGICAL_NOT)
++	// The built-in !!x is 0 or 1, so the inner ! can only go when its operand is 0 or 1
++	// already.  A class operand with no operator! is left to its conversion to bool.
++	if (mType == EX_LOGICAL_NOT && (mLeft->mType == EX_LOGICAL_NOT || mLeft->mType == EX_LOGICAL_AND ||
++		mLeft->mType == EX_LOGICAL_OR || mLeft->mType == EX_RELATIONAL ||
++		(mLeft->mDecType && mLeft->mDecType->IsStructOrUnion())))
+ 		return mLeft;
+ 	else if (mType == EX_LOGICAL_AND)
+ 	{

@@ -23,7 +23,7 @@ Each phase has exit criteria that can be checked by running something.
 Exit evidence: `make test` 5/5; `tools/prepare-port-tree.sh` +
 `tools/host-build.sh` + `tests/host_smoke.py` all pass.
 
-## Phase 1 — The whole game compiles with Oscar64
+## Phase 1 — The whole game compiles with Oscar64 ✅ (2026-11-14, C64 config)
 
 Goal: every file in `port/src` compiles under Oscar64 (link/placement aside).
 
@@ -31,13 +31,19 @@ Goal: every file in `port/src` compiles under Oscar64 (link/placement aside).
 - [x] Add a `C64` platform config (`c64conf.h`, modelled on `pcconf.h`):
       no signals/fork/uid — 2026-11-09, ADR-0006 (the file layer and fixed
       options come with T2.4 and the Phase 3 system layer)
-- [ ] Work down the error classes in OSCAR64-COMPAT.md; each compiler bug gets
-      a repro + workaround, each real portability issue a fix in `port/`
-- [ ] Solve the `makemon.c` hang and the `mhitm.c`/`shknam.c` crashes (bisect -> repro -> upstream issue)
-- [ ] `tools/check_ansi.sh` and `tests/host_smoke.py` stay green throughout
+- [x] Work down the error classes in OSCAR64-COMPAT.md; each compiler bug gets
+      a repro + workaround, each real portability issue a fix in `port/` — 2026-11-14:
+      59 repros; fixes in the ADR-0007 compiler (59 commits) or workarounds in `port/`
+- [x] Solve the `makemon.c` hang and the `mhitm.c`/`shknam.c` crashes (bisect -> repro -> upstream issue)
+      — fixed in the ADR-0007 compiler (r27, r28 and the exponential walks)
+- [x] `tools/check_ansi.sh` and `tests/host_smoke.py` stay green throughout (and CI checks both)
 
 Exit: `tools/measure/measure_oscar64.py` reports 107/107 files measured;
 full code-size figure replaces the estimate in NETHACK-SURVEY.md.
+Met 2026-11-14 under the C64 config: 108/108 files (with the generated `monstr.c`) compile
+to placement, 106 place code (`dlb.c` and `vis_tab.c` hold none there), 1,252,234 B in all,
+which replaces the estimate. Still open from this phase's work: the wrong-code rows T1.15,
+T1.18 and T1.19, and the UNIX reference config's last 11 files.
 
 ## Phase 2 — Memory architecture spikes (decide, don't build everything)
 
@@ -97,7 +103,7 @@ Exit: FEATURES.md checklist ticked by scripted or manual play.
 ## Risks, in order
 
 1. **RAM for dynamic state** (45-60 KB needed, 30 KB resident) — Phase 2.
-2. **Code size vs 1 MB flash** (~0.85 MB code + data) — compression, REU.
+2. **Code size vs 1 MB flash** (~1.25 MB code, measured 2026-11-14, + data) — compression, REU.
 3. **Oscar64 maturity on 130K lines** — repros, upstream issues, pinned version.
    Not only compile errors: r18 (2026-11-10) is silent wrong code, so game
    code needs run-time checks, not just a clean compile. By 2026-11-13, 22 of

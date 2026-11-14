@@ -1,0 +1,49 @@
+From bbc2f328e1c23599c28476fd16fdc80e62adc8f8 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 22:12:40 +0000
+Subject: [PATCH 58/59] Fix immediate operands in native carry-add fusion
+
+CompileInterBlock fuses two byte-range additions and a boolean addend
+into BinaryAddCarry. IsUByte accepts integer constants as well as
+temporaries, but the emitter indexed mTempOffset for both first-add
+operands. A constant such as 8 in NetHack's muse.c therefore used
+temporary -1 and aborted the compiler.
+
+Select immediate LDA/ADC for constant operands and retain the existing
+zero-page instructions for temporaries. The byte-range precondition
+makes the immediate fit, and LDA preserves the boolean carry for ADC.
+Keep the existing carry-out handling and register code unchanged.
+
+It is nethack64's repro r59: rn2(8 + (difficulty > 3) + (difficulty >
+6) + (difficulty > 8)) in rnd_defensive_item() aborted native code
+generation at every level.
+
+Written by Codex; checked by Claude.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/NativeCodeGenerator.cpp | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 7053f89..cde8668 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -10441,8 +10441,15 @@ void NativeCodeBasicBlock::BinaryAddCarry(InterCodeProcedure* proc, const InterI
+ 		mIns.Push(NativeCodeInstruction(cins, ASMIT_LDA, ASMIM_IMMEDIATE, cins->mSrc[0].mIntConst));
+ 	mIns.Push(NativeCodeInstruction(cins, ASMIT_LSR));
+ 
+-	mIns.Push(NativeCodeInstruction(ains, ASMIT_LDA, ASMIM_ZERO_PAGE, BC_REG_TMP + proc->mTempOffset[ains->mSrc[0].mTemp]));
+-	mIns.Push(NativeCodeInstruction(ains, ASMIT_ADC, ASMIM_ZERO_PAGE, BC_REG_TMP + proc->mTempOffset[ains->mSrc[1].mTemp]));
++	// IsUByte also accepts constants, which have no temporary register.
++	if (ains->mSrc[0].mTemp < 0)
++		mIns.Push(NativeCodeInstruction(ains, ASMIT_LDA, ASMIM_IMMEDIATE, ains->mSrc[0].mIntConst));
++	else
++		mIns.Push(NativeCodeInstruction(ains, ASMIT_LDA, ASMIM_ZERO_PAGE, BC_REG_TMP + proc->mTempOffset[ains->mSrc[0].mTemp]));
++	if (ains->mSrc[1].mTemp < 0)
++		mIns.Push(NativeCodeInstruction(ains, ASMIT_ADC, ASMIM_IMMEDIATE, ains->mSrc[1].mIntConst));
++	else
++		mIns.Push(NativeCodeInstruction(ains, ASMIT_ADC, ASMIM_ZERO_PAGE, BC_REG_TMP + proc->mTempOffset[ains->mSrc[1].mTemp]));
+ 	mIns.Push(NativeCodeInstruction(ains, ASMIT_STA, ASMIM_ZERO_PAGE, BC_REG_TMP + proc->mTempOffset[cins->mDst.mTemp]));
+ 	mIns.Push(NativeCodeInstruction(ains, ASMIT_LDA, ASMIM_IMMEDIATE, 0));
+ 	mIns.Push(NativeCodeInstruction(ains, ASMIT_ROL));

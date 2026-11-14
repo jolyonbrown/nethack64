@@ -1,0 +1,84 @@
+From 8949cef394f5a7b22bd758015426b2cc71ff04b3 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 22:04:29 +0000
+Subject: [PATCH 53/59] Test logical not of integer constants
+
+! of int, char, negative and long constants and of constant
+expressions in static initializers, a static aggregate (the shape of
+NetHack's boolopt[] with !PREFER_TILED), an array size, a const
+variable's initializer, enumerators and case labels; and ! of values at
+run time.  Without the previous commit the test is rejected in all ten
+configurations; with it all ten pass.  Register the test in the batch
+driver.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat   |  3 +++
+ autotest/notconsttest.c | 45 +++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 48 insertions(+)
+ create mode 100644 autotest/notconsttest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 525043f..398f821 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test notconsttest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test conditionalfunctest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/notconsttest.c b/autotest/notconsttest.c
+new file mode 100644
+index 0000000..e1781ec
+--- /dev/null
++++ b/autotest/notconsttest.c
+@@ -0,0 +1,45 @@
++#include <assert.h>
++
++#define PREFER_TILED	0
++
++struct opt { const char * name; char def; };
++
++// ! of an integer constant is an integer constant expression
++static int	k0 = !0, k1 = !1, k5 = !5, kc = !'a', kn = !-1;
++static long	kl = !0x10000l;
++static struct opt	opts[] = { { "ascii", !PREFER_TILED }, { "tiled", PREFER_TILED } };
++static char	sized[2 + !0];
++static const int	kx = !(3 - 3) + !(2 > 1);
++
++enum { E0 = !0, E1 = !1, E2 = !0 + !0 };
++
++int pick(int v)
++{
++	switch (v)
++	{
++	case !1:
++		return 10;
++	case !0 + 1:
++		return 20;
++	default:
++		return 30;
++	}
++}
++
++volatile int	zero = 0, five = 5;
++
++int main(void)
++{
++	assert(k0 == 1 && k1 == 0 && k5 == 0 && kc == 0 && kn == 0);
++	assert(kl == 0);
++	assert(opts[0].def == 1 && opts[1].def == 0);
++	assert(sizeof(sized) == 3);
++	assert(kx == 1);
++	assert(E0 == 1 && E1 == 0 && E2 == 2);
++	assert(pick(0) == 10 && pick(2) == 20 && pick(1) == 30);
++
++	// and on values at run time
++	assert(!zero == 1 && !five == 0);
++
++	return 0;
++}

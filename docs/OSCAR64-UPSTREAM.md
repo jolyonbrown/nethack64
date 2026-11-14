@@ -162,7 +162,8 @@ for nethack64 (C, native code, `-Os`, v1.32.273):
 - Seven more from the 48-commit C64 run (2026-11-14, evening), each with a repro and all
   on main 16acc53 too. **r52 (compat #54) is wrong code**: `!!x` is folded to `x`
   (`Expression::LogicInvertExpression`), so `!!5` is 5 and `!!p` keeps the pointer type;
-  NetHack writes `!!` 98 times. Our fix (two lines) and test are pin candidates. The rest
+  NetHack writes `!!` 98 times. Our fix and test are in the pin (commits 52-55, with a fold
+  of `!` on constants that also fixes r53). The rest
   reject valid C and are worked round in `port/`: `!0` not folded in an initializer
   (r53), a comma expression as an `if`/`while`/`switch` condition (r54, the condition is
   parsed without the comma operator), `const static` (r55), a `case`/`default` label in

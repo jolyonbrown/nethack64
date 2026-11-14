@@ -1,0 +1,121 @@
+From 1b95989fff986d2b0b03fd11e971fbfb0c94e5d1 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 22:06:32 +0000
+Subject: [PATCH 55/59] Test double logical not
+
+!!x of int, long and char operands, volatile or not: as a value, in
+arithmetic, as an argument and under a third !; of pointers, null or
+not, call results among them and one as a ?: operand; of constants in
+static initializers, enumerators, an array size and a case label; of
+operands that are 0 or 1 already (relational, &&, ||), which may still
+fold; and as a condition.  Without the previous commit the test is
+rejected in all ten configurations (!!p keeps the pointer type), and
+with the pointer lines taken out its integer asserts fail in all ten;
+with it all ten pass.  Register the test in the batch driver.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat    |  3 ++
+ autotest/doublenottest.c | 80 ++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 83 insertions(+)
+ create mode 100644 autotest/doublenottest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 398f821..f70a148 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test doublenottest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test notconsttest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/doublenottest.c b/autotest/doublenottest.c
+new file mode 100644
+index 0000000..afefe17
+--- /dev/null
++++ b/autotest/doublenottest.c
+@@ -0,0 +1,80 @@
++#include <assert.h>
++
++struct s { int x; };
++
++struct s	a, * p = &a, * q;
++int			flags = 0x100;
++volatile int	five = 5, zero = 0;
++long		big = 0x10000l;
++
++// !! of a constant still folds
++static int	k1 = !!1, k0 = !!0, k5 = !!5;
++enum { E1 = !!1, E5 = !!5 };
++static char	arr[1 + !!7];
++
++int one(int v) { return v; }
++
++int label(int v)
++{
++	switch (v)
++	{
++	case !!7:
++		return 10;
++	default:
++		return 20;
++	}
++}
++
++struct s * get(int c) { return c ? &a : 0; }
++
++int count(const char * s, char c)
++{
++	int	n = 0;
++	while (*s)
++		n += !!(*s++ == c);
++	return n;
++}
++
++int main(void)
++{
++	// !!x of an integer is 0 or 1, not x
++	char	c = !!(flags & 0x100);
++	assert(c == 1);
++	assert(!!five == 1);
++	assert(!!zero == 0);
++	assert(!!five + !!five == 2);
++	assert(!!big == 1);
++	assert(one(!!five) == 1);
++	assert(!(!five) == 1);
++	assert(!!!five == 0);
++	assert(!!!zero == 1);
++
++	// !!p of a pointer is an int
++	int		r = !!p;
++	assert(r == 1);
++	r = !!q;
++	assert(r == 0);
++	r = !!get(1) + !!get(0);
++	assert(r == 1);
++	assert((five ? !!get(1) : 7) == 1);
++
++	// constants
++	assert(k1 == 1 && k0 == 0 && k5 == 1);
++	assert(E1 == 1 && E5 == 1);
++	assert(sizeof(arr) == 2);
++	assert(label(1) == 10 && label(7) == 20);
++
++	// still right where the operand is 0 or 1 already
++	assert(!!(five > 3) == 1);
++	assert(!!(five && zero) == 0);
++	assert(!!(five || zero) == 1);
++	assert(count("abcab", 'a') == 2);
++
++	// and as a condition
++	if (!!zero)
++		assert(0);
++	if (!!five) ; else
++		assert(0);
++
++	return 0;
++}

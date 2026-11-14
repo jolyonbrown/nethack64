@@ -12,9 +12,9 @@
  * Expect when fixed: emulation result 0.  Actual (v1.32.273, the eight-commit patched pin,
  * upstream main 4da3147, -Os): "Assertion `linkerObject || (address >= 0 && address <
  * 256)' failed", SIGABRT.
- * Not fixed by any branch yet (TASKS T1.17).  Probable fix, not tried: "(mIns[si +
- * 0].mAddress - 1) & 0xff" where the LDY is built.
- * Workaround: none applied yet.
+ * Fix: "(mIns[si + 0].mAddress - 1) & 0xff" where the LDY is built (Codex, 2026-11-14,
+ * with autotest indirectfilltest.c): the ADR-0007 compiler's commits 56-57.
+ * Workaround: none in port/.
  * FLAGS: -e -Os
  */
 char buf[8], vv = 7;

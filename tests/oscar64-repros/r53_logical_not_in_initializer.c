@@ -8,7 +8,8 @@
  * NetHack: options.c 47, `{"ascii_map", &iflags.wc_ascii_map, !PREFER_TILED,
  * SET_IN_GAME}` in boolopt[], the file's first error under the C64 config (2026-11-14).
  * Expect when fixed: compiles, emulation result 0.
- * Workaround: options.c writes `(PREFER_TILED ? FALSE : TRUE)`.
+ * Workaround: none now; fixed by the ADR-0007 compiler (commits 52-53, 2026-11-14), so
+ * options.c's `(PREFER_TILED ? FALSE : TRUE)` of the same day was undone.
  * FLAGS: -e
  */
 struct opt { const char *name; int def; };

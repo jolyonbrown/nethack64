@@ -1,0 +1,44 @@
+From e1839834842e3c0e9596604a7c7f05ac202532f9 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 22:04:29 +0000
+Subject: [PATCH 52/59] Fold logical not of an integer constant
+
+ConstantFoldValue had no case for EX_LOGICAL_NOT, so ! of a constant
+was left to code generation and was no constant expression: static
+int k = !0; and { "a", !0 } in a static aggregate were rejected ("Non
+constant initializer", "Constant initializer expected"), and so was !0
+as an enumerator value, a case label or an array size.  Fold it to 1
+or 0, as a relational of two constants is folded.  An operand that is
+a folded variable keeps its non-constant mark through ConstantFold, as
+for the other operators.
+
+It is nethack64's repro r53 (options.c's boolopt[] has !PREFER_TILED),
+and the commit after next needs it: once !!x no longer collapses to x,
+!!1 must still fold.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/Declaration.cpp | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/oscar64/Declaration.cpp b/oscar64/Declaration.cpp
+index e0cca0e..60c9807 100644
+--- a/oscar64/Declaration.cpp
++++ b/oscar64/Declaration.cpp
+@@ -1210,6 +1210,16 @@ Expression* Expression::ConstantFoldValue(Errors * errors, LinkerSection * dataS
+ 		}
+ #endif
+ 	}
++	else if (mType == EX_LOGICAL_NOT && mLeft->mType == EX_CONSTANT && mLeft->mDecValue->mType == DT_CONST_INTEGER)
++	{
++		Declaration	*	dec = new Declaration(mLocation, DT_CONST_INTEGER);
++		dec->mBase = TheBoolTypeDeclaration;
++		dec->mInteger = mLeft->mDecValue->mInteger ? 0 : 1;
++		Expression	*	exp = new Expression(mLocation, EX_CONSTANT);
++		exp->mDecValue = dec;
++		exp->mDecType = dec->mBase;
++		return exp;
++	}
+ 	else if (mType == EX_RELATIONAL && mLeft->mType == EX_CONSTANT && mRight->mType == EX_CONSTANT)
+ 	{
+ 		if (mLeft->mDecValue->mType == DT_CONST_INTEGER && mRight->mDecValue->mType == DT_CONST_INTEGER)

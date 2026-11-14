@@ -1,0 +1,38 @@
+From d988c5c8bbd00971ecff676c5534b44fecc4296c Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 22:02:18 +0000
+Subject: [PATCH 56/59] Fix zero-offset indirect fill size reduction
+
+BlockSizeCopyReduction replaces consecutive LDY/STA (zp),Y pairs with
+an INY/STA/CPY/BNE loop, initializing Y to the first offset minus one.
+For a sequence starting at zero, such as *p = -1L, it constructs LDY #-1
+with no linker object and trips the immediate-operand assertion at -Os.
+
+Mask the initial index to eight bits at its construction. LDY #$ff then
+wraps to zero on the first INY, as the 6502 requires; nonzero starting
+offsets retain their existing instruction operands.
+
+It is nethack64's repro r31 (found 2026-11-12 in NetHack's
+display_pickinv(), invent.c), whose header proposed this fix.
+
+Written by Codex; checked by Claude.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/NativeCodeGenerator.cpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 5bffb7e..7053f89 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -55308,7 +55308,8 @@ bool NativeCodeBasicBlock::BlockSizeCopyReduction(NativeCodeProcedure* proc, int
+ 			if (i > 2)
+ 			{
+ 				int k = mIns[si + 0].mAddress + i - 1;
+-				mIns[di + 0] = NativeCodeInstruction(mIns[si + 0].mIns, ASMIT_LDY, ASMIM_IMMEDIATE, mIns[si + 0].mAddress - 1);
++				// INY wraps the byte index back to zero when the first offset is zero.
++				mIns[di + 0] = NativeCodeInstruction(mIns[si + 0].mIns, ASMIT_LDY, ASMIM_IMMEDIATE, (mIns[si + 0].mAddress - 1) & 0xff);
+ 				mIns[di + 2] = mIns[si + 1];
+ 				mIns[di + 1] = NativeCodeInstruction(mIns[si + 0].mIns, ASMIT_INY);
+ 				mIns[di + 3] = NativeCodeInstruction(mIns[si + 0].mIns, ASMIT_CPY, ASMIM_IMMEDIATE, k);

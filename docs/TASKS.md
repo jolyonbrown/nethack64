@@ -129,7 +129,7 @@ Add new tasks at the bottom of the right section.
       — 2026-11-12 Claude: fixed on upstream main by 1169268 (2026-09-21), not in a
       release; the ADR-0007 compiler (accepted 2026-11-12) carries it, and the build
       uses that compiler since 2026-11-13 (T1.20). Settled: no port-side workaround.
-- [ ] T1.14 Work around r16 (`windows.c:113` function pointer `==` function name) and r17
+- [x] T1.14 Work around r16 (`windows.c:113` function pointer `==` function name) and r17
       (`do.c:688` `?:` over two functions), with repro-backed changes in `port/`. The
       obvious r17 workaround, a pointer variable, runs into r18 for `boolean` functions,
       so do it after T1.13. (r17 is fixed on upstream main, c8da6bd; r16 has a fix
@@ -137,6 +137,7 @@ Add new tasks at the bottom of the right section.
       with v1.32.273.)
       — 2026-11-14: r18 is fixed in the pin, and both fixes are pin candidates instead
       (T1.43): r16 is the first error of eight files, r17 of two. No `port/` change.
+      Both are in the pin since 2026-11-14 (commits 49-51).
 - [ ] T1.15 **Wrong code to settle before game code runs** (OSCAR64-COMPAT.md #22-#28):
       r19 (`p == 0` on a pointer initialised to 0), r20-r22 (negative initialised data
       read as unsigned), r23 (a call through `windowprocs.win_*` overwrites the
@@ -163,12 +164,16 @@ Add new tasks at the bottom of the right section.
       (v1.32.273: 0); NetHack harness: identical reports and listings in both configs.
       Checked again by a second agent. Using it in the build is T1.20; the further
       candidates are T1.25.
-- [ ] T1.17 r31 (OSCAR64-COMPAT.md #33): at `-Os` Oscar64 aborts (assertion, SIGABRT) in
+- [x] T1.17 r31 (OSCAR64-COMPAT.md #33): at `-Os` Oscar64 aborts (assertion, SIGABRT) in
       `BlockSizeCopyReduction`, which builds `LDY #-1` for the same value stored to three
       or more bytes from offset 0 through a pointer. Hit by `invent.c` `display_pickinv()`
       once `invent.c` gets past its first error (T1.4). Not fixed anywhere: write the fix
       (probably `(mIns[si + 0].mAddress - 1) & 0xff` where the `LDY` is built) for upstream
       main and the pin, with an autotest, or work around it in `invent.c`.
+      — 2026-11-14: Codex wrote that fix and a test (`indirectfilltest.c`): r31 and an
+      11-line reduction of `display_pickinv` pass in all ten configurations, autotest 1,501
+      runs all 0, corpus 960 of 960 identical. In the pin as commits 56-57 (T1.43);
+      `invent.c` compiles.
 - [ ] T1.18 r34 (#36): two reads of a `volatile` pointer through a pointer cast are merged
       (wrong code on v1.32.273, the pin and main). No game code reads a volatile pointer
       through a cast; the harness's pointer stubs do (the stub change is in T1.10). Write
@@ -340,20 +345,26 @@ Add new tasks at the bottom of the right section.
       since 2026-11-14. If added: ADR-0007's checks, as for the earlier rounds.
       — 2026-11-14: added on his go-ahead ("you go ahead") as commits 41-42; ADR-0007's
       checks passed (results there). It fixes r9 as well.
-- [ ] T1.44 Two compiler aborts left in the C64 run, both in the native code generator
+- [x] T1.44 Two compiler aborts left in the C64 run, both in the native code generator
       at `-Os`: `muse.c` (`rnd_defensive_item`: an index assertion in
       `NativeCodeBasicBlock::BinaryAddCarry`, with the 48 commits; it showed once the
-      stubs kept the calls' arguments, T1.42) and `invent.c` (`display_pickinv`: the
-      assertion `linkerObject || (address >= 0 && address < 256)` in
-      `BlockSizeCopyReduction`, once T1.43's candidates let it compile that far).
-      Codex is reducing each and writing a fix and a test (`build/oscar64-wt/r60-fix`,
-      `r59-fix`); then repros, compat rows, and pin candidates if the fixes hold.
-- [ ] T1.43 Jolyon: add seven commits to the pin as 49-55? Our r16 fix (fork draft #6,
+      stubs kept the calls' arguments, T1.42) and `invent.c` (`display_pickinv`, once
+      T1.43's candidates let it compile that far): r31, known since 2026-11-12 (T1.17).
+      Codex is reducing the first and writing a fix and a test (`build/oscar64-wt/r60-fix`);
+      then a repro, a compat row, and a pin candidate if the fix holds.
+      — 2026-11-14: r31 fixed by Codex (`codex/r59-fix`), as T1.17 proposed. The `muse.c`
+      abort is r59 (compat #61): a byte constant plus booleans,
+      `rn2(8 + (difficulty > 3) + ...)`, at every native level; Codex found the cause and
+      fixed it (`codex/r60-fix`). Both fixes and their tests are pin commits 56-59 (T1.43).
+- [x] T1.43 Jolyon: add seven commits to the pin as 49-55? Our r16 fix (fork draft #6,
       compat #20), upstream's c8da6bd for r17 (compat #21) with our test, our fold of
       `!` on constants (r53, compat #55) with a test, and our r52 fix (`!!x` folded to
       `x`, wrong code, compat #54) with a test. Branch `nethack64/pin-cand-49c`
       (`build/oscar64-wt/pin-c49c`); ADR-0007's checks are running. With them 11 of the 12
       remaining C64 files compile; `invent.c` then aborts (T1.44).
+      — 2026-11-14: added as commits 49-55 on his go-ahead ("add all of them to the pin"),
+      with T1.44's two fixes as 56-59; ADR-0007's checks passed (results there). C64
+      108/108 (1,252,234 B), UNIX 97/108. r53's `options.c` workaround is undone.
 - [x] T1.42 The harness's stubs (T1.10) let `-Os` delete every call to an empty void stub
       and drop arguments nothing read, so each file's code was under-counted; a `?:`
       argument for such a parameter also hit r58 (`timeout.c`, `do.c`). Make stubs read

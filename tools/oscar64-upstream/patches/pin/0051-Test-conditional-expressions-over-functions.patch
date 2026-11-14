@@ -1,0 +1,108 @@
+From b8be83cd4ab3666a4f451a96ec57a5471728a9de Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 21:53:10 +0000
+Subject: [PATCH 51/59] Test conditional expressions over functions
+
+c ? f : g over two functions: as the argument for a function pointer
+parameter, both outcomes and also &f : &g; for functions returning int,
+char and void; assigned and as an initialiser, also of a function
+pointer typedef; called directly; and compared with a function.  It is nethack64's repro r17 (query_objlist(..., all ?
+allow_all : allow_category) in NetHack's do.c and pickup.c).  Without
+the previous commit the compiler crashes on the test (SIGSEGV) in all
+ten configurations; with it all ten pass.  Register the test in the
+batch driver; the makefile discovers it through the existing wildcard.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat          |  3 ++
+ autotest/conditionalfunctest.c | 68 ++++++++++++++++++++++++++++++++++
+ 2 files changed, 71 insertions(+)
+ create mode 100644 autotest/conditionalfunctest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 5adce13..525043f 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test conditionalfunctest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test conditionalnulltest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/conditionalfunctest.c b/autotest/conditionalfunctest.c
+new file mode 100644
+index 0000000..d5372c3
+--- /dev/null
++++ b/autotest/conditionalfunctest.c
+@@ -0,0 +1,68 @@
++#include <assert.h>
++
++struct o { int x; };
++
++int fa(struct o * p) { return p->x + 1; }
++int fb(struct o * p) { return p->x + 2; }
++
++char ca(struct o * p) { return p->x == 0; }
++char cb(struct o * p) { return p->x != 0; }
++
++void va(struct o * p) { p->x += 10; }
++void vb(struct o * p) { p->x += 20; }
++
++typedef int (*ifunc)(struct o *);
++
++volatile int	k = 0, m = 1;
++
++int call(int (* fn)(struct o *))
++{
++	struct o	v;
++	v.x = 0;
++	return fn(&v);
++}
++
++char callc(char (* fn)(struct o *))
++{
++	struct o	v;
++	v.x = 0;
++	return fn(&v);
++}
++
++int main(void)
++{
++	struct o	v;
++
++	// as an argument, both outcomes
++	assert(call(k ? fa : fb) == 2);
++	assert(call(m ? fa : fb) == 1);
++	assert(call(k ? &fa : &fb) == 2);
++
++	// functions returning char
++	assert(callc(k ? ca : cb) == 0);
++	assert(callc(m ? ca : cb) == 1);
++
++	// assigned and as an initialiser, also through a typedef
++	int	(* fp)(struct o *) = m ? fa : fb;
++	assert(call(fp) == 1);
++	fp = k ? fa : fb;
++	assert(call(fp) == 2);
++	ifunc	tp = k ? &fa : &fb;
++	assert(call(tp) == 2);
++
++	// called directly
++	v.x = 5;
++	assert((k ? fa : fb)(&v) == 7);
++	assert((m ? fa : fb)(&v) == 6);
++
++	// void functions
++	void (* vp)(struct o *) = k ? va : vb;
++	v.x = 0;
++	vp(&v);
++	assert(v.x == 20);
++
++	// compared
++	assert((m ? fa : fb) == fa);
++
++	return 0;
++}

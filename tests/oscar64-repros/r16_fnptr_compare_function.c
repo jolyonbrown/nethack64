@@ -5,7 +5,8 @@
  * Comparing two pointer variables, or a pointer with 0, works; `p == &f` fails too.
  * Expect when fixed: compiles, emulation result 0.  Actual: error 3013 "Incompatible
  * pointer types", at every optimisation level.
- * Workaround: none applied yet (TASKS T1.14).
+ * Workaround: none in port/; fixed by the ADR-0007 compiler (commit 49, our fix for fork
+ * draft #6, 2026-11-14).
  * FLAGS: -e
  */
 static void f(const char *s)

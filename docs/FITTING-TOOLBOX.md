@@ -26,7 +26,7 @@ risk numbers below are PLAN.md's and are used throughout):
 | Risk | What |
 |---|---|
 | 1 | RAM for dynamic state: 45-60 KB wanted, 30 KB resident (`$0900-$7FFF`) |
-| 2 | Code and data against 1 MB of flash: about 1.7 MB of static content |
+| 2 | Code and data against 1 MB of flash: about 2.1 MB of static content (code measured 2026-11-14) |
 | 4 | EasyFlash + REU bus conflict on real hardware |
 | 5 | Speed |
 
