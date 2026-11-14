@@ -126,6 +126,12 @@ Added 2026-11-14 on Jolyon's go-ahead ("you go ahead"): 41. `190d72a` upstream 4
 `mkobj.c` and `files.c` in the corrected harness; r9, compat #10, is the same crash), and
 42. `2fded3c` its test, ours.
 
+Added the same day on Jolyon's go-ahead ("add the r50 fix to the pin too"): 43. `36e3794`
+r50 (found and fixed by Codex): `SimplifyIntegerNumeric` now copies the memory base along
+with the variable index when it folds an address into an indirect store or load, so a
+buffer promoted to a global (`fopen()`'s file name) no longer keeps a local tag that
+`LoadStoreForwarding` followed into a null entry; and 44. `794954e` its test (Codex).
+
 `tools/oscar64-upstream/build-pin.sh [DIR]` builds it (`JOBS=N` for `make -jN`). Since
 2026-11-13 the setup scripts (`tools/setup-ubuntu.sh`, `tools/setup-arch.sh`) build the
 release and then this compiler, link this one as `oscar64` (the Makefile takes it from
@@ -140,10 +146,10 @@ checks, and its `-Os` size is understood.
 - The six fixed rows above stop being "must be settled before game code runs" once
   the build uses the pin; r18-r23 and r25 pass, and so does r26 (commit 8). r24 stays
   open (T1.15).
-- We carry a patch stack until upstream releases: of the 42 commits, six are upstream's
+- We carry a patch stack until upstream releases: of the 44 commits, six are upstream's
   (1169268, bf42402, 1ae3216, 3bb084f, 1073206, 46e60d6), two backport upstream fixes (fbca293
-  and the CoerceType hunk of 57655c5), three are tests for upstream fixes, and thirty-one are ours
-  (the r45 and r46 fixes and three tests written by Codex). Most of ours have an upstream form as a
+  and the CoerceType hunk of 57655c5), three are tests for upstream fixes, and thirty-three are
+  ours (the r45, r46 and r50 fixes and four tests written by Codex). Most of ours have an upstream form as a
   draft PR in the fork or a local branch on main, on hold (OSCAR64-UPSTREAM.md; nothing
   sent yet), so the stack should shrink. Once
   the build switches, anyone building must run the setup script (or `build-pin.sh`); a
@@ -190,7 +196,7 @@ Upstream main has the same problem. Until it is fixed, the choice is between:
 
 ```sh
 JOBS=2 tools/oscar64-upstream/build-pin.sh /tmp/pin    # v1.32.273 + patches/pin
-make repros OSCAR64=/tmp/pin/bin/oscar64               # 27 of 50 FIXED (run.py caps each compile)
+make repros OSCAR64=/tmp/pin/bin/oscar64               # 28 of 51 FIXED (run.py caps each compile)
 (ulimit -v 3000000; make -k -j2 -C /tmp/pin/make check)  # Oscar64's own autotest
 (ulimit -v 3000000; python3 tools/oscar64-upstream/corpus_diff.py ~/src/oscar64/bin/oscar64 /tmp/pin/bin/oscar64 -j 2 --out /tmp/pin-corpus)
 make OSCAR64=/tmp/pin/bin/oscar64 && make prg OSCAR64=/tmp/pin/bin/oscar64 && make test OSCAR64=/tmp/pin/bin/oscar64
@@ -326,3 +332,15 @@ configurations, r49 and r9); repros 27 of 50 (r49 and r9 now pass); nethack64: `
 intermediate code and map of the 86 (C64) and 85 (UNIX) files both compilers compile is
 identical, and `files.c` and `mkobj.c`, which crashed, reach placement: C64 63/107
 (378,919 B), UNIX 52/107 (325,427 B).
+
+Results 2026-11-14 (44 commits, tip 794954e; the patch files give tree a4226df, the branch's
+and that of the candidate the checks below ran on): autotest 1,411 emulations, all 0 (the
+new test in all ten configurations; with 42 commits it crashes the native ones at `-O2`,
+`-Os` and `-O3`); corpus against 42 commits: 878 of the 879 programs both compile are
+identical, the other is `opp_hashmap.cpp` at `-bc -O2`, where two blocks of a
+number-formatting routine change places with the same effect (its test passes), and six
+crashes now compile (the new test and r50, three configurations each); repros 28 of 51
+(r50 now passes); nethack64 `.crt` and `.prg` byte-identical, `make test` 5/5; NetHack:
+listings and maps identical, the intermediate code of `files.c` and `rumors.c` now names
+`cbmname` where the 42-commit compiler printed `'null'` (the tag the fix corrects), and
+`questpgr.c`, which crashed, reaches placement.

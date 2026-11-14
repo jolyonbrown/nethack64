@@ -322,20 +322,40 @@ Add new tasks at the bottom of the right section.
       fills of the 4 bytes before the buffer, except where those bytes decided the old
       answer ("riken", "uriken", "huriken" after "shu", "sh", "s"). C64 assembly and
       map of `decl.c` unchanged.
-- [ ] T1.35 Harness arrays still undefined: `SAVEF` (its size, `SAVESIZE`, is defined
+- [x] T1.35 Harness arrays still undefined: `SAVEF` (its size, `SAVESIZE`, is defined
       only in `files.c`; `save.c`'s first error) and the generated `monstr[]` (`makemon.c`,
       `wizard.c`, `pray.c`, `muse.c`): have `--generate-only` run `makedefs -m` as it does
       for `vis_tab.c`, and give the harness `SAVESIZE`.
+      — 2026-11-14: done. `monstr.c` is generated into `port/src` (108 files measured);
+      array definitions are copied from the defining file's preprocessed text, so
+      `SAVEF[(32 + 13)]`. With 44 commits: C64 68/108, UNIX 55/108, no compiler crash.
 - [x] T1.34 Jolyon: add upstream 46e60d6 (r49's fix) to the pin? On the decision page
       since 2026-11-14. If added: ADR-0007's checks, as for the earlier rounds.
       — 2026-11-14: added on his go-ahead ("you go ahead") as commits 41-42; ADR-0007's
       checks passed (results there). It fixes r9 as well.
-- [ ] T1.33 r50 (OSCAR64-COMPAT.md #52): Oscar64 segfaults in `LoadStoreForwarding` on
+- [ ] T1.37 r51 (OSCAR64-COMPAT.md #53): `c ? p : 0` is rejected ("Incompatible
+      conditional types"), the null pointer constant not being taken for a pointer; the
+      first error of `pray.c`, `muse.c`, `shk.c`, `mon.c`. A compiler fix (Codex, own
+      worktree `codex/r51-fix`), then a pin decision for Jolyon; a `port/` workaround
+      would mean a cast at every site.
+- [x] T1.36 Jolyon: add the r50 fix (T1.33) to the pin as commits 43-44? On the decision
+      page since 2026-11-14, checked on top of commits 41-42.
+      — 2026-11-14: added on his go-ahead ("add the r50 fix to the pin too").
+- [x] T1.33 r50 (OSCAR64-COMPAT.md #52): Oscar64 segfaults in `LoadStoreForwarding` on
       `g = fopen(...); f("x");` (`f` storing to a global) at `-Os`/`-O2`/`-O3`:
       `questpgr.c` `load_qtlist()` under the C64 configuration. Release, pin and main
       16acc53 alike. Find the cause and a fix on a branch (a pin decision for Jolyon).
       No port-side workaround yet: it needs Oscar64's own `fopen()`, which the C64
       file layer (T2.4) may replace.
+      — 2026-11-14: cause found by Codex, checked by Claude. `SimplifyIntegerNumeric`
+      copied a folded address's variable index into an indirect store or load but not
+      its memory base; once `fopen()`'s filename buffer is promoted to a global, a store
+      keeps `IM_LOCAL` with the global's index and `LoadStoreForwarding` reads a null
+      `mLocalVars` entry. Two-line fix and a test on `codex/r50-fix` (cf729e1, 44421bb),
+      cherry-picked as candidate commits 43-44 (`build/oscar64-wt/pin-r50`): autotest
+      1,411 all 0; corpus 878 of 879 identical, the other a block reordering with the
+      same result (`opp_hashmap.cpp`, `-bc -O2`); NetHack listings and maps unchanged,
+      `questpgr.c` compiles; repros 28 of 50. Decision: T1.36.
 - [x] T1.32 r48 (OSCAR64-COMPAT.md #50): `a ? b ? x : y : z` is rejected ("':' expected"),
       `pray.c`'s first compile error. — 2026-11-14: the middle operand is parsed as a
       logical-OR expression (also on upstream main). Parentheses at the 3 sites a token

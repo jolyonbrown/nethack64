@@ -1,0 +1,161 @@
+From 794954eed10f4dba1d32697c0cdb3ceb6fcd4e72 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 18:33:07 +0000
+Subject: [PATCH 44/44] Test static-stack address forwarding across filename
+ branches
+
+Reproduce r50 with fopen-style filename formatting and emulator-safe callees. Keep the conditional buffer index, global pointer result, and following pointer-argument call that expose the stale memory-base tag. Assert the captured filename, returned slot, and global store.
+
+The unfixed compiler segfaults with -ea -g -O2 -n. The fixed compiler passes all ten configurations discovered by autotest/makefile; also register the test in the Windows batch driver.
+
+Written by Codex; checked by Claude.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat           |   3 +
+ autotest/staticstackaliastest.c | 123 ++++++++++++++++++++++++++++++++
+ 2 files changed, 126 insertions(+)
+ create mode 100644 autotest/staticstackaliastest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 450af0d..156e77c 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test staticstackaliastest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test splitexitblocktest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/staticstackaliastest.c b/autotest/staticstackaliastest.c
+new file mode 100644
+index 0000000..3cfbcac
+--- /dev/null
++++ b/autotest/staticstackaliastest.c
+@@ -0,0 +1,123 @@
++#include <assert.h>
++
++// Reduced from fopen's filename formatting. The buffer moves from local to
++// static-stack storage, and the conditional k++ gives its address multiple
++// definitions. SimplifyIntegerNumeric must copy the memory base along with
++// the variable index when forwarding that address to a load or store.
++// Keep the pointer result and following pointer-argument call: they affect
++// inlining and the variable layout that exposed the stale local index.
++
++struct File
++{
++	signed char fnum;
++};
++
++struct File streams[8];
++struct File *fp;
++int n;
++char filename[32];
++
++// Capture the formatted name without requiring disk I/O in the emulator.
++__noinline void set_name(const char *s)
++{
++	char i = 0;
++	do
++	{
++		filename[i] = s[i];
++	} while (s[i++]);
++}
++
++__noinline char open_device(char device)
++{
++	n = device;
++	return 1;
++}
++
++struct File *open_file(const char *fname, const char *mode)
++{
++	char i = 0;
++	while (i < 8 && streams[i].fnum)
++		i++;
++
++	if (i < 8)
++	{
++		char buffer[32];
++		char j = 0, rj = 0;
++		char drive = 0, device = 8, t = 0;
++
++		while (fname[j] >= '0' && fname[j] <= '9')
++			t = t * 10 + (fname[j++] - '0');
++		if (fname[j] == ':')
++		{
++			j++;
++			drive = t;
++			rj = j;
++			t = 0;
++			while (fname[j] >= '0' && fname[j] <= '9')
++				t = t * 10 + (fname[j++] - '0');
++			if (fname[j] == ':')
++			{
++				j++;
++				device = drive;
++				drive = t;
++			}
++			else
++				j = rj;
++		}
++		else
++			j = rj;
++
++		char k = 1, s = 1;
++		if (drive >= 10)
++		{
++			buffer[k++] = drive / 10 + '0';
++			drive %= 10;
++		}
++		buffer[k++] = drive + '0';
++		buffer[k++] = ':';
++		while (fname[j])
++			buffer[k++] = fname[j++];
++		buffer[k++] = ',';
++		buffer[k++] = 's';
++		buffer[k++] = ',';
++		if (mode[0] == 'w' || mode[0] == 'W')
++		{
++			buffer[k++] = 'w';
++			buffer[--s] = '@';
++		}
++		else if (mode[0] == 'r' || mode[0] == 'R')
++			buffer[k++] = 'r';
++		else if (mode[0] == 'a' || mode[0] == 'A')
++			buffer[k++] = 'a';
++		buffer[k++] = 0;
++
++		set_name(buffer + s);
++		if (open_device(device))
++		{
++			streams[i].fnum = i + 2;
++			return streams + i;
++		}
++	}
++	return nullptr;
++}
++
++void touch(const char *s)
++{
++	n = 0;
++}
++
++void load(void)
++{
++	fp = open_file("quest.dat", "r");
++	touch("x");
++}
++
++int main(void)
++{
++	load();
++	assert(fp == streams && streams[0].fnum == 2);
++	assert(n == 0);
++	assert(filename[0] == '0' && filename[1] == ':' && filename[2] == 'q');
++	assert(filename[14] == 'r' && filename[15] == 0);
++	return 0;
++}

@@ -156,7 +156,9 @@ for nethack64 (C, native code, `-Os`, v1.32.273):
 - Two compiler crashes surfaced by the corrected harness (T1.10). r49 (compat #51),
   `SplitAt` on a function's exit block, is fixed upstream by 46e60d6 (2026-10-04): a
   backport for the pin, on the decision page. r50 (compat #52), a `LoadStoreForwarding`
-  segfault on `g = fopen(...); f("x");`, is still on main 16acc53; issue text drafted.
+  segfault on `g = fopen(...); f("x");`, is still on main 16acc53; Codex found the cause
+  (a memory-base tag `SimplifyIntegerNumeric` does not copy) and a two-line fix with a
+  test (`codex/r50-fix`), a PR candidate like the others, on hold. Issue text drafted.
 
 **Not at `-Os`:** `for (unsigned char c = 250; c != 4; c++)` loops the wrong number of
 times at `-O2`/`-O3`; four or more inline-asm stores into a global array read back

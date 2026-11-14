@@ -1,7 +1,7 @@
 From 04b8b6a7a6498a87e23edd5432a3742e525af022 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 00:57:52 +0000
-Subject: [PATCH 40/42] Test argument reuse after indirect parameter changes
+Subject: [PATCH 40/44] Test argument reuse after indirect parameter changes
 
 Check sscanf followed by strcmp and reuse of pointer and four-byte
 integer arguments after an address-taken parameter is changed. Cover a

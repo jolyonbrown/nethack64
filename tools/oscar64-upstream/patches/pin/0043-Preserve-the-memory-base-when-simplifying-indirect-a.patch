@@ -1,0 +1,37 @@
+From 36e37949b99a2693b2d572ca027d678594f3d429 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 18:33:01 +0000
+Subject: [PATCH 43/44] Preserve the memory base when simplifying indirect
+ addresses
+
+SimplifyIntegerNumeric copied a LEA's variable index and linker object to indirect loads and stores but left their memory base unchanged. After static-stack promotion this could pair a global index with IM_LOCAL; LoadStoreForwarding then dereferenced a null local-variable entry when checking a native call.
+
+Copy the memory base with the index in both cases. This fixes the fopen-result-then-call crash (r50) at optimized native settings.
+
+Written by Codex; checked by Claude.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/InterCode.cpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index f716517..487d27a 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -13760,6 +13760,7 @@ bool InterCodeBasicBlock::SimplifyIntegerNumeric(const GrowingInstructionPtrArra
+ 						{
+ 							ins->mSrc[1].mLinkerObject = pins->mSrc[1].mLinkerObject;
+ 							ins->mSrc[1].mVarIndex = pins->mSrc[1].mVarIndex;
++							ins->mSrc[1].mMemoryBase = pins->mSrc[1].mMemoryBase;
+ 						}
+ 
+ 						if (pins->mSrc[0].mTemp < 0 && ins->mSrc[1].mIntConst + pins->mSrc[0].mIntConst >= 0)
+@@ -13815,6 +13816,7 @@ bool InterCodeBasicBlock::SimplifyIntegerNumeric(const GrowingInstructionPtrArra
+ 						{
+ 							ins->mSrc[0].mLinkerObject = pins->mSrc[1].mLinkerObject;
+ 							ins->mSrc[0].mVarIndex = pins->mSrc[1].mVarIndex;
++							ins->mSrc[0].mMemoryBase = pins->mSrc[1].mMemoryBase;
+ 						}
+ 
+ 						if (pins->mSrc[0].mTemp < 0 && ins->mSrc[0].mIntConst + pins->mSrc[0].mIntConst >= 0)

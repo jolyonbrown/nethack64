@@ -10,7 +10,11 @@
  * impossible() a body; the real build will have one too.
  * On v1.32.273, the pin, the pin with 46e60d6 (r49's fix) and upstream main 4da3147.
  * Expect when fixed: compiles.
- * Workaround: none yet (TASKS T1.33).
+ * Cause (Codex, checked by Claude): SimplifyIntegerNumeric copies a folded address's
+ * mVarIndex into an indirect store/load but not its mMemoryBase; after fopen()'s
+ * filename buffer is promoted to a global, a store keeps IM_LOCAL with the global's
+ * index and LoadStoreForwarding reads mLocalVars[index], which is null.
+ * Workaround: none in port/; fixed by the ADR-0007 compiler (commits 43-44, 2026-11-14).
  * FLAGS: -O2
  * COMPILE-ONLY
  */
