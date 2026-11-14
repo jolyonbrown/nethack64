@@ -345,6 +345,15 @@ Add new tasks at the bottom of the right section.
       since 2026-11-14. If added: ADR-0007's checks, as for the earlier rounds.
       — 2026-11-14: added on his go-ahead ("you go ahead") as commits 41-42; ADR-0007's
       checks passed (results there). It fixes r9 as well.
+- [ ] T1.45 `mhitm.c` aborts the compiler since the stubs became `__noinline` (T1.42):
+      "mIndex == 1000 || mNumEntries == mEntryBlocks.Size()" in
+      `NativeCodeBasicBlock::RemoveUnusedResultInstructions`, compiling `mattackm()`, with
+      the 59-commit compiler. Codex found the cause (`codex/r60-mattackm`, uncommitted):
+      `JoinEntryLoadStoreZP` moves an entry block to a new block without decrementing
+      `mNumEntries`; with `mNumEntries--;` added, `mhitm.c` compiles and 911 autotest runs
+      pass. Its run was then cut off by the service ("flagged for possible cybersecurity
+      risk") before a minimal repro, the full autotest or a test. Finish those, then a pin
+      candidate for Jolyon.
 - [x] T1.44 Two compiler aborts left in the C64 run, both in the native code generator
       at `-Os`: `muse.c` (`rnd_defensive_item`: an index assertion in
       `NativeCodeBasicBlock::BinaryAddCarry`, with the 48 commits; it showed once the
@@ -374,6 +383,9 @@ Add new tasks at the bottom of the right section.
       — 2026-11-14: done. Code measured ×1.33 for the same files (C64; UNIX ×1.34), and the
       code-size estimate is ≈ 1.0 MB, not ≈ 0.85 MB (NETHACK-SURVEY.md, ARCHITECTURE.md).
       With 48 commits: C64 95/108, UNIX 86/108; `muse.c` now aborts the compiler (T1.44).
+      — 2026-11-14, later: and the stubs are `__noinline`: Oscar64 had inlined the smallest,
+      so their stores were measured in place of calls, and the calls were missing from the
+      listings. Code ×0.947 (≈ 1.19 MB in all); `mhitm.c` now aborts the compiler (T1.45).
 - [x] T1.41 The first errors of the 23 C64 files left with 48 commits, sorted out: r16 (8
       files) and r17 (2) have fixes (T1.43); new repros r52 (`!!x`, wrong code), r53 (`!`
       of a constant in an initializer), r54 (comma expression as a condition), r55 (`const
@@ -457,7 +469,10 @@ Add new tasks at the bottom of the right section.
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 
 - [ ] T2.1 Banking spike A (EF execute-in-place, trampolines) with hack.c + apply.c + zap.c
-- [ ] T2.2 Banking spike B (REU overlays) with the same files
+      — 2026-11-14: measurements, coupling, constant data, hardware and Oscar64's 64-bank
+      limit in docs/BANKING-SPIKE.md; next its "Next" list (call counts, simulation,
+      prototypes), then ADR-0008.
+- [ ] T2.2 Banking spike B (REU overlays) with the same files (BANKING-SPIKE.md)
 - [ ] T2.3 RAM map for dynamic state; BUFSZ policy ADR
 - [ ] T2.4 REU RAM-disk file layer with an AUTOTEST
 - [ ] T2.5 Compress `data`/`quest.dat`/`rumors` three ways; table of ratios + decode speed

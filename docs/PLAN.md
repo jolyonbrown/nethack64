@@ -43,7 +43,9 @@ full code-size figure replaces the estimate in NETHACK-SURVEY.md.
 Met 2026-11-14 under the C64 config: 108/108 files (with the generated `monstr.c`) compile
 to placement, 106 place code (`dlb.c` and `vis_tab.c` hold none there), 1,252,234 B in all,
 which replaces the estimate. Still open from this phase's work: the wrong-code rows T1.15,
-T1.18 and T1.19, and the UNIX reference config's last 11 files.
+T1.18 and T1.19, and the UNIX reference config's last 11 files. Corrected the same night:
+with `__noinline` stubs the code is ≈ 1.19 MB, and `mhitm.c` aborts the compiler (T1.45), so
+107/108 until that is fixed.
 
 ## Phase 2 — Memory architecture spikes (decide, don't build everything)
 
@@ -103,7 +105,7 @@ Exit: FEATURES.md checklist ticked by scripted or manual play.
 ## Risks, in order
 
 1. **RAM for dynamic state** (45-60 KB needed, 30 KB resident) — Phase 2.
-2. **Code size vs 1 MB flash** (~1.25 MB code, measured 2026-11-14, + data) — compression, REU.
+2. **Code size vs 1 MB flash** (~1.2 MB code, measured 2026-11-14, + data) — compression, REU (docs/BANKING-SPIKE.md).
 3. **Oscar64 maturity on 130K lines** — repros, upstream issues, pinned version.
    Not only compile errors: r18 (2026-11-10) is silent wrong code, so game
    code needs run-time checks, not just a clean compile. By 2026-11-13, 22 of

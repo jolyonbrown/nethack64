@@ -30,6 +30,7 @@ cc65 stays installed for comparison only.
 
 Update 2026-11-14: the 2026-11-08 Oscar64 sizes were about a quarter low, because the
 measurement harness let Oscar64 delete calls to empty stubs (TASKS T1.42). Over the 52
-files both compilers build, Oscar64's code is 0.76 of cc65's (not 0.53), and all 108 files
-measure 1,252,234 B. Oscar64's code is still about a quarter smaller, so the decision
-stands; the budget it fed did not (NETHACK-SURVEY.md).
+files both compilers build, Oscar64's code is 0.76 of cc65's (not 0.53), and the whole game
+measures about 1.19 MB (with stubs the optimiser cannot inline). Oscar64's code is still
+about a quarter smaller, so the decision stands; the budget it fed did not
+(NETHACK-SURVEY.md).

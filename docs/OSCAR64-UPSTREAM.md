@@ -175,6 +175,10 @@ for nethack64 (C, native code, `-Os`, v1.32.273):
   compiler at `-O2`/`-Os`/`-O3` once its result is used, even only compared
   (`pick(1) == fa`); release, pin and main alike. Upstream's c8da6bd (the r17 fix, a pin
   candidate) also cures Codex's `(c ? p : (fp)0)(1)` crash above.
+- Found during the banking spike (2026-11-14), no NetHack site: a region in bank 64 or
+  higher compiles with no diagnostic, though banks are a `uint64` mask (`1ULL << 64` is
+  undefined; the research agent saw bank 64 alias bank 0 and 65 reported only as an
+  overlap), and `-tf=crt` writes an EasyFlash image whatever `-cid=` says.
 - Two compiler crashes surfaced by the corrected harness (T1.10). r49 (compat #51),
   `SplitAt` on a function's exit block, is fixed upstream by 46e60d6 (2026-10-04): a
   backport for the pin, on the decision page. r50 (compat #52), a `LoadStoreForwarding`

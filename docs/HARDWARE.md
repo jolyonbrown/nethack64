@@ -58,7 +58,11 @@ are simpler for saves.
 Alternatives if the conflict bites: cartridges that only use `$DE00`
 (GMod2 512 KB, GMod3 up to 16 MB, Magic Desk) coexist with an REU; Oscar64's
 `-cid=` sets the CRT type, but each has its own boot/banking rules. Or drop
-the cartridge and use REU-only (ARCHITECTURE option B).
+the cartridge and use REU-only (ARCHITECTURE option B). Checked 2026-11-14
+(docs/BANKING-SPIKE.md): `-cid=` takes effect only with `-tf=crt8`, `crt16` and
+`crt32` (`-tf=crt` always writes an EasyFlash image); of the emulators, only VICE
+runs GMod3; the Ultimate family decodes Magic Desk to 512 KB at most; no
+cartridge over 1 MB runs on both VICE and the Ultimate family.
 
 ## REU
 

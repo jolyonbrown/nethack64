@@ -117,7 +117,10 @@ section "Oscar64 compile status with stubs that read their parameters" below.
 extrapolation: **1,252,234 B** of Oscar64 `-Os` native code for `src/` under the C64
 configuration (9.5 B/line over 131,999 lines), without the window port and the runtime.
 The files cc65 could compile average 7.9 B/line, the other 49 10.4: the extrapolation's
-sample was the easy files. See "Oscar64 compile status with 59 commits".
+sample was the easy files. See "Oscar64 compile status with 59 commits". **Corrected the
+same night:** Oscar64 inlined the smallest stubs, so those calls were measured as the
+stubs' stores. With `__noinline` stubs the code is **≈ 1.19 MB** (1,161,881 B in 107 files,
+8.9 B/line, plus about 24 KB for `mhitm.c`); see the last section.
 
 ## Data that ships with the game
 
@@ -133,8 +136,9 @@ sample was the easy files. See "Oscar64 compile status with 59 commits".
 
 ## What it adds up to
 
-Code ~1.25 MB (measured 2026-11-14; the estimate was ~0.85) + strings ~0.17 MB + tables
-~0.05 MB + levels 0.21 MB + text 0.42 MB ≈ **2.1 MB of static content** before compression. An EasyFlash is
+Code ~1.2 MB (measured 2026-11-14; the estimate was ~0.85) + string literals 0.21 MB
+(measured; the estimate was ~0.17) + tables ~0.06 MB + levels 0.21 MB + text 0.42 MB ≈
+**2.1 MB of static content** before compression. An EasyFlash is
 1 MB. That single fact drives `docs/ARCHITECTURE.md`: text and level data
 must be compressed and/or live in an REU or on disk, and code must be banked.
 
@@ -591,3 +595,28 @@ section. Data: `docs/data/oscar64-pin59-c64conf-2026-11-14.json` and
   36,933 and `uhitm.c` 35,172. Files cc65 compiled average 7.9 B/line and the rest 10.4,
   which is why the line-count estimates (0.85, then 1.0 MB) came out low. Not included:
   the window port, the C64 runtime and libc, and string literals (counted with the data).
+
+## Oscar64 compile status with non-inlinable stubs (2026-11-14, night, later)
+
+Same 59-commit compiler; the harness's stubs are now `__noinline`. Oscar64 had inlined the
+smallest ones (`getobj`, `You`, ...): their stores of every argument to a volatile were
+measured instead of a call, and the calls vanished from the listings (`apply.c` called
+210 other files' functions in its source, 19 in its listing). Data:
+`docs/data/oscar64-pin59n-c64conf-2026-11-14.json` and `-baseline-`.
+
+| Result | UNIX config | C64 config |
+|---|---|---|
+| compile through to placement | 96 (1,097,199 B) | **107 (1,161,881 B)** |
+| of which place no code | 2 | 2 |
+| stop on a compile error | 11 | 0 |
+| crash the compiler | 1 | 1 |
+
+- The same files measure ×0.947 (C64 and UNIX); per file from ×0.86 (`bones.c`) to ×1.02.
+  So code is **≈ 1.19 MB**, 8.9 B/line, counting `mhitm.c` at its old size × 0.947.
+- **`mhitm.c` now aborts the compiler** ("mIndex == 1000 || mNumEntries ==
+  mEntryBlocks.Size()" in `RemoveUnusedResultInstructions`, compiling `mattackm()`): with
+  real calls in place of inlined stubs, the native code generator reaches a block-join it
+  gets wrong. T1.45.
+- The listings now show the calls: `tools/measure/callgraph.py` finds 11,010 call sites to
+  another file's function and 2,286 within a file (BANKING-SPIKE.md).
+

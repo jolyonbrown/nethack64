@@ -323,7 +323,10 @@ for ret, name, args in protos:
         body = " %sreturn (%s)(unsigned)nh_vl; " % (uses + " " if uses else "", ret)
     else:
         body = " %sreturn (%s)nh_vl; " % (uses + " " if uses else "", ret)
-    lines.append("%s %s(%s) {%s}" % (ret, name, params, body))
+    # __noinline: a stub this small would be inlined into its callers at -Os, so the
+    # file would be measured with the stub's stores in place of a call to a real
+    # function, and the call would vanish from the listing (tools/measure/callgraph.py)
+    lines.append("__noinline %s %s(%s) {%s}" % (ret, name, params, body))
 
 for name in undeclared:
     lines.append("extern %s;" % own_decls[name])

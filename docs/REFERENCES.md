@@ -17,6 +17,26 @@
   https://www.hackster.io/news/the-commodore-64-returns-as-the-fpga-powered-commodore-64-ultimate-4a8ea04e9dab
 - CRT file format — VICE manual, "The CRT cartridge image format"
 
+## Large cartridges (research of 2026-11-14, docs/BANKING-SPIKE.md)
+- VICE cartridge types and banking (§17.14) — https://vice-emu.sourceforge.io/vice_17.html;
+  cartridge options — https://vice-emu.sourceforge.io/vice_7.html; versions in which types
+  arrived — https://sourceforge.net/p/vice-emu/code/HEAD/tree/trunk/vice/NEWS
+- GMod3 (up to 16 MB, 8 KB banks, registers at `$DE00`) — https://wiki.icomp.de/wiki/GMod3
+- GMod4 (8 MB, two 8 KB windows) — https://wiki.icomp.de/wiki/GMod4
+- Ultimate firmware 3.15 (Megabyter, TwoMegabyter, 4 MB cartridge ROM on U64/U2+) —
+  https://1541u-documentation.readthedocs.io/en/latest/howto/release_3.15.html; firmware
+  downloads — https://ultimate64.com/Firmware; source — https://github.com/GideonZ/1541ultimate
+- Commodore 64 Ultimate technical specification (16 MB REU) —
+  https://c64u.org/dokuwiki/technical_specifications; firmware —
+  https://checkout.commodore.net/downloads
+- Kung Fu Flash (cartridge types, 1 MB ceiling) — https://codeberg.org/KimJorgensen/KungFuFlash
+- Sidekick64 — https://github.com/frntc/Sidekick64
+- Turbo Chameleon 64 (cartridge types, REU up to 16 MiB) — https://wiki.icomp.de/wiki/Chameleon
+- TeensyROM — https://github.com/SensoriumEmbedded/TeensyROM
+- MiSTer C64 core — https://github.com/MiSTer-devel/C64_MiSTer
+- Magic Desk 2 (crystalct; MD16, dual Magic Desk and GMod3 modes) — https://github.com/crystalct/MagicDesk2
+- EasyFlash 3 (seven 1 MB slots) — https://skoe.de/easyflash/ef3intro/
+
 ## Fitting tricks (banking, REU, drives, crunchers)
 
 Collected 2026-11-12 for `docs/FITTING-TOOLBOX.md`, which says what each is
