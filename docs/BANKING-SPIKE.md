@@ -110,13 +110,50 @@ everything we care about. GMod3's 8 KB banks would not take the 10 functions ove
 - **All of them** need the resident core (message family, string helpers, RNG: a few KB) and
   one rule for constant data.
 
+## First simulation (2026-11-14)
+
+Call counts from the host game built for gprof (`tools/host-build.sh --profile`: `-pg`, no
+inlining, no sibling calls) and played by `tools/profile_play.py` (6,497 commands in
+discover mode: runs, steps, travel to seen down staircases, searching, resting). The game
+went 10,510 turns (calls of `movemon()`) and made 26.2 million calls to NetHack functions,
+about 2,500 per turn, but stayed on levels 1 and 2: it called 697 of the 1,963 functions,
+35% of the code by size. The hottest are monster movement's small helpers (`isok` 3.25
+million calls, `dist2`, `distmin`, `is_pool`, `is_lava`, `t_at`, `on_level`).
+
+`tools/measure/bankpart.py` takes those counts and the Oscar64 sizes, picks a resident
+core by calls absorbed per byte, clusters the rest by heaviest call first into banks, and
+counts the calls that leave their bank:
+
+| Resident core | 16 KB banks | Calls leaving a bank per turn | 8 KB banks | per turn |
+|---|---|---|---|---|
+| none | 71 | 504 | | |
+| 4 KB | 71 | 130 | | |
+| 8 KB | 71 | 83 | 140 | 249 |
+| 12 KB | 71 | 75 | | |
+| 16 KB | 70 | 99 (the greedy clustering is not monotonic) | 139 | 170 |
+| 24 KB | 70 | 74 | | |
+
+- **Execute-in-place switching is cheap:** about 80 trampolines per turn, at the order of
+  100 cycles each (to be measured), is under 10 ms a turn.
+- **An overlay window that reloads on every crossing is not:** at about 1 ms per KB, 80
+  crossings of 16 KB overlays would cost seconds a turn. Option B needs a cache of several
+  small overlays, and a call trace (not only counts) to size it.
+- **The hybrid looks workable:** with the literals spread over their files' functions the
+  code needs 84 banks of 16 KB; put the 62 hottest in flash and the coldest 21-22 (about
+  350 KB) in REU overlays, and this game never called into the overlays. That says as much
+  about the bot as the code: deeper levels, shops, prayer and the endgame would reach some
+  of it, so the next profile has to play more of the game.
+
+Caveats: one bot game; the partition is greedy; statics that Oscar64 inlines are folded
+into their main caller; a file's literals are spread over its functions by code size;
+switch and DMA costs are still estimates.
+
 ## Next
 
-1. **Dynamic call counts:** a host build with `-pg -fno-inline`, a long scripted game in
-   discover mode (`-X`), and gprof's arcs (caller, callee, count).
-2. **Partition and simulate:** assign functions to banks or overlays (greedy on those
-   counts, resident core first), then count bank switches and overlay loads per game turn
-   for A, B and C, with each one's cost per switch.
+1. **A wider profile:** a bot that plays more of the game (deeper levels, special levels,
+   items, shops), and a call trace for the overlay-cache question.
+2. **Refine the partition:** literals placed with the functions that use them, the resident
+   core and the cold set for the hybrid, and the overlay cache for B.
 3. **Prototypes in VICE:** (a) an EasyFlash bank switch through a generated trampoline,
    cycles per call; (b) an REU overlay fetched into `$8000-$BFFF` with no cartridge, time
    per KB; (c) a trampoline that copies a returned string when it points into the window.

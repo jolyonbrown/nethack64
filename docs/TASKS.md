@@ -354,6 +354,10 @@ Add new tasks at the bottom of the right section.
       pass. Its run was then cut off by the service ("flagged for possible cybersecurity
       risk") before a minimal repro, the full autotest or a test. Finish those, then a pin
       candidate for Jolyon.
+      — 2026-11-14, later: a second Codex run committed the fix (b2a7090 on
+      `codex/r60-mattackm`) and was cut off the same way while reducing `mattackm()`, which
+      may itself be what the filter dislikes (monster combat code). Repro, test and checks
+      left to Claude.
 - [x] T1.44 Two compiler aborts left in the C64 run, both in the native code generator
       at `-Os`: `muse.c` (`rnd_defensive_item`: an index assertion in
       `NativeCodeBasicBlock::BinaryAddCarry`, with the 48 commits; it showed once the
@@ -470,8 +474,9 @@ Add new tasks at the bottom of the right section.
 
 - [ ] T2.1 Banking spike A (EF execute-in-place, trampolines) with hack.c + apply.c + zap.c
       — 2026-11-14: measurements, coupling, constant data, hardware and Oscar64's 64-bank
-      limit in docs/BANKING-SPIKE.md; next its "Next" list (call counts, simulation,
-      prototypes), then ADR-0008.
+      limit in docs/BANKING-SPIKE.md; a first simulation from gprof call counts
+      (`tools/profile_play.py`, `tools/measure/bankpart.py`): about 80 calls a turn leave
+      their bank with an 8 KB resident core; next a wider profile, prototypes, ADR-0008.
 - [ ] T2.2 Banking spike B (REU overlays) with the same files (BANKING-SPIKE.md)
 - [ ] T2.3 RAM map for dynamic state; BUFSZ policy ADR
 - [ ] T2.4 REU RAM-disk file layer with an AUTOTEST
