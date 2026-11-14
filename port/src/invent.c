@@ -2550,7 +2550,7 @@ let_to_name(char let, boolean unpaid)
 	else
 	    class_name = names[0];
 
-	len = strlen(class_name) + (unpaid ? sizeof "unpaid_" : sizeof "");
+	len = strlen(class_name) + (unpaid ? sizeof("unpaid_") : sizeof(""));
 	if (len > invbufsiz) {
 	    if (invbuf) free((genericptr_t)invbuf);
 	    invbufsiz = len + 10; /* add slop to reduce incremental realloc */

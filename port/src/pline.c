@@ -193,7 +193,7 @@ verbalize VA_DECL(const char *,line)
 	if (!flags.soundok) return;
 	VA_START(line);
 	VA_INIT(line, const char *);
-	tmp = You_buf((int)strlen(line) + sizeof "\"\"");
+	tmp = You_buf((int)strlen(line) + sizeof("\"\""));
 	Strcpy(tmp, "\"");
 	Strcat(tmp, line);
 	Strcat(tmp, "\"");

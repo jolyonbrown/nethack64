@@ -300,7 +300,7 @@ static struct Comp_Opt
 	{ "role",     "your starting role (e.g., Barbarian, Valkyrie)",
 						PL_CSIZ, DISP_IN_GAME },
 	{ "runmode", "display frequency when `running' or `travelling'",
-						sizeof "teleport", SET_IN_GAME },
+						sizeof("teleport"), SET_IN_GAME },
 	{ "scores",   "the parts of the score list you wish to see",
 						32, SET_IN_GAME },
 	{ "scroll_amount", "amount to scroll map when scroll_margin is reached",

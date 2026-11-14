@@ -308,10 +308,16 @@ Add new tasks at the bottom of the right section.
       fills of the 4 bytes before the buffer, except where those bytes decided the old
       answer ("riken", "uriken", "huriken" after "shu", "sh", "s"). C64 assembly and
       map of `decl.c` unchanged.
-- [ ] T1.30 `tools/oscar_normalize.py` parenthesizes `sizeof x` (compat #6) but not
+- [x] T1.30 `tools/oscar_normalize.py` parenthesizes `sizeof x` (compat #6) but not
       `sizeof` of a string literal: five sites (`invent.c` 2553, `objnam.c` 1166 and
       1190, `options.c` 303, `pline.c` 196). It is the first compile error in `objnam.c`
       and `pline.c`. Extend `SIZEOF_RE`, re-run it on `port/`, re-measure.
+      — 2026-11-14: done; r3 now covers the literal too. The re-run changed those five
+      sites and a comment in `you.h`; a second pass changes nothing. Both configs:
+      `objnam.c` now stops at line 2146 instead of 1166 (`else` after a braceless
+      `if (...) goto x;`, a new compiler gap), `pline.c` only at the harness's own stub
+      for `pline` (defined through `VA_DECL`, T1.10), `invent.c` and `options.c` at
+      their earlier errors as before. Totals unchanged: C64 45/107, UNIX 40/107.
 
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 

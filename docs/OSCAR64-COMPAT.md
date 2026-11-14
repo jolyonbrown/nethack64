@@ -17,7 +17,7 @@ upstream issues using the repro files verbatim (they are self-contained).
 | 3 | `# define` (space after `#`) not recognised in active code | most headers | `tools/oscar_normalize.py` moves the space before `#` | r7 |
 | 4 | `/* comment */` starting on a `#define` line and continuing to the next line is parsed as code | `global.h`, `mkroom.h`, ... | `oscar_normalize.py` folds the comment onto one line | r8 |
 | 5 | Struct tags share the ordinary identifier namespace (C++ style): `struct obj *obj` makes a later `struct obj *otmp` in scope fail; `struct attack` + function `attack()` is a duplicate | 369 `struct obj *obj`, 40 `struct trap *trap`, ~40 other tags | `oscar_normalize.py` renames colliding tags `X` -> `X_s` (tags only) | r5, r6 |
-| 6 | `sizeof expr` without parentheses | 117 sites | `oscar_normalize.py` adds parentheses | r3 |
+| 6 | `sizeof expr` without parentheses | 117 sites, and 5 of a string literal (`sizeof " "`, handled since 2026-11-14) | `oscar_normalize.py` adds parentheses | r3 |
 | 7 | Cast binds tighter than `->`: `(char *)(p)->f` | `ONAME()`, `NAME()` macros and others | `oscar_normalize.py` rewrites to `(char *)((p)->f)` | r1 |
 | 8 | Cast to function-pointer type with abstract declarator: `(int (*)(T *))0` | ~20 sites (`FDECL((*),...)` casts of 0) | `oscar_normalize.py` drops casts of literal `0` | r4 |
 | 9 | Unparenthesised nested `?:` in the middle operand | `pray.c` and a few more | open: add parentheses by hand | r2 |

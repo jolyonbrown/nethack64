@@ -1163,7 +1163,7 @@ yname(struct obj_s *obj)
 {
 	char *outbuf = nextobuf();
 	char *s = shk_your(outbuf, obj);	/* assert( s == outbuf ); */
-	int space_left = BUFSZ - strlen(s) - sizeof " ";
+	int space_left = BUFSZ - strlen(s) - sizeof(" ");
 
 	return strncat(strcat(s, " "), cxname(obj), space_left);
 }
@@ -1187,7 +1187,7 @@ ysimple_name(struct obj_s *obj)
 {
 	char *outbuf = nextobuf();
 	char *s = shk_your(outbuf, obj);	/* assert( s == outbuf ); */
-	int space_left = BUFSZ - strlen(s) - sizeof " ";
+	int space_left = BUFSZ - strlen(s) - sizeof(" ");
 
 	return strncat(strcat(s, " "), simple_typename(obj->otyp), space_left);
 }

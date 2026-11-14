@@ -19,6 +19,7 @@ NetHack 3.4.3's headers trip over (verified against oscar64 v1.32.273):
     variables and functions keep their names, so game code is untouched).
 
  4. `sizeof x` without parentheses is not accepted; it becomes `sizeof(x)`.
+    The same goes for a string literal: `sizeof " "` becomes `sizeof(" ")`.
 
  5. The `trap` typedef in sp_lev.h collides with `struct trap`; it is
     renamed `sp_trap` in the special-level loader and level compiler.
@@ -62,8 +63,9 @@ SPTRAP_RULES = [
 ]
 SPTRAP_FILES = ("sp_lev.h", "sp_lev.c", "lev_comp.y", "lev_main.c")
 
-# `sizeof x` / `sizeof *p` / `sizeof a.b[2]` without parentheses
-SIZEOF_RE = re.compile(r"\bsizeof\s+(?!\()(\**[A-Za-z_]\w*(?:(?:\.|->)\w+|\[[^\]\n]*\])*)")
+# `sizeof x` / `sizeof *p` / `sizeof a.b[2]` / `sizeof "lit"` without parentheses
+SIZEOF_RE = re.compile(r"\bsizeof\s+(?!\()(\**[A-Za-z_]\w*(?:(?:\.|->)\w+|\[[^\]\n]*\])*"
+                       r"|\"(?:[^\"\\\n]|\\.)*\")")
 
 # `(char *)(otmp)->oextra`: Oscar64 binds the cast before `->`.
 CAST_ARROW_RE = re.compile(
