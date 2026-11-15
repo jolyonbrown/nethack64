@@ -289,6 +289,19 @@ stopped twice more:
   address-taken functions with stack parameters, so the real code is about 30% more than
   its 1.19 MB. Banked content of about 1.54 MB needs some 100 banks of 16 KB, not 84. The
   call checks pass (0 of 36,393 listing calls, 0 of 25,079 direct calls).
+- **A plan that fits: 103 banks** (2026-11-15, `docs/data/bankplan-2026-11-15.json`). Sizes
+  come from the whole-game build itself (`tools/measure/wholesizes.py`: each function's code
+  and the literals the map places after it), not the per-file measurement, and
+  `tools/bank/planfix.py` repairs the banks a build overflows instead of re-planning, which
+  regroups everything and shifts the sizes again. The steps, each a 650 s build on the
+  31 GB desktop: real sizes with per-file literal estimates, 102 banks, 8.4 KB left over;
+  literals per function, 1.5 KB; then 103 banks, 1 KB, but `doapply` alone was 16.7 KB with
+  the twelve static helpers Oscar64 had inlined into it, which the plan now keeps out of line
+  (a `noinline` list that bankgen.py turns into `__noinline`); two repairs later every banked
+  object is placed: 1,584,245 B in 103 banks, median 15,530 B each. The same plan's host
+  build passes the smoke test and bot games to level 6 with every bank check on, and the
+  C64 build's call checks pass. What is left unplaced is all resident: 137 KB of code (most
+  of it trampolines, 1,555 of them at 71 B) and 116 KB of data.
 - **Resident data: 150 KB** in that build: 61 KB initialised (`mons` 21 KB, `objects` 11 KB,
   `rooms` 5 KB), 45 KB of BSS (`level` 17 KB, the screen and vision buffers), 32 KB of
   resident code's literals, about 10 KB of static stack frames, and 42 KB in 3,676 objects

@@ -216,6 +216,13 @@ def main():
     ap.add_argument("--plan", required=True)
     ap.add_argument("--out", default=os.path.join(ROOT, "build", "bank-c64"))
     ap.add_argument("--check-only", action="store_true", help="only check an earlier build's listing")
+    ap.add_argument("--main", choices=("table", "real"), default="table",
+                    help="table: the harness's main() referring to every function; real: the game's "
+                         "own (newgame(); moveloop();), so only what it reaches is compiled and only "
+                         "what it takes the address of is called through pointers")
+    ap.add_argument("--generate-only", action="store_true",
+                    help="write the rewritten sources and compile.args (the compile's arguments, "
+                         "relative to DIR) without compiling, e.g. to compile on a bigger machine")
     a = ap.parse_args()
     out = os.path.abspath(a.out)
     prg = os.path.join(out, "nethack.prg")
@@ -242,8 +249,19 @@ def main():
         if r.returncode:
             sys.exit("bankgen.py failed:\n" + r.stdout + r.stderr)
         print(r.stdout.strip())
-        cmd = [mo.OSCAR64, "-rmp", "-Os", "-i=" + os.path.join(out, "inc"), "-i=" + os.path.join(out, "stub"),
-               "-i=" + src, "-o=" + prg] + [os.path.join(src, f) for f in files] + [h] + mo.DEFS
+        if a.main == "real":
+            text = open(h).read()
+            stubs = text[:text.index("void *nh_refs[] = {")]
+            h = os.path.join(out, "h_real.c")
+            open(h, "w").write(stubs + "/* the game's own entry, as sys/unix/unixmain.c makes it */\n"
+                               "int main(void) { newgame(); moveloop(); return 0; }\n")
+        args = ["-rmp", "-Os", "-i=inc", "-i=stub", "-i=src", "-o=nethack.prg"] + \
+            ["src/" + f for f in files] + [os.path.basename(h)] + mo.DEFS
+        if a.generate_only:
+            open(os.path.join(out, "compile.args"), "w").write("\n".join(args) + "\n")
+            print("generated: compile in %s with oscar64 $(cat compile.args)" % out)
+            return 0
+        cmd = [mo.OSCAR64] + args
         t = time.time()
         try:
             r = subprocess.run(cmd, capture_output=True, text=True, cwd=out, preexec_fn=cap,

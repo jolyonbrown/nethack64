@@ -559,9 +559,13 @@ Add new tasks at the bottom of the right section.
       call; trampolines take 73 B each (130 KB); `mhitm.c`'s functions, which did not compile
       when the plan was made, stay resident. (g) With the game's own `main()`: 1.55 MB of code
       (1.37 MB banked, 114 KB of trampolines, 66 KB other resident) plus 166 KB of banked
-      literals, so about 100 banks, and 150 KB of resident data (BANKING-SPIKE.md). Next: a
-      bank plan from these sizes, with literals and `mhitm.c`; the bank count against the
-      cartridge (more than EasyFlash's 64) and the REU; T2.3 for the data. (d) The harness's `nh_refs[]`
+      literals, so about 100 banks, and 150 KB of resident data (BANKING-SPIKE.md). (h) A plan
+      from the whole game's own sizes fits: 103 banks, every banked object placed, checks
+      pass, host build plays to level 6 (`docs/data/bankplan-2026-11-15.json`;
+      `tools/measure/wholesizes.py`, `tools/bank/planfix.py`, bankgen's `noinline`). Left: the
+      resident part, 137 KB of code (trampolines 1,555 x 71 B) and 116 KB of data, for a
+      64 KB machine: a smaller trampoline (a shared bank-call routine) and T2.3; then where
+      103 banks live (more than EasyFlash's 64: the REU), for an ADR. (d) The harness's `nh_refs[]`
       takes every function's address, which makes Oscar64 give them all stack parameters:
       measure code size with calls instead, since 1.19 MB is probably high.
 - [ ] T2.7 RNG + clock ADR before Phase 3 first light: which generator implements

@@ -265,7 +265,11 @@ def main():
     ap.add_argument("files", nargs="+")
     a = ap.parse_args()
 
-    plan = json.load(open(a.plan))["banks"]
+    planj = json.load(open(a.plan))
+    plan = planj["banks"]
+    # functions to keep out of line (a plan's "noinline": the static helpers Oscar64 would
+    # inline into a function that then no longer fits a bank; tools/bank/planfix.py)
+    noinline = set(planj.get("noinline", []))
     files = [os.path.basename(f) for f in a.files]
     if a.define_in not in files:
         sys.exit("%s (--define-in) must be one of the files" % a.define_in)
@@ -298,7 +302,7 @@ def main():
 
     report = {"banked": 0, "resident": 0, "kept_resident": {}, "trampolines": 0, "banks": set(),
               "followed_callers": 0, "files_left_alone": selfinc, "entry_checks": 0, "shadowed": [],
-              "used_bare": [], "kept": 0, "kept_fields": [], "keep_unhandled": [],
+              "used_bare": [], "kept": 0, "kept_fields": [], "keep_unhandled": [], "noinline": [],
               "keep_globals": sorted(keep_extern)}
     bank_of, sig_of = {}, {}
 
@@ -381,6 +385,10 @@ def main():
         first = True
         for d in defs:
             b = bank_of.get("%s:%s" % (f, d["name"]))
+            if "%s:%s" % (f, d["name"]) in noinline:
+                first_line = insertion_line(raw, d["line"])
+                raw[first_line] = "__noinline " + raw[first_line]
+                report["noinline"].append("%s:%s" % (f, d["name"]))
             if b is None:
                 continue
             # the definition is renamed in the text, not by the macro, which Oscar64
