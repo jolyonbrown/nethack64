@@ -345,6 +345,13 @@ Add new tasks at the bottom of the right section.
       since 2026-11-14. If added: ADR-0007's checks, as for the earlier rounds.
       — 2026-11-14: added on his go-ahead ("you go ahead") as commits 41-42; ADR-0007's
       checks passed (results there). It fixes r9 as well.
+- [ ] T1.46 r61 (compat #63): a function-like macro's name with no `(` after it is expanded.
+      — 2026-11-15: Codex's fix and test (`fix/r61-macro-name`, 51d2c27 and a6ed6bb; the
+      scanner looks past white space and comments for the `(` before treating the name as an
+      invocation). Codex: autotest 1,531, no failures; corpus 983 identical, r61 and its test
+      fail -> pass; reviewed here (diff and test). Still to do: the NetHack listings with it,
+      then a pin candidate for Jolyon. Codex also noticed, not yet checked here: stringizing
+      leaves a trailing space, and `##` beside a parameter written with spaces misbehaves.
 - [ ] T1.45 `mhitm.c` aborts the compiler since the stubs became `__noinline` (T1.42):
       "mIndex == 1000 || mNumEntries == mEntryBlocks.Size()" in
       `NativeCodeBasicBlock::RemoveUnusedResultInstructions`, compiling `mattackm()`, with
@@ -499,6 +506,21 @@ Add new tasks at the bottom of the right section.
 - [ ] T2.5 Compress `data`/`quest.dat`/`rumors` three ways; table of ratios + decode speed
 - [ ] T2.6 Host build variant with `COMPRESS` off, so `host_smoke` exercises the
       RLECOMP/ZEROCOMP save code the C64 uses (ADR-0006); before Phase 5 saves
+- [ ] T2.8 Oscar64 compiles the whole game in one run (the banked build has to):
+      — 2026-11-15: it did not finish in an hour (`tools/bank/build_c64.py`). Two global
+      analyses walk every path through the call graph's cycles (r62, compat #64): NetHack's
+      direct calls form one cycle of 279 functions, and with calls through pointers one of
+      2,465. (a) `MarkRecursions`: Tarjan's search, exact (308/308 programs), candidate pin
+      commit ab12523 on `fix/scc-recursion`. (b) `CheckFastcall`: open. A first rewrite that
+      gives every member of a cycle stack parameters (`scratch/fastcall-scc-v1`) gets past the
+      analysis in 31 s, but changes 29 of 983 corpus programs: the old walk cuts a cycle
+      through a pointer call where its path meets itself, and keeps fastcall parameters for
+      the 426 functions on such cycles in NetHack. Next design: true recursion (direct
+      cycles) as one unit with the largest area reachable, pointer back edges cut as before,
+      every function worked out once. (c) Then the compile needs more than 3 GB
+      (`std::bad_alloc` under the cap; `BANK_MEMORY_MB`). (d) The harness's `nh_refs[]`
+      takes every function's address, which makes Oscar64 give them all stack parameters:
+      measure code size with calls instead, since 1.19 MB is probably high.
 - [ ] T2.7 RNG + clock ADR before Phase 3 first light: which generator implements
       `lrand48`/`srand48` (exact, for seed-for-seed replays vs the host, or faster), seed
       width, clock source for seeding, moon phase, Friday 13th and `night()`/`midnight()`

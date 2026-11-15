@@ -225,6 +225,37 @@ those games take, not the whole game.
 trampolines; pointers into a bank kept anywhere but those variables (none found by
 these patterns, but they are patterns).
 
+## The whole game in one Oscar64 compile (2026-11-15)
+
+Oscar64 compiles a program in one run, so the banked game is one compile of all 108
+files (`tools/bank/build_c64.py`). With the bank-limit patch it parses all of them in
+2.4 s, and then did not finish in an hour. Stack samples (gdb, run as the compiler's
+parent) put it in `GlobalAnalyzer::MarkCycle`. Two of the global analyses walk every
+simple path through the call graph (r62, compat #64), and a single file's measurement
+never showed it because its stubs leave only small cycles:
+
+- NetHack's direct calls form **one cycle of 279 functions**, through `panic()` and
+  `done()`: `You`, `Monnam`, `alloc`, `addinv` and the rest all reach each other. Every
+  function on it is recursive to Oscar64, so it takes its parameters on the stack.
+- `CheckFastcall`, which places each function's zero page parameters above its
+  callees', also follows calls through pointers to every address-taken function of the
+  same type. Its graph has **one cycle of 2,465 functions** with the game's own `main`
+  (2,694 with the harness's table of every function), 426 of them on it only through
+  such calls.
+
+`MarkRecursions` now uses Tarjan's search (a candidate pin commit, exact on 308
+programs), and with a first `CheckFastcall` rewrite the compile passed the analysis in
+31 s before running out of its 3 GB cap. That rewrite is not the answer: it changes 29
+of 983 corpus programs, because the old walk keeps fastcall parameters for a function on
+a cycle through a pointer call (it cuts the cycle where its path meets itself), and
+NetHack would lose them for 426 functions (T2.8).
+
+Two measurement caveats follow. The harness's `nh_refs[]` takes the address of every
+function a file defines, and Oscar64 gives every address-taken function stack
+parameters, so the 1.19 MB of code was measured with stack calls throughout: probably
+high. And the whole game, compiled together, has the 279-function recursive cycle that
+no single-file compile has, which costs stack calls in the other direction.
+
 ## Next
 
 1. **A wider profile:** a bot that plays more of the game (deeper levels, special levels,

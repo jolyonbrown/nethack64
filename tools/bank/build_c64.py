@@ -16,7 +16,8 @@ usage: tools/bank/build_c64.py --plan PLAN.json [--out DIR] [--check-only]
    resident code calls into a bank except a trampoline.
 
 Environment: OSCAR64 (the compiler; it must take banks past 63 for an 84-bank plan),
-BANK_TIMEOUT (seconds for the compile, default 3600).
+BANK_TIMEOUT (seconds for the compile, default 3600), BANK_MEMORY_MB (its address-space
+cap, default 3000; the whole game needs more than that).
 """
 import argparse
 import collections
@@ -39,7 +40,8 @@ BANKED = re.compile(r"^(\w+)__b(\d+)$")
 
 
 def cap():
-    resource.setrlimit(resource.RLIMIT_AS, (3000000 * 1024,) * 2)
+    mb = int(os.environ.get("BANK_MEMORY_MB", "3000"))
+    resource.setrlimit(resource.RLIMIT_AS, (mb << 20,) * 2)
 
 
 def check(asm):
