@@ -145,8 +145,27 @@ counts the calls that leave their bank:
   of it, so the next profile has to play more of the game.
 
 Caveats: one bot game; the partition is greedy; statics that Oscar64 inlines are folded
-into their main caller; a file's literals are spread over its functions by code size;
-switch and DMA costs are still estimates.
+into their main caller; a file's literals are spread over its functions by code size.
+
+## What a switch costs (measured in VICE, 2026-11-14)
+
+`tests/spikes/bankcall.c`, run by `tests/spikes/run_bankcall.py` (headless VICE 3.7.1,
+EasyFlash and a 512 KB REU, interrupts off, CIA 2 timer A, 64 calls of an `int (int, int)`
+function, the in-line loop subtracted):
+
+| What | Cycles |
+|---|---|
+| call to a resident function | 57 |
+| call within a bank | 57 |
+| call into another bank through a resident C trampoline (remember the bank, write `$DE00`, call, write it back) | 91, so **34 for the switch** |
+| REU fetch into `$8000`, 1 byte (the set-up) | 66 |
+| REU fetch, 1 KB / 4 KB / 16 KB | 1,089 / 4,203 / 17,457: about 1,090 per KB |
+
+So execute-in-place costs about 3 ms a turn at the simulated 80 crossings, and an overlay
+costs about 1.1 ms per KB each time it is fetched: option B needs overlays that are
+rarely fetched, not just rarely crossed. (An Oscar64 EasyFlash program starts with no
+KERNAL run and the cartridge not mapped: the prototype maps the ROMs and initialises
+the CIAs first, as Oscar64's own sample does.)
 
 ## Next
 
@@ -154,9 +173,9 @@ switch and DMA costs are still estimates.
    items, shops), and a call trace for the overlay-cache question.
 2. **Refine the partition:** literals placed with the functions that use them, the resident
    core and the cold set for the hybrid, and the overlay cache for B.
-3. **Prototypes in VICE:** (a) an EasyFlash bank switch through a generated trampoline,
-   cycles per call; (b) an REU overlay fetched into `$8000-$BFFF` with no cartridge, time
-   per KB; (c) a trampoline that copies a returned string when it points into the window.
+3. **Prototypes in VICE:** (a) and (b) done (above); (c) a trampoline that copies a
+   returned string when it points into the window; then the generator that writes the
+   wrappers and trampolines for real files (hack.c, apply.c, zap.c), as T2.1 asks.
 4. **Oscar64 past 64 banks**, as a pin patch, if B or a large cartridge wins.
 
 Then ADR-0008.
