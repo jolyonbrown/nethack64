@@ -26,7 +26,7 @@ CRT_SUBTYPE ?= 0
 
 BUILD    := build
 GEN      := $(BUILD)/gen
-SRCS     := src/main.c src/hal/sys.c src/hal/screen80.c
+SRCS     := src/main.c src/hal/sys.c src/hal/screen80.c src/hal/rng.c
 HDRS     := $(wildcard src/*.h src/hal/*.h) $(GEN)/font4x8.h
 
 # -Os: code density matters more than speed for this project (see docs/ARCHITECTURE.md)

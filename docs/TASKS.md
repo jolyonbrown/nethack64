@@ -610,10 +610,15 @@ Add new tasks at the bottom of the right section.
       width, clock source for seeding, moon phase, Friday 13th and `night()`/`midnight()`
       — 2026-11-15: the generator: bit-exact `lrand48` in assembler (Jolyon, with the
       `#ifdef C64` changes, T2.10); in C it would cost about 0.2 s a turn (RAM-PLAN.md).
-- [ ] T2.10 Speed amendments behind `#ifdef C64` (Jolyon, 2026-11-15: "i love the changes
+      Done the same day: `src/hal/rng.c`, 1,178 cycles a call; `tools/check_rng.py` (7 seeds
+      x 20,000 numbers agree with glibc 2.39) and a `make test` check. Open: seed width and
+      the clock source for seeding, moon phase, Friday 13th, `night()`/`midnight()`.
+- [x] T2.10 Speed amendments behind `#ifdef C64` (Jolyon, 2026-11-15: "i love the changes
       behind #ifdef C64 - yes lets make those"): `levl` through a table of column pointers,
       `dist2()` through a table of squares, `isok()` inline; identical results (host build,
       smoke test, the calibration harness's checksums), cycles re-measured.
+      — 2026-11-15: done (RAM-PLAN.md): `is_pool`/`is_lava` 2.8x, `mfndpos` 1.4x, `dist2`
+      2.1x, `isok` 2.9x faster; all 108 files compile for the C64.
 - [ ] T2.11 Far-data experiments: 3-byte far pointers against typed far spaces with 16-bit
       pointers (RAM-PLAN.md, the brainstorm), `mons[]` first; then the far-data ADR.
 

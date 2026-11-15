@@ -18,6 +18,7 @@
  */
 #include "hal/sys.h"
 #include "hal/screen80.h"
+#include "hal/rng.h"
 #include <c64/reu.h>
 #include <string.h>
 #include <stdio.h>
@@ -164,7 +165,7 @@ static bool handle_key(char k)
 
 #ifdef AUTOTEST
 /* Failure codes are visible as the VICE process exit status. */
-enum { T_PASS = 0, T_WALK = 2, T_BLOCK = 3, T_REU_DMA = 4, T_REU_RESTORE = 5 };
+enum { T_PASS = 0, T_WALK = 2, T_BLOCK = 3, T_REU_DMA = 4, T_REU_RESTORE = 5, T_RNG = 6 };
 
 static char autotest(void)
 {
@@ -180,6 +181,20 @@ static char autotest(void)
 		handle_key('j');
 	if (py != MAP_Y0 + 8)
 		return T_BLOCK;
+
+	/* lrand48() gives glibc's numbers (T2.7): the first three and the 1000th after
+	   srand48(1731700000), and the first after srand48(-1), a seed of all 32 bits
+	   (values from glibc 2.39; tools/check_rng.py runs 20,000 a seed in the emulator) */
+	srand48(1731700000L);
+	if (lrand48() != 0x0b23b8beL || lrand48() != 0x571fc6d0L || lrand48() != 0x605807daL)
+		return T_RNG;
+	for (int i = 3; i < 999; i++)
+		lrand48();
+	if (lrand48() != 0x4e4ab753L)
+		return T_RNG;
+	srand48(-1L);
+	if (lrand48() != 0x26673e37L)
+		return T_RNG;
 
 	/* REU: stash, wipe, restore, compare (skipped when no REU attached) */
 	if (reu_banks)

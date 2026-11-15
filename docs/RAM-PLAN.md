@@ -274,3 +274,34 @@ Jolyon's direction: make the `#ifdef C64` changes now (the column table, the squ
 far-data experiments comparing 3-byte pointers with typed 16-bit spaces; keep the C128 in view;
 the Ultimate family runs the C64 build by emulation; a stock C64 stays a stretch, but one to
 test (ADR-0003's amendment).
+
+## Done: the `#ifdef C64` speed changes (2026-11-15, T2.10)
+
+`levl` reads through a table of the 80 columns' addresses (`rm.h`, `decl.c`; `save.c` and
+`restore.c` write and read `level.locations` whole); `dist2()` looks the squares of differences
+under 128 up in a table (`hacklib.c`, the multiplication for the rest, so every input gives the
+same answer); `isok()` is inline (`hack.h`, the function stays in `cmd.c`). The host build is
+unchanged. All 108 files still compile for the C64, with 2,245 bytes more code in all (0.19%;
+`docs/data/oscar64-pin73-c64conf-t210-2026-11-15.json`). `calibrate.py` again, same checksums
+on both builds (`docs/data/speed-calibration-t210-2026-11-15.json`):
+
+| Workload (6502 cycles a call, the harness's loop included) | Before | After |
+|---|---|---|
+| `isok` | 133 | 45 |
+| `is_pool` and `is_lava` | 464 | 163 |
+| `mfndpos`, with what it calls | 18,543 | 13,062 |
+| `dist2` | 509 | 237 |
+
+And the generator (T2.7): `src/hal/rng.c`, `lrand48()` in assembler, the multiply as 14 shifted
+adds and subtracts, 1,178 cycles a call in 808 bytes, against about 4,900 for the same in C; at
+36 calls a turn, about 44 ms. It gives glibc's numbers: `tools/check_rng.py` runs 20,000 a seed
+for seven seeds in Oscar64's emulator, and `make test` checks four in VICE. (On the way, a
+compiler bug: an `__asm` block that opens with a comment loses the first digit of its first
+immediate operand, compat #69, r66.)
+
+What is left of the multiply in the `mfndpos` workload, 7% of its cycles, is
+`level.objects[x][y]` and `level.monsters[x][y]` (21 pointers a column, a stride of 42): the
+compiler's fix (T1.49) covers them, and every other stride, at once. A rough turn: with about
+1,000-1,450 accesses to the level a turn saving some 230 cycles each, `dist2()` 105,000 cycles
+and `isok()` 57,000, NetHack's own code comes to about 0.8-0.9 s a turn for the bot's crowded
+level 1, from 1.26 s, and the generator adds about 44 ms rather than 0.2 s.
