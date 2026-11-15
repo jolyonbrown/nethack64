@@ -1,0 +1,694 @@
+From bf6302e70ea2143f8738b7cec640b48ca366adb8 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 15 Nov 2026 09:51:17 +0000
+Subject: [PATCH 64/67] Work out each function once in CheckFastcall
+
+CheckFastcall places the zero page parameters of each function that
+takes them above the areas of every function it may call. It walked the
+call graph from each function in turn and remembered its result only
+for a function that takes fastcall parameters, so a function taking
+stack parameters, as every function on a cycle does, was walked again
+on every path that reached it: time exponential in the number of
+cycles. In a whole-program compile of NetHack the graph it walks
+(direct calls, and for a call through a pointer every address-taken
+function of its type) has a strongly connected component of 2,465
+functions, and it did not finish.
+
+Walk every function once, depth first in the same order, so that each
+is decided with the same callees decided before it. What the old walk
+read from a function taking stack parameters after walking it again is
+the largest area among the fastcall functions it reaches through
+functions taking stack parameters, and among the functions still being
+walked: FastcallReach finds that by a search, and the value is kept
+once the function's component is complete, when no function still
+being walked can be reached from it. A dispatch still walks the
+functions it calls again before giving them one layout.
+
+A temporary check that ran the old and the new walk from the same
+state found the same fastcall and stack call decisions, areas,
+parameter offsets, dynamic stack flags and may-call lists for every
+function in each of the 1,088 compiles that reached it: 981 of the
+autotest sources and nethack64's compiler repros in five
+configurations, and 107 NetHack measurement compiles. Only the areas
+of functions taking stack parameters, which nothing reads, differ, in
+two C++ programs. It agreed as well in 1,600 compiles of 400 random
+programs with cycles, calls through pointers and setjmp. All 988
+corpus programs that both compilers build are byte for byte the same.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/Declaration.cpp    |   2 +-
+ oscar64/Declaration.h      |   2 +-
+ oscar64/GlobalAnalyzer.cpp | 508 ++++++++++++++++++++++++++++++-------
+ oscar64/GlobalAnalyzer.h   |  18 +-
+ 4 files changed, 438 insertions(+), 92 deletions(-)
+
+diff --git a/oscar64/Declaration.cpp b/oscar64/Declaration.cpp
+index e53b8a1..2827ca0 100644
+--- a/oscar64/Declaration.cpp
++++ b/oscar64/Declaration.cpp
+@@ -1496,7 +1496,7 @@ Declaration::Declaration(const Location& loc, DecType type)
+ 	mFastCallBase(0), mFastCallSize(0), 
+ 	mFastCallBase2(0), mFastCallSize2(0), mVariadicSize(0),
+ 	mStride(0), mStripe(1),
+-	mCompilerOptions(0), mUseCount(0), mRecursionIndex(-1), mRecursionLow(-1), mRecursionStacked(false),
++	mCompilerOptions(0), mUseCount(0), mRecursionIndex(-1), mRecursionLow(-1), mFastcallNode(-1), mRecursionStacked(false),
+ 	mTokens(nullptr), mParser(nullptr),
+ 	mShift(0), mBits(0), mOptFlags(0), mInlayRegion(nullptr)
+ {
+diff --git a/oscar64/Declaration.h b/oscar64/Declaration.h
+index a4996d4..2dbc06a 100644
+--- a/oscar64/Declaration.h
++++ b/oscar64/Declaration.h
+@@ -338,7 +338,7 @@ public:
+ 	const uint8		*	mData;
+ 	LinkerObject	*	mLinkerObject;
+ 	int					mUseCount;
+-	int					mRecursionIndex, mRecursionLow;
++	int					mRecursionIndex, mRecursionLow, mFastcallNode;
+ 	bool				mRecursionStacked;
+ 	TokenSequence	*	mTokens;
+ 	Parser			*	mParser;
+diff --git a/oscar64/GlobalAnalyzer.cpp b/oscar64/GlobalAnalyzer.cpp
+index cf6ec4e..b381c4a 100644
+--- a/oscar64/GlobalAnalyzer.cpp
++++ b/oscar64/GlobalAnalyzer.cpp
+@@ -1,7 +1,8 @@
+ #include "GlobalAnalyzer.h"
+ 
+ GlobalAnalyzer::GlobalAnalyzer(Errors* errors, Linker* linker)
+-	: mErrors(errors), mLinker(linker), mCalledFunctions(nullptr), mCallingFunctions(nullptr), mVariableFunctions(nullptr), mFunctions(nullptr), mGlobalVariables(nullptr), mTopoFunctions(nullptr), mCompilerOptions(COPT_DEFAULT)
++	: mErrors(errors), mLinker(linker), mCalledFunctions(nullptr), mCallingFunctions(nullptr), mVariableFunctions(nullptr), mFunctions(nullptr), mGlobalVariables(nullptr), mTopoFunctions(nullptr), mCompilerOptions(COPT_DEFAULT),
++	mFastcallNodes(nullptr), mFastcallStack(nullptr), mFastcallIndex(0), mFastcallEpoch(0), mFastcallDynstack(false)
+ {
+ 
+ }
+@@ -275,10 +276,7 @@ void GlobalAnalyzer::AutoInline(void)
+ 
+ 	} while (changed);
+ 
+-	for (int i = 0; i < mFunctions.Size(); i++)
+-	{
+-		CheckFastcall(mFunctions[i], true);
+-	}
++	CheckFastcalls();
+ 
+ 	for (int i = 0; i < mFunctions.Size(); i++)
+ 	{
+@@ -452,130 +450,459 @@ void GlobalAnalyzer::MarkRecursions(void)
+ 	}
+ }
+ 
+-void GlobalAnalyzer::CheckFastcall(Declaration* procDec, bool head)
++// CheckFastcalls places the zero page parameters of each function that takes fastcall
++// parameters above the areas of every function it may call, directly or through a
++// pointer, so that no call overwrites the parameters of a function still running.
++//
++// It walks the call graph depth first from every function in turn.  A function is
++// decided when its walk ends, with its callees decided before it, apart from those
++// still being walked: a call back into them is cut, and gives the area they have so
++// far.  Every function is walked once.  Walking a function that takes stack parameters
++// again, as this check did before, gives the largest area among the fastcall
++// functions, and functions still being walked, that it reaches through functions
++// taking stack parameters: FastcallReach finds that by a search, and the value is kept
++// once the function's strongly connected component is complete, when no function still
++// being walked can be reached from it any more.  The old repeated walks took time
++// exponential in the number of cycles of the call graph.
++
++struct FastcallNode
+ {
+-	if (!(procDec->mBase->mFlags & DTF_FASTCALL) && (procDec->mType == DT_CONST_FUNCTION) && !(procDec->mFlags & DTF_FUNC_ANALYZING))
++	FastcallNode(Declaration* dec)
++		: mDec(dec), mCallees(nullptr), mIndex(-1), mLow(-1), mMark(0), mReach(0), mReach2(0),
++		mStacked(false), mReachDynstack(false), mReachDispatch(false)
++	{}
++
++	Declaration					*	mDec;
++	GrowingArray<Declaration*>		mCallees;		// mCalled, and for a call through a pointer each function it may call
++	int								mIndex, mLow, mMark, mReach, mReach2;
++	bool							mStacked, mReachDynstack, mReachDispatch;
++};
++
++static bool IsDispatch(const Declaration* dec)
++{
++	return dec->mValue && dec->mValue->mType == EX_DISPATCH;
++}
++
++FastcallNode* GlobalAnalyzer::FastcallNodeOf(Declaration* dec)
++{
++	if (dec->mFastcallNode < 0)
+ 	{
+-//		printf("CheckFastcall1 %s %08llx %08llx\n", procDec->mQualIdent->mString, procDec->mFlags, procDec->mBase->mFlags);
++		dec->mFastcallNode = mFastcallNodes.Size();
++		mFastcallNodes.Push(new FastcallNode(dec));
++	}
++	return mFastcallNodes[dec->mFastcallNode];
++}
+ 
+-		procDec->mFlags |= DTF_FUNC_ANALYZING;
+-		int	nbase = 0, nbase2 = 0;
+-		for (int i = 0; i < procDec->mCalled.Size(); i++)
++// A function the walk enters when it reaches it: not fastcall and not being walked.
++// With a node it has been walked, and takes stack parameters or is a dispatch.
++bool GlobalAnalyzer::FastcallWalked(const Declaration* dec) const
++{
++	return dec->mType == DT_CONST_FUNCTION && !(dec->mBase->mFlags & DTF_FASTCALL) && !(dec->mFlags & DTF_FUNC_ANALYZING);
++}
++
++void GlobalAnalyzer::CheckFastcalls(void)
++{
++	mFastcallIndex = 0;
++	mFastcallEpoch = 0;
++	mFastcallDynstack = false;
++	for (int i = 0; i < mFunctions.Size(); i++)
++		if (mFunctions[i]->mFlags & DTF_DYNSTACK)
++			mFastcallDynstack = true;
++
++	for (int i = 0; i < mFunctions.Size(); i++)
++	{
++		Declaration* dec = mFunctions[i];
++		if (FastcallWalked(dec))
+ 		{
+-			Declaration* cf = procDec->mCalled[i];
++			if (dec->mFastcallNode < 0)
++				CheckFastcall(dec);
++			else if (IsDispatch(dec))
++				CheckDispatch(dec);
++		}
++	}
++
++	for (int i = 0; i < mFastcallNodes.Size(); i++)
++	{
++		FastcallNode* node = mFastcallNodes[i];
++		Declaration* dec = node->mDec;
+ 
+-			if (cf->mType == DT_TYPE_FUNCTION)
++		if (FastcallWalked(dec))
++		{
++			if (!IsDispatch(dec))
+ 			{
+-				for (int i = 0; i < mVariableFunctions.Size(); i++)
+-				{
+-					Declaration* vf = mVariableFunctions[i];
++				dec->mFastCallBase = dec->mFastCallSize = dec->mBase->mFastCallBase = dec->mBase->mFastCallSize = node->mReach;
++				dec->mFastCallBase2 = dec->mFastCallSize2 = dec->mBase->mFastCallBase2 = dec->mBase->mFastCallSize2 = node->mReach2;
++			}
++			if (node->mReachDynstack)
++				dec->mFlags |= DTF_DYNSTACK;
++		}
+ 
+-					if (vf->mBase->IsSame(cf))
+-					{
+-						CheckFastcall(vf, false);
++		dec->mFastcallNode = -1;
++		delete node;
++	}
++	mFastcallNodes.SetSize(0);
++}
+ 
+-						int n = vf->mBase->mFastCallSize;
+-						if (n > nbase)
+-							nbase = n;
+-						int n2 = vf->mBase->mFastCallSize2;
+-						if (n2 > nbase2)
+-							nbase2 = n2;
++// Note the call from node's function to cf, walking cf if it has not been walked.
++// Returns true where the old check would have walked cf again.
++bool GlobalAnalyzer::CheckFastcallCallee(FastcallNode* node, Declaration* cf)
++{
++	node->mCallees.Push(cf);
+ 
+-						if (!procDec->mMayCall.Contains(vf))
+-							procDec->mMayCall.Push(vf);
+-					}
++	if (cf->mType != DT_CONST_FUNCTION)
++		return false;
++
++	if (cf->mFastcallNode < 0)
++	{
++		if (FastcallWalked(cf))
++		{
++			CheckFastcall(cf);
++			FastcallNode* cnode = mFastcallNodes[cf->mFastcallNode];
++			if (cnode->mLow < node->mLow)
++				node->mLow = cnode->mLow;
++		}
++		return false;
++	}
++
++	FastcallNode* cnode = mFastcallNodes[cf->mFastcallNode];
++	if (cnode->mStacked && cnode->mIndex < node->mLow)
++		node->mLow = cnode->mIndex;
++
++	if (FastcallWalked(cf))
++	{
++		if (IsDispatch(cf))
++			CheckDispatch(cf);
++		return true;
++	}
+ 
++	return false;
++}
++
++// The largest areas of node's callees as walking each of them again would leave them.
++// A dispatch reached is walked again too, after the search, as it would have been.
++void GlobalAnalyzer::FastcallReach(FastcallNode* node, int& nbase, int& nbase2)
++{
++	GrowingArray<Declaration*>	queue(nullptr), dispatches(nullptr);
++	int	epoch = ++mFastcallEpoch;
++
++	int	qi = 0;
++	for (;;)
++	{
++		for (int i = 0; i < node->mCallees.Size(); i++)
++		{
++			Declaration* cf = node->mCallees[i];
++
++			if (FastcallWalked(cf) && cf->mFastcallNode >= 0)
++			{
++				FastcallNode* cnode = mFastcallNodes[cf->mFastcallNode];
++				if (cnode->mMark == epoch)
++					;
++				else if (IsDispatch(cf))
++				{
++					cnode->mMark = epoch;
++					dispatches.Push(cf);
++				}
++				else if (!cnode->mStacked && !cnode->mReachDispatch)
++				{
++					if (cnode->mReach > nbase)
++						nbase = cnode->mReach;
++					if (cnode->mReach2 > nbase2)
++						nbase2 = cnode->mReach2;
++				}
++				else
++				{
++					cnode->mMark = epoch;
++					queue.Push(cf);
+ 				}
+-				//				procDec->mFlags |= DTF_DYNSTACK;
+ 			}
+ 			else
+-				CheckFastcall(cf, false);
++			{
++				if (cf->mBase->mFastCallSize > nbase)
++					nbase = cf->mBase->mFastCallSize;
++				if (cf->mBase->mFastCallSize2 > nbase2)
++					nbase2 = cf->mBase->mFastCallSize2;
++			}
++		}
+ 
+-			if (cf->mFlags & DTF_DYNSTACK)
+-				procDec->mFlags |= DTF_DYNSTACK;
++		if (qi == queue.Size())
++			break;
++		node = mFastcallNodes[queue[qi++]->mFastcallNode];
++	}
+ 
+-			//			if (!(cf->mBase->mFlags & DTF_FASTCALL))
+-			//				procDec->mBase->mFlags |= DTF_STACKCALL;
++	for (int i = 0; i < dispatches.Size(); i++)
++	{
++		Declaration* cf = dispatches[i];
++		CheckDispatch(cf);
++		if (cf->mBase->mFastCallSize > nbase)
++			nbase = cf->mBase->mFastCallSize;
++		if (cf->mBase->mFastCallSize2 > nbase2)
++			nbase2 = cf->mBase->mFastCallSize2;
++	}
++}
+ 
+-			cf = cf->mBase;
+-			int n = cf->mFastCallSize;
+-			if (n > nbase)
+-				nbase = n;
+-			int n2 = cf->mFastCallSize2;
+-			if (n2 > nbase2)
+-				nbase2 = n2;
+-		}
++// Whether walking cf again would have marked it as using a dynamic stack
++bool GlobalAnalyzer::FastcallReachDynstack(Declaration* cf)
++{
++	GrowingArray<Declaration*>	queue(nullptr);
++	int	epoch = ++mFastcallEpoch;
+ 
+-//		printf("CheckFastcall2 %s %08llx %08llx\n", procDec->mQualIdent->mString, procDec->mFlags, procDec->mBase->mFlags);
++	queue.Push(cf);
++	mFastcallNodes[cf->mFastcallNode]->mMark = epoch;
+ 
+-		if (procDec->mValue && procDec->mValue->mType == EX_DISPATCH)
+-		{
+-			Declaration* maxf = nullptr, * maxf2 = nullptr, * reff = nullptr;
++	for (int qi = 0; qi < queue.Size(); qi++)
++	{
++		Declaration* dec = queue[qi];
++		FastcallNode* node = mFastcallNodes[dec->mFastcallNode];
+ 
+-			bool	stackCall = false;
++		if (!node->mStacked)
++		{
++			if (node->mReachDynstack)
++				return true;
++		}
++		else
++		{
++			if (dec->mFlags & DTF_DYNSTACK)
++				return true;
+ 
+-			for (int i = 0; i < procDec->mCalled.Size(); i++)
++			for (int i = 0; i < dec->mCalled.Size(); i++)
+ 			{
+-				Declaration* cf = procDec->mCalled[i];
+-
+-				if (cf->mBase->mFlags & DTF_STACKCALL)
++				Declaration* c = dec->mCalled[i];
++				if (FastcallWalked(c) && c->mFastcallNode >= 0)
+ 				{
+-					stackCall = true;
+-					reff = cf;
++					FastcallNode* cnode = mFastcallNodes[c->mFastcallNode];
++					if (cnode->mMark != epoch)
++					{
++						cnode->mMark = epoch;
++						queue.Push(c);
++					}
+ 				}
++				else if (c->mFlags & DTF_DYNSTACK)
++					return true;
++			}
++		}
++	}
++
++	return false;
++}
+ 
+-				if (!maxf)
+-					maxf = cf;
+-				else if (cf->mBase->mFastCallBase > maxf->mBase->mFastCallBase)
+-					maxf = cf;
++// node roots a strongly connected component: work out what walking each of its
++// functions again would give, now that this no longer depends on the walk's path
++void GlobalAnalyzer::FastcallComponent(FastcallNode* node)
++{
++	int	n = mFastcallStack.Size() - 1;
++	while (mFastcallStack[n] != node->mDec)
++		n--;
+ 
+-				if (!maxf2)
+-					maxf2 = cf;
+-				else if (cf->mBase->mFastCallBase2 > maxf2->mBase->mFastCallBase2)
+-					maxf2 = cf;
+-			}
++	bool	changed;
++	do
++	{
++		changed = false;
++		for (int i = mFastcallStack.Size() - 1; i >= n; i--)
++		{
++			Declaration* dec = mFastcallStack[i];
++			FastcallNode* dnode = mFastcallNodes[dec->mFastcallNode];
+ 
+-			if (!reff)
+-				reff = maxf;
++			if (!FastcallWalked(dec))
++				continue;
+ 
+-			for (int i = 0; i < procDec->mCalled.Size(); i++)
+-			{
+-				Declaration* cf = procDec->mCalled[i];
++			int		reach = dnode->mReach, reach2 = dnode->mReach2;
++			bool	dynstack = dnode->mReachDynstack || (dec->mFlags & DTF_DYNSTACK);
++			bool	dispatch = dnode->mReachDispatch;
+ 
+-				if (stackCall)
++			if (!IsDispatch(dec))
++			{
++				for (int j = 0; j < dnode->mCallees.Size(); j++)
+ 				{
+-					cf->mBase->mFlags &= ~DTF_FASTCALL;
+-					cf->mBase->mFlags |= DTF_STACKCALL;
++					Declaration* cf = dnode->mCallees[j];
++					int	n1, n2;
++					if (FastcallWalked(cf) && cf->mFastcallNode >= 0 && !IsDispatch(cf))
++					{
++						FastcallNode* cnode = mFastcallNodes[cf->mFastcallNode];
++						n1 = cnode->mReach;
++						n2 = cnode->mReach2;
++						if (cnode->mReachDispatch)
++							dispatch = true;
++					}
++					else
++					{
++						n1 = cf->mBase->mFastCallSize;
++						n2 = cf->mBase->mFastCallSize2;
++						if (FastcallWalked(cf) && cf->mFastcallNode >= 0)
++							dispatch = true;
++					}
++					if (n1 > reach)
++						reach = n1;
++					if (n2 > reach2)
++						reach2 = n2;
+ 				}
++			}
+ 
+-				if (cf != reff)
++			if (mFastcallDynstack)
++			{
++				for (int j = 0; j < dec->mCalled.Size(); j++)
+ 				{
+-					Declaration* fp = cf->mBase->mParams, * mp = reff->mBase->mParams;
+-					while (fp)
++					Declaration* c = dec->mCalled[j];
++					if (FastcallWalked(c) && c->mFastcallNode >= 0)
+ 					{
+-						fp->mVarIndex = mp->mVarIndex;
+-						fp = fp->mNext;
+-						mp = mp->mNext;
++						if (mFastcallNodes[c->mFastcallNode]->mReachDynstack)
++							dynstack = true;
+ 					}
+-
+-					assert(!mp);
+-					cf->mBase->mFastCallSize = cf->mFastCallSize = maxf->mBase->mFastCallSize;
++					else if (c->mFlags & DTF_DYNSTACK)
++						dynstack = true;
+ 				}
++			}
+ 
+-				if (cf != maxf)
+-					cf->mBase->mFastCallBase = cf->mFastCallBase = maxf->mBase->mFastCallBase;
+-				if (cf != maxf2)
+-					cf->mBase->mFastCallBase2 = cf->mFastCallBase2 = maxf->mBase->mFastCallBase2;
++			if (reach != dnode->mReach || reach2 != dnode->mReach2 || dynstack != dnode->mReachDynstack || dispatch != dnode->mReachDispatch)
++			{
++				dnode->mReach = reach;
++				dnode->mReach2 = reach2;
++				dnode->mReachDynstack = dynstack;
++				dnode->mReachDispatch = dispatch;
++				changed = true;
+ 			}
++		}
++	} while (changed);
++
++	while (mFastcallStack.Size() > n)
++		mFastcallNodes[mFastcallStack.Pop()->mFastcallNode]->mStacked = false;
++}
+ 
+-			procDec->mFastCallBase = procDec->mBase->mFastCallBase;
+-			procDec->mFastCallSize = procDec->mBase->mFastCallSize;
+-			procDec->mFastCallBase2 = procDec->mBase->mFastCallBase2;
+-			procDec->mFastCallSize2 = procDec->mBase->mFastCallSize2;
+-			procDec->mFlags &= ~DTF_FUNC_ANALYZING;
++// Give the functions a C++ virtual call may reach one parameter layout.  Walking a dispatch
++// walks the functions it calls first, which gives those taking stack parameters their
++// callees' areas, the areas the layout is chosen from.
++void GlobalAnalyzer::CheckDispatch(Declaration* procDec)
++{
++	bool	walking = (procDec->mFlags & DTF_FUNC_ANALYZING) != 0;
++	procDec->mFlags |= DTF_FUNC_ANALYZING;
+ 
+-			return;
++	for (int i = 0; i < procDec->mCalled.Size(); i++)
++	{
++		Declaration* cf = procDec->mCalled[i];
++		if (FastcallWalked(cf) && cf->mFastcallNode >= 0 && !IsDispatch(cf))
++		{
++			int	nbase = 0, nbase2 = 0;
++			FastcallReach(mFastcallNodes[cf->mFastcallNode], nbase, nbase2);
++			cf->mFastCallBase = cf->mFastCallSize = cf->mBase->mFastCallBase = cf->mBase->mFastCallSize = nbase;
++			cf->mFastCallBase2 = cf->mFastCallSize2 = cf->mBase->mFastCallBase2 = cf->mBase->mFastCallSize2 = nbase2;
+ 		}
++	}
++
++	if (!walking)
++		procDec->mFlags &= ~DTF_FUNC_ANALYZING;
++
++	Declaration* maxf = nullptr, * maxf2 = nullptr, * reff = nullptr;
++
++	bool	stackCall = false;
++
++	for (int i = 0; i < procDec->mCalled.Size(); i++)
++	{
++		Declaration* cf = procDec->mCalled[i];
++
++		if (cf->mBase->mFlags & DTF_STACKCALL)
++		{
++			stackCall = true;
++			reff = cf;
++		}
++
++		if (!maxf)
++			maxf = cf;
++		else if (cf->mBase->mFastCallBase > maxf->mBase->mFastCallBase)
++			maxf = cf;
++
++		if (!maxf2)
++			maxf2 = cf;
++		else if (cf->mBase->mFastCallBase2 > maxf2->mBase->mFastCallBase2)
++			maxf2 = cf;
++	}
++
++	if (!reff)
++		reff = maxf;
++
++	for (int i = 0; i < procDec->mCalled.Size(); i++)
++	{
++		Declaration* cf = procDec->mCalled[i];
++
++		if (stackCall)
++		{
++			cf->mBase->mFlags &= ~DTF_FASTCALL;
++			cf->mBase->mFlags |= DTF_STACKCALL;
++		}
++
++		if (cf != reff)
++		{
++			Declaration* fp = cf->mBase->mParams, * mp = reff->mBase->mParams;
++			while (fp)
++			{
++				fp->mVarIndex = mp->mVarIndex;
++				fp = fp->mNext;
++				mp = mp->mNext;
++			}
++
++			assert(!mp);
++			cf->mBase->mFastCallSize = cf->mFastCallSize = maxf->mBase->mFastCallSize;
++		}
++
++		if (cf != maxf)
++			cf->mBase->mFastCallBase = cf->mFastCallBase = maxf->mBase->mFastCallBase;
++		if (cf != maxf2)
++			cf->mBase->mFastCallBase2 = cf->mFastCallBase2 = maxf->mBase->mFastCallBase2;
++	}
++
++	procDec->mFastCallBase = procDec->mBase->mFastCallBase;
++	procDec->mFastCallSize = procDec->mBase->mFastCallSize;
++	procDec->mFastCallBase2 = procDec->mBase->mFastCallBase2;
++	procDec->mFastCallSize2 = procDec->mBase->mFastCallSize2;
++}
++
++void GlobalAnalyzer::CheckFastcall(Declaration* procDec)
++{
++	FastcallNode* node = FastcallNodeOf(procDec);
++	node->mIndex = node->mLow = mFastcallIndex++;
++	node->mStacked = true;
++	mFastcallStack.Push(procDec);
++
++	procDec->mFlags |= DTF_FUNC_ANALYZING;
++
++	for (int i = 0; i < procDec->mCalled.Size(); i++)
++	{
++		Declaration* cf = procDec->mCalled[i];
++		bool	again = false;
++
++		if (cf->mType == DT_TYPE_FUNCTION)
++		{
++			for (int j = 0; j < mVariableFunctions.Size(); j++)
++			{
++				Declaration* vf = mVariableFunctions[j];
++
++				if (vf->mBase->IsSame(cf))
++				{
++					CheckFastcallCallee(node, vf);
++
++					if (!procDec->mMayCall.Contains(vf))
++						procDec->mMayCall.Push(vf);
++				}
++			}
++			node->mCallees.Push(cf);
++		}
++		else
++			again = CheckFastcallCallee(node, cf);
++
++		if ((again && mFastcallDynstack) ? FastcallReachDynstack(cf) : (cf->mFlags & DTF_DYNSTACK) != 0)
++			procDec->mFlags |= DTF_DYNSTACK;
++	}
++
++	if (IsDispatch(procDec))
++	{
++		CheckDispatch(procDec);
++		procDec->mFlags &= ~DTF_FUNC_ANALYZING;
++	}
++	else
++	{
++		int	nbase = 0, nbase2 = 0;
++
++		// Only a function that may take fastcall parameters needs its callees' areas now
++		if (!(procDec->mBase->mFlags & DTF_STACKCALL) && !(procDec->mFlags & (DTF_FUNC_RECURSIVE | DTF_FUNC_VARIABLE | DTF_DYNSTACK)))
++			FastcallReach(node, nbase, nbase2);
+ 
+ 		procDec->mFastCallBase = nbase;
+ 		procDec->mFastCallSize = nbase;
+@@ -695,6 +1022,9 @@ void GlobalAnalyzer::CheckFastcall(Declaration* procDec, bool head)
+ 			procDec->mBase->mFlags |= DTF_STACKCALL;
+ 		}
+ 	}
++
++	if (node->mLow == node->mIndex)
++		FastcallComponent(node);
+ }
+ 
+ void GlobalAnalyzer::CheckInterrupt(void)
+diff --git a/oscar64/GlobalAnalyzer.h b/oscar64/GlobalAnalyzer.h
+index c1c0f74..ab91fdc 100644
+--- a/oscar64/GlobalAnalyzer.h
++++ b/oscar64/GlobalAnalyzer.h
+@@ -4,6 +4,8 @@
+ #include "Linker.h"
+ #include "CompilerTypes.h"
+ 
++struct FastcallNode;
++
+ class GlobalAnalyzer
+ {
+ public:
+@@ -13,7 +15,7 @@ public:
+ 	void DumpCallGraph(void);
+ 	void TopoSort(Declaration * procDec);
+ 	void AutoInline(void);
+-	void CheckFastcall(Declaration* procDec, bool head);
++	void CheckFastcalls(void);
+ 	void CheckInterrupt(void);
+ 	void AutoZeroPage(LinkerSection * lszp, int zpsize);
+ 	void MarkRecursions(void);
+@@ -31,6 +33,20 @@ protected:
+ 	GrowingArray<Declaration*>		mCalledFunctions, mCallingFunctions, mVariableFunctions, mFunctions, mTopoFunctions;
+ 	GrowingArray<Declaration*>		mGlobalVariables;
+ 
++	GrowingArray<FastcallNode*>		mFastcallNodes;
++	GrowingArray<Declaration*>		mFastcallStack;
++	int								mFastcallIndex, mFastcallEpoch;
++	bool							mFastcallDynstack;
++
++	FastcallNode* FastcallNodeOf(Declaration* dec);
++	bool FastcallWalked(const Declaration* dec) const;
++	void CheckFastcall(Declaration* procDec);
++	bool CheckFastcallCallee(FastcallNode* node, Declaration* cf);
++	void CheckDispatch(Declaration* procDec);
++	void FastcallReach(FastcallNode* node, int& nbase, int& nbase2);
++	bool FastcallReachDynstack(Declaration* cf);
++	void FastcallComponent(FastcallNode* node);
++
+ 	void AnalyzeInit(Declaration* mdec);
+ 	int CallerInvokes(Declaration* called);
+ 	int CallerInvokes(Declaration* caller, Declaration* called);

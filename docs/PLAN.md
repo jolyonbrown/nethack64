@@ -33,7 +33,8 @@ Goal: every file in `port/src` compiles under Oscar64 (link/placement aside).
       options come with T2.4 and the Phase 3 system layer)
 - [x] Work down the error classes in OSCAR64-COMPAT.md; each compiler bug gets
       a repro + workaround, each real portability issue a fix in `port/` — 2026-11-14:
-      59 repros; fixes in the ADR-0007 compiler (59 commits) or workarounds in `port/`
+      59 repros; fixes in the ADR-0007 compiler (59 commits) or workarounds in `port/`;
+      2026-11-15: 63 repros, the compiler at 67 commits, all 108 C64 files compile
 - [x] Solve the `makemon.c` hang and the `mhitm.c`/`shknam.c` crashes (bisect -> repro -> upstream issue)
       — fixed in the ADR-0007 compiler (r27, r28 and the exponential walks)
 - [x] `tools/check_ansi.sh` and `tests/host_smoke.py` stay green throughout (and CI checks both)

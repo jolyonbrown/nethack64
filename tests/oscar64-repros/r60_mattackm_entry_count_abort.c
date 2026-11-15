@@ -12,9 +12,9 @@
  * became __noinline (docs/BANKING-SPIKE.md): with stubs Oscar64 could inline, the file
  * compiled, so a real build would have aborted where the harness did not.
  * Expect when fixed: compiles, emulation result 0.
- * Workaround: none in port/ (only the measurement harness compiles mhitm.c so far); the
- * fix is a missing `mNumEntries--` (Codex), with a test: pin candidate commits 60-61,
- * Jolyon's decision (ADR-0007).
+ * Workaround: none in port/ (only the measurement harness compiles mhitm.c so far);
+ * fixed by the ADR-0007 compiler (commits 60-61, 2026-11-15: Codex's missing
+ * `mNumEntries--`, and a test).
  * FLAGS: -e -Os
  */
 volatile int input;

@@ -1,7 +1,7 @@
 From bbc2f328e1c23599c28476fd16fdc80e62adc8f8 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 22:12:40 +0000
-Subject: [PATCH 58/59] Fix immediate operands in native carry-add fusion
+Subject: [PATCH 58/67] Fix immediate operands in native carry-add fusion
 
 CompileInterBlock fuses two byte-range additions and a boolean addend
 into BinaryAddCarry. IsUByte accepts integer constants as well as

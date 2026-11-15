@@ -1,7 +1,7 @@
 From 2fded3cfb2d9e47c7567369cfad4a3fee539fec9 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 18:26:22 +0000
-Subject: [PATCH 42/59] Test splitting a function's exit block
+Subject: [PATCH 42/67] Test splitting a function's exit block
 
 dealloc() tests its pointer against a global, clears the global and
 calls free(): the shape that made SplitAt follow the exit block's null

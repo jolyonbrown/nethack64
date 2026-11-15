@@ -345,7 +345,7 @@ Add new tasks at the bottom of the right section.
       since 2026-11-14. If added: ADR-0007's checks, as for the earlier rounds.
       — 2026-11-14: added on his go-ahead ("you go ahead") as commits 41-42; ADR-0007's
       checks passed (results there). It fixes r9 as well.
-- [ ] T1.47 r63 (compat #65): **wrong code** from a call with constant arguments, evaluated
+- [x] T1.47 r63 (compat #65): **wrong code** from a call with constant arguments, evaluated
       while compiling, to a function with a parameter it never reads: the unused parameter is
       renumbered as a local and takes a used parameter's index, so `pick(7, 2)` of
       `int pick(int a, int b) { return a; }` folds to 2 (-O2, -Os, -O3; the pin and upstream
@@ -355,8 +355,8 @@ Add new tasks at the bottom of the right section.
       aaaff45: the interpreter binds nothing for an unused parameter). r63, the fqname-shaped
       variant and the nested-call variant fail on the pin and pass with it in every
       configuration; autotest 1,531/1,531; corpus 985/993 identical, the 8 that differ being
-      r63 and the new test where the bug fires (-O2, -Os, -O3, bytecode -O2). Next: a pin
-      candidate, for Jolyon.
+      r63 and the new test where the bug fires (-O2, -Os, -O3, bytecode -O2). In the pin as
+      commits 66-67 (2026-11-15, Jolyon's go-ahead; ADR-0007).
 - [ ] T1.46 r61 (compat #63): a function-like macro's name with no `(` after it is expanded.
       — 2026-11-15: Codex's fix and test (`fix/r61-macro-name`, 51d2c27 and a6ed6bb; the
       scanner looks past white space and comments for the `(` before treating the name as an
@@ -364,7 +364,7 @@ Add new tasks at the bottom of the right section.
       fail -> pass; reviewed here (diff and test). Still to do: the NetHack listings with it,
       then a pin candidate for Jolyon. Codex also noticed, not yet checked here: stringizing
       leaves a trailing space, and `##` beside a parameter written with spaces misbehaves.
-- [ ] T1.45 `mhitm.c` aborts the compiler since the stubs became `__noinline` (T1.42):
+- [x] T1.45 `mhitm.c` aborts the compiler since the stubs became `__noinline` (T1.42):
       "mIndex == 1000 || mNumEntries == mEntryBlocks.Size()" in
       `NativeCodeBasicBlock::RemoveUnusedResultInstructions`, compiling `mattackm()`, with
       the 59-commit compiler. Codex found the cause (`codex/r60-mattackm`, uncommitted):
@@ -509,8 +509,8 @@ Add new tasks at the bottom of the right section.
       a renaming macro for calls within a bank, resident trampolines); the whole game
       built from it on the host (`tools/host-build.sh --banked`, 2,142 functions in 84
       banks) passes the smoke test and a 6,000-command bot game with every banked
-      function checking its bank on entry. Oscar64 past 64 banks: Codex's patch
-      (`fix/banks-past-64`, 75d6b73), checked, a pin candidate for Jolyon. Next: the
+      function checking its bank on entry. Oscar64 past 64 banks: Codex's patch, in the
+      pin as commit 62 (2026-11-15). Next: the
       Oscar64 build of the rewritten source, literals kept by callees (`killer`).
 - [ ] T2.2 Banking spike B (REU overlays) with the same files (BANKING-SPIKE.md)
 - [ ] T2.3 RAM map for dynamic state; BUFSZ policy ADR
@@ -533,10 +533,20 @@ Add new tasks at the bottom of the right section.
       1,600 random call graphs; corpus 988/988 byte-identical; autotest 1,531/1,531; 20 rungs
       take 0.77 s (30.1 s with the old walk, 46.6 s on the pin). (A first rewrite,
       `scratch/fastcall-scc-v1`, changed 29 corpus programs and was dropped.) With (a) and (b)
-      the whole game gets through the analysis and into code generation. (c) It then stopped
-      on r63 (T1.47) at 136 s and 4.5 GB; with that fixed it runs out of a 6 GB cap
-      (`std::bad_alloc` after 220 s). The machine has about 8 GB free with swap full: more
-      memory is Jolyon's call (2026-11-15). (d) The harness's `nh_refs[]`
+      the whole game gets through the analysis and into code generation; both are in the pin
+      as commits 63-65 (2026-11-15). (c) It then stopped on r63 (T1.47) at 136 s and 4.5 GB;
+      with that fixed it ran out of a 6 GB cap here, and of 16 GB on Jolyon's 31 GB desktop
+      (his suggestion), in intermediate code. Most of it
+      was the per-block data flow sets over all statics, kept after each procedure is
+      optimized: freeing them (`scratch/whole-game-v2`, f982b52, an experiment; corpus
+      1,017/1,017 identical) let **the whole game compile in one run** on the desktop: 619 s,
+      peak 13.2 GB, through native code generation, stopping in the linker on "Cannot place
+      stack section" (the data does not fit yet, T2.3). (e) The listing check on that error
+      listing is not trustworthy (57 "crossings", mostly resident functions to
+      `read_config_file__b1`: objects not yet placed). The 84 banks come out nearly full
+      (median 16,380 of 16,384 B, 1.31 MB in all) against the plan's 8 KB of code each: why?
+      Next: the set release as a pin candidate, then the bank sizes and a check that works on
+      a partial link. (d) The harness's `nh_refs[]`
       takes every function's address, which makes Oscar64 give them all stack parameters:
       measure code size with calls instead, since 1.19 MB is probably high.
 - [ ] T2.7 RNG + clock ADR before Phase 3 first light: which generator implements

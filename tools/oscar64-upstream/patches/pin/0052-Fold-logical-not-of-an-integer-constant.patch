@@ -1,7 +1,7 @@
 From e1839834842e3c0e9596604a7c7f05ac202532f9 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 22:04:29 +0000
-Subject: [PATCH 52/59] Fold logical not of an integer constant
+Subject: [PATCH 52/67] Fold logical not of an integer constant
 
 ConstantFoldValue had no case for EX_LOGICAL_NOT, so ! of a constant
 was left to code generation and was no constant expression: static

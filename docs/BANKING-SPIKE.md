@@ -261,7 +261,16 @@ stopped twice more:
   few procedures cost far more than the rest (`burn_object` 52 s, `unbless` 13 s,
   `realloc_obj` 305 MB), and they compile quickly in the per-file measurement, so
   whole-program inlining (other files' functions, the bank trampolines) is the first
-  suspect. The machine has about 8 GB free, so more memory is Jolyon's decision.
+  suspect. On a 31 GB desktop it ran out of a 16 GB cap the same way. Most of the growth
+  is the data flow sets each basic block keeps over all the program's statics (2.7 GB of
+  it by 2,750 procedures here), which nothing reads once its procedure is optimized. An
+  experiment that frees them (no change in any of 1,017 corpus programs) let **the whole
+  game compile in one run** on the desktop: 619 s, peak 13.2 GB, through native code
+  generation, until the linker stopped on "Cannot place stack section" because the data
+  does not fit yet (T2.3).
+- **Bank sizes.** That map has 1.31 MB in the 84 banks, median 16,380 of 16,384 B,
+  against a plan of about 8 KB of code each, and the listing check is not reliable on a
+  partial link (unplaced objects): both still to understand (T2.8).
 
 Two measurement caveats follow. The harness's `nh_refs[]` takes the address of every
 function a file defines, and Oscar64 gives every address-taken function stack

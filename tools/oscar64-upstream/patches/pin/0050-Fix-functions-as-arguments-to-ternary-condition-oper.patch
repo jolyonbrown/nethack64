@@ -1,7 +1,7 @@
 From c092da2522def0cba9d106a66aa49d69eda19b33 Mon Sep 17 00:00:00 2001
 From: drmortalwombat <90205530+drmortalwombat@users.noreply.github.com>
 Date: Sat, 24 Oct 2026 16:28:36 +0200
-Subject: [PATCH 50/59] Fix functions as arguments to ternary condition
+Subject: [PATCH 50/67] Fix functions as arguments to ternary condition
  operator
 
 (cherry picked from commit c8da6bd8b727b1e2f3315fe8e0019e312db8968f)

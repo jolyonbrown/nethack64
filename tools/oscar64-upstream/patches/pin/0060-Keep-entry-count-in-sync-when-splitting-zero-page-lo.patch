@@ -1,0 +1,41 @@
+From 7ca5d3885b38773adb2b13b3dab5bdae0c4a0d88 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 14 Nov 2026 23:53:58 +0000
+Subject: [PATCH 60/67] Keep entry count in sync when splitting zero-page loads
+
+JoinEntryLoadStoreZP moves a zero-page load/store pair at the top of a
+block into the predecessors that can take it, and sends the others
+through a new block that holds the pair. It removed each of those
+predecessors from the block's entry list without decrementing
+mNumEntries, then added the new block as an entry and incremented it, so
+the count exceeded mEntryBlocks.Size() by the number of predecessors
+moved. RemoveUnusedResultInstructions then fails its assertion
+"mIndex == 1000 || mNumEntries == mEntryBlocks.Size()".
+
+Decrement the count for each predecessor removed, as
+PartialBackwardValuePropagation does when it moves entries to a new
+block. The increment when the new block joins remains correct.
+
+It is nethack64's repro r60: NetHack's mattackm() (mhitm.c) aborted
+native code generation once the measurement harness kept its stub
+functions out of line.
+
+Written by Codex; checked by Claude.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/NativeCodeGenerator.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index cde8668..1a95b10 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -30701,6 +30701,7 @@ bool NativeCodeBasicBlock::JoinEntryLoadStoreZP(void)
+ 									if (eb->mFalseJump == this)
+ 										eb->mFalseJump = xblock;
+ 									mEntryBlocks.Remove(j);
++									mNumEntries--;
+ 									xblock->mEntryBlocks.Push(eb);
+ 									xblock->mNumEntries++;
+ 								}

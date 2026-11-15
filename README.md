@@ -11,14 +11,14 @@ C64 Ultimate). Fallbacks: C128, then stock C64 as the white whale.
 Phase 0 is done (2026-11-08): the platform boots from an EasyFlash image,
 draws NetHack's 80-column screen in software, detects and uses an REU, and is
 driven headlessly by agents. The NetHack source is converted to ANSI C and
-partially compiles with Oscar64. The numbers that shape everything else:
+compiles with Oscar64, every file on its own. The numbers that shape everything else:
 
 | | |
 |---|---|
 | Game code, Oscar64 `-Os` (measured) | ~1.2 MB |
 | All static content (code + text + levels) | ~2.1 MB, vs 1 MB EasyFlash |
 | RAM needed while playing | ~45-60 KB, vs 30 KB resident |
-| Files compiling under Oscar64, ADR-0007 compiler (C64 config, 2026-11-14) | 107 / 108 |
+| Files compiling under Oscar64, ADR-0007 compiler (C64 config, 2026-11-15) | 108 / 108 |
 
 ![Phase 0 self-test: EasyFlash + 16 MB REU in VICE](docs/img/phase0-autotest-ef-reu16m.png)
 

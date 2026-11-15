@@ -163,6 +163,21 @@ reviewed the first version of commit 54 and found that `!!1` stopped being a con
 that C++'s `!!obj` through `operator bool` aborted; commit 52 and the class-type case
 answer both, and its 29 probes give the same or better results than the 48 commits.
 
+Added on 2026-11-15 on Jolyon's go-ahead ("yes, add both to the pin", then "All four" when
+asked which): 60. `7ca5d38` r60 (compat #62, found 2026-11-14, fixed by Codex):
+`JoinEntryLoadStoreZP` counts the predecessors it routes through a new block out of the
+join's entries, so `mattackm()` (`mhitm.c`) no longer aborts native code generation, and 61.
+`40d5ebc` its test; 62. `072bb5a` cartridge banks 0 to 254 (Codex): the first commit that
+lifts a limit rather than fixing a fault, wanted by every banking design (NetHack's code
+needs about 84 banks of 16 KB, and Oscar64 put bank 64 silently into bank 0); 63. `d3776d0`
+r62 (compat #64): `MarkRecursions` by Tarjan's search, and 64. `bf6302e` `CheckFastcall`
+walking each function once, with what its old repeated walks read from a function taking
+stack parameters found by a search and kept per strongly connected component (the whole
+game in one compile had not finished its analysis in an hour), and 65. `8a087e1` their test;
+66. `a189c89` r63 (compat #65, wrong code): evaluating a call while compiling binds nothing
+for a parameter the optimiser has marked unused and renumbered as a local, and 67.
+`28a87b3` its test.
+
 `tools/oscar64-upstream/build-pin.sh [DIR]` builds it (`JOBS=N` for `make -jN`). Since
 2026-11-13 the setup scripts (`tools/setup-ubuntu.sh`, `tools/setup-arch.sh`) build the
 release and then this compiler, link this one as `oscar64` (the Makefile takes it from
@@ -177,11 +192,11 @@ checks, and its `-Os` size is understood.
 - The six fixed rows above stop being "must be settled before game code runs" once
   the build uses the pin; r18-r23 and r25 pass, and so does r26 (commit 8). r24 stays
   open (T1.15).
-- We carry a patch stack until upstream releases: of the 59 commits, eight are upstream's
+- We carry a patch stack until upstream releases: of the 67 commits, eight are upstream's
   (1169268, bf42402, 1ae3216, 3bb084f, 1073206, 46e60d6, 160c92b, c8da6bd), two backport
   upstream fixes (fbca293 and the CoerceType hunk of 57655c5), four are tests for upstream
-  fixes, and forty-five are ours (the r31, r45, r46, r50, r51 and r59 fixes and seven tests
-  written by Codex). Most of ours have an upstream form as a
+  fixes, and fifty-three are ours (the r31, r45, r46, r50, r51, r59 and r60 fixes, the bank
+  patch and seven tests written by Codex). Most of ours have an upstream form as a
   draft PR in the fork or a local branch on main, on hold (OSCAR64-UPSTREAM.md; nothing
   sent yet), so the stack should shrink. Once
   the build switches, anyone building must run the setup script (or `build-pin.sh`); a
@@ -412,3 +427,15 @@ whose code now computes 0 or 1 (13 files under C64, 12 under UNIX; one of them,
 intermediate code of `mapglyph()`, where `!((boolean)1)` now folds when parsed (same
 machine code). All 108 files reach placement under C64 (1,252,234 B in the 106 that place
 code); UNIX 97/108 (1,185,691 B).
+
+Results 2026-11-15 (67 commits, tip 28a87b3; the patch files give tree 803a674, the branch's
+and the checked candidate's; each of the five commits of ours cherry-picked onto Codex's
+three has the `git patch-id` of its reviewed branch commit, outside `autotest.bat`).
+Autotest 1,561 emulations, all 0 (the four new tests in all ten configurations each); corpus
+against 59 commits: 991 of 1,004 identical, the other 13 being `bankofhigh.c`, the r63 test
+and r63 where the new commits apply, and 13 crashes or time-outs now compile (the r60 test,
+r60 and r62); repros 40 of 63; nethack64 `.crt` and `.prg` byte-identical, `make test` 5/5.
+NetHack (C64): every listing, intermediate code and map of the 107 files that compiled with
+59 commits is identical, and `mhitm.c` compiles (23,380 B): C64 108/108 (1,185,261 B in the
+106 that place code), UNIX 97/108 (1,120,579 B in 95), measured with the `__noinline` stubs of
+T1.45 (`docs/data/oscar64-pin67-*-2026-11-15.json`).

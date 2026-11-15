@@ -1,7 +1,7 @@
 From b8be83cd4ab3666a4f451a96ec57a5471728a9de Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 21:53:10 +0000
-Subject: [PATCH 51/59] Test conditional expressions over functions
+Subject: [PATCH 51/67] Test conditional expressions over functions
 
 c ? f : g over two functions: as the argument for a function pointer
 parameter, both outcomes and also &f : &g; for functions returning int,

@@ -1,7 +1,7 @@
 From ebfdbe684644a929883cc2ce6eeda7c9ced6c6c8 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 22:02:18 +0000
-Subject: [PATCH 57/59] Test indirect fill reduction at byte-index boundaries
+Subject: [PATCH 57/67] Test indirect fill reduction at byte-index boundaries
 
 Check a pointer-based -1L store starting at offset zero, a repeated-byte
 store starting at offset four, and a store ending at offset 255. Assert

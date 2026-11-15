@@ -1,0 +1,114 @@
+From 40d5ebc7a62d5d5956cee075bc31c87a6dff34bc Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 15 Nov 2026 05:49:18 +0000
+Subject: [PATCH 61/67] Test entry counts after splitting zero-page loads
+
+Add NetHack's mattackm() from mhitm.c, reduced to the loop whose join
+block after a switch has its zero-page load and store moved into some
+predecessors and not others. Assert the results with no hit, a hit,
+the switch case taken, and an attacker that cannot move.
+
+Before the fix this test and the standalone repro abort in
+RemoveUnusedResultInstructions in all five native autotest
+configurations; bytecode passes. With the fix both pass all ten
+configurations. Register the test at the top of the batch driver; the
+makefile finds it through its existing wildcard.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat      |  3 ++
+ autotest/joinentryzptest.c | 72 ++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 75 insertions(+)
+ create mode 100644 autotest/joinentryzptest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 6cd0e95..5994968 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test joinentryzptest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test addcarryconsttest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/joinentryzptest.c b/autotest/joinentryzptest.c
+new file mode 100644
+index 0000000..248d97b
+--- /dev/null
++++ b/autotest/joinentryzptest.c
+@@ -0,0 +1,72 @@
++#include <assert.h>
++
++// Reduced from NetHack's mattackm() (mhitm.c). The native optimiser
++// moves the zero-page load and store at the top of the block after the
++// switch into its predecessors, and sends the predecessors that cannot
++// take them through a new block. Each predecessor it moves must leave
++// the old block's entry count, or a later pass finds the count and the
++// entry list out of step.
++
++volatile int input;
++int mons[4];
++int hit;
++
++struct monst
++{
++	int		*	data;
++	char		mcanmove;
++};
++
++__noinline int clone_mon(struct monst * m)
++{
++	return input;
++}
++
++__noinline int passivemm(struct monst * a, int strike, int died)
++{
++	return died ? 2 : hit;
++}
++
++__noinline int mattackm(struct monst * magr, struct monst * mdef)
++{
++	int i, strike = 0, struck = 0, res[6] = {0};
++	for (i = 0; i < 6; i++)
++	{
++		switch (input)
++		{
++		case 254:
++			if (input) return 0;
++			if (strike)
++			{
++				if (mdef->data == &mons[1] || mdef->data == &mons[2])
++					clone_mon(mdef);
++			}
++			else
++				strike = (i >= 2 && res[i - 2] == 1);
++		}
++		if (!(res[i] & 4))
++			res[i] = passivemm(magr, strike, res[i] & 2);
++		if (res[i] & 2) return res[i];
++		if (!magr->mcanmove) return res[i];
++		if (res[i] & 1) struck = 1;
++	}
++	return struck ? 1 : 0;
++}
++
++int main(void)
++{
++	struct monst a = {0, 1}, b = {0, 1};
++
++	assert(mattackm(&a, &b) == 0);
++	hit = 1;
++	assert(mattackm(&a, &b) == 1);
++	input = 254;
++	assert(mattackm(&a, &b) == 0);
++	input = 0;
++	a.mcanmove = 0;
++	assert(mattackm(&a, &b) == 1);
++	hit = 0;
++	assert(mattackm(&a, &b) == 0);
++
++	return 0;
++}

@@ -1,0 +1,193 @@
+From d3776d0f43b80634426016126bc5cd7ad7c2b786 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 15 Nov 2026 07:25:06 +0000
+Subject: [PATCH 63/67] Find recursive functions with Tarjan's algorithm
+
+MarkRecursions marked a function recursive by searching, from each
+function, every simple path through the call graph back to it. The
+search clears its on-path flag on the way back, so it explores the
+paths through a function again each time it reaches it: time
+exponential in the number of cycles. A whole-program compile of
+NetHack, whose direct calls form one cycle of 279 functions (through
+panic() and done()), was still in MarkCycle when sampled after one and
+four minutes.
+
+A function lies on a cycle exactly when it shares a strongly connected
+component with another function or calls itself, so mark those, found
+by an iterative Tarjan search in one walk of the graph. A temporary
+check that ran both searches found the same functions recursive in
+each of 308 programs: the autotest sources, nethack64's compiler
+repros and its 108 NetHack measurement compiles.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/Declaration.cpp    |   3 +-
+ oscar64/Declaration.h      |   2 +
+ oscar64/GlobalAnalyzer.cpp | 104 ++++++++++++++++++++++++++++---------
+ oscar64/GlobalAnalyzer.h   |   1 -
+ 4 files changed, 83 insertions(+), 27 deletions(-)
+
+diff --git a/oscar64/Declaration.cpp b/oscar64/Declaration.cpp
+index 14c2161..e53b8a1 100644
+--- a/oscar64/Declaration.cpp
++++ b/oscar64/Declaration.cpp
+@@ -1496,7 +1496,8 @@ Declaration::Declaration(const Location& loc, DecType type)
+ 	mFastCallBase(0), mFastCallSize(0), 
+ 	mFastCallBase2(0), mFastCallSize2(0), mVariadicSize(0),
+ 	mStride(0), mStripe(1),
+-	mCompilerOptions(0), mUseCount(0), mTokens(nullptr), mParser(nullptr),
++	mCompilerOptions(0), mUseCount(0), mRecursionIndex(-1), mRecursionLow(-1), mRecursionStacked(false),
++	mTokens(nullptr), mParser(nullptr),
+ 	mShift(0), mBits(0), mOptFlags(0), mInlayRegion(nullptr)
+ {
+ 	static uint32 gUID = 0;
+diff --git a/oscar64/Declaration.h b/oscar64/Declaration.h
+index 09fe9f0..a4996d4 100644
+--- a/oscar64/Declaration.h
++++ b/oscar64/Declaration.h
+@@ -338,6 +338,8 @@ public:
+ 	const uint8		*	mData;
+ 	LinkerObject	*	mLinkerObject;
+ 	int					mUseCount;
++	int					mRecursionIndex, mRecursionLow;
++	bool				mRecursionStacked;
+ 	TokenSequence	*	mTokens;
+ 	Parser			*	mParser;
+ 
+diff --git a/oscar64/GlobalAnalyzer.cpp b/oscar64/GlobalAnalyzer.cpp
+index d9b147d..cf6ec4e 100644
+--- a/oscar64/GlobalAnalyzer.cpp
++++ b/oscar64/GlobalAnalyzer.cpp
+@@ -359,41 +359,95 @@ void GlobalAnalyzer::AutoInline(void)
+ 
+ }
+ 
+-bool GlobalAnalyzer::MarkCycle(Declaration* rootDec, Declaration* procDec)
++void GlobalAnalyzer::MarkRecursions(void)
+ {
+-	if (rootDec == procDec)
+-		return true;
++	// A function is recursive when it lies on a cycle of the call graph: when it shares
++	// a strongly connected component with another function, or calls itself.  Tarjan's
++	// algorithm finds the components in one walk of the graph.  Searching every simple
++	// path from each function back to itself marks the same functions, but takes time
++	// exponential in the number of cycles in a large program.
+ 
+-	if (!(procDec->mFlags & DTF_FUNC_ANALYZING))
+-	{
+-		procDec->mFlags |= DTF_FUNC_ANALYZING;
++	GrowingArray<Declaration*>	stack(nullptr), work(nullptr);
++	GrowingArray<int>			next(0);
++	int							index = 0;
+ 
+-		bool	cycle = false;
+-		for (int i = 0; i < procDec->mCalled.Size(); i++)
++	for (int i = 0; i < mFunctions.Size(); i++)
++	{
++		Declaration* f = mFunctions[i];
++		f->mRecursionIndex = -1;
++		f->mRecursionStacked = false;
++		for (int j = 0; j < f->mCalled.Size(); j++)
+ 		{
+-			if (MarkCycle(rootDec, procDec->mCalled[i]))
+-				cycle = true;
++			f->mCalled[j]->mRecursionIndex = -1;
++			f->mCalled[j]->mRecursionStacked = false;
+ 		}
+-		if (cycle)
+-			procDec->mFlags |= DTF_FUNC_RECURSIVE;
+-
+-		procDec->mFlags &= ~DTF_FUNC_ANALYZING;
+-
+-		return cycle;
+ 	}
+ 
+-	return false;
+-}
+-
+-void GlobalAnalyzer::MarkRecursions(void)
+-{
+ 	for (int i = 0; i < mFunctions.Size(); i++)
+ 	{
+-		Declaration* cf = mFunctions[i];
+-		for (int j = 0; j < cf->mCalled.Size(); j++)
++		Declaration* root = mFunctions[i];
++		if (root->mRecursionIndex >= 0)
++			continue;
++
++		root->mRecursionIndex = root->mRecursionLow = index++;
++		root->mRecursionStacked = true;
++		stack.Push(root);
++		work.Push(root);
++		next.Push(0);
++
++		while (work.Size() > 0)
+ 		{
+-			if (MarkCycle(cf, cf->mCalled[j]))
+-				cf->mFlags |= DTF_FUNC_RECURSIVE;
++			int			top = work.Size() - 1;
++			Declaration* v = work[top];
++			int			k = next[top];
++
++			if (k < v->mCalled.Size())
++			{
++				next[top] = k + 1;
++				Declaration* w = v->mCalled[k];
++
++				if (w == v)
++					v->mFlags |= DTF_FUNC_RECURSIVE;
++
++				if (w->mRecursionIndex < 0)
++				{
++					w->mRecursionIndex = w->mRecursionLow = index++;
++					w->mRecursionStacked = true;
++					stack.Push(w);
++					work.Push(w);
++					next.Push(0);
++				}
++				else if (w->mRecursionStacked && w->mRecursionIndex < v->mRecursionLow)
++					v->mRecursionLow = w->mRecursionIndex;
++			}
++			else
++			{
++				work.Pop();
++				next.Pop();
++
++				if (work.Size() > 0)
++				{
++					Declaration* u = work[work.Size() - 1];
++					if (v->mRecursionLow < u->mRecursionLow)
++						u->mRecursionLow = v->mRecursionLow;
++				}
++
++				if (v->mRecursionLow == v->mRecursionIndex)
++				{
++					// v roots a component: it is the part of the stack from v up
++					int	n = stack.Size() - 1;
++					while (stack[n] != v)
++						n--;
++					bool	cycle = n < stack.Size() - 1;
++					while (stack.Size() > n)
++					{
++						Declaration* w = stack.Pop();
++						w->mRecursionStacked = false;
++						if (cycle)
++							w->mFlags |= DTF_FUNC_RECURSIVE;
++					}
++				}
++			}
+ 		}
+ 	}
+ }
+diff --git a/oscar64/GlobalAnalyzer.h b/oscar64/GlobalAnalyzer.h
+index d080dc5..c1c0f74 100644
+--- a/oscar64/GlobalAnalyzer.h
++++ b/oscar64/GlobalAnalyzer.h
+@@ -38,7 +38,6 @@ protected:
+ 	Declaration* Analyze(Expression* exp, Declaration* procDec, uint32 flags);
+ 
+ 	bool IsStackParam(const Declaration* pdec) const;
+-	bool MarkCycle(Declaration* rootDec, Declaration* procDec);
+ 
+ 	uint64 GetProcFlags(Declaration* to) const;
+ 	void RegisterCall(Declaration* from, Declaration* to);

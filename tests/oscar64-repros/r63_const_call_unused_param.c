@@ -17,8 +17,8 @@
  * measurement compiles never show it: their harness takes every function's address,
  * and an address-taken function keeps its parameters.  Found 2026-11-15.
  * Expect when fixed: emulation result 0.
- * Workaround: none in the source; the interpreter must not bind an unused parameter
- * (candidate pin commit, for Jolyon).
+ * Workaround: none in the source; fixed by the ADR-0007 compiler (commits 66-67,
+ * 2026-11-15): the interpreter binds nothing for an unused parameter.
  * FLAGS: -e -O2
  */
 volatile int v;

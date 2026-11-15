@@ -1,7 +1,7 @@
 From 1b95989fff986d2b0b03fd11e971fbfb0c94e5d1 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 22:06:32 +0000
-Subject: [PATCH 55/59] Test double logical not
+Subject: [PATCH 55/67] Test double logical not
 
 !!x of int, long and char operands, volatile or not: as a value, in
 arithmetic, as an argument and under a third !; of pointers, null or

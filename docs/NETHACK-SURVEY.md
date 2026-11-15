@@ -620,3 +620,20 @@ measured instead of a call, and the calls vanished from the listings (`apply.c` 
 - The listings now show the calls: `tools/measure/callgraph.py` finds 11,010 call sites to
   another file's function and 2,286 within a file (BANKING-SPIKE.md).
 
+## Oscar64 compile status with 67 commits (2026-11-15)
+
+The ADR-0007 compiler with commits 60-67 (r60, banks past 64, r62's two analyses, r63), the
+same harness. Data: `docs/data/oscar64-pin67-c64conf-2026-11-15.json` and `-baseline-`.
+
+| Result | UNIX config | C64 config |
+|---|---|---|
+| compile through to placement | 97 (1,120,579 B in 95) | **108 (1,185,261 B in 106)** |
+| of which place no code | 2 | 2 |
+| stop on a compile error | 11 | 0 |
+| crash the compiler | 0 | 0 |
+
+- **Every C64 file compiles**: `mhitm.c` (23,380 B) was the last; the other 107 files'
+  listings, intermediate code and maps are identical to the 59-commit compiler's.
+- Code stays **≈ 1.19 MB** in this measurement, with the caveat that the harness's table of
+  every function makes all of them stack-call (BANKING-SPIKE.md).
+

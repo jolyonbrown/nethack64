@@ -1,7 +1,7 @@
 From 36e37949b99a2693b2d572ca027d678594f3d429 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 18:33:01 +0000
-Subject: [PATCH 43/59] Preserve the memory base when simplifying indirect
+Subject: [PATCH 43/67] Preserve the memory base when simplifying indirect
  addresses
 
 SimplifyIntegerNumeric copied a LEA's variable index and linker object to indirect loads and stores but left their memory base unchanged. After static-stack promotion this could pair a global index with IM_LOCAL; LoadStoreForwarding then dereferenced a null local-variable entry when checking a native call.

@@ -1,7 +1,7 @@
 From 8c24ec200f298715bcdefd29b8272a5cff031087 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 01:01:39 +0000
-Subject: [PATCH 48/59] Fix union pointer to const union pointer conversion
+Subject: [PATCH 48/67] Fix union pointer to const union pointer conversion
 
 A `union T *` could not be passed, assigned, returned or used to
 initialise a `const union T *` or a `volatile union T *`: error 3012

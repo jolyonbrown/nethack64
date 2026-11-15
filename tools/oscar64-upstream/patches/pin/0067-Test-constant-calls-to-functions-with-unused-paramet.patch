@@ -1,0 +1,103 @@
+From 28a87b36c2e06554e3f1401b60b2322ae94cb1c5 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 15 Nov 2026 10:34:20 +0000
+Subject: [PATCH 67/67] Test constant calls to functions with unused parameters
+
+pick, pick2 and pick3 each have one parameter they do not read, at the
+end, at the start and in the middle, and are called with constant
+arguments from functions whose own calls take a run-time argument, so
+that the pick calls are the ones evaluated while compiling; nested
+evaluates one inside another function it evaluates. Without the fix
+direct, direct3 and nested fold to the value of the unused argument in
+the -O2, -Os and -O3 configurations.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat          |  3 ++
+ autotest/constcallunusedtest.c | 64 ++++++++++++++++++++++++++++++++++
+ 2 files changed, 67 insertions(+)
+ create mode 100644 autotest/constcallunusedtest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 8fe0197..2e307d3 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test constcallunusedtest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test callcycletest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/constcallunusedtest.c b/autotest/constcallunusedtest.c
+new file mode 100644
+index 0000000..c45b9a6
+--- /dev/null
++++ b/autotest/constcallunusedtest.c
+@@ -0,0 +1,64 @@
++#include <assert.h>
++
++// A call with constant arguments to a function without side effects is
++// evaluated while compiling.  A parameter the function does not use is
++// renumbered as a local in the same pass, and may take the index of a
++// parameter it does use: the evaluation must not bind its argument there.
++// pick's turn in the pass comes before its callers', which take a run-time
++// argument so that their own calls are not evaluated first.
++
++volatile int v;
++
++int pick(int a, int b)
++{
++	return a;
++}
++
++int pick2(int a, int b, int c)
++{
++	return b * 10 + c;
++}
++
++int pick3(int a, int b, int c)
++{
++	return a * 10 + c;
++}
++
++int twice(int a)
++{
++	return pick(a, 9) * 2;
++}
++
++int direct(int x)
++{
++	return pick(7, 2) + x;
++}
++
++int direct2(int x)
++{
++	return pick2(1, 2, 3) + x;
++}
++
++int direct3(int x)
++{
++	return pick3(1, 2, 3) + x;
++}
++
++int nested(int x)
++{
++	return twice(7) + x;
++}
++
++int main(void)
++{
++	v = 0;
++	assert(pick(v, v) == 0);
++	assert(pick2(v, v, v) == 0);
++	assert(pick3(v, v, v) == 0);
++	assert(twice(v) == 0);
++	assert(direct(v) == 7);
++	assert(direct2(v) == 23);
++	assert(direct3(v) == 13);
++	assert(nested(v) == 14);
++	return 0;
++}

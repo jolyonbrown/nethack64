@@ -1,0 +1,771 @@
+From 072bb5a4dedd2e28a4460cf3a478adf21fddf2e9 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 15 Nov 2026 06:08:45 +0000
+Subject: [PATCH 62/67] Support cartridge banks 0 through 254
+
+Region masks and fixed cartridge arrays limited placement to 64 banks.
+Unchecked pragma shifts could silently alias higher banks to lower ones;
+the frozen compiler maps bank 64 to bank 0 on this host.
+
+Use a four-word CartridgeBankSet and allocate bank images on demand.
+Validate region and overlay banks before narrowing, preserve 255 as the
+__bankof sentinel, and update placement, relocation, listings and outputs.
+Write high EasyFlash banks with a single post-processing warning and
+encode CHIP bank fields with flip16. Preserve zero-filled unused NES banks.
+
+Build and full autotest pass: 1531 emulations versus the baseline's 1521,
+with no new failures. Add coverage for high banks and the __bankof sentinel,
+registered in the batch driver like the other tests.
+Check CRT packets, PRG/D64 overlays, invalid banks, shared banks, overlap
+checks and NES images. Across 27 regression cases, binaries, maps and
+labels match exactly; listing differences are only absolute include paths.
+Three sprite samples fail identically in both compilers.
+
+Written by Codex; checked by Claude.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat          |   3 +
+ autotest/bankofhigh.c          |  50 ++++++++++
+ oscar64/Compiler.cpp           |  26 +++---
+ oscar64/Declaration.cpp        |   8 +-
+ oscar64/InterCodeGenerator.cpp |   6 +-
+ oscar64/Linker.cpp             | 166 +++++++++++++++++----------------
+ oscar64/Linker.h               |  77 ++++++++++++++-
+ oscar64/Parser.cpp             |  23 ++++-
+ 8 files changed, 247 insertions(+), 112 deletions(-)
+ create mode 100644 autotest/bankofhigh.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 5994968..35823e0 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test bankofhigh.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test joinentryzptest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/bankofhigh.c b/autotest/bankofhigh.c
+new file mode 100644
+index 0000000..f139d0e
+--- /dev/null
++++ b/autotest/bankofhigh.c
+@@ -0,0 +1,50 @@
++#include <assert.h>
++
++#pragma section(bank0, 0)
++#pragma region(bank0, 0x8000, 0x8100, , 0, {bank0})
++#pragma section(bank63, 0)
++#pragma region(bank63, 0x8000, 0x8100, , 63, {bank63})
++#pragma section(bank64, 0)
++#pragma region(bank64, 0x8000, 0x8100, , 64, {bank64})
++#pragma section(bank127, 0)
++#pragma region(bank127, 0x8000, 0x8100, , 127, {bank127})
++#pragma section(bank200, 0)
++#pragma region(bank200, 0x8000, 0x8100, , 200, {bank200})
++#pragma section(bank254, 0)
++#pragma region(bank254, 0x8000, 0x8100, , 254, {bank254})
++#pragma section(shared, 0)
++#pragma region(shared, 0x8100, 0x8200, , {0, 64, 127, 254}, {shared})
++// Reordering or repeating banks must not change the region definition.
++#pragma region(shared, 0x8100, 0x8200, , {254, 127, 64, 0, 64}, {shared})
++
++#pragma data(bank0)
++char value0 = 0;
++#pragma data(bank63)
++char value63 = 0;
++#pragma data(bank64)
++char value64 = 0;
++#pragma data(bank127)
++char value127 = 0;
++#pragma data(bank200)
++char value200 = 0;
++#pragma data(bank254)
++char value254 = 0;
++#pragma data(shared)
++char valueShared = 0;
++#pragma data(data)
++char valueResident = 0;
++
++// Only resident code is executed: the emulator has no cartridge mapper.
++int main(void)
++{
++	assert(__bankof(value0) == 0);
++	assert(__bankof(value63) == 63);
++	assert(__bankof(value64) == 64);
++	assert(__bankof(value127) == 127);
++	assert(__bankof(value200) == 200);
++	assert(__bankof(value254) == 254);
++	assert(__bankof(valueShared) == 0xff);
++	assert(__bankof(valueResident) == 0xff);
++	assert(__bankof(0) == 0xff);
++	return 0;
++}
+diff --git a/oscar64/Compiler.cpp b/oscar64/Compiler.cpp
+index 1a3dbb2..ef8321b 100644
+--- a/oscar64/Compiler.cpp
++++ b/oscar64/Compiler.cpp
+@@ -669,22 +669,22 @@ bool Compiler::GenerateCode(void)
+ 			case TMACH_NES_NROM_H:
+ 			case TMACH_NES_NROM_V:
+ 				regionStartup = mLinker->AddRegion(identStartup, 0xff80, 0xfffa);
+-				regionStartup->mCartridgeBanks = 1;
++				regionStartup->mCartridgeBanks.Set(0);
+ 				break;
+ 			case TMACH_NES_MMC1:
+ 				regionStartup = mLinker->AddRegion(identStartup, 0xff80, 0xfffa);
+-				regionStartup->mCartridgeBanks = 1ULL << 15;
++				regionStartup->mCartridgeBanks.Set(15);
+ 				break;
+ 			case TMACH_NES_MMC3:
+ 				regionStartup = mLinker->AddRegion(identStartup, 0xff80, 0xfffa);
+-				regionStartup->mCartridgeBanks = 1ULL << 31;
++				regionStartup->mCartridgeBanks.Set(31);
+ 				break;
+ 			}
+ 		}
+ 		else if (mCompilerOptions & (COPT_TARGET_CRT8 | COPT_TARGET_CRT16))
+ 		{
+ 			regionStartup = mLinker->AddRegion(identStartup, 0x8000, 0x8080);
+-			regionStartup->mCartridgeBanks = 1;
++			regionStartup->mCartridgeBanks.Set(0);
+ 		}
+ 		else
+ 			regionStartup = mLinker->AddRegion(identStartup, 0x0800, 0x0900);
+@@ -892,26 +892,26 @@ bool Compiler::GenerateCode(void)
+ 				case TMACH_NES_NROM_H:
+ 				case TMACH_NES_NROM_V:
+ 					regionBoot = mLinker->AddRegion(identBoot, 0xfffa, 0x10000);
+-					regionBoot->mCartridgeBanks = 1;
++					regionBoot->mCartridgeBanks.Set(0);
+ 					regionBoot->mSections.Push(mCompilationUnits->mSectionBoot);
+ 					regionRom = mLinker->AddRegion(identRom, 0x8000, 0xff80);
+-					regionRom->mCartridgeBanks = 1;
++					regionRom->mCartridgeBanks.Set(0);
+ 					regionMain = mLinker->AddRegion(identMain, 0x0200, 0x0800);
+ 					break;
+ 				case TMACH_NES_MMC1:
+ 					regionBoot = mLinker->AddRegion(identBoot, 0xfffa, 0x10000);
+-					regionBoot->mCartridgeBanks = 1ULL << 15;
++					regionBoot->mCartridgeBanks.Set(15);
+ 					regionBoot->mSections.Push(mCompilationUnits->mSectionBoot);
+ 					regionRom = mLinker->AddRegion(identRom, 0xc000, 0xff80);
+-					regionRom->mCartridgeBanks = 1ULL << 15;
++					regionRom->mCartridgeBanks.Set(15);
+ 					regionMain = mLinker->AddRegion(identMain, 0x0200, 0x0800);
+ 					break;
+ 				case TMACH_NES_MMC3:
+ 					regionBoot = mLinker->AddRegion(identBoot, 0xfffa, 0x10000);
+-					regionBoot->mCartridgeBanks = 1ULL << 31;
++					regionBoot->mCartridgeBanks.Set(31);
+ 					regionBoot->mSections.Push(mCompilationUnits->mSectionBoot);
+ 					regionRom = mLinker->AddRegion(identRom, 0xc000, 0xff80);
+-					regionRom->mCartridgeBanks = 1ULL << 31;
++					regionRom->mCartridgeBanks.Set(31);
+ 					regionMain = mLinker->AddRegion(identMain, 0x0200, 0x0800);
+ 					break;
+ 				}
+@@ -923,17 +923,17 @@ bool Compiler::GenerateCode(void)
+ 			if (mCompilerOptions & COPT_TARGET_CRT8)
+ 			{
+ 				regionRom = mLinker->AddRegion(identRom, 0x8080, 0xa000);
+-				regionRom->mCartridgeBanks = 1;
++				regionRom->mCartridgeBanks.Set(0);
+ 			}
+ 			else if (mCompilerOptions & COPT_TARGET_CRT16)
+ 			{
+ 				regionRom = mLinker->AddRegion(identRom, 0x8080, 0xc000);
+-				regionRom->mCartridgeBanks = 1;
++				regionRom->mCartridgeBanks.Set(0);
+ 			}
+ 			else if (mCompilerOptions & COPT_TARGET_CRT32)
+ 			{
+ 				regionRom = mLinker->AddRegion(identRom, 0x8080, 0xff00);
+-				regionRom->mCartridgeBanks = 1;
++				regionRom->mCartridgeBanks.Set(0);
+ 			}
+ 		}
+ 
+diff --git a/oscar64/Declaration.cpp b/oscar64/Declaration.cpp
+index cdc4e54..14c2161 100644
+--- a/oscar64/Declaration.cpp
++++ b/oscar64/Declaration.cpp
+@@ -774,13 +774,9 @@ Expression* Expression::ConstantFoldValue(Errors * errors, LinkerSection * dataS
+ 		LinkerRegion* rgn;
+ 		if (mLeft->mDecValue && mLeft->mDecValue->mSection && (rgn = linker->FindRegionOfSection(mLeft->mDecValue->mSection)))
+ 		{
+-			uint64	i = 0;
+-			while (i < 64 && rgn->mCartridgeBanks != (1ULL << i))
+-				i++;
+-			if (i >= 64)
+-				i = 0xff;
++			int i = rgn->mCartridgeBanks.Single();
+ 			
+-			if (i < 64 || (mLeft->mDecValue->mFlags & DTF_DEFINED))
++			if (i != CartridgeBankSet::NO_BANK || (mLeft->mDecValue->mFlags & DTF_DEFINED))
+ 			{
+ 				Expression* ex = new Expression(mLocation, EX_CONSTANT);
+ 				Declaration* dec = new Declaration(mLocation, DT_CONST_INTEGER);
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index 001b475..084912e 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -3556,11 +3556,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 						LinkerRegion* rgn = mLinker->FindRegionOfSection(section);
+ 						if (rgn)
+ 						{
+-							uint64	i = 0;
+-							while (i < 64 && rgn->mCartridgeBanks != (1ULL << i))
+-								i++;
+-							if (i == 64)
+-								i = 255;
++							int i = rgn->mCartridgeBanks.Single();
+ 
+ 							ins->mCode = IC_CONSTANT;
+ 							ins->mNumOperands = 0;
+diff --git a/oscar64/Linker.cpp b/oscar64/Linker.cpp
+index 5cc3e78..cb89ef1 100644
+--- a/oscar64/Linker.cpp
++++ b/oscar64/Linker.cpp
+@@ -6,7 +6,7 @@
+ 
+ LinkerRegion::LinkerRegion(void)
+ 	: mIdent(nullptr), mFlags(0), mStart(0), mEnd(0), mUsed(0), mNonzero(0), mReloc(0),
+-	  mSections(nullptr), mFreeChunks(FreeChunk{ 0, 0 } ), mLastObject(nullptr), mInlayObject(nullptr), mCartridgeBanks(0)
++	  mSections(nullptr), mFreeChunks(FreeChunk{ 0, 0 } ), mLastObject(nullptr), mInlayObject(nullptr), mCartridgeBanks()
+ {}
+ 
+ LinkerSection::LinkerSection(void)
+@@ -180,19 +180,34 @@ Linker::Linker(Errors* errors)
+ 	: mErrors(errors), mSections(nullptr), mReferences(nullptr), mObjects(nullptr), mRegions(nullptr), mOverlays(nullptr), mBreakpoints(0), mCompilerOptions(COPT_DEFAULT),
+ 	  mProgramStart(0), mProgramEnd(0)
+ {
+-	for (int i = 0; i < 64; i++)
++	for (int i = 0; i < CartridgeBankSet::NUM_BANKS; i++)
+ 	{
+ 		mCartridgeBankUsed[i] = 0;
+ 		mCartridgeBankStart[i] = 0x10000;
+ 		mCartridgeBankEnd[i] = 0x00000;
+-		memset(mCartridge[i], 0, 0x10000);
++		mCartridge[i] = nullptr;
+ 	}
+ 	memset(mMemory, 0, 0x10000);
+ }
+ 
+ Linker::~Linker(void)
+ {
++	for (int i = 0; i < CartridgeBankSet::NUM_BANKS; i++)
++		delete[] mCartridge[i];
++}
++
++uint8* Linker::EnsureCartridgeBank(int bank)
++{
++	if (!mCartridge[bank])
++		mCartridge[bank] = new uint8[0x10000]();
++	return mCartridge[bank];
++}
+ 
++const uint8* Linker::CartridgeData(int bank) const
++{
++	// Fixed-size NES images also contain banks with no objects.
++	static const uint8 empty[0x10000] = {0};
++	return mCartridge[bank] ? mCartridge[bank] : empty;
+ }
+ 
+ 
+@@ -205,7 +220,6 @@ LinkerRegion* Linker::AddRegion(const Ident* region, int start, int end)
+ 	lrgn->mEnd = end;
+ 	lrgn->mUsed = 0;
+ 	lrgn->mNonzero = 0;
+-	lrgn->mCartridgeBanks = 0;
+ 	lrgn->mFlags = 0;
+ 	mRegions.Push(lrgn);
+ 	return lrgn;
+@@ -347,7 +361,7 @@ LinkerObject* Linker::FindObjectByAddr(int bank, int addr, InterCodeProcedure* p
+ 			LinkerObject* lobj = mObjects[i];
+ 			if (lobj->mFlags & LOBJF_PLACED)
+ 			{
+-				if (lobj->mRegion && ((1ULL << bank) & lobj->mRegion->mCartridgeBanks))
++				if (lobj->mRegion && lobj->mRegion->mCartridgeBanks.Contains(bank))
+ 				{
+ 					if (addr >= lobj->mAddress && addr < lobj->mAddress + lobj->mSize && proc == lobj->mOwnerProc)
+ 					{
+@@ -366,7 +380,7 @@ LinkerObject* Linker::FindObjectByAddr(int bank, int addr, InterCodeProcedure* p
+ 		LinkerObject* lobj = mObjects[i];
+ 		if (lobj->mFlags & LOBJF_PLACED)
+ 		{
+-			if (lobj->mRegion && ((1ULL << bank) & lobj->mRegion->mCartridgeBanks))
++			if (lobj->mRegion && lobj->mRegion->mCartridgeBanks.Contains(bank))
+ 			{
+ 				if (addr >= lobj->mAddress && addr < lobj->mAddress + lobj->mSize)
+ 				{
+@@ -416,19 +430,8 @@ bool LinkerObject::IsSameConst(const LinkerObject* obj) const
+ 
+ int LinkerObject::FirstBank(void) const
+ {
+-	if (mRegion->mCartridgeBanks)
+-	{
+-		uint64	m = mRegion->mCartridgeBanks;
+-		int i = 1;
+-		while (!(m & 1))
+-		{
+-			i++;
+-			m >>= 1;
+-		}
+-		return i;
+-	}
+-	else
+-		return 0;
++	int bank = mRegion->mCartridgeBanks.Next();
++	return bank == CartridgeBankSet::NO_BANK ? 0 : bank + 1;
+ }
+ 
+ bool LinkerObject::IsBefore(const LinkerObject* obj) const
+@@ -937,19 +940,17 @@ void Linker::CopyObjects(bool inlays)
+ 				}
+ 				else if (obj->mRegion->mInlayObject)
+ 					;
+-				else if (obj->mRegion && obj->mRegion->mCartridgeBanks != 0)
++				else if (obj->mRegion && !obj->mRegion->mCartridgeBanks.Empty())
+ 				{
+-					for (int i = 0; i < 64; i++)
++					const CartridgeBankSet& banks = obj->mRegion->mCartridgeBanks;
++					for (int i = banks.Next(); i != CartridgeBankSet::NO_BANK; i = banks.Next(i))
+ 					{
+-						if (obj->mRegion->mCartridgeBanks & (1ULL << i))
+-						{
+-							mCartridgeBankUsed[i] = true;
+-							memcpy(mCartridge[i] + obj->mAddress, obj->mData, obj->mSize);
+-							if (obj->mAddress < mCartridgeBankStart[i])
+-								mCartridgeBankStart[i] = obj->mAddress;
+-							if (obj->mAddress + obj->mSize > mCartridgeBankEnd[i])
+-								mCartridgeBankEnd[i] = obj->mAddress + obj->mSize;
+-						}
++						mCartridgeBankUsed[i] = true;
++						memcpy(EnsureCartridgeBank(i) + obj->mAddress, obj->mData, obj->mSize);
++						if (obj->mAddress < mCartridgeBankStart[i])
++							mCartridgeBankStart[i] = obj->mAddress;
++						if (obj->mAddress + obj->mSize > mCartridgeBankEnd[i])
++							mCartridgeBankEnd[i] = obj->mAddress + obj->mSize;
+ 					}
+ 				}
+ 				else if (obj->mSection->mType == LST_DATA)
+@@ -973,7 +974,7 @@ void Linker::CollectBreakpoints(void)
+ 			{
+ 				if (obj->mRegion)
+ 				{
+-					if (obj->mRegion->mCartridgeBanks)
++					if (!obj->mRegion->mCartridgeBanks.Empty())
+ 					{
+ 					}
+ 					else
+@@ -1024,25 +1025,23 @@ void Linker::PatchReferences(bool inlays)
+ 				}
+ 				else if (!obj->mRegion->mInlayObject)
+ 				{
+-					if (obj->mRegion->mCartridgeBanks)
++					if (!obj->mRegion->mCartridgeBanks.Empty())
+ 					{
+-						for (int i = 0; i < 64; i++)
++						const CartridgeBankSet& banks = obj->mRegion->mCartridgeBanks;
++						for (int i = banks.Next(); i != CartridgeBankSet::NO_BANK; i = banks.Next(i))
+ 						{
+-							if (obj->mRegion->mCartridgeBanks & (1ULL << i))
+-							{
+-								dp = mCartridge[i] + obj->mAddress + ref->mOffset;
++							dp = mCartridge[i] + obj->mAddress + ref->mOffset;
+ 
+-								if (ref->mFlags & LREF_LOWBYTE)
+-								{
+-									*dp++ = raddr & 0xff;
+-								}
+-								if (ref->mFlags & LREF_HIGHBYTE)
+-								{
+-									*dp++ = (raddr >> 8) & 0xff;
+-								}
+-								if (ref->mFlags & LREF_TEMPORARY)
+-									*dp += obj->mTemporaries[ref->mRefOffset];
++							if (ref->mFlags & LREF_LOWBYTE)
++							{
++								*dp++ = raddr & 0xff;
+ 							}
++							if (ref->mFlags & LREF_HIGHBYTE)
++							{
++								*dp++ = (raddr >> 8) & 0xff;
++							}
++							if (ref->mFlags & LREF_TEMPORARY)
++								*dp += obj->mTemporaries[ref->mRefOffset];
+ 						}
+ 					}
+ 					else
+@@ -1220,7 +1219,7 @@ void Linker::Link(void)
+ 		{
+ 			LinkerRegion* lrgn = mRegions[i];
+ 
+-			if (lrgn->mNonzero && lrgn->mCartridgeBanks == 0 && !lrgn->mInlayObject)
++			if (lrgn->mNonzero && lrgn->mCartridgeBanks.Empty() && !lrgn->mInlayObject)
+ 			{
+ 				if (lrgn->mStart < mProgramStart)
+ 					mProgramStart = lrgn->mStart;
+@@ -1270,7 +1269,7 @@ void Linker::Link(void)
+ 
+ 					if (oj->mSection->mType == LST_DATA && (oj->mFlags & LOBJF_PLACED) && oj->mRegion)
+ 					{
+-						if (oj->mAddress < oi->mAddress + oi->mSize && oi->mAddress < oj->mAddress + oj->mSize && (oj->mRegion->mCartridgeBanks & oi->mRegion->mCartridgeBanks))
++						if (oj->mAddress < oi->mAddress + oi->mSize && oi->mAddress < oj->mAddress + oj->mSize && oj->mRegion->mCartridgeBanks.Intersects(oi->mRegion->mCartridgeBanks))
+ 						{
+ 							mErrors->Error(oi->mLocation, EERR_OVERLAPPING_DATA_SECTIONS, "Overlapping data section", oi->mIdent);
+ 							mErrors->Error(oj->mLocation, EERR_OVERLAPPING_DATA_SECTIONS, "Overlapping data section", oj->mIdent);
+@@ -1363,22 +1362,22 @@ bool Linker::WriteNesFile(const char* filename, TargetMachine machine)
+ 		case TMACH_NES:
+ 		case TMACH_NES_NROM_H:
+ 		case TMACH_NES_NROM_V:
+-			fwrite(mCartridge[0] + 0x8000, 1, 0x8000, file);
+-			fwrite(mCartridge[0], 1, 0x2000, file);
++			fwrite(CartridgeData(0) + 0x8000, 1, 0x8000, file);
++			fwrite(CartridgeData(0), 1, 0x2000, file);
+ 			break;
+ 		case TMACH_NES_MMC1:
+ 			for(int i=0; i<15; i++)
+-				fwrite(mCartridge[i] + 0x8000, 1, 0x4000, file);
+-			fwrite(mCartridge[15] + 0xc000, 1, 0x4000, file);
++				fwrite(CartridgeData(i) + 0x8000, 1, 0x4000, file);
++			fwrite(CartridgeData(15) + 0xc000, 1, 0x4000, file);
+ 			for (int i = 0; i < 16; i++)
+-				fwrite(mCartridge[i], 1, 0x2000, file);
++				fwrite(CartridgeData(i), 1, 0x2000, file);
+ 			break;
+ 		case TMACH_NES_MMC3:
+ 			for (int i = 0; i < 31; i++)
+-				fwrite(mCartridge[i] + 0x8000, 1, 0x4000, file);
+-			fwrite(mCartridge[31] + 0xc000, 1, 0x4000, file);
++				fwrite(CartridgeData(i) + 0x8000, 1, 0x4000, file);
++			fwrite(CartridgeData(31) + 0xc000, 1, 0x4000, file);
+ 			for (int i = 0; i < 32; i++)
+-				fwrite(mCartridge[i], 1, 0x2000, file);
++				fwrite(CartridgeData(i), 1, 0x2000, file);
+ 			break;
+ 		}
+ 
+@@ -1406,6 +1405,8 @@ bool Linker::WritePrgFile(DiskImage* image, const char* filename)
+ 				int	b = mOverlays[i]->mBank;
+ 				int	s = mCartridgeBankStart[b];
+ 
++				EnsureCartridgeBank(b);
++
+ 				if (mOverlays[i]->mCompressed)
+ 				{
+ 					uint8	tbuffer[65536];
+@@ -1490,6 +1491,7 @@ bool Linker::WritePrgFile(const char* filename, const char* pathname)
+ 					int	b = mOverlays[i]->mBank;
+ 					int	s = mCartridgeBankStart[b];
+ 
++					EnsureCartridgeBank(b);
+ 
+ 					if (mOverlays[i]->mCompressed)
+ 					{
+@@ -1714,11 +1716,20 @@ bool Linker::WriteCrtFile(const char* filename, uint16 id, uint8 subtype, const
+ 			mCartridgeBankStart[0] = 0x8000;
+ 			mCartridgeBankEnd[0] = 0x8000 + usedlz + 0x200;
+ 
+-			for (int i = 1; i < 64; i++)
++			for (int i = 64; i < CartridgeBankSet::NUM_BANKS; i++)
+ 			{
+ 				if (mCartridgeBankUsed[i])
+ 				{
+-					chipHeader.mBankNumber = i << 8;
++					mErrors->Error(loc, EWARN_GENERIC, "EasyFlash has 64 banks; banks 64 and above are written for post-processing", filename);
++					break;
++				}
++			}
++
++			for (int i = 1; i < CartridgeBankSet::NUM_BANKS; i++)
++			{
++				if (mCartridgeBankUsed[i])
++				{
++					chipHeader.mBankNumber = flip16(uint16(i));
+ 
+ 					chipHeader.mLoadAddress = 0x0080;
+ 					fwrite(&chipHeader, sizeof(chipHeader), 1, file);
+@@ -1732,7 +1743,7 @@ bool Linker::WriteCrtFile(const char* filename, uint16 id, uint8 subtype, const
+ 		}
+ 		else if (mCompilerOptions & COPT_TARGET_CRT8)
+ 		{
+-			int	numBanks = 64;
++			int	numBanks = CartridgeBankSet::NUM_BANKS;
+ 			while (numBanks > 1 && !mCartridgeBankUsed[numBanks - 1])
+ 				numBanks--;
+ 
+@@ -1756,7 +1767,7 @@ bool Linker::WriteCrtFile(const char* filename, uint16 id, uint8 subtype, const
+ 		}
+ 		else if (mCompilerOptions & COPT_TARGET_CRT16)
+ 		{
+-			int	numBanks = 64;
++			int	numBanks = CartridgeBankSet::NUM_BANKS;
+ 			while (numBanks > 1 && !mCartridgeBankUsed[numBanks - 1])
+ 				numBanks--;
+ 
+@@ -1780,7 +1791,7 @@ bool Linker::WriteCrtFile(const char* filename, uint16 id, uint8 subtype, const
+ 		}
+ 		else if (mCompilerOptions & COPT_TARGET_CRT32)
+ 		{
+-			int	numBanks = 64;
++			int	numBanks = CartridgeBankSet::NUM_BANKS;
+ 			while (numBanks > 1 && !mCartridgeBankUsed[numBanks - 1])
+ 				numBanks--;
+ 
+@@ -1818,6 +1829,9 @@ bool Linker::WriteCrtFile(const char* filename, uint16 id, uint8 subtype, const
+ bool Linker::WriteMapFile(const char* filename)
+ {
+ 	bool	banked = mCartridgeBankUsed[0] || mCartridgeBankUsed[1];
++	// Keep legacy map formatting for programs using only banks 0..63.
++	for (int i = 64; i < CartridgeBankSet::NUM_BANKS; i++)
++		banked |= mCartridgeBankUsed[i];
+ 
+ 	FILE* file;
+ 	fopen_s(&file, filename, "wb");
+@@ -1852,10 +1866,8 @@ bool Linker::WriteMapFile(const char* filename)
+ 				{
+ 					if (banked)
+ 					{
+-						int k = 0;
+-						while (k < 64 && !(obj->mRegion->mCartridgeBanks & (1ull << k)))
+-							k++;
+-						if (k < 64)
++						int k = obj->mRegion->mCartridgeBanks.Next();
++						if (k < CartridgeBankSet::NUM_BANKS)
+ 							fprintf(file, "%02x:", k);
+ 						else
+ 							fprintf(file, "--:");
+@@ -1873,7 +1885,7 @@ bool Linker::WriteMapFile(const char* filename)
+ 		{
+ 			fprintf(file, "\nbanks\n");
+ 
+-			for (int i = 0; i < 64; i++)
++			for (int i = 0; i < CartridgeBankSet::NUM_BANKS; i++)
+ 			{
+ 				if (mCartridgeBankUsed[i])
+ 					fprintf(file, "%02d : %04x .. %04x (%04x)\n", i, mCartridgeBankStart[i], mCartridgeBankEnd[i], mCartridgeBankEnd[i] - mCartridgeBankStart[i]);
+@@ -1907,10 +1919,8 @@ bool Linker::WriteMapFile(const char* filename)
+ 			{
+ 				if (banked)
+ 				{
+-					int k = 0;
+-					while (k < 64 && !(obj->mRegion->mCartridgeBanks & (1ull << k)))
+-						k++;
+-					if (k < 64)
++					int k = obj->mRegion->mCartridgeBanks.Next();
++					if (k < CartridgeBankSet::NUM_BANKS)
+ 						fprintf(file, "%02x:", k);
+ 					else
+ 						fprintf(file, "--:");
+@@ -1971,9 +1981,9 @@ bool Linker::WriteMlbFile(const char* filename, TargetMachine machine)
+ 			if ((obj->mFlags & LOBJF_REFERENCED) && obj->mIdent && obj->mSize > 0)
+ 			{
+ 				int bank = -1;
+-				if (obj->mRegion->mCartridgeBanks)
++				if (!obj->mRegion->mCartridgeBanks.Empty())
+ 				{
+-					do { bank++; } while (!((1ULL << bank) & obj->mRegion->mCartridgeBanks));
++					bank = obj->mRegion->mCartridgeBanks.Next();
+ 				}
+ 
+ 				if (obj->mSection->mType == LST_BSS)
+@@ -2129,11 +2139,9 @@ bool Linker::WriteAsmFile(const char* filename, const char* version)
+ 				case LOT_NATIVE_CODE:
+ 					if (!obj->mRegion)
+ 						mNativeDisassembler.Disassemble(file, obj->mData, -1, 0, obj->mSize, obj->mProc, obj->mIdent, this, obj->mFullIdent);
+-					else if (obj->mRegion->mCartridgeBanks)
++					else if (!obj->mRegion->mCartridgeBanks.Empty())
+ 					{
+-						int i = 0;
+-						while (!(obj->mRegion->mCartridgeBanks & (1ULL << i)))
+-							i++;
++						int i = obj->mRegion->mCartridgeBanks.Next();
+ 						mNativeDisassembler.Disassemble(file, mCartridge[i], i, obj->mAddress, obj->mSize, obj->mProc, obj->mIdent, this, obj->mFullIdent);
+ 					}
+ 					else if (obj->mRegion->mInlayObject)
+@@ -2144,11 +2152,9 @@ bool Linker::WriteAsmFile(const char* filename, const char* version)
+ 				case LOT_DATA:
+ 					if (!obj->mRegion)
+ 						mNativeDisassembler.DumpMemory(file, obj->mData, -1, 0, obj->mSize, obj->mProc, obj->mIdent, this, obj);
+-					else if (obj->mRegion->mCartridgeBanks)
++					else if (!obj->mRegion->mCartridgeBanks.Empty())
+ 					{
+-						int i = 0;
+-						while (!(obj->mRegion->mCartridgeBanks & (1ULL << i)))
+-							i++;
++						int i = obj->mRegion->mCartridgeBanks.Next();
+ 						mNativeDisassembler.DumpMemory(file, mCartridge[i], i, obj->mAddress, obj->mSize, obj->mProc, obj->mIdent, this, obj);
+ 					}
+ 					else if (obj->mRegion->mInlayObject)
+diff --git a/oscar64/Linker.h b/oscar64/Linker.h
+index 987c4aa..5193f9f 100644
+--- a/oscar64/Linker.h
++++ b/oscar64/Linker.h
+@@ -74,6 +74,72 @@ struct ZeroPageSet
+ 	}
+ };
+ 
++// Bank 255 is reserved for __bankof's "not in a single bank" result.
++class CartridgeBankSet
++{
++public:
++	static const int NUM_BANKS = 255;
++	static const int NO_BANK = 255;
++
++	CartridgeBankSet(void) : mBits{0, 0, 0, 0} {}
++
++	bool Empty(void) const
++	{
++		return !(mBits[0] | mBits[1] | mBits[2] | mBits[3]);
++	}
++
++	void Set(int bank)
++	{
++		if (bank >= 0 && bank < NUM_BANKS)
++			mBits[bank >> 6] |= 1ULL << (bank & 63);
++	}
++
++	bool Contains(int bank) const
++	{
++		return bank >= 0 && bank < NUM_BANKS &&
++			(mBits[bank >> 6] & (1ULL << (bank & 63))) != 0;
++	}
++
++	bool Intersects(const CartridgeBankSet& banks) const
++	{
++		for (int i = 0; i < 4; i++)
++			if (mBits[i] & banks.mBits[i])
++				return true;
++		return false;
++	}
++
++	bool operator == (const CartridgeBankSet& banks) const
++	{
++		for (int i = 0; i < 4; i++)
++			if (mBits[i] != banks.mBits[i])
++				return false;
++		return true;
++	}
++
++	bool operator != (const CartridgeBankSet& banks) const
++	{
++		return !(*this == banks);
++	}
++
++	// Iterate in ascending order, ending at NO_BANK.
++	int Next(int bank = -1) const
++	{
++		while (++bank < NUM_BANKS)
++			if (Contains(bank))
++				return bank;
++		return NO_BANK;
++	}
++
++	int Single(void) const
++	{
++		int bank = Next();
++		return Next(bank) == NO_BANK ? bank : NO_BANK;
++	}
++
++private:
++	uint64 mBits[4];
++};
++
+ class LinkerObject;
+ class LinkerSection;
+ 
+@@ -84,7 +150,7 @@ public:
+ 
+ 	uint32				mFlags;
+ 	int					mStart, mEnd, mUsed, mNonzero, mReloc;
+-	uint64				mCartridgeBanks;
++	CartridgeBankSet		mCartridgeBanks;
+ 	LinkerObject	*	mInlayObject;
+ 
+ 	GrowingArray<LinkerSection*>	mSections;
+@@ -316,11 +382,11 @@ public:
+ 	GrowingArray<uint32>			mBreakpoints;
+ 
+ 	uint8	mMemory[0x10000], mWorkspace[0x10000];
+-	uint8	mCartridge[64][0x10000];
++	uint8*	mCartridge[CartridgeBankSet::NUM_BANKS];
+ 
+-	bool	mCartridgeBankUsed[64];
++	bool	mCartridgeBankUsed[CartridgeBankSet::NUM_BANKS];
+ 
+-	int	mCartridgeBankStart[64], mCartridgeBankEnd[64];
++	int	mCartridgeBankStart[CartridgeBankSet::NUM_BANKS], mCartridgeBankEnd[CartridgeBankSet::NUM_BANKS];
+ 
+ 	int	mProgramStart, mProgramEnd;
+ 
+@@ -336,6 +402,9 @@ public:
+ 	void Link(void);
+ 	void CollectBreakpoints(void);
+ protected:
++	uint8* EnsureCartridgeBank(int bank);
++	const uint8* CartridgeData(int bank) const;
++
+ 	NativeCodeDisassembler	mNativeDisassembler;
+ 	ByteCodeDisassembler	mByteCodeDisassembler;
+ 
+diff --git a/oscar64/Parser.cpp b/oscar64/Parser.cpp
+index 78bd733..76f6af9 100644
+--- a/oscar64/Parser.cpp
++++ b/oscar64/Parser.cpp
+@@ -15130,7 +15130,7 @@ void Parser::ParsePragma(void)
+ 
+ 				Expression* exp;
+ 				int	start = 0, end = 0, flags = 0;
+-				uint64	bank = 0;
++				CartridgeBankSet bank;
+ 
+ 				ConsumeToken(TK_COMMA);
+ 				
+@@ -15173,7 +15173,12 @@ void Parser::ParsePragma(void)
+ 
+ 							exp = ParseRExpression();
+ 							if (exp->mType == EX_CONSTANT && exp->mDecValue->mType == DT_CONST_INTEGER)
+-								bank |= 1ULL << exp->mDecValue->mInteger;
++							{
++								if (exp->mDecValue->mInteger >= 0 && exp->mDecValue->mInteger < CartridgeBankSet::NUM_BANKS)
++									bank.Set(int(exp->mDecValue->mInteger));
++								else
++									mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Bank number must be in range 0 to 254");
++							}
+ 							else
+ 								mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Integer number for bank expected");
+ 
+@@ -15196,7 +15201,12 @@ void Parser::ParsePragma(void)
+ 						{
+ 							exp = exp->ConstantFold(mErrors, mDataSection, mCompilationUnits->mLinker);
+ 							if (exp->mType == EX_CONSTANT && exp->mDecValue->mType == DT_CONST_INTEGER)
+-								bank = 1ULL << exp->mDecValue->mInteger;
++							{
++								if (exp->mDecValue->mInteger >= 0 && exp->mDecValue->mInteger < CartridgeBankSet::NUM_BANKS)
++									bank.Set(int(exp->mDecValue->mInteger));
++								else
++									mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Bank number must be in range 0 to 254");
++							}
+ 							else
+ 								mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Integer number for bank expected");
+ 						}
+@@ -15273,7 +15283,12 @@ void Parser::ParsePragma(void)
+ 
+ 				exp = ParseRExpression();
+ 				if (exp->mType == EX_CONSTANT && exp->mDecValue->mType == DT_CONST_INTEGER)
+-					bank = int(exp->mDecValue->mInteger);
++				{
++					if (exp->mDecValue->mInteger >= 0 && exp->mDecValue->mInteger < CartridgeBankSet::NUM_BANKS)
++						bank = int(exp->mDecValue->mInteger);
++					else
++						mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Bank number must be in range 0 to 254");
++				}
+ 				else
+ 					mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Integer number for bank expected");
+ 

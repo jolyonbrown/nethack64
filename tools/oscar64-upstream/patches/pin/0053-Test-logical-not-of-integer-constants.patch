@@ -1,7 +1,7 @@
 From 8949cef394f5a7b22bd758015426b2cc71ff04b3 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 22:04:29 +0000
-Subject: [PATCH 53/59] Test logical not of integer constants
+Subject: [PATCH 53/67] Test logical not of integer constants
 
 ! of int, char, negative and long constants and of constant
 expressions in static initializers, a static aggregate (the shape of

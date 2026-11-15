@@ -1,0 +1,93 @@
+From 8a087e181f04cfdd3089ecf598ea201a47c1e377 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 15 Nov 2026 10:17:01 +0000
+Subject: [PATCH 65/67] Test call graphs with many paths around a cycle
+
+Forty functions on one cycle, with 2^20 simple paths around it, which
+MarkRecursions and CheckFastcall used to walk one by one. A compiler
+with either walk still finishes, in tens of seconds per configuration
+where the fixed one needs about a second; measured on one machine at a
+load average of 8, 20 rungs took 46.6 seconds with both walks, 30.1
+with CheckFastcall's alone and 0.77 with neither, in -n -Os.
+
+leaf and top take zero page parameters, and top reaches leaf only
+through the cycle, so top's parameters must lie above leaf's. A
+CheckFastcall that ignored what functions taking stack parameters
+reach fails the test in all ten configurations.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat    |  3 +++
+ autotest/callcycletest.c | 50 ++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 53 insertions(+)
+ create mode 100644 autotest/callcycletest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 35823e0..8fe0197 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test callcycletest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test bankofhigh.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/callcycletest.c b/autotest/callcycletest.c
+new file mode 100644
+index 0000000..cd9d177
+--- /dev/null
++++ b/autotest/callcycletest.c
+@@ -0,0 +1,50 @@
++#include <assert.h>
++
++// Each rung's two functions call both functions of the next rung, and the last
++// rung calls back to the first: one cycle through all forty functions, and 2^20
++// simple paths around it.  Finding which functions are recursive and placing
++// the zero page parameters of the functions that take them must not walk every
++// path: a compiler that does still finishes, but takes tens of seconds.
++//
++// leaf takes zero page parameters, and so does top, which reaches leaf only
++// through the cycle: top's parameters must lie above leaf's, or leaf overwrites
++// them.  Every function on the cycle checks that its local survived its call.
++
++__noinline int leaf(int a, int b, int c)
++{
++	return a + 2 * b + 3 * c;
++}
++
++#define RUNG(k, n) \
++int a##n(int d); int b##n(int d); \
++int a##k(int d) { int x = d + k; if (d <= 0) return leaf(k, d, x); \
++	return ((d & 1) ? a##n(d - 1) : b##n(d - 1)) + (x - d - k); } \
++int b##k(int d) { int x = d * 2 + k; if (d <= 0) return leaf(k + 100, d, x); \
++	return ((d & 2) ? a##n(d - 1) : b##n(d - 1)) + (x - d * 2 - k); }
++
++RUNG(0, 1) RUNG(1, 2) RUNG(2, 3) RUNG(3, 4) RUNG(4, 5) RUNG(5, 6) RUNG(6, 7)
++RUNG(7, 8) RUNG(8, 9) RUNG(9, 10) RUNG(10, 11) RUNG(11, 12) RUNG(12, 13)
++RUNG(13, 14) RUNG(14, 15) RUNG(15, 16) RUNG(16, 17) RUNG(17, 18) RUNG(18, 19)
++RUNG(19, 0)
++
++__noinline int top(int p, int q, int r)
++{
++	int s = a0(p) + b0(q);
++	return s * 8 + (p ^ q ^ r);
++}
++
++// volatile, or the compiler evaluates the calls while compiling
++volatile int vp, vq, vr;
++
++int main(void)
++{
++	vp = 0; vq = 0; vr = 1;
++	assert(top(vp, vq, vr) == 801);
++	vp = 5; vq = 3; vr = 7;
++	assert(top(vp, vq, vr) == 1857);
++	vp = 19; vq = 20; vr = 21;
++	assert(top(vp, vq, vr) == 2226);
++	vp = 41; vq = 60; vr = 3;
++	assert(top(vp, vq, vr) == 1654);
++	return 0;
++}

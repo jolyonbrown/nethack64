@@ -1,0 +1,100 @@
+From a189c896c4b276ef985fe34409df50308b82deae Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 15 Nov 2026 10:34:20 +0000
+Subject: [PATCH 66/67] Do not bind unused parameters when evaluating a
+ constant call
+
+GlobalOptimizer evaluates a call to a function without side effects
+whose arguments are all constants (ReplaceConstCalls with the
+ConstexprInterpreter), binding each argument at its parameter's
+mVarIndex. The same Optimize pass marks a parameter the function never
+reads DTF_FPARAM_UNUSED and renumbers it as a local
+(func->mNumVars++), so its index may be that of a parameter the
+function does read. In
+
+    int pick(int a, int b) { return a; }
+
+b gets index 0, a's offset, and binding pick(7, 2)'s 2 to b overwrites
+the 7 bound to a: when pick's turn in the pass comes before its
+caller's, the call folds to 2. Code generation already passes nothing
+for an unused parameter. The interpreter now binds nothing either, both
+for the call it is asked to evaluate and for the calls it evaluates
+inside it, where the argument is still evaluated.
+
+Found compiling NetHack as one program: check_recordfile()'s
+fqname(RECORD, SCOREPREFIX, 0), where fqname() is `return basename;`
+in that configuration, folded to SCOREPREFIX, 5, and failed with
+"Cannot assign incompatible types". Had the types matched it would
+have been wrong code without a warning.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/Constexpr.cpp | 39 +++++++++++++++++++++++++++------------
+ 1 file changed, 27 insertions(+), 12 deletions(-)
+
+diff --git a/oscar64/Constexpr.cpp b/oscar64/Constexpr.cpp
+index e6cd1f2..b1aaaa3 100644
+--- a/oscar64/Constexpr.cpp
++++ b/oscar64/Constexpr.cpp
+@@ -926,6 +926,11 @@ bool ConstexprInterpreter::AddParam(int& pos, Expression* pex, Declaration* dec)
+ {
+ 	pex = pex->ConstantFold(mErrors, mDataSection);
+ 
++	// A parameter the function does not use has been renumbered as a local, and its
++	// index may be that of another parameter
++	if (dec && (dec->mFlags & DTF_FPARAM_UNUSED))
++		return true;
++
+ 	if (dec)
+ 		pos = dec->mVarIndex;
+ 
+@@ -1341,27 +1346,37 @@ ConstexprInterpreter::Value ConstexprInterpreter::EvalCall(Expression* exp, Cons
+ 
+ 	while (pex && pex->mType == EX_LIST)
+ 	{
+-		if (dec)
+-			pos = dec->mVarIndex;
+-
+-		if (dec)
+-			mParams[pos] = caller->EvalCoerce(pex->mLeft, caller->Eval(pex->mLeft), dec->mBase);
++		if (dec && (dec->mFlags & DTF_FPARAM_UNUSED))
++			caller->Eval(pex->mLeft);
+ 		else
+-			mParams[pos] = caller->REval(pex->mLeft);
++		{
++			if (dec)
++				pos = dec->mVarIndex;
++
++			if (dec)
++				mParams[pos] = caller->EvalCoerce(pex->mLeft, caller->Eval(pex->mLeft), dec->mBase);
++			else
++				mParams[pos] = caller->REval(pex->mLeft);
+ 
+-		pos += dec->mSize;
++			pos += dec->mSize;
++		}
+ 		pex = pex->mRight;
+ 		if (dec)
+ 			dec = dec->mNext;
+ 	}
+ 	if (pex)
+ 	{
+-		if (dec)
+-			pos = dec->mVarIndex;
+-		if (dec)
+-			mParams[pos] = caller->EvalCoerce(pex, caller->Eval(pex), dec->mBase);
++		if (dec && (dec->mFlags & DTF_FPARAM_UNUSED))
++			caller->Eval(pex);
+ 		else
+-			mParams[pos] = caller->REval(pex);
++		{
++			if (dec)
++				pos = dec->mVarIndex;
++			if (dec)
++				mParams[pos] = caller->EvalCoerce(pex, caller->Eval(pex), dec->mBase);
++			else
++				mParams[pos] = caller->REval(pex);
++		}
+ 	}
+ 
+ 	if (exp->mLeft->mDecValue->mFlags & DTF_INTRINSIC)
