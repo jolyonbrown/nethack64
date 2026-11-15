@@ -1,0 +1,35 @@
+From 9f46cee22bf9f40e48c65992f6e8dc176e756ca4 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 15 Nov 2026 18:58:20 +0000
+Subject: [PATCH 70/73] Keep the memory base of a load forwarded to a copy's
+ source
+
+PropagateVariableCopy turns a load from a local that a copy filled into a
+load from the copy's source, taking the source's memory, temporary,
+variable index, offset, linker object and stride, but not its memory base
+or restrict flag. The load kept IM_LOCAL with variable index -1, so alias
+analysis saw a load from a local that reads through a pointer, and
+LoadStoreForwarding read mLocalVars[-1] at the next call to a function
+whose globals are checked (assertion n >= 0 in GrowingArray).
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/InterCode.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index a7ee2c6..0bd1e8b 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -8363,7 +8363,11 @@ bool InterCodeBasicBlock::PropagateVariableCopy(const GrowingInstructionPtrArray
+ 				{
+ 					if (SameMemSegment(ltemps[k]->mSrc[1], ins->mSrc[0]))
+ 					{
++						// The load now reads the copy's source: it takes over what is
++						// known about where that points, not only the address
+ 						ins->mSrc[0].mMemory = ltemps[k]->mSrc[0].mMemory;
++						ins->mSrc[0].mMemoryBase = ltemps[k]->mSrc[0].mMemoryBase;
++						ins->mSrc[0].mRestricted = ltemps[k]->mSrc[0].mRestricted;
+ 						ins->mSrc[0].mTemp = ltemps[k]->mSrc[0].mTemp;
+ 						ins->mSrc[0].mVarIndex = ltemps[k]->mSrc[0].mVarIndex;
+ 						if (ltemps[k]->mSrc[0].mStride != ltemps[k]->mSrc[1].mStride)

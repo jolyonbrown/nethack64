@@ -15,9 +15,9 @@
  * forwarding.  v1.32.273, the pin; the same code in upstream main 2d30da6.  -O0 to -O3,
  * native and bytecode.
  * Expect when fixed: emulation result 0.
- * Workaround: none needed in port/ (only the stub build reaches it); fixed on the Oscar64
- * fork's branch fix/r64-copy-memory-base (a pin candidate): the load takes over the
- * source's mMemoryBase and mRestricted too.
+ * Workaround: none needed in port/ (only the stub build reaches it); fixed by the ADR-0007
+ * compiler (commits 70-71, 2026-11-15): the load takes over the source's mMemoryBase and
+ * mRestricted too.
  * FLAGS: -e -Os
  */
 typedef struct { signed char dnum, dlevel; } d_level;

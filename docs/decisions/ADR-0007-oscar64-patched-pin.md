@@ -187,6 +187,20 @@ one program ran out of 16 GB without it and compiles in 13.2 GB with it. Like 63
 changes no generated code; and 69. `e128fb7` its test, which cannot show the saving at a C64
 program's size and checks instead the code that depends on what is kept.
 
+Added the same evening on Jolyon's go-ahead ("add both to the pin"): 70. `9f46cee` r64
+(compat #66): `PropagateVariableCopy`, forwarding a load to a struct copy's source, takes over
+the source's memory base and restrict flag too, so a load that reads through a pointer no
+longer claims a local with index -1 (the compiler aborted on `dungeon.c`'s `lev_by_name()`
+once calls crossed banks directly, and alias analysis was misled before that), and 71.
+`893f954` its test; 72. `7caff8d` bank call stubs, after commit 62 the second commit that adds
+rather than fixes: a program that names a bank call routine (`#pragma runtime(bankcall,
+...)`) gets every call into a cartridge bank from outside it, and every use of a banked
+function's address, through a 6-byte resident stub the linker makes (`jsr bankcall; .byte
+bank; .word function`) after all of the compiler's analysis, while a program without the
+pragma links as before; with it the whole game's resident code is 65 KB instead of 156 KB
+(BANKING-SPIKE.md). And 73. `7cead7f` its test, which checks in the emulator what the linker
+made (the emulator has no cartridge; `tests/spikes/run_bankstub.py` makes the calls in VICE).
+
 `tools/oscar64-upstream/build-pin.sh [DIR]` builds it (`JOBS=N` for `make -jN`). Since
 2026-11-13 the setup scripts (`tools/setup-ubuntu.sh`, `tools/setup-arch.sh`) build the
 release and then this compiler, link this one as `oscar64` (the Makefile takes it from
@@ -201,10 +215,10 @@ checks, and its `-Os` size is understood.
 - The six fixed rows above stop being "must be settled before game code runs" once
   the build uses the pin; r18-r23 and r25 pass, and so does r26 (commit 8). r24 stays
   open (T1.15).
-- We carry a patch stack until upstream releases: of the 69 commits, eight are upstream's
+- We carry a patch stack until upstream releases: of the 73 commits, eight are upstream's
   (1169268, bf42402, 1ae3216, 3bb084f, 1073206, 46e60d6, 160c92b, c8da6bd), two backport
   upstream fixes (fbca293 and the CoerceType hunk of 57655c5), four are tests for upstream
-  fixes, and fifty-five are ours (the r31, r45, r46, r50, r51, r59 and r60 fixes, the bank
+  fixes, and fifty-nine are ours (the r31, r45, r46, r50, r51, r59 and r60 fixes, the bank
   patch and seven tests written by Codex). Most of ours have an upstream form as a
   draft PR in the fork or a local branch on main, on hold (OSCAR64-UPSTREAM.md; nothing
   sent yet), so the stack should shrink. Once
@@ -456,3 +470,17 @@ identical, no status changed; repros 40 of 63; nethack64 `.crt` and `.prg` byte-
 67 commits', C64 108/108 (1,185,261 B); UNIX 97/108, every record identical
 (`docs/data/oscar64-pin69-*-2026-11-15.json`). With it the whole game compiled in one run on a
 31 GB machine: 619 s, peak 13.2 GB (BANKING-SPIKE.md); without it, out of 16 GB.
+
+Results 2026-11-15 (73 commits, tip 7cead7f; the patch files give tree b613b39, the
+branch's). Autotest 1,591 emulations, all 0 (the two new tests in all ten configurations);
+corpus against 69 commits 1,022 of 1,027 identical, the five being the stub test in its four
+native configurations (it uses the feature) and `opp_vector.cpp` as bytecode at -O2, compat
+#67, a read of uninitialised memory in the bytecode generator that a different heap exposes
+(identical under `MALLOC_PERTURB_`); ten status changes, r64 and its test going from crash to
+ok; repros 41 of 65 (r64 fixed; r65, compat #68, new and open); nethack64 `.crt` and `.prg`
+byte-identical, `make test` 5/5; `tests/spikes/run_bankstub.py` 13/13 in VICE; NetHack
+(C64): all 324 listings, intermediate code and maps identical to 69 commits', 108/108
+(1,185,261 B); UNIX 97/108, every record identical
+(`docs/data/oscar64-pin73-*-2026-11-15.json`). The whole game with the stubs
+(`bankgen.py --linker-stubs`) passes every bank check, and its resident code is 65.1 KB
+instead of 156.4 KB (BANKING-SPIKE.md).

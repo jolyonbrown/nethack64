@@ -6,8 +6,8 @@ costs (docs/BANKING-SPIKE.md).
 
 usage: tests/spikes/run_bankstub.py [--oscar64 PATH]   (needs x64sc, xvfb-run; port 6502)
 
-The compiler must have Linker::InsertBankCalls (Oscar64 fork branch
-feature/bank-call-stubs); exit status 0 when every check passes.
+The compiler must have Linker::InsertBankCalls (the pin from commit 72, ADR-0007);
+exit status 0 when every check passes.
 """
 import argparse
 import os

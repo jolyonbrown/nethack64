@@ -1,0 +1,122 @@
+From 7cead7f8aa705963532a5fca0c4151dc026eb6bc Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 15 Nov 2026 19:24:59 +0000
+Subject: [PATCH 73/73] Test the linker's bank call stubs
+
+The built-in emulator has no cartridge, so the test checks what the linker
+made: banked functions' addresses are resident stubs that call the same
+routine with the right bank and a target in the window.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/bankcallstubtest.c | 101 ++++++++++++++++++++++++++++++++++++
+ 1 file changed, 101 insertions(+)
+ create mode 100644 autotest/bankcallstubtest.c
+
+diff --git a/autotest/bankcallstubtest.c b/autotest/bankcallstubtest.c
+new file mode 100644
+index 0000000..9bacecd
+--- /dev/null
++++ b/autotest/bankcallstubtest.c
+@@ -0,0 +1,101 @@
++#include <assert.h>
++
++// A program that names a bank call routine (#pragma runtime(bankcall, ...)) has every
++// call into a cartridge bank from outside it, and every use of a banked function's
++// address, go through a resident stub the linker makes: jsr bankcall / .byte bank /
++// .word function.  The built-in emulator has no cartridge, so this test looks at what the
++// linker made and calls only resident code.  Byte code cannot call into a bank (the
++// interpreter would run a stub as byte code), so the banked part is native code only.
++
++__asm test_bankcall
++{
++		rts
++}
++
++#pragma runtime(bankcall, test_bankcall)
++
++__noinline int resident(int x)
++{
++	return x + 1;
++}
++
++#ifdef OSCAR_NATIVE_ALL
++
++#pragma section( bcode3, 0 )
++#pragma region( bank3, 0x8000, 0xc000, , 3, { bcode3 } )
++#pragma section( bcode5, 0 )
++#pragma region( bank5, 0x8000, 0xc000, , 5, { bcode5 } )
++
++#pragma code( bcode3 )
++
++__noinline int b3_twice(int x)
++{
++	return 2 * x;
++}
++
++// a call within the bank stays direct, one to resident code too
++__noinline int b3_quad(int x)
++{
++	return b3_twice(b3_twice(x)) + resident(0);
++}
++
++#pragma code( bcode5 )
++
++__noinline int b5_neg(int x)
++{
++	return -x;
++}
++
++#pragma code( code )
++
++int (* const table[3])(int) = { b3_twice, b3_quad, b5_neg };
++int (*fp)(int);
++
++// the address goes through a volatile, so the compiler reads the stub at run time
++volatile unsigned vaddr;
++
++__noinline const unsigned char * bytes(int (*f)(int))
++{
++	vaddr = (unsigned)f;
++	return (const unsigned char *)vaddr;
++}
++
++__noinline unsigned word(const unsigned char * p)
++{
++	return p[0] + 256 * p[1];
++}
++
++#endif
++
++int main(void)
++{
++#ifdef OSCAR_NATIVE_ALL
++	fp = b5_neg;
++
++	const unsigned char * s0 = bytes(table[0]);
++	const unsigned char * s1 = bytes(table[1]);
++	const unsigned char * s2 = bytes(fp);
++
++	// each banked function's address is its stub, in resident memory
++	assert((unsigned)s0 < 0x8000 && (unsigned)s1 < 0x8000 && (unsigned)s2 < 0x8000);
++	assert(s0 != s1 && s0 != s2 && s1 != s2);
++	assert(s0[0] == 0x20 && s1[0] == 0x20 && s2[0] == 0x20);
++
++	// every stub calls the same routine
++	assert(word(s0 + 1) == word(s1 + 1) && word(s1 + 1) == word(s2 + 1));
++
++	// the bank, and the function in the bank window
++	assert(s0[3] == 3 && s1[3] == 3 && s2[3] == 5);
++	assert(word(s0 + 4) >= 0x8000 && word(s0 + 4) < 0xc000);
++	assert(word(s1 + 4) >= 0x8000 && word(s1 + 4) < 0xc000);
++	assert(word(s2 + 4) >= 0x8000 && word(s2 + 4) < 0xc000);
++	assert(word(s0 + 4) != word(s1 + 4));
++
++	// the same function, the same stub
++	assert(bytes(table[2]) == s2);
++#endif
++
++	// resident code is called directly
++	assert(resident(1) == 2);
++	return 0;
++}

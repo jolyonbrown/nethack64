@@ -334,8 +334,8 @@ function from Oscar64's call graph, from which the compiler decides which functi
 recursive (the others get static frames) and where each function's zero-page parameters
 go, and that would be wrong code.
 
-So the Oscar64 fork's linker makes the stubs (branch `feature/bank-call-stubs`, on top of
-the pin and r64's fix; not in the pin). A program that names a bank call routine,
+So the linker makes the stubs (the pin's commits 72-73, added 2026-11-15 on Jolyon's
+go-ahead). A program that names a bank call routine,
 `#pragma runtime(bankcall, nh_bankcall)`, has every call into a bank from outside it, and
 every use of a banked function's address, go through a 6-byte resident stub,
 `jsr nh_bankcall; .byte bank; .word function`; calls within a bank stay direct. The pass
@@ -373,18 +373,20 @@ new compiler's heap exposes.
   check passes. No call of 30,912 in the listing reaches another bank's code directly, no
   direct call of 23,581 reaches a renamed twin from outside its bank, no banked function
   writes the bank register, and nothing refers to data in another bank. The 103 banks hold
-  1.58 MB as before (bank 4 overflowed by a few hundred bytes: `planfix.py` moved 8
-  functions out over two rounds). **Resident code: 65.0 KB instead of 156.4 KB:**
+  1.58 MB as before: bank 4 overflowed by a few hundred bytes, `planfix.py` moved 8
+  functions out over two rounds, and the third build places every banked object
+  (`docs/data/bankplan-2026-11-15-stubs.json`). **Resident code: 65.1 KB instead of
+  156.4 KB:**
 
 | Resident code | Trampolines | Stubs |
 |---|---|---|
-| trampolines | 1,749, 123.6 KB | 252, 26.0 KB (string handlers) |
-| bank call stubs | — | 2,025, 12.2 KB |
+| trampolines | 1,749, 123.6 KB | 253, 26.1 KB (string handlers) |
+| bank call stubs | — | 2,026, 12.2 KB |
 | bank call routine | — | 91 B |
 | other: NetHack functions the plan keeps resident | | 11.7 KB |
 | other: the Oscar64 runtime and libc (`fpscanf` 2.3 KB, `sformat` 1.9 KB) | | 13.2 KB |
 | other: the variadic message family | | 1.8 KB |
-| **all** | **156.4 KB** | **65.0 KB** |
+| **all** | **156.4 KB** | **65.1 KB** |
 
   Resident data is 155 KB, 9.3 KB more than before: the strings of file-scope tables, now
   resident (see below). With 64 KB in the machine, the data is now the larger problem
@@ -393,8 +395,8 @@ new compiler's heap exposes.
   site).
 - **Two compiler bugs on the way.** r64 (compat #66): with the callees called directly,
   `PropagateVariableCopy` forwarded `lev_by_name()`'s load of a struct copy to the copy's
-  source without its memory base, and the compiler aborted; fixed on `fix/r64-copy-memory-base`
-  (a pin candidate). And compat #67, bytecode only.
+  source without its memory base, and the compiler aborted; fixed by the pin's commits
+  70-71. And compat #67, bytecode only.
 
 ## Next
 

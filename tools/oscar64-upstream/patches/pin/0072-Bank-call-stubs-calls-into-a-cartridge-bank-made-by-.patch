@@ -1,0 +1,283 @@
+From 7caff8d1f3c42abcfafd6bd9f02b52ede7d2e93f Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 15 Nov 2026 18:46:45 +0000
+Subject: [PATCH 72/73] Bank call stubs: calls into a cartridge bank made by
+ the linker
+
+A program that names a bank call routine (#pragma runtime(bankcall, ...))
+has every call into a cartridge bank from outside it, and every use of a
+banked function's address, sent through a 6-byte stub in the resident
+code section: jsr bankcall / .byte bank / .word function. Calls within a
+bank stay direct; an address computed from a banked function's address is
+the same offset into its stub. The pass runs after all of the compiler's
+analysis, which saw the calls as they are written, so recursion and the
+placement of fastcall parameters are unaffected; the routine has to leave
+A, X, Y, the zero page and the software stack as it found them, both ways.
+Byte code cannot call into a bank (the interpreter would run the stub as
+byte code), and a call into the middle of another bank's code is an error.
+The linker also warns of references to data placed in another bank (a
+string literal goes into the code section in force where it is written).
+A program without the pragma links as before.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/Compiler.cpp |  25 ++++++++
+ oscar64/Errors.h     |   2 +
+ oscar64/Linker.cpp   | 145 ++++++++++++++++++++++++++++++++++++++++++-
+ oscar64/Linker.h     |   3 +
+ 4 files changed, 174 insertions(+), 1 deletion(-)
+
+diff --git a/oscar64/Compiler.cpp b/oscar64/Compiler.cpp
+index ef8321b..a527bd9 100644
+--- a/oscar64/Compiler.cpp
++++ b/oscar64/Compiler.cpp
+@@ -1049,6 +1049,9 @@ bool Compiler::GenerateCode(void)
+ 
+ 	// Register native runtime functions
+ 
++	LinkerObject* bankCallObject = nullptr;
++	int bankCallOffset = 0;
++
+ 	if (mInterCodeModule->mProcedures.Size() > 0)
+ 	{
+ 		RegisterRuntime(loc, Ident::Unique("mul16by8"));
+@@ -1094,6 +1097,25 @@ bool Compiler::GenerateCode(void)
+ 		RegisterRuntime(loc, Ident::Unique("malloc"));
+ 		RegisterRuntime(loc, Ident::Unique("free"));
+ 		RegisterRuntime(loc, Ident::Unique("breakpoint"));
++
++		// Optional: a program that names a bank call routine has its calls between
++		// cartridge banks go through it (Linker::InsertBankCalls)
++		Declaration* bkdec = mCompilationUnits->mRuntimeScope->Lookup(Ident::Unique("bankcall"));
++		if (bkdec && bkdec->mType == DT_CONST_ASSEMBLER)
++		{
++			if (!bkdec->mLinkerObject)
++				mInterCodeGenerator->TranslateAssembler(mInterCodeModule, bkdec, nullptr);
++			bankCallObject = bkdec->mLinkerObject;
++		}
++		else if (bkdec && bkdec->mType == DT_LABEL)
++		{
++			if (!bkdec->mBase->mLinkerObject)
++				mInterCodeGenerator->TranslateAssembler(mInterCodeModule, bkdec->mBase, nullptr);
++			bankCallObject = bkdec->mBase->mLinkerObject;
++			bankCallOffset = int(bkdec->mInteger);
++		}
++		else if (bkdec)
++			mErrors->Error(loc, EERR_RUNTIME_CODE, "Bank call routine must be assembler code", bkdec->mIdent);
+ 	}
+ 
+ 	// Register extended byte code functions
+@@ -1232,6 +1254,9 @@ bool Compiler::GenerateCode(void)
+ 	for (int i = 0; i < mCompilationUnits->mReferenced.Size(); i++)
+ 		mLinker->ReferenceObject(mCompilationUnits->mReferenced[i]->mLinkerObject);
+ 
++	if (bankCallObject)
++		mLinker->InsertBankCalls(bankCallObject, bankCallOffset, mCompilationUnits->mSectionCode);
++
+ 	if (mCompilerOptions & COPT_OPTIMIZE_BASIC)
+ 	{
+ 		mLinker->CombineSameConst();
+diff --git a/oscar64/Errors.h b/oscar64/Errors.h
+index a3a5630..33964db 100644
+--- a/oscar64/Errors.h
++++ b/oscar64/Errors.h
+@@ -54,6 +54,7 @@ enum ErrorID
+ 	EWARN_INVALID_VOID_POINTER_ARITHMETIC,
+ 	EWARN_DIVISION_BY_ZERO,
+ 	EWARN_EXPAND_UNDEFINED_MACRO_IDENT,
++	EWARN_CROSS_BANK_DATA,
+ 
+ 	EERR_GENERIC = 3000,
+ 	EERR_FILE_NOT_FOUND,
+@@ -135,6 +136,7 @@ enum ErrorID
+ 	ERRR_INVALID_STRUCT_BINDING_TYPE,
+ 	ERRR_CALLING_DELETED_FUNCTION,
+ 	EERR_DISK_IMAGE_FULL,
++	EERR_CROSS_BANK_REFERENCE,
+ 
+ 	EFATAL_GENERIC = 4000,
+ 	EFATAL_OUT_OF_MEMORY,
+diff --git a/oscar64/Linker.cpp b/oscar64/Linker.cpp
+index cb89ef1..d25fcac 100644
+--- a/oscar64/Linker.cpp
++++ b/oscar64/Linker.cpp
+@@ -49,7 +49,7 @@ LinkerObject::LinkerObject(void)
+ 	: mReferences(nullptr), mNumTemporaries(0), mSize(0), mStripe(0), mAlignment(1), mStackSection(nullptr), mIdent(nullptr), mFullIdent(nullptr), mStartUsed(0x10000), mEndUsed(0x00000), mMemory(nullptr)
+ 	, mPrefix(nullptr), mSuffix(nullptr), mProc(nullptr), mNativeProc(nullptr), mOwnerProc(nullptr)
+ 	, mType(LOT_NONE), mID(0), mMapID(0), mAddress(0), mRefAddress(0), mSection(nullptr), mRegion(nullptr), mData(nullptr)
+-	, mVariable(nullptr), mFlags(0), mSuffixReference(0)
++	, mVariable(nullptr), mFlags(0), mSuffixReference(0), mBankStub(nullptr)
+ {
+ 	// An object that is never placed (its region is full) keeps these, and both
+ 	// the reference patcher and the map and listing writers read them
+@@ -557,6 +557,149 @@ void Linker::CheckDirectJumps(void)
+ 	}
+ }
+ 
++// The cartridge bank of the code in a section: the bank of the one region that holds
++// it, or -1 when it is not in exactly one region of exactly one bank (resident code,
++// or a section placed in several banks).
++int Linker::SectionBank(LinkerSection* section)
++{
++	LinkerRegion* rgn = FindRegionOfSection(section);
++	if (rgn && !rgn->mCartridgeBanks.Empty())
++	{
++		int bank = rgn->mCartridgeBanks.Single();
++		if (bank != CartridgeBankSet::NO_BANK)
++			return bank;
++	}
++	return -1;
++}
++
++// For a program that names a bank call routine (#pragma runtime(bankcall, ...)): a
++// call into a cartridge bank from outside it, and every use of a banked function's
++// address, goes through a stub in stubSection (resident code),
++//
++//		jsr bankcall
++//		.byte bank
++//		.word function
++//
++// The routine finds the bank and the function after its return address, maps the
++// bank, calls the function, and maps the caller's bank again when it returns.  The
++// code at the call was generated for a direct call of the function, which may take
++// arguments or return its result in A and X and may be assumed to leave X or Y or
++// zero page locations alone, so the routine has to leave A, X, Y, the zero page and
++// the software stack as it found them, on the way in and on the way out.  A function's
++// address is always its stub, because a pointer can be called from any bank; a call
++// within the bank stays direct.  The compiler's analyses saw the calls as they are in
++// the source, so recursion and the placement of fastcall parameters are not affected.
++void Linker::InsertBankCalls(LinkerObject* bankcall, int bankcallOffset, LinkerSection* stubSection)
++{
++	if (SectionBank(bankcall->mSection) >= 0 || SectionBank(stubSection) >= 0)
++	{
++		mErrors->Error(bankcall->mLocation, EERR_CROSS_BANK_REFERENCE, "Bank call routine and its stubs must be resident", bankcall->mIdent);
++		return;
++	}
++
++	int nobjs = mObjects.Size(), nstubs = 0;
++	for (int i = 0; i < nobjs; i++)
++	{
++		LinkerObject* obj = mObjects[i];
++		if (!(obj->mFlags & LOBJF_REFERENCED) || obj == bankcall)
++			continue;
++
++		int obank = -2;
++		bool warned = false;
++		for (int j = 0; j < obj->mReferences.Size(); j++)
++		{
++			LinkerReference* ref = obj->mReferences[j];
++			LinkerObject* fobj = ref->mRefObject;
++			if (!fobj || (ref->mFlags & LREF_TEMPORARY))
++				continue;
++			int fbank = SectionBank(fobj->mSection);
++			if (fbank < 0)
++				continue;
++			if (obank == -2)
++				obank = SectionBank(obj->mSection);
++
++			if (fobj->mType != LOT_NATIVE_CODE)
++			{
++				// Data placed in a bank (a string literal goes into the code section in
++				// force where it is written, an initialiser's too) that something outside
++				// the bank refers to: read while another bank is mapped, it reads that bank
++				if (obank != fbank && fobj->mType == LOT_DATA && !warned)
++				{
++					mErrors->Error(obj->mLocation, EWARN_CROSS_BANK_DATA, "Reference to data in another bank", obj->mIdent);
++					warned = true;
++				}
++				continue;
++			}
++
++			if (obj->mType == LOT_BYTE_CODE && obank != fbank)
++			{
++				// the interpreter would run the stub as byte code
++				mErrors->Error(obj->mLocation, EERR_CROSS_BANK_REFERENCE, "Byte code cannot call into another bank", fobj->mIdent);
++				continue;
++			}
++
++			bool call =
++				obj->mType == LOT_NATIVE_CODE && ref->mOffset > 0 &&
++				(ref->mFlags & (LREF_LOWBYTE | LREF_HIGHBYTE)) == (LREF_LOWBYTE | LREF_HIGHBYTE) &&
++				(obj->mData[ref->mOffset - 1] == 0x20 || obj->mData[ref->mOffset - 1] == 0x4c);
++
++			if (fobj == obj && (call || ref->mRefOffset != 0))
++				continue;		// the code's own labels, and calls to itself
++
++			if (call)
++			{
++				if (obank == fbank)
++					continue;
++				if (ref->mRefOffset != 0)
++				{
++					mErrors->Error(obj->mLocation, EERR_CROSS_BANK_REFERENCE, "Call into the middle of the code of another bank", fobj->mIdent);
++					continue;
++				}
++			}
++			else if (!fobj->mProc)
++				continue;		// assembler code used as data, not called
++			else if (ref->mRefOffset != 0 && obank == fbank)
++				continue;		// a label inside code of the same bank
++
++			// A function's address is its stub's, and an address computed from it (the
++			// function pointer cast and offset) is the same offset into the stub
++
++			if (!fobj->mBankStub)
++			{
++				const Ident* sident = fobj->mIdent ? fobj->mIdent->Mangle("@bankcall") : Ident::Unique("@bankcall");
++				LinkerObject* sobj = AddObject(fobj->mLocation, sident, stubSection, LOT_NATIVE_CODE);
++				uint8* d = sobj->AddSpace(6);
++				d[0] = 0x20; d[1] = 0; d[2] = 0;
++				d[3] = uint8(fbank);
++				d[4] = 0; d[5] = 0;
++
++				LinkerReference rl;
++				rl.mObject = sobj;
++				rl.mFlags = LREF_LOWBYTE | LREF_HIGHBYTE;
++				rl.mOffset = 1;
++				rl.mRefObject = bankcall;
++				rl.mRefOffset = bankcallOffset;
++				sobj->AddReference(rl);
++				mReferences.Push(sobj->mReferences.Last());
++
++				rl.mOffset = 4;
++				rl.mRefObject = fobj;
++				rl.mRefOffset = 0;
++				sobj->AddReference(rl);
++				mReferences.Push(sobj->mReferences.Last());
++
++				sobj->mFlags |= LOBJF_REFERENCED;
++				fobj->mBankStub = sobj;
++				nstubs++;
++			}
++			ref->mRefObject = fobj->mBankStub;
++		}
++	}
++
++	if (nstubs)
++		ReferenceObject(bankcall);
++}
++
+ void Linker::CombineSameConst(void)
+ {
+ 	bool changed = true;
+diff --git a/oscar64/Linker.h b/oscar64/Linker.h
+index 5193f9f..ce7cf0d 100644
+--- a/oscar64/Linker.h
++++ b/oscar64/Linker.h
+@@ -282,6 +282,7 @@ public:
+ 	LinkerSection					*	mStackSection;
+ 	LinkerObject					*	mPrefix, * mSuffix;
+ 	int									mSuffixReference;
++	LinkerObject					*	mBankStub;
+ 
+ 	ExpandingArray<LinkerObjectRange>	mRanges;
+ 	ExpandingArray<CodeLocation>		mCodeLocations, mCodeOrigins;
+@@ -393,6 +394,8 @@ public:
+ 	void ReferenceObject(LinkerObject* obj);
+ 	
+ 	void CheckDirectJumps(void);
++	int SectionBank(LinkerSection* section);
++	void InsertBankCalls(LinkerObject* bankcall, int bankcallOffset, LinkerSection* stubSection);
+ 	void CollectReferences(void);
+ 	void CombineSameConst(void);
+ 	void InlineSimpleJumps(void);

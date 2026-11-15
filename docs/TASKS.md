@@ -357,14 +357,14 @@ Add new tasks at the bottom of the right section.
       configuration; autotest 1,531/1,531; corpus 985/993 identical, the 8 that differ being
       r63 and the new test where the bug fires (-O2, -Os, -O3, bytecode -O2). In the pin as
       commits 66-67 (2026-11-15, Jolyon's go-ahead; ADR-0007).
-- [ ] T1.48 r64 (compat #66): `PropagateVariableCopy` forwards a load to a struct copy's
+- [x] T1.48 r64 (compat #66): `PropagateVariableCopy` forwards a load to a struct copy's
       source without its memory base, so the load claims a local with index -1 and
       `LoadStoreForwarding` aborts at the next call (and alias analysis is misled before
       that). Found 2026-11-15 in the whole-game compile with linker bank stubs
       (`dungeon.c` `lev_by_name()`); the pin, v1.32.273 and upstream main alike. Fix and test
       written here (`fix/r64-copy-memory-base`, 9f46cee and 893f954): autotest 1,581/1,581;
-      corpus 1,022/1,022 identical; r64 and the test crash -> ok everywhere. Next: the NetHack
-      listings with it, then a pin candidate for Jolyon.
+      corpus 1,022/1,022 identical; r64 and the test crash -> ok everywhere; NetHack C64 listings
+      324/324 identical. In the pin as commits 70-71 (2026-11-15, Jolyon: "add both to the pin").
 - [ ] T1.46 r61 (compat #63): a function-like macro's name with no `(` after it is expanded.
       — 2026-11-15: Codex's fix and test (`fix/r61-macro-name`, 51d2c27 and a6ed6bb; the
       scanner looks past white space and comments for the `(` before treating the name as an
@@ -579,15 +579,14 @@ Add new tasks at the bottom of the right section.
 - [ ] T2.9 Smaller bank calls: the C trampolines took 124 KB of resident code in the whole
       game, 85% of it for functions that take stack arguments, which a trampoline copies.
       — 2026-11-15: the Oscar64 fork's linker makes 6-byte stubs instead
-      (`feature/bank-call-stubs`, 7caff8d and test 7cead7f, on top of r64's fix): a call into
+      (in the pin as commits 72-73 since 2026-11-15, Jolyon: "add both to the pin"): a call into
       a bank from outside it, or a banked function's address, goes through
       `jsr nh_bankcall; .byte bank; .word function`. VICE: 13/13 checks
       (`tests/spikes/run_bankstub.py`), 142 cycles a switch. `bankgen.py --linker-stubs`
       keeps trampolines for the 295 string-handling functions only. Whole game: checks pass,
       resident code 65 KB (156 KB with trampolines); host build plays. The stack (r64 + stubs,
       4 commits): autotest 1,591/1,591, corpus identical except the new test and #67.
-      Next: Jolyon's decision (pin rows on the decision page); then the string trampolines
-      (26 KB), stubs in the callers' banks, and T2.3.
+      Next: the string trampolines (26 KB), stubs in the callers' banks, and T2.3.
 - [ ] T2.7 RNG + clock ADR before Phase 3 first light: which generator implements
       `lrand48`/`srand48` (exact, for seed-for-seed replays vs the host, or faster), seed
       width, clock source for seeding, moon phase, Friday 13th and `night()`/`midnight()`

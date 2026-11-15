@@ -638,4 +638,7 @@ same harness. Data: `docs/data/oscar64-pin67-c64conf-2026-11-15.json` and `-base
   every function makes all of them stack-call (BANKING-SPIKE.md).
 - With 69 commits (68 frees data flow sets after optimizing) every C64 listing,
   intermediate code and map is identical (`docs/data/oscar64-pin69-c64conf-2026-11-15.json`).
+- With 73 commits (70-71 r64's fix, 72-73 the linker's bank call stubs) every C64 listing,
+  intermediate code and map is identical again, and every UNIX record
+  (`docs/data/oscar64-pin73-*-2026-11-15.json`).
 

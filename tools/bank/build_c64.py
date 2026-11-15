@@ -22,7 +22,7 @@ usage: tools/bank/build_c64.py --plan PLAN.json [--out DIR] [--check-only]
    failed link left unplaced.
 
 --linker-stubs: for an Oscar64 whose linker inserts the bank switches (Linker::InsertBankCalls,
-fork branch feature/bank-call-stubs): bankgen.py gives trampolines only to the functions that
+the pin from commit 72, ADR-0007): bankgen.py gives trampolines only to the functions that
 take or return strings, a call across banks in the intermediate code is expected (only one to
 a renamed twin, name__bN, from outside its bank is not), and the stubs are counted.
 

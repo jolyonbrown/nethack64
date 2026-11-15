@@ -1,6 +1,6 @@
 /* bankstub.c - calls between EasyFlash banks through linker stubs (docs/BANKING-SPIKE.md).
  *
- * Needs an Oscar64 with Linker::InsertBankCalls (fork branch feature/bank-call-stubs):
+ * Needs an Oscar64 with Linker::InsertBankCalls (the pin from commit 72, ADR-0007):
  * because this program names a bank call routine (#pragma runtime(bankcall, ...)), the
  * linker sends every call into a bank from outside it, and every use of a banked
  * function's address, through a 6-byte resident stub, `jsr nh_bankcall; .byte bank;
