@@ -1,5 +1,16 @@
 # Oscar64 fixes proposed upstream
 
+**Held until the port is done** (Jolyon, 2026-11-15: "we'll continue holding bugfixes and
+PRs to upstream until we're done with this project - we'll have a complete picture then").
+Nothing goes upstream before then, neither PRs nor issues; then one round, as a piece of
+work of its own, starting from upstream's develop branch, which has fixed some of these
+already. Until then every compiler fix and finding is kept where it can be found:
+`docs/OSCAR64-COMPAT.md` (the table, with the repros), the pin's patch files with ADR-0007,
+and this document. Not yet in this document: the pin's later fixes (r50 to r64, the
+`!`/`!!` folding, the call-graph analyses, the data flow set release), the two features
+(banks past 63, the bank call stubs), and the open findings compat #67 (bytecode reads an
+uninitialised `mBranch`) and #68 (r65).
+
 Status 2026-11-12: 18 fixes finished. #1-#15 reviewed by Opus and Codex; #16-#18 by
 Opus, with a Codex check still to do before any of them goes upstream. Nothing has been
 sent upstream: no PR, no issue (17 queued as drafts in the fork, see below). One page per
