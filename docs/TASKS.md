@@ -522,6 +522,11 @@ Add new tasks at the bottom of the right section.
       Oscar64 build of the rewritten source, literals kept by callees (`killer`).
 - [ ] T2.2 Banking spike B (REU overlays) with the same files (BANKING-SPIKE.md)
 - [ ] T2.3 RAM map for dynamic state; BUFSZ policy ADR
+      — 2026-11-15: measured (docs/RAM-PLAN.md): what NetHack reaches through plain
+      pointers is about 165-175 KB (mutable alone 70-85 KB; `mons[]`, `objects[]` and
+      `level` 49 KB), against 34-55 KB of RAM a C64 can show the CPU. Banking the code does
+      not help: the data needs wider pointers (the DOS builds use far data, `-mh`/`/AL`) or a
+      restructuring. Direction is Jolyon's to choose.
 - [ ] T2.4 REU RAM-disk file layer with an AUTOTEST
 - [ ] T2.5 Compress `data`/`quest.dat`/`rumors` three ways; table of ratios + decode speed
 - [ ] T2.6 Host build variant with `COMPRESS` off, so `host_smoke` exercises the
