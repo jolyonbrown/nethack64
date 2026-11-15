@@ -268,9 +268,19 @@ stopped twice more:
   whole game compile in one run** on the desktop: 619 s, peak 13.2 GB, through native code
   generation, until the linker stopped on "Cannot place stack section" because the data
   does not fit yet (T2.3).
-- **Bank sizes.** That map has 1.31 MB in the 84 banks, median 16,380 of 16,384 B,
-  against a plan of about 8 KB of code each, and the listing check is not reliable on a
-  partial link (unplaced objects): both still to understand (T2.8).
+- **The call check passes.** `build_c64.py` resolves calls into the bank window through the
+  map (every bank's code starts at $8000, and the listing names such an address after bank
+  1's object) and also checks the intermediate code, which names every callee: no call of
+  41,068 in the listing, or of 25,985 direct calls, crosses a bank without a trampoline,
+  and no banked function's address is taken.
+- **The banks overflow.** The plan packs a median 14 KB of code into each 16 KB bank, but
+  the link left 342 KB of banked code and 33 KB of banked literals unplaced: about 1.69 MB
+  of banked content against 1.15 MB of planned code. The plan counts no string literals
+  (167 KB in all); functions come out 1.24x their per-file size, mostly copying arguments,
+  since the harness's table of every function makes every trampoline address-taken and so
+  a stack call; trampolines take 73 B each (130 KB in all); and `mhitm.c`, which did not
+  compile when the plan was made, stays resident. The next measurement uses the game's own
+  `main()` (T2.8).
 
 Two measurement caveats follow. The harness's `nh_refs[]` takes the address of every
 function a file defines, and Oscar64 gives every address-taken function stack

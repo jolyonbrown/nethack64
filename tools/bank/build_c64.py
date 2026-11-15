@@ -12,8 +12,14 @@ usage: tools/bank/build_c64.py --plan PLAN.json [--out DIR] [--check-only]
 3. Compiles all of them in one Oscar64 run (-Os, a .prg).  The data does not fit in RAM
    yet (T2.3), so "could not place" errors for data are expected; the code is placed.
 4. Checks the listing: every JSR or JMP in a function of bank N goes to a function of
-   bank N, to resident code, or is a trampoline calling its own function; and no
-   resident code calls into a bank except a trampoline.
+   bank N, to resident code, or is a trampoline calling into the bank it selected; and no
+   resident code calls into a bank except a trampoline.  A call into the bank window is
+   resolved through the map in the caller's bank (the listing names such an address after
+   whichever bank's object is there).  Then checks the intermediate code, which names every
+   direct callee, the same way, and that no banked function writes the bank register or
+   has its address taken (so calls through pointers reach resident code only).  Reports the
+   bytes per bank, the resident code, resident code inside the bank window, and what a
+   failed link left unplaced.
 
 Environment: OSCAR64 (the compiler; it must take banks past 63 for an 84-bank plan),
 BANK_TIMEOUT (seconds for the compile, default 3600), BANK_MEMORY_MB (its address-space
@@ -44,10 +50,28 @@ def cap():
     resource.setrlimit(resource.RLIMIT_AS, (mb << 20,) * 2)
 
 
-def check(asm):
+def check(asm, mapfile=None):
     """Calls that cross banks in an Oscar64 listing: [(caller, caller bank, callee,
-    callee bank)], and the number of calls looked at."""
+    callee bank)], and the number of calls looked at.  Every bank's code starts at $8000,
+    so the listing names an address in the bank window after whichever bank's object is
+    there; with the map, such a call is resolved in the caller's own bank instead (a
+    trampoline's, in the bank of its own function)."""
+    spans = collections.defaultdict(list)       # bank (None: resident) -> [(start, end, name)]
+    if mapfile and os.path.exists(mapfile):
+        for line in open(mapfile, errors="replace"):
+            m = OBJ.match(line)
+            if m and m.group(5) == "NATIVE_CODE":
+                spans[None if m.group(1) == "--" else int(m.group(1), 16)].append(
+                    (int(m.group(2), 16), int(m.group(3), 16), m.group(4)))
+
+    def within(bank, addr):
+        for a, e, n in spans.get(bank, ()):
+            if a <= addr < e:
+                return n
+        return None
+
     bank_of, calls, cur, cur_bank = {}, [], None, None
+    selects, last_imm = collections.defaultdict(set), None
     for line in open(asm, errors="replace"):
         m = FUNC.match(line)
         if m:
@@ -56,14 +80,29 @@ def check(asm):
         m = INSN.match(line)
         if not m or cur is None:
             continue
+        if m.group(3) == "LDA" and m.group(4) and m.group(4).startswith("#$"):
+            last_imm = int(m.group(4)[2:], 16)
+        elif m.group(3) == "STA" and m.group(4) and m.group(4).lower() == "$de00" and last_imm is not None:
+            selects[cur].add(last_imm)
         b = int(m.group(1), 16) if m.group(1) else None
         if cur_bank == "unseen":
             cur_bank = b
             bank_of[cur] = b
         if m.group(3) in ("JSR", "JMP") and m.group(5) and not m.group(4).startswith("("):
-            calls.append((cur, b, m.group(5)))
+            addr = int(m.group(4)[1:], 16) if re.match(r"^\$[0-9a-fA-F]{4}$", m.group(4)) else None
+            calls.append((cur, b, m.group(5), addr))
     bad = []
-    for caller, cb, callee in calls:
+    for caller, cb, callee, addr in calls:
+        if spans and addr is not None and 0x8000 <= addr < 0xc000:
+            if (cb is not None and within(cb, addr)) or within(None, addr):
+                continue                   # in the caller's own bank, or resident
+            if cb is None and any(within(bk, addr) for bk in selects.get(caller, ())):
+                continue                   # a trampoline calls into the bank it has selected
+            if cb is None and any(a == addr and n == "%s__b%d" % (caller, bk)
+                                  for bk, sp in spans.items() if bk is not None for a, e, n in sp):
+                continue                   # the trampoline calls its own function
+            bad.append((caller, cb, "$%04x" % addr, None))
+            continue
         if callee not in bank_of or callee == caller:
             continue
         tb = bank_of[callee]
@@ -79,14 +118,29 @@ def check(asm):
 OBJ = re.compile(r"^(--|[0-9a-f]{2}):([0-9a-f]{4,5}) - ([0-9a-f]{4,5}) : ([^,]+), (\w+):(\S+)")
 
 
+def unplaced(mapfile):
+    """Objects a failed link left unplaced (address 0000, no bank): {(kind, banked): bytes}."""
+    out = collections.Counter()
+    for line in open(mapfile, errors="replace"):
+        m = re.match(r"^0000 - ([0-9a-f]{4,5}) : [^,]+, (\w+):(\S+)", line)
+        if m:
+            out[(m.group(2), m.group(3).startswith("nhbank_"))] += int(m.group(1), 16)
+    return out
+
+
 def sizes(mapfile):
     """From an Oscar64 map: bytes per bank (code and its literals), resident code, and the
     trampolines (resident functions with a banked name__bN)."""
-    per_bank, resident, objs = collections.Counter(), 0, {}
+    per_bank, resident, objs, names = collections.Counter(), 0, {}, set()
+    in_window = sizes.in_window = []
     for line in open(mapfile, errors="replace"):
         m = OBJ.match(line)
         if not m:
             continue
+        if m.group(5) == "NATIVE_CODE":
+            names.add(m.group(4))
+            if m.group(1) == "--" and 0x8000 <= int(m.group(2), 16) < 0xc000:
+                in_window.append(m.group(4))
         a, b = int(m.group(2), 16), int(m.group(3), 16)
         if b < a:
             continue
@@ -96,9 +150,65 @@ def sizes(mapfile):
         elif bank is None and m.group(5) == "NATIVE_CODE":
             resident += b - a
             objs[m.group(4)] = b - a
-    banked = {BANKED.match(n).group(1) for n in objs if BANKED.match(n)}
+    banked = {BANKED.match(n).group(1) for n in names if BANKED.match(n)}
     tramp = {n: z for n, z in objs.items() if n in banked}
     return per_bank, resident, tramp
+
+
+ANYOBJ = re.compile(r"^(?:(?:--|[0-9a-f]{2}):)?[0-9a-f]{4,5} [-(] [0-9a-f]{4,5}\)? : ([^,]+), (\w+):(\S+)")
+CALL = re.compile(r"\tCALL\w*\t[^\t]*\t<-\t(?:V\(-?\d+ '([^']*)'\)|(\S+))")
+PROC = re.compile(r"^([A-Za-z_]\w*): \S")
+BANKREG = "V(-1 '')+56832"     # $DE00, EasyFlash's bank register
+
+
+def check_int(intfile, mapfile):
+    """Calls that cross banks, from the intermediate code, which names every direct callee.
+    Returns the bad calls [(caller, caller bank, callee, callee bank)], the banked
+    functions that store to the bank register, the direct calls looked at, and the calls
+    through pointers made by banked functions."""
+    bank = {}
+    for line in open(mapfile, errors="replace"):
+        m = ANYOBJ.match(line)
+        if m and m.group(2) == "NATIVE_CODE":
+            sec = re.match(r"nhbank_(\d+)$", m.group(3))
+            bank[m.group(1)] = int(sec.group(1)) if sec else None
+    bad, switching, ncalls, ptr = [], set(), 0, 0
+    proc, header, selects, taken = None, True, set(), set()
+    for line in open(intfile, errors="replace"):
+        if line.startswith("----"):
+            header = True
+            continue
+        if header:
+            m = PROC.match(line)
+            proc, header, selects = (m.group(1) if m else None), False, set()
+            continue
+        if proc is None or proc not in bank:
+            continue                       # not emitted: inlined wherever it was called
+        pb = bank.get(proc)
+        f = line.split("\t")
+        if len(f) > 2 and not f[2].startswith("CALL"):
+            for ref in re.findall(r"V\(-?\d+ '(\w+__b\d+)'", line):
+                taken.add((proc, ref))
+        if len(f) > 2 and f[2].startswith("STORE") and BANKREG in line:
+            if pb is not None:
+                switching.add(proc)
+            sel = re.search(r", CC:(\d+)", line)
+            if sel:
+                selects.add(int(sel.group(1)))
+        m = CALL.search(line)
+        if not m:
+            continue
+        if m.group(1) is None:
+            ptr += pb is not None
+            continue
+        ncalls += 1
+        callee, cb = m.group(1), bank.get(m.group(1))
+        if cb is None or cb == pb:
+            continue
+        if pb is None and cb in selects:
+            continue                       # a trampoline calls into the bank it has selected
+        bad.append((proc, pb, callee, cb))
+    return bad, sorted(switching), ncalls, ptr, sorted(taken)
 
 
 def main():
@@ -150,14 +260,26 @@ def main():
         asm = prg[:-4] + ".error.asm"
     if not os.path.exists(asm):
         sys.exit("no listing")
-    bad, n, bank_of = check(asm)
+    mp = asm[:-4] + ".map"
+    bad, n, bank_of = check(asm, mp)
     banks = collections.Counter(b for b in bank_of.values() if b is not None)
     print("listing %s: %d functions, %d in %d banks, %d resident; %d calls; %d cross a bank "
           "without a trampoline" % (os.path.basename(asm), len(bank_of), sum(banks.values()), len(banks),
                                     sum(1 for b in bank_of.values() if b is None), n, len(bad)))
     for x in bad[:20]:
         print("  %s (bank %s) -> %s (bank %s)" % x)
-    mp = asm[:-4] + ".map"
+    if os.path.exists(mp) and os.path.exists(asm[:-4] + ".int"):
+        ibad, switching, icalls, ptr, taken = check_int(asm[:-4] + ".int", mp)
+        print("intermediate code: %d direct calls; %d cross a bank without a trampoline; %d banked "
+              "functions store to the bank register; %d calls through pointers from banked code; "
+              "%d uses of a banked function's address" % (icalls, len(ibad), len(switching), ptr, len(taken)))
+        for x in taken[:10]:
+            print("  address of %s taken in %s" % (x[1], x[0]))
+        for x in ibad[:20]:
+            print("  %s (bank %s) -> %s (bank %s)" % x)
+        for x in switching[:10]:
+            print("  stores to the bank register: %s" % x)
+        bad = bad + ibad + [(x, None, "$de00", None) for x in switching] + [(a, None, b, None) for a, b in taken]
     if os.path.exists(mp):
         per_bank, resident, tramp = sizes(mp)
         if per_bank:
@@ -166,6 +288,13 @@ def main():
                 len(v), sum(v), v[0], v[len(v) // 2], v[-1]))
         print("resident code: %d B, of which %d trampolines, %d B (%.1f B each)" % (
             resident, len(tramp), sum(tramp.values()), sum(tramp.values()) / max(1, len(tramp))))
+        if sizes.in_window:
+            print("resident code inside the bank window $8000-$bfff: %d functions, e.g. %s" % (
+                len(sizes.in_window), ", ".join(sizes.in_window[:5])))
+        left = unplaced(mp)
+        if left:
+            print("left unplaced by the failed link: " + ", ".join(
+                "%s %s %d B" % ("banked" if b else "resident", k.lower(), n) for (k, b), n in sorted(left.items())))
     return 1 if bad else 0
 
 

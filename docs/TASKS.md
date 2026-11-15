@@ -541,13 +541,24 @@ Add new tasks at the bottom of the right section.
       optimized: freeing them (`scratch/whole-game-v2`, f982b52, an experiment; corpus
       1,017/1,017 identical) let **the whole game compile in one run** on the desktop: 619 s,
       peak 13.2 GB, through native code generation, stopping in the linker on "Cannot place
-      stack section" (the data does not fit yet, T2.3). (e) The listing check on that error
-      listing is not trustworthy (57 "crossings", mostly resident functions to
-      `read_config_file__b1`: objects not yet placed). The 84 banks come out nearly full
-      (median 16,380 of 16,384 B, 1.31 MB in all) against the plan's 8 KB of code each: why?
-      The set release is in the pin as commits 68-69 (2026-11-15, Jolyon's go-ahead; a test
-      that checks the code depending on what is kept, since the saving cannot show at a C64
-      program's size). Next: the bank sizes, and a check that works on a partial link. (d) The harness's `nh_refs[]`
+      stack section" (the data does not fit yet, T2.3). The set release is in the pin as
+      commits 68-69 (2026-11-15, Jolyon's go-ahead; a test that checks the code depending on
+      what is kept, since the saving cannot show at a C64 program's size). (e) The check of
+      that build: its 57 "crossings" were trampolines calling their own function at $8000,
+      which the listing names after bank 1's object there. `build_c64.py` now resolves a call
+      into the window in the caller's bank through the map, and checks the intermediate code
+      too, which names every callee: 0 of 41,068 listing calls and 0 of 25,985 direct calls
+      cross a bank without a trampoline, no banked function writes the bank register, and no
+      banked function's address is taken (722 calls through pointers from banked code can
+      only reach resident code). (f) The banks are full by design (the plan packs code to a
+      median 14 KB of each 16 KB, `bankplan-8k` meaning an 8 KB resident budget), but the link
+      left 342 KB of banked code and 33 KB of banked literals unplaced: the banked content is
+      about 1.69 MB against 1.15 MB of planned code. The plan counts no literals (167 KB);
+      the functions come out 1.24x their per-file size, mostly argument copying, because the
+      harness's table of every function makes every trampoline address-taken and so a stack
+      call; trampolines take 73 B each (130 KB); `mhitm.c`'s functions, which did not compile
+      when the plan was made, stay resident. Next: the build with the game's own `main()`,
+      then a plan from its sizes, with literals. (d) The harness's `nh_refs[]`
       takes every function's address, which makes Oscar64 give them all stack parameters:
       measure code size with calls instead, since 1.19 MB is probably high.
 - [ ] T2.7 RNG + clock ADR before Phase 3 first light: which generator implements
