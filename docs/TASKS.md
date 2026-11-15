@@ -345,6 +345,18 @@ Add new tasks at the bottom of the right section.
       since 2026-11-14. If added: ADR-0007's checks, as for the earlier rounds.
       — 2026-11-14: added on his go-ahead ("you go ahead") as commits 41-42; ADR-0007's
       checks passed (results there). It fixes r9 as well.
+- [ ] T1.47 r63 (compat #65): **wrong code** from a call with constant arguments, evaluated
+      while compiling, to a function with a parameter it never reads: the unused parameter is
+      renumbered as a local and takes a used parameter's index, so `pick(7, 2)` of
+      `int pick(int a, int b) { return a; }` folds to 2 (-O2, -Os, -O3; the pin and upstream
+      main alike). Found 2026-11-15 in the banked whole-game compile (`fqname()` folded to
+      `SCOREPREFIX`); invisible to the per-file measurement, whose harness takes every
+      function's address. Fix and test written here (`fix/r63-unused-param`, 50193ec and
+      aaaff45: the interpreter binds nothing for an unused parameter). r63, the fqname-shaped
+      variant and the nested-call variant fail on the pin and pass with it in every
+      configuration; autotest 1,531/1,531; corpus 985/993 identical, the 8 that differ being
+      r63 and the new test where the bug fires (-O2, -Os, -O3, bytecode -O2). Next: a pin
+      candidate, for Jolyon.
 - [ ] T1.46 r61 (compat #63): a function-like macro's name with no `(` after it is expanded.
       — 2026-11-15: Codex's fix and test (`fix/r61-macro-name`, 51d2c27 and a6ed6bb; the
       scanner looks past white space and comments for the `(` before treating the name as an
@@ -513,14 +525,18 @@ Add new tasks at the bottom of the right section.
       2,465. (a) `MarkRecursions`: Tarjan's search, exact: the same recursive functions in
       308/308 programs, corpus 983/983 identical, NetHack listings 214/214 identical; commit
       ab12523 on `fix/scc-recursion`, for the pin together with (b) and one test, since the
-      two blow up on the same graphs. (b) `CheckFastcall`: open. A first rewrite that
-      gives every member of a cycle stack parameters (`scratch/fastcall-scc-v1`) gets past the
-      analysis in 31 s, but changes 29 of 983 corpus programs: the old walk cuts a cycle
-      through a pointer call where its path meets itself, and keeps fastcall parameters for
-      the 426 functions on such cycles in NetHack. Next design: true recursion (direct
-      cycles) as one unit with the largest area reachable, pointer back edges cut as before,
-      every function worked out once. (c) Then the compile needs more than 3 GB
-      (`std::bad_alloc` under the cap; `BANK_MEMORY_MB`). (d) The harness's `nh_refs[]`
+      two blow up on the same graphs. (b) `CheckFastcall`: done, exact. Each function is
+      walked once in the old order; what the old walk read from a stack-parameter function
+      after walking it again is found by a search, and kept once its strongly connected
+      component is complete (`fix/fastcall-dfs`, d0e133e; test `callcycletest.c`, 2fd059f).
+      A temporary check running both walks agreed on every function in 1,088 compiles and in
+      1,600 random call graphs; corpus 988/988 byte-identical; autotest 1,531/1,531; 20 rungs
+      take 0.77 s (30.1 s with the old walk, 46.6 s on the pin). (A first rewrite,
+      `scratch/fastcall-scc-v1`, changed 29 corpus programs and was dropped.) With (a) and (b)
+      the whole game gets through the analysis and into code generation. (c) It then stopped
+      on r63 (T1.47) at 136 s and 4.5 GB; with that fixed it runs out of a 6 GB cap
+      (`std::bad_alloc` after 220 s). The machine has about 8 GB free with swap full: more
+      memory is Jolyon's call (2026-11-15). (d) The harness's `nh_refs[]`
       takes every function's address, which makes Oscar64 give them all stack parameters:
       measure code size with calls instead, since 1.19 MB is probably high.
 - [ ] T2.7 RNG + clock ADR before Phase 3 first light: which generator implements

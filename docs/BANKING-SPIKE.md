@@ -243,12 +243,25 @@ never showed it because its stubs leave only small cycles:
   (2,694 with the harness's table of every function), 426 of them on it only through
   such calls.
 
-`MarkRecursions` now uses Tarjan's search (a candidate pin commit, exact on 308
-programs), and with a first `CheckFastcall` rewrite the compile passed the analysis in
-31 s before running out of its 3 GB cap. That rewrite is not the answer: it changes 29
-of 983 corpus programs, because the old walk keeps fastcall parameters for a function on
-a cycle through a pointer call (it cuts the cycle where its path meets itself), and
-NetHack would lose them for 426 functions (T2.8).
+`MarkRecursions` now uses Tarjan's search, and `CheckFastcall` walks each function once,
+keeping per strongly connected component what the old repeated walks found. Both give
+exactly the old results (checked by running old and new side by side; candidate pin
+commits, T2.8), and the compile gets through the global analysis in seconds. It then
+stopped twice more:
+
+- **r63, wrong code.** A call with constant arguments, folded while compiling, took the
+  value of the wrong argument when the callee had a parameter it never reads.
+  `check_recordfile()`'s `fqname(RECORD, SCOREPREFIX, 0)` folded to 5 and failed to type
+  check, and the compiler then crashed writing its error file. The per-file measurements
+  cannot show it: their harness takes every function's address, and an address-taken
+  function keeps its parameters. Fixed in the interpreter (candidate pin commits, T1.47).
+- **Memory.** With that fixed, the compile runs out of a 6 GB address-space cap after
+  160 to 220 s, in intermediate code generation, with 2,537 procedures done and native
+  code generation still to come: 1.5 GB after parsing and analysis, then 4.3 GB more. A
+  few procedures cost far more than the rest (`burn_object` 52 s, `unbless` 13 s,
+  `realloc_obj` 305 MB), and they compile quickly in the per-file measurement, so
+  whole-program inlining (other files' functions, the bank trampolines) is the first
+  suspect. The machine has about 8 GB free, so more memory is Jolyon's decision.
 
 Two measurement caveats follow. The harness's `nh_refs[]` takes the address of every
 function a file defines, and Oscar64 gives every address-taken function stack

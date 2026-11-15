@@ -11,8 +11,9 @@
  * and done()), and the graph CheckFastcall walks, which adds calls through pointers, one
  * of 2,694.  A single file's measurement compile has only small cycles.  Found 2026-11-15.
  * Expect when fixed: compiles in about a second, emulation result 0.
- * Workaround: none.  MarkRecursions is fixed by Tarjan's search (candidate pin commit, for
- * Jolyon); CheckFastcall needs a design that keeps its results, still open (TASKS T2.8).
+ * Workaround: none.  Fixed by candidate pin commits, for Jolyon (TASKS T2.8): MarkRecursions
+ * by Tarjan's search, and CheckFastcall walking each function once and keeping, per strongly
+ * connected component, what the repeated walks found (fix/scc-recursion, fix/fastcall-dfs).
  * The calls take their argument through a volatile, or the compiler evaluates them at
  * compile time and the functions never reach the call graph.
  * FLAGS: -e -Os
