@@ -557,8 +557,11 @@ Add new tasks at the bottom of the right section.
       the functions come out 1.24x their per-file size, mostly argument copying, because the
       harness's table of every function makes every trampoline address-taken and so a stack
       call; trampolines take 73 B each (130 KB); `mhitm.c`'s functions, which did not compile
-      when the plan was made, stay resident. Next: the build with the game's own `main()`,
-      then a plan from its sizes, with literals. (d) The harness's `nh_refs[]`
+      when the plan was made, stay resident. (g) With the game's own `main()`: 1.55 MB of code
+      (1.37 MB banked, 114 KB of trampolines, 66 KB other resident) plus 166 KB of banked
+      literals, so about 100 banks, and 150 KB of resident data (BANKING-SPIKE.md). Next: a
+      bank plan from these sizes, with literals and `mhitm.c`; the bank count against the
+      cartridge (more than EasyFlash's 64) and the REU; T2.3 for the data. (d) The harness's `nh_refs[]`
       takes every function's address, which makes Oscar64 give them all stack parameters:
       measure code size with calls instead, since 1.19 MB is probably high.
 - [ ] T2.7 RNG + clock ADR before Phase 3 first light: which generator implements

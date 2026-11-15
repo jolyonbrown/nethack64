@@ -279,8 +279,20 @@ stopped twice more:
   (167 KB in all); functions come out 1.24x their per-file size, mostly copying arguments,
   since the harness's table of every function makes every trampoline address-taken and so
   a stack call; trampolines take 73 B each (130 KB in all); and `mhitm.c`, which did not
-  compile when the plan was made, stays resident. The next measurement uses the game's own
-  `main()` (T2.8).
+  compile when the plan was made, stays resident.
+- **With the game's own `main()`** (`newgame(); moveloop();` in place of the table, so only
+  what the game reaches is compiled and only what it takes the address of is called through
+  pointers; 608 s, 13.2 GB): 3,712 functions and **1.55 MB of code**: 1.37 MB banked, 114 KB
+  of trampolines (1,638 at 70 B), 66 KB of other resident code, plus 166 KB of literals in
+  the banks. Banked functions come out 1.16x their per-file size: the per-file measurement
+  calls other files' code through cheap stubs, where the game calls recursive or
+  address-taken functions with stack parameters, so the real code is about 30% more than
+  its 1.19 MB. Banked content of about 1.54 MB needs some 100 banks of 16 KB, not 84. The
+  call checks pass (0 of 36,393 listing calls, 0 of 25,079 direct calls).
+- **Resident data: 150 KB** in that build: 61 KB initialised (`mons` 21 KB, `objects` 11 KB,
+  `rooms` 5 KB), 45 KB of BSS (`level` 17 KB, the screen and vision buffers), 32 KB of
+  resident code's literals, about 10 KB of static stack frames, and 42 KB in 3,676 objects
+  under 64 B. That is what the RAM plan (T2.3) has to fit beside a 16 KB bank window.
 
 Two measurement caveats follow. The harness's `nh_refs[]` takes the address of every
 function a file defines, and Oscar64 gives every address-taken function stack
