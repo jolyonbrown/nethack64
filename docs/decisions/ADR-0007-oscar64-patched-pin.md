@@ -178,6 +178,15 @@ game in one compile had not finished its analysis in an hour), and 65. `8a087e1`
 for a parameter the optimiser has marked unused and renumbered as a local, and 67.
 `28a87b3` its test.
 
+Added the same day on Jolyon's go-ahead ("yes, write the test and add it to the pin"):
+68. `b05afde`, ours: `InterCodeProcedure::Close` releases its blocks' data flow sets over
+variables, statics and parameters once the procedure is optimized. Those over the statics
+are as large as the module's statics (or their bytes), so a big program's intermediate code
+grew with its blocks times its static data, and nothing reads them afterwards; NetHack as
+one program ran out of 16 GB without it and compiles in 13.2 GB with it. Like 63 and 64 it
+changes no generated code; and 69. `e128fb7` its test, which cannot show the saving at a C64
+program's size and checks instead the code that depends on what is kept.
+
 `tools/oscar64-upstream/build-pin.sh [DIR]` builds it (`JOBS=N` for `make -jN`). Since
 2026-11-13 the setup scripts (`tools/setup-ubuntu.sh`, `tools/setup-arch.sh`) build the
 release and then this compiler, link this one as `oscar64` (the Makefile takes it from
@@ -192,10 +201,10 @@ checks, and its `-Os` size is understood.
 - The six fixed rows above stop being "must be settled before game code runs" once
   the build uses the pin; r18-r23 and r25 pass, and so does r26 (commit 8). r24 stays
   open (T1.15).
-- We carry a patch stack until upstream releases: of the 67 commits, eight are upstream's
+- We carry a patch stack until upstream releases: of the 69 commits, eight are upstream's
   (1169268, bf42402, 1ae3216, 3bb084f, 1073206, 46e60d6, 160c92b, c8da6bd), two backport
   upstream fixes (fbca293 and the CoerceType hunk of 57655c5), four are tests for upstream
-  fixes, and fifty-three are ours (the r31, r45, r46, r50, r51, r59 and r60 fixes, the bank
+  fixes, and fifty-five are ours (the r31, r45, r46, r50, r51, r59 and r60 fixes, the bank
   patch and seven tests written by Codex). Most of ours have an upstream form as a
   draft PR in the fork or a local branch on main, on hold (OSCAR64-UPSTREAM.md; nothing
   sent yet), so the stack should shrink. Once
@@ -439,3 +448,11 @@ NetHack (C64): every listing, intermediate code and map of the 107 files that co
 59 commits is identical, and `mhitm.c` compiles (23,380 B): C64 108/108 (1,185,261 B in the
 106 that place code), UNIX 97/108 (1,120,579 B in 95), measured with the `__noinline` stubs of
 T1.45 (`docs/data/oscar64-pin67-*-2026-11-15.json`).
+
+Results 2026-11-15 (69 commits, tip e128fb7; the patch files give tree 3532056, the
+branch's). Autotest 1,571 emulations, all 0; corpus against 67 commits 1,022 of 1,022
+identical, no status changed; repros 40 of 63; nethack64 `.crt` and `.prg` byte-identical,
+`make test` 5/5; NetHack (C64): all 324 listings, intermediate code and maps identical to
+67 commits', C64 108/108 (1,185,261 B); UNIX 97/108, every record identical
+(`docs/data/oscar64-pin69-*-2026-11-15.json`). With it the whole game compiled in one run on a
+31 GB machine: 619 s, peak 13.2 GB (BANKING-SPIKE.md); without it, out of 16 GB.

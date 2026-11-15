@@ -1,7 +1,7 @@
 From df4e773d4d031776cda6faba3c16b88196ed791e Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 22:06:32 +0000
-Subject: [PATCH 54/67] Fix double logical not folding to its operand
+Subject: [PATCH 54/69] Fix double logical not folding to its operand
 
 The parser applies ! through LogicInvertExpression, which removed an
 inner ! by returning its operand: !!x became x.  That keeps the truth

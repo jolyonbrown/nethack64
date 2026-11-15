@@ -1,0 +1,80 @@
+From b05afde8dd31f4995c7585692ee60628933efb3b Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 15 Nov 2026 12:54:00 +0000
+Subject: [PATCH 68/69] Free a procedure's variable data flow sets once it is
+ optimized
+
+Each InterCodeBasicBlock keeps data flow sets over the procedure's
+local variables and parameters and over every static in the module
+(mLocalRequiredStatics and five more), and InterCodeProcedure::Close
+left them allocated after optimizing the procedure. The sets over the
+statics are as large as the module's static variables, or their bytes
+for the partial store pass, so a program's intermediate code grows with
+its number of blocks times its static data. Nothing reads them once the
+procedure is optimized: the passes over all procedures that follow
+(MarkRelevantStatics, RemoveNonRelevantStatics, RemoveUnusedInstructions)
+walk instructions and rebuild what they use, and the native code
+generator reads only the temporaries' sets, which stay. Release them at
+the end of Close.
+
+Compiling NetHack as one program, 108 files and about 4,000 procedures,
+ran out of a 16 GB address space in intermediate code generation; with
+this change it compiles through native code generation in 13.2 GB. A
+counter on NumberSet put these sets at 2.7 GB of the first 5.9 GB. The
+autotest sources and nethack64's compiler repros, 1,017 programs in five
+configurations, compile byte for byte the same.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/InterCode.cpp | 18 ++++++++++++++++++
+ oscar64/InterCode.h   |  1 +
+ 2 files changed, 19 insertions(+)
+
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index 487d27a..a7ee2c6 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -28401,6 +28401,19 @@ void InterCodeProcedure::TempForwarding(bool reverse, bool checkloops)
+ }
+ 
+ 
++void InterCodeBasicBlock::ReleaseVariableSets(void)
++{
++	mLocalRequiredVars.Reset(0); mLocalProvidedVars.Reset(0);
++	mEntryRequiredVars.Reset(0); mEntryProvidedVars.Reset(0);
++	mExitRequiredVars.Reset(0); mExitProvidedVars.Reset(0);
++	mLocalRequiredStatics.Reset(0); mLocalProvidedStatics.Reset(0);
++	mEntryRequiredStatics.Reset(0); mEntryProvidedStatics.Reset(0);
++	mExitRequiredStatics.Reset(0); mExitProvidedStatics.Reset(0);
++	mLocalRequiredParams.Reset(0); mLocalProvidedParams.Reset(0);
++	mEntryRequiredParams.Reset(0); mEntryProvidedParams.Reset(0);
++	mExitRequiredParams.Reset(0); mExitProvidedParams.Reset(0);
++}
++
+ void InterCodeProcedure::RemoveUnusedInstructions(void)
+ {
+ 	int	numTemps = mTemporaries.Size();
+@@ -30526,6 +30539,11 @@ void InterCodeProcedure::Close(void)
+ 	ResetVisited();
+ 	mEntryBlock->MarkAliasing(mParamAliasedSet);
+ 
++	// The data flow sets over variables, statics and parameters are not used once the
++	// procedure is optimized; over all statics they are large in a big program
++	for (int i = 0; i < mBlocks.Size(); i++)
++		mBlocks[i]->ReleaseVariableSets();
++
+ 	DisassembleDebug("Marked Aliasing");
+ }
+ 
+diff --git a/oscar64/InterCode.h b/oscar64/InterCode.h
+index b23bad1..d0ae095 100644
+--- a/oscar64/InterCode.h
++++ b/oscar64/InterCode.h
+@@ -461,6 +461,7 @@ public:
+ 	InterOperand LoadConstantOperand(const InterInstruction* ins, const InterOperand& op, InterType type, const GrowingVariableArray& staticVars, const GrowingInterCodeProcedurePtrArray& staticProcs);
+ 
+ 	void CollectAllUsedDefinedTemps(NumberSet& defined, NumberSet& used);
++	void ReleaseVariableSets(void);
+ 
+ 	void CollectLocalAddressTemps(GrowingIntArray& localTable, GrowingIntArray& paramTable, int & nlocals, int & nparams);
+ 	void MarkAliasedLocalTemps(const GrowingIntArray& localTable, NumberSet& aliasedLocals, const GrowingIntArray& paramTable, NumberSet& aliasedParams);

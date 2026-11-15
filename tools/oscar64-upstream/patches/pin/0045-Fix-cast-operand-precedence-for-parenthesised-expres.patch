@@ -1,7 +1,7 @@
 From 2200134cbcaf7e6b934eea28894eda4591a5609b Mon Sep 17 00:00:00 2001
 From: John Schneiderman <JohnMS@member.fsf.org>
 Date: Sun, 11 Oct 2026 12:23:32 +0200
-Subject: [PATCH 45/67] Fix cast operand precedence for parenthesised
+Subject: [PATCH 45/69] Fix cast operand precedence for parenthesised
  expressions while preserving C++ expression parsing.
 
 (cherry picked from commit 160c92b1ff614b3afa760c8d45bbfecf35984b2e)

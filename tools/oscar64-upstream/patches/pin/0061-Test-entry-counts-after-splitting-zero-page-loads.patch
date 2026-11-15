@@ -1,7 +1,7 @@
 From 40d5ebc7a62d5d5956cee075bc31c87a6dff34bc Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sun, 15 Nov 2026 05:49:18 +0000
-Subject: [PATCH 61/67] Test entry counts after splitting zero-page loads
+Subject: [PATCH 61/69] Test entry counts after splitting zero-page loads
 
 Add NetHack's mattackm() from mhitm.c, reduced to the loop whose join
 block after a switch has its zero-page load and store moved into some

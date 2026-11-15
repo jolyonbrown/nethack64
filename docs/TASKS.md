@@ -545,8 +545,9 @@ Add new tasks at the bottom of the right section.
       listing is not trustworthy (57 "crossings", mostly resident functions to
       `read_config_file__b1`: objects not yet placed). The 84 banks come out nearly full
       (median 16,380 of 16,384 B, 1.31 MB in all) against the plan's 8 KB of code each: why?
-      Next: the set release as a pin candidate, then the bank sizes and a check that works on
-      a partial link. (d) The harness's `nh_refs[]`
+      The set release is in the pin as commits 68-69 (2026-11-15, Jolyon's go-ahead; a test
+      that checks the code depending on what is kept, since the saving cannot show at a C64
+      program's size). Next: the bank sizes, and a check that works on a partial link. (d) The harness's `nh_refs[]`
       takes every function's address, which makes Oscar64 give them all stack parameters:
       measure code size with calls instead, since 1.19 MB is probably high.
 - [ ] T2.7 RNG + clock ADR before Phase 3 first light: which generator implements

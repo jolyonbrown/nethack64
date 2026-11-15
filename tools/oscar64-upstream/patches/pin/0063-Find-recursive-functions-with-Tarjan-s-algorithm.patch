@@ -1,7 +1,7 @@
 From d3776d0f43b80634426016126bc5cd7ad7c2b786 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sun, 15 Nov 2026 07:25:06 +0000
-Subject: [PATCH 63/67] Find recursive functions with Tarjan's algorithm
+Subject: [PATCH 63/69] Find recursive functions with Tarjan's algorithm
 
 MarkRecursions marked a function recursive by searching, from each
 function, every simple path through the call graph back to it. The

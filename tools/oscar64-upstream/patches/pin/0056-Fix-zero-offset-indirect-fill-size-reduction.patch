@@ -1,7 +1,7 @@
 From d988c5c8bbd00971ecff676c5534b44fecc4296c Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 22:02:18 +0000
-Subject: [PATCH 56/67] Fix zero-offset indirect fill size reduction
+Subject: [PATCH 56/69] Fix zero-offset indirect fill size reduction
 
 BlockSizeCopyReduction replaces consecutive LDY/STA (zp),Y pairs with
 an INY/STA/CPY/BNE loop, initializing Y to the first offset minus one.

@@ -1,7 +1,7 @@
 From 28a87b36c2e06554e3f1401b60b2322ae94cb1c5 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sun, 15 Nov 2026 10:34:20 +0000
-Subject: [PATCH 67/67] Test constant calls to functions with unused parameters
+Subject: [PATCH 67/69] Test constant calls to functions with unused parameters
 
 pick, pick2 and pick3 each have one parameter they do not read, at the
 end, at the start and in the middle, and are called with constant

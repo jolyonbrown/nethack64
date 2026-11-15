@@ -1,7 +1,7 @@
 From b24d0c7ff324c57c956cb10ecb6d41d5ca274ef1 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 19:47:26 +0000
-Subject: [PATCH 46/67] Accept integer null pointer constants in conditional
+Subject: [PATCH 46/69] Accept integer null pointer constants in conditional
  expressions
 
 Resolve pointer/zero operands in the parser, before the conditional's type

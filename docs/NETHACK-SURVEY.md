@@ -636,4 +636,6 @@ same harness. Data: `docs/data/oscar64-pin67-c64conf-2026-11-15.json` and `-base
   listings, intermediate code and maps are identical to the 59-commit compiler's.
 - Code stays **≈ 1.19 MB** in this measurement, with the caveat that the harness's table of
   every function makes all of them stack-call (BANKING-SPIKE.md).
+- With 69 commits (68 frees data flow sets after optimizing) every C64 listing,
+  intermediate code and map is identical (`docs/data/oscar64-pin69-c64conf-2026-11-15.json`).
 

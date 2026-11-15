@@ -1,7 +1,7 @@
 From b496c4ebeb72917d5b9cf23167ae89eb9f6372dd Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 12 Nov 2026 07:36:05 +0000
-Subject: [PATCH 49/67] Fix comparison of function pointer with function name
+Subject: [PATCH 49/69] Fix comparison of function pointer with function name
 
 A relational expression with a function designator as an operand
 (p == f, p != &f, f == p) was rejected with "Incompatible pointer

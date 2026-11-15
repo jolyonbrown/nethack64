@@ -1,7 +1,7 @@
 From 8a087e181f04cfdd3089ecf598ea201a47c1e377 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sun, 15 Nov 2026 10:17:01 +0000
-Subject: [PATCH 65/67] Test call graphs with many paths around a cycle
+Subject: [PATCH 65/69] Test call graphs with many paths around a cycle
 
 Forty functions on one cycle, with 2^20 simple paths around it, which
 MarkRecursions and CheckFastcall used to walk one by one. A compiler

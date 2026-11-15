@@ -1,0 +1,130 @@
+From e128fb7d68b8c2b2c5c55cb8403bcd9b448341cd Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 15 Nov 2026 13:01:36 +0000
+Subject: [PATCH 69/69] Test code that depends on the data flow sets kept after
+ optimization
+
+dataflowreleasetest.c compiles two copy loops, one whose pointers are
+dead after it, which the native code generator turns into an indexed
+loop by reading the temporaries' entry sets that stay allocated, and one
+whose destination is used after it; and statics shared between
+functions: a table filled in one function and summed in another, a byte
+stored into a long and read whole, and a static that is only written.
+It passes with and without the release of the variable data flow sets,
+which changes no generated code; a compiler that also released the
+temporaries' sets aborts on it at -O0. The memory the release saves
+grows with a program's blocks times its static data, so it does not
+show at this size (20.5 against 20.2 MB); compiling NetHack as one
+program it is the difference between more than 16 GB and 13.2 GB.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat          |  3 ++
+ autotest/dataflowreleasetest.c | 85 ++++++++++++++++++++++++++++++++++
+ 2 files changed, 88 insertions(+)
+ create mode 100644 autotest/dataflowreleasetest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 2e307d3..d6fc1b4 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test dataflowreleasetest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test constcallunusedtest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/dataflowreleasetest.c b/autotest/dataflowreleasetest.c
+new file mode 100644
+index 0000000..7dac51c
+--- /dev/null
++++ b/autotest/dataflowreleasetest.c
+@@ -0,0 +1,85 @@
++#include <assert.h>
++
++// Once a function's intermediate code is optimized, the compiler releases the data
++// flow sets of its blocks over variables, statics and parameters, which nothing reads
++// after that, and keeps the sets over temporaries, which the native code generator
++// still reads.  The release saves memory only in a large program (NetHack as one
++// program: 13.2 GB instead of more than 16), so this test cannot show it; it checks
++// the code that depends on what is kept and on the passes over statics that run
++// after the release.
++
++char src[40] = "the quick brown fox jumps over the dog";
++char dst[48];
++
++volatile unsigned char vn;
++volatile unsigned char vv;
++
++// Neither pointer is used after the loop: it may become an indexed loop
++__noinline void copy_only(char * d, const char * s, unsigned char n)
++{
++	do {
++		*d++ = *s++;
++	} while (--n);
++}
++
++// The destination is used after the loop, so it must advance
++__noinline char * copy_end(char * d, const char * s, unsigned char n)
++{
++	do {
++		*d++ = *s++;
++	} while (--n);
++	*d = 0;
++	return d;
++}
++
++// Statics written in one function and read in another, a byte stored into a long
++// and read whole, and a static that is only written
++unsigned char table[256];
++int counter;
++int written_only;
++long word;
++
++__noinline void fill(unsigned char v)
++{
++	for (int i = 0; i < 256; i++)
++		table[i] = v + i;
++	counter++;
++	written_only = v;
++}
++
++__noinline int sum(void)
++{
++	int s = 0;
++	for (int i = 0; i < 256; i++)
++		s += table[i] & 0x7f;
++	return s + counter;
++}
++
++__noinline void set_byte(unsigned char v)
++{
++	((unsigned char *)&word)[1] = v;
++}
++
++int main(void)
++{
++	vn = 9;
++	copy_only(dst, src, vn);
++	assert(dst[0] == 't' && dst[8] == 'k');
++	copy_only(dst + 30, src + 10, vn);
++	assert(dst[30] == 'b' && dst[38] == 'x');
++	char * e = copy_end(dst + 10, src + 4, vn);
++	assert(e == dst + 19);
++	assert(dst[10] == 'q' && dst[18] == 'o' && dst[19] == 0);
++
++	vv = 1;
++	fill(vv);
++	assert(sum() == 16257);
++	vv = 200;
++	fill(vv);
++	assert(sum() == 16258);
++
++	vv = 0x12;
++	set_byte(vv);
++	assert(word == 0x1200L);
++	return 0;
++}

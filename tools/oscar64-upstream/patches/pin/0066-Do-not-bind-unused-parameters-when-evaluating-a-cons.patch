@@ -1,7 +1,7 @@
 From a189c896c4b276ef985fe34409df50308b82deae Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sun, 15 Nov 2026 10:34:20 +0000
-Subject: [PATCH 66/67] Do not bind unused parameters when evaluating a
+Subject: [PATCH 66/69] Do not bind unused parameters when evaluating a
  constant call
 
 GlobalOptimizer evaluates a call to a function without side effects

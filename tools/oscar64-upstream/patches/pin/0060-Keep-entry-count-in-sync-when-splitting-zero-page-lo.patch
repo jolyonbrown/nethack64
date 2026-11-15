@@ -1,7 +1,7 @@
 From 7ca5d3885b38773adb2b13b3dab5bdae0c4a0d88 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 23:53:58 +0000
-Subject: [PATCH 60/67] Keep entry count in sync when splitting zero-page loads
+Subject: [PATCH 60/69] Keep entry count in sync when splitting zero-page loads
 
 JoinEntryLoadStoreZP moves a zero-page load/store pair at the top of a
 block into the predecessors that can take it, and sends the others

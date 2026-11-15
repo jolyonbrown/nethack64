@@ -263,9 +263,9 @@ stopped twice more:
   whole-program inlining (other files' functions, the bank trampolines) is the first
   suspect. On a 31 GB desktop it ran out of a 16 GB cap the same way. Most of the growth
   is the data flow sets each basic block keeps over all the program's statics (2.7 GB of
-  it by 2,750 procedures here), which nothing reads once its procedure is optimized. An
-  experiment that frees them (no change in any of 1,017 corpus programs) let **the whole
-  game compile in one run** on the desktop: 619 s, peak 13.2 GB, through native code
+  it by 2,750 procedures here), which nothing reads once its procedure is optimized.
+  Freeing them (now pin commit 68; no change in any of 1,022 corpus programs) let **the
+  whole game compile in one run** on the desktop: 619 s, peak 13.2 GB, through native code
   generation, until the linker stopped on "Cannot place stack section" because the data
   does not fit yet (T2.3).
 - **Bank sizes.** That map has 1.31 MB in the 84 banks, median 16,380 of 16,384 B,

@@ -1,7 +1,7 @@
 From 072bb5a4dedd2e28a4460cf3a478adf21fddf2e9 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sun, 15 Nov 2026 06:08:45 +0000
-Subject: [PATCH 62/67] Support cartridge banks 0 through 254
+Subject: [PATCH 62/69] Support cartridge banks 0 through 254
 
 Region masks and fixed cartridge arrays limited placement to 64 banks.
 Unchecked pragma shifts could silently alias higher banks to lower ones;

@@ -1,7 +1,7 @@
 From eb5a37dc0b78bfe91dea9ac95d4ddc436207ebed Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 14 Nov 2026 22:12:47 +0000
-Subject: [PATCH 59/67] Test carry-add fusion with byte-range constants
+Subject: [PATCH 59/69] Test carry-add fusion with byte-range constants
 
 Check the NetHack defensive-item threshold expression, both boolean
 values, byte carry-out, and temporary addends. Assert runtime results
