@@ -18,7 +18,8 @@
 #   tools/host-build.sh --banked PLAN    full build of src/ as tools/bank/bankgen.py rewrites it
 #                                        for the bank plan PLAN (bankpart.py --plan-out), installed
 #                                        to build/host-banked-install: the rewrite must not change
-#                                        what the game does (docs/BANKING-SPIKE.md)
+#                                        what the game does (docs/BANKING-SPIKE.md);
+#                                        BANKGEN_FLAGS (e.g. --linker-stubs) are passed to bankgen.py
 #
 # Needs: gcc, make, ncurses headers, bison/yacc, flex/lex.
 set -euo pipefail
@@ -45,7 +46,7 @@ sh sys/unix/setup.sh > /dev/null
 if [ -n "${PLAN:-}" ]; then
   # make runs makedefs again for monstr.c and vis_tab.c, so a rewrite of those would be lost
   (cd src && python3 "$ROOT/tools/bank/bankgen.py" --plan "$PLAN" --dir . --inc ../include \
-      --cpp=-DUNWIDENED_PROTOTYPES --report ../bankgen-report.json \
+      --cpp=-DUNWIDENED_PROTOTYPES --report ../bankgen-report.json ${BANKGEN_FLAGS:-} \
       $(ls *.c | grep -v -x -e monstr.c -e vis_tab.c))
 fi
 

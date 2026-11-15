@@ -26,6 +26,18 @@ For a function the plan puts in bank N:
 A function the macro cannot reach safely stays resident and is reported: a variadic one
 (a trampoline cannot pass `...` on), one whose declarator the parser does not handle,
 and one whose name is also a macro or a struct member.
+
+Each banked definition is wrapped in its own `#pragma code(nhbank_N)` ... `#pragma
+code(code)`: Oscar64 puts a string literal into the code section in force where it is
+written, so a file-scope initialiser between two banked functions (`const char *names[]
+= {"a", "b"}`) would otherwise have its strings in a bank, unreadable from every other.
+
+--linker-stubs: for an Oscar64 whose linker sends calls into a bank, and the addresses of
+banked functions, through stubs (Linker::InsertBankCalls, enabled by the bank call
+routine that nhbank.h then defines).  Only a function that takes or returns a `char *`
+is renamed and gets a trampoline, which copies the strings; every other banked function
+keeps its name and is called directly, the linker inserting the bank switch.  There is
+no entry check on the host then: nothing there sees the linker's stubs.
 """
 import argparse
 import json
@@ -241,14 +253,41 @@ def top_comma(text):
 def insertion_line(raw, line):
     """Index (0-based) of the first line of the declaration whose name is on `line`
     (1-based): back over the return type, up to a blank line, a comment, a directive or
-    the end of the previous declaration."""
-    i = line - 1
-    while i > 0:
-        code = raw[i - 1]
+    the end of the previous declaration.  A conditional around the declarator alone
+    (`void` / `#ifdef X` / `f(a, b)` / `#else` / `f(a)` / `#endif`, mklev.c's topologize)
+    is part of the declaration: the return type above it is found too."""
+    def code_of(k):
+        code = raw[k]
         if "/*" in code:
             code = code[:code.index("/*")]   # `boolean  /* ... */` is a return type
-        code = code.strip()
-        if not code or code.startswith(("*", "#", "//")) or code.endswith((";", "}", "{", "*/")):
+        return code.strip()
+
+    def decl_part(code):
+        return code and not code.startswith(("*", "#", "//")) and not code.endswith((";", "}", "{", "*/"))
+
+    i = line - 1
+    while i > 0:
+        code = code_of(i - 1)
+        m = re.match(r"#\s*(\w+)", code)
+        if m and m.group(1) in ("else", "elif"):
+            depth, k = 0, i - 2              # to the #if this branch belongs to
+            while k >= 0:
+                d = re.match(r"#\s*(\w+)", code_of(k))
+                if d and d.group(1) == "endif":
+                    depth += 1
+                elif d and d.group(1) in ("if", "ifdef", "ifndef"):
+                    if depth == 0:
+                        break
+                    depth -= 1
+                k -= 1
+            if k <= 0 or not decl_part(code_of(k - 1)):
+                break
+            i = k                            # the return type is above the #if
+            continue
+        if m and m.group(1) in ("if", "ifdef", "ifndef") and i >= 2 and decl_part(code_of(i - 2)):
+            i -= 1                           # the declarator is in the #if's first branch
+            continue
+        if not decl_part(code):
             break                            # blank, comment only, directive, previous item
         i -= 1
     return i
@@ -262,6 +301,8 @@ def main():
     ap.add_argument("--cpp", action="append", default=[], help="extra gcc -E flag (repeatable)")
     ap.add_argument("--define-in", default="decl.c", help="file that defines nh_bank and nh_stash()")
     ap.add_argument("--report", help="write what was done as JSON here")
+    ap.add_argument("--linker-stubs", action="store_true",
+                    help="the linker switches banks: trampolines only for string-handling functions")
     ap.add_argument("files", nargs="+")
     a = ap.parse_args()
 
@@ -303,28 +344,33 @@ def main():
     report = {"banked": 0, "resident": 0, "kept_resident": {}, "trampolines": 0, "banks": set(),
               "followed_callers": 0, "files_left_alone": selfinc, "entry_checks": 0, "shadowed": [],
               "used_bare": [], "kept": 0, "kept_fields": [], "keep_unhandled": [], "noinline": [],
-              "keep_globals": sorted(keep_extern)}
+              "keep_globals": sorted(keep_extern), "linker_stubs": a.linker_stubs, "direct": 0}
     bank_of, sig_of = {}, {}
+
+    renamed = set()      # banked functions that are renamed and get a trampoline
 
     def place(f, d, b):
         key = "%s:%s" % (f, d["name"])
         s = signature(d)
         why = None
+        tramp = s is not None and (not a.linker_stubs or strings(s))
         if d["name"] == "main":
             why = "main"
         elif s is None:
             why = "declarator"
         elif s[2]:
             why = "variadic"
-        elif d["name"] in macros:
+        elif tramp and d["name"] in macros:
             why = "also a macro"
-        elif d["name"] in members:
+        elif tramp and d["name"] in members:
             why = "also a struct member"
         if why:
             report["kept_resident"][key] = why
             return False
         bank_of[key] = int(b)
         sig_of[key] = s
+        if tramp:
+            renamed.add(key)
         return True
 
     for f in files:
@@ -360,7 +406,7 @@ def main():
     for f in files:
         for d in info[f]:
             key = "%s:%s" % (f, d["name"])
-            if key in bank_of and not d["static"]:
+            if key in renamed and not d["static"]:
                 extern_bank[d["name"]] = (bank_of[key], f, d)
 
     def proto(d, bank):
@@ -383,13 +429,25 @@ def main():
             cur["defs"].append(d)
         defined_macros, declared = set(), set()
         first = True
+        # each banked definition in pragmas of its own, so that what lies between
+        # definitions is compiled for the resident code section (see the docstring)
+        begins, ends = {}, {}
+        run_starts = {id(run["defs"][0]) for run in runs}
+        for d in defs:
+            b = bank_of.get("%s:%s" % (f, d["name"]))
+            if b is None:
+                continue
+            if id(d) not in run_starts:
+                begins.setdefault(insertion_line(raw, d["line"]), []).append("#pragma code(nhbank_%d)" % b)
+            if d.get("end"):
+                ends.setdefault(d["end"], []).append("#pragma code(code)")
         for d in defs:
             b = bank_of.get("%s:%s" % (f, d["name"]))
             if "%s:%s" % (f, d["name"]) in noinline:
                 first_line = insertion_line(raw, d["line"])
                 raw[first_line] = "__noinline " + raw[first_line]
                 report["noinline"].append("%s:%s" % (f, d["name"]))
-            if b is None:
+            if b is None or "%s:%s" % (f, d["name"]) not in renamed:
                 continue
             # the definition is renamed in the text, not by the macro, which Oscar64
             # cannot have in force wherever the name appears without a `(` (r61)
@@ -398,7 +456,7 @@ def main():
             if new == raw[li]:
                 sys.exit("%s:%d: cannot find the definition of %s" % (f, d["line"], d["name"]))
             raw[li] = new
-            if d["brace"] and raw[d["brace"] - 1].strip() == "{":
+            if not a.linker_stubs and d["brace"] and raw[d["brace"] - 1].strip() == "{":
                 inserts.setdefault(d["brace"], []).append("NH_ENTER(%d)" % b)
                 report["entry_checks"] += 1
         starts = [insertion_line(raw, run["defs"][0]["line"]) for run in runs] + [len(raw)]
@@ -423,11 +481,13 @@ def main():
             if b is not None:
                 names = {}
                 for d in run["defs"]:
-                    names[d["name"]] = d                      # the definitions themselves
+                    if "%s:%s" % (f, d["name"]) in renamed:
+                        names[d["name"]] = d                  # the definitions themselves
                 for d in run["defs"]:
                     for c in d["calls"]:
                         own = next((x for x in defs if x["name"] == c), None)
-                        if own is not None and bank_of.get("%s:%s" % (f, c)) == b:
+                        if own is not None and bank_of.get("%s:%s" % (f, c)) == b and \
+                                "%s:%s" % (f, c) in renamed:
                             names[c] = own                    # this file's, same bank
                         elif c in extern_bank and extern_bank[c][0] == b and own is None:
                             names[c] = extern_bank[c][2]      # another file's, same bank
@@ -447,7 +507,8 @@ def main():
                     report["used_bare"].append("%s:%s" % (f, n))
                     del names[n]
                 for d in run["defs"]:
-                    names.setdefault(d["name"], d)    # declared, not renamed by macro
+                    if "%s:%s" % (f, d["name"]) in renamed:
+                        names.setdefault(d["name"], d)    # declared, not renamed by macro
                 for n in sorted(set(names) - bare - shadowed):
                     lines.append("#define %s(...) %s__b%d(__VA_ARGS__)" % (n, n, b))
                     defined_macros.add(n)
@@ -473,11 +534,15 @@ def main():
                 report["resident"] += 1
                 continue
             report["banked"] += 1
+            if key not in renamed:
+                report["direct"] += 1
+                continue
             report["trampolines"] += 1
             tail.append(trampoline(d, sig_of[key], bank_of[key]))
         out = []
         for i, l in enumerate(raw):
-            before = [x for x in inserts.get(i, []) if not x.startswith("NH_ENTER(")]
+            before = ends.get(i, []) + [x for x in inserts.get(i, []) if not x.startswith("NH_ENTER(")] + \
+                begins.get(i, [])
             if before:
                 out += ["/* bankgen */"] + before
             out.append(l)
@@ -487,12 +552,13 @@ def main():
         out += ["", "/* bankgen: trampolines */"] + tail + [""]
         open(path, "w", encoding="latin-1").write("\n".join(out))
 
-    open(os.path.join(a.dir, "nhbank.h"), "w").write(header(sorted(report["banks"]), keep_extern))
+    open(os.path.join(a.dir, "nhbank.h"), "w").write(header(sorted(report["banks"]), keep_extern, a.linker_stubs))
     report["banks"] = sorted(report["banks"])
     if a.report:
         json.dump(report, open(a.report, "w"), indent=1, sort_keys=True)
-    print("bankgen: %d functions banked in %d banks, %d resident, %d kept resident (%s)" % (
-        report["banked"], len(report["banks"]), report["resident"], len(report["kept_resident"]),
+    print("bankgen: %d functions banked in %d banks (%d with a trampoline), %d resident, "
+          "%d kept resident (%s)" % (
+        report["banked"], len(report["banks"]), report["trampolines"], report["resident"], len(report["kept_resident"]),
         ", ".join("%s %d" % (w, list(report["kept_resident"].values()).count(w))
                   for w in sorted(set(report["kept_resident"].values())))))
 
@@ -501,6 +567,12 @@ def preprocess_dm(path, inc, cpp):
     r = subprocess.run(["gcc", "-E", "-dM"] + ["-I" + d for d in inc] + cpp + [path],
                        capture_output=True, text=True, encoding="latin-1")
     return r.stdout if r.returncode == 0 else ""
+
+
+def strings(sig):
+    """Whether a function takes or returns a `char *`, which its trampoline copies."""
+    ret, params, _ = sig
+    return bool(CHAR_PTR.match(ret)) or any(p[2] for p in params)
 
 
 def trampoline(d, sig, bank):
@@ -523,9 +595,69 @@ def trampoline(d, sig, bank):
     return "__noinline %s\n{\n%s\n}" % (head, "\n".join(body))
 
 
-def header(banks, keep_extern=()):
+BANKCALL = r"""
+/* The linker sends a call into a bank from outside it, and every use of a banked
+ * function's address, through a stub, `jsr nh_bankcall; .byte bank; .word function`
+ * (Oscar64's Linker::InsertBankCalls).  This reads the bank and the function from the
+ * stub, maps the bank and jumps to the function with A, X and Y as the caller left
+ * them (arguments may be in A and X); the function returns to bret, which maps the
+ * caller's bank again and returns with A, X and Y as the function left them (results
+ * may be in A and X, and the caller may keep values in X or Y).  The old bank and
+ * bret's address wait on the hardware stack; no zero page is touched.  Not
+ * re-entrant: an interrupt handler must not call banked code. */
+unsigned char nh_bc_a, nh_bc_x, nh_bc_y;
+
+__asm nh_bankcall
+{
+		sta nh_bc_a
+		stx nh_bc_x
+		sty nh_bc_y
+		pla
+		sta l1 + 1
+		sta l2 + 1
+		sta l3 + 1
+		pla
+		sta l1 + 2
+		sta l2 + 2
+		sta l3 + 2
+		lda nh_bank
+		pha
+		lda #>bret
+		pha
+		lda #<bret
+		pha
+		ldy #1
+l1:		lda $ffff, y
+		sta nh_bank
+		sta $de00
+		iny
+l2:		lda $ffff, y
+		sta bjmp + 1
+		iny
+l3:		lda $ffff, y
+		sta bjmp + 2
+		lda nh_bc_a
+		ldx nh_bc_x
+		ldy nh_bc_y
+bjmp:	jmp $ffff
+bret:	nop
+		sta nh_bc_a
+		pla
+		sta nh_bank
+		sta $de00
+		lda nh_bc_a
+		rts
+}
+
+#pragma runtime(bankcall, nh_bankcall)
+"""
+
+
+def header(banks, keep_extern=(), linker_stubs=False):
     bufs_decl = "\n".join("extern char nh_keep_%s[%d];" % (n, KEEP_SIZE) for n in sorted(keep_extern))
     bufs_def = "\n".join("char nh_keep_%s[%d];" % (n, KEEP_SIZE) for n in sorted(keep_extern))
+    if linker_stubs:
+        bufs_def += "\n" + BANKCALL          # substituted, so no % escaping
     regions = "\n".join("#pragma section( nhbank_%d, 0 )\n#pragma region( nhbank_%d_r, 0x8000, 0xc000, , %d, "
                         "{ nhbank_%d } )" % (b, b, b, b) for b in banks)
     return """/* nhbank.h - written by tools/bank/bankgen.py: the banks, the bank switch and the

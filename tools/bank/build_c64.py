@@ -21,6 +21,11 @@ usage: tools/bank/build_c64.py --plan PLAN.json [--out DIR] [--check-only]
    bytes per bank, the resident code, resident code inside the bank window, and what a
    failed link left unplaced.
 
+--linker-stubs: for an Oscar64 whose linker inserts the bank switches (Linker::InsertBankCalls,
+fork branch feature/bank-call-stubs): bankgen.py gives trampolines only to the functions that
+take or return strings, a call across banks in the intermediate code is expected (only one to
+a renamed twin, name__bN, from outside its bank is not), and the stubs are counted.
+
 Environment: OSCAR64 (the compiler; it must take banks past 63 for an 84-bank plan),
 BANK_TIMEOUT (seconds for the compile, default 3600), BANK_MEMORY_MB (its address-space
 cap, default 3000; the whole game needs more than that).
@@ -130,8 +135,10 @@ def unplaced(mapfile):
 
 def sizes(mapfile):
     """From an Oscar64 map: bytes per bank (code and its literals), resident code, and the
-    trampolines (resident functions with a banked name__bN)."""
+    trampolines (resident functions with a banked name__bN); the linker's bank call stubs
+    (name@bankcall) are in sizes.stubs."""
     per_bank, resident, objs, names = collections.Counter(), 0, {}, set()
+    sizes.stubs = {}
     in_window = sizes.in_window = []
     for line in open(mapfile, errors="replace"):
         m = OBJ.match(line)
@@ -150,6 +157,8 @@ def sizes(mapfile):
         elif bank is None and m.group(5) == "NATIVE_CODE":
             resident += b - a
             objs[m.group(4)] = b - a
+            if m.group(4).endswith("@bankcall"):
+                sizes.stubs[m.group(4)] = b - a
     banked = {BANKED.match(n).group(1) for n in names if BANKED.match(n)}
     tramp = {n: z for n, z in objs.items() if n in banked}
     return per_bank, resident, tramp
@@ -161,11 +170,13 @@ PROC = re.compile(r"^([A-Za-z_]\w*): \S")
 BANKREG = "V(-1 '')+56832"     # $DE00, EasyFlash's bank register
 
 
-def check_int(intfile, mapfile):
+def check_int(intfile, mapfile, linker_stubs=False):
     """Calls that cross banks, from the intermediate code, which names every direct callee.
     Returns the bad calls [(caller, caller bank, callee, callee bank)], the banked
     functions that store to the bank register, the direct calls looked at, and the calls
-    through pointers made by banked functions."""
+    through pointers made by banked functions.  With linker_stubs, the linker switches the
+    bank for a call across banks, so only one that reaches a renamed twin (name__bN) from
+    outside its bank, skipping the trampoline's string copies, is bad."""
     bank = {}
     for line in open(mapfile, errors="replace"):
         m = ANYOBJ.match(line)
@@ -207,6 +218,8 @@ def check_int(intfile, mapfile):
             continue
         if pb is None and cb in selects:
             continue                       # a trampoline calls into the bank it has selected
+        if linker_stubs and not BANKED.match(callee):
+            continue                       # the linker inserts the bank switch
         bad.append((proc, pb, callee, cb))
     return bad, sorted(switching), ncalls, ptr, sorted(taken)
 
@@ -220,6 +233,8 @@ def main():
                     help="table: the harness's main() referring to every function; real: the game's "
                          "own (newgame(); moveloop();), so only what it reaches is compiled and only "
                          "what it takes the address of is called through pointers")
+    ap.add_argument("--linker-stubs", action="store_true",
+                    help="the compiler's linker inserts the bank switches (see above)")
     ap.add_argument("--generate-only", action="store_true",
                     help="write the rewritten sources and compile.args (the compile's arguments, "
                          "relative to DIR) without compiling, e.g. to compile on a bigger machine")
@@ -245,7 +260,8 @@ def main():
                             "--inc", os.path.join(out, "inc"), "--inc", os.path.join(out, "stub"),
                             "--inc", os.path.join(out, "fakelibc"), "--cpp=-nostdinc",
                             "--cpp=-D__attribute__(x)=", "--report", os.path.join(out, "bankgen-report.json")] +
-                           ["--cpp=" + c for c in cpp] + files, capture_output=True, text=True)
+                           ["--cpp=" + c for c in cpp] + (["--linker-stubs"] if a.linker_stubs else []) +
+                           files, capture_output=True, text=True)
         if r.returncode:
             sys.exit("bankgen.py failed:\n" + r.stdout + r.stderr)
         print(r.stdout.strip())
@@ -287,7 +303,7 @@ def main():
     for x in bad[:20]:
         print("  %s (bank %s) -> %s (bank %s)" % x)
     if os.path.exists(mp) and os.path.exists(asm[:-4] + ".int"):
-        ibad, switching, icalls, ptr, taken = check_int(asm[:-4] + ".int", mp)
+        ibad, switching, icalls, ptr, taken = check_int(asm[:-4] + ".int", mp, a.linker_stubs)
         print("intermediate code: %d direct calls; %d cross a bank without a trampoline; %d banked "
               "functions store to the bank register; %d calls through pointers from banked code; "
               "%d uses of a banked function's address" % (icalls, len(ibad), len(switching), ptr, len(taken)))
@@ -304,8 +320,9 @@ def main():
             v = sorted(per_bank.values())
             print("banks: %d used, %d B in all; per bank min %d, median %d, max %d B" % (
                 len(v), sum(v), v[0], v[len(v) // 2], v[-1]))
-        print("resident code: %d B, of which %d trampolines, %d B (%.1f B each)" % (
-            resident, len(tramp), sum(tramp.values()), sum(tramp.values()) / max(1, len(tramp))))
+        print("resident code: %d B, of which %d trampolines, %d B (%.1f B each), and %d bank call "
+              "stubs, %d B" % (resident, len(tramp), sum(tramp.values()), sum(tramp.values()) / max(1, len(tramp)),
+                               len(sizes.stubs), sum(sizes.stubs.values())))
         if sizes.in_window:
             print("resident code inside the bank window $8000-$bfff: %d functions, e.g. %s" % (
                 len(sizes.in_window), ", ".join(sizes.in_window[:5])))

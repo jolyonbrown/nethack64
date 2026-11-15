@@ -357,6 +357,14 @@ Add new tasks at the bottom of the right section.
       configuration; autotest 1,531/1,531; corpus 985/993 identical, the 8 that differ being
       r63 and the new test where the bug fires (-O2, -Os, -O3, bytecode -O2). In the pin as
       commits 66-67 (2026-11-15, Jolyon's go-ahead; ADR-0007).
+- [ ] T1.48 r64 (compat #66): `PropagateVariableCopy` forwards a load to a struct copy's
+      source without its memory base, so the load claims a local with index -1 and
+      `LoadStoreForwarding` aborts at the next call (and alias analysis is misled before
+      that). Found 2026-11-15 in the whole-game compile with linker bank stubs
+      (`dungeon.c` `lev_by_name()`); the pin, v1.32.273 and upstream main alike. Fix and test
+      written here (`fix/r64-copy-memory-base`, 9f46cee and 893f954): autotest 1,581/1,581;
+      corpus 1,022/1,022 identical; r64 and the test crash -> ok everywhere. Next: the NetHack
+      listings with it, then a pin candidate for Jolyon.
 - [ ] T1.46 r61 (compat #63): a function-like macro's name with no `(` after it is expanded.
       — 2026-11-15: Codex's fix and test (`fix/r61-macro-name`, 51d2c27 and a6ed6bb; the
       scanner looks past white space and comments for the `(` before treating the name as an
