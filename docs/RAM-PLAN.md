@@ -55,9 +55,10 @@ huge model (`MODEL = h`, `-mh`, `sys/msdos/Makefile.BC`) and Microsoft's large m
    and it needs no restructuring of NetHack's source beyond what the compiler does for it.
    Oscar64 has no far pointers (checked); adding them is a large change to the compiler
    (pointer size, every pointer operation, the libraries), bigger than all the compiler
-   work so far. Every far access would cost tens of cycles instead of a few: a guess is
-   that the game would run several times slower, which a turn-based game may bear. It is
-   the only option here that keeps the real data structures on a stock C64 with an REU.
+   work so far. A far access costs about 21 cycles more than a near one when its page is in
+   RAM (measured below: 1.7x to 3x in pointer-heavy loops), which a turn-based game may
+   bear. It is the only option here that keeps the real data structures on a stock C64 with
+   an REU.
 2. **Restructure the data behind accessors**, keeping 16-bit pointers: the constant tables
    and strings into banks, read through generated bank-switching fetches (in the spirit of
    the stubs), and the per-type caches that pointer identity allows (`&mons[PM_X]`,
@@ -70,10 +71,54 @@ huge model (`MODEL = h`, `-mh`, `sys/msdos/Makefile.BC`) and Microsoft's large m
    the MEGA65 without far pointers in the compiler.
 4. **Cut the game** (the stretch tier): smaller tables or fewer features. Against ADR-0001.
 
-## Question for Jolyon
+## Jolyon's direction (2026-11-15)
 
-Which direction to take: (1) a far-data model in Oscar64, the faithful route on the
-primary target; (3) a different CPU; or something else you see. Your C64 knowledge
-matters here: a memory trick I have missed would change the arithmetic. Before any of
-this is settled, an independent review of the numbers and the reasoning (a fresh agent
-given the map, not this conclusion) would be worth its cost.
+Option 1 is worth exploring, with attention to speed; try zero page and the 6510's
+undocumented opcodes first; avoid option 3; option 4 only as a last resort.
+
+## Measured: far access through the REU (2026-11-15)
+
+`tests/spikes/fardata.c`, run by `tests/spikes/run_fardata.py` (headless VICE 3.7.1, REU 512 KB,
+interrupts off, CIA 2 timers cascaded; all 16 checks of the far copies pass, writes surviving
+eviction included). The far space is the REU in 256-byte pages, cached in up to 64 RAM pages;
+a far pointer is three bytes in zero page (offset, page, bank); a translation table of 256
+entries indexed by the page byte says which bank's page of that number is in RAM and where.
+
+| Primitive | Cycles |
+|---|---|
+| translation, hit, through a function call | 40.1 |
+| translation, hit, inlined, **in place**: the far pointer's page byte in zero page becomes the RAM page, so its first two bytes are then the near pointer | **20.9** |
+| page fault, clean (a C handler and one 256-byte DMA) | 603 |
+
+| Workload (Oscar64 `-Os` C; warm cache) | Near | Far | Slowdown |
+|---|---|---|---|
+| list of 200 nodes, one translation a node | 12,116 | 20,146 | 1.7x |
+| table of 252 x 55 B, records kept inside a page, one translation a record | 19,424 | 32,766 | 1.7x |
+| the same table with a translation for every field | 19,424 | 59,098 | 3.0x |
+| 80 x 21 grid of 6-byte cells, read and write each | 98,552 | 194,948 | 2.0x |
+| 2,000 random grid reads (the index arithmetic dominates) | 2,264,554 | 2,357,452 | 1.0x |
+| the table through a 32-page cache, its 55 pages not fitting | 19,424 | 106,363 | 5.5x |
+
+What follows:
+
+- **Zero page matters most.** Both pointers have to be there for `(zp),y`, and translating in
+  place halves the cost of a translation. The hit path is then six documented instructions
+  (`LDX zp`, `LDA abs,X`, `CMP zp`, `BNE`, `LDA abs,X`, `STA zp`, 19 cycles); none of the
+  undocumented ones (LAX, SAX, DCP, ISC, SBX, ANC, ALR, ...) shortens it. They would help the
+  compiler's code in general: `LAX (zp),Y` saves the `TAX` of every 16-bit load through a
+  pointer, for instance. Oscar64's assembler does not know them; `byt` can emit them.
+- **Translating once an object** is what keeps the cost near 1.7x: a far allocator that keeps
+  objects inside pages (as the list and the paged table do) and a compiler that reuses a
+  translation for the fields it reads next. Translating every access costs about 3x.
+- **The working set has to fit the cache.** A fault costs about 600 cycles (a handler in
+  assembler would cut it), so even a full reload of 64 pages is only some 38 ms; but a working
+  set larger than the cache faults on every pass, 5.5x here. NetHack's per-turn working set
+  (the level, the vision grids, the monsters and objects on the level, the `mons[]` entries
+  in use) needs measuring before the cache is sized.
+- **Two compiler traps on the way**, both about inline assembler: Oscar64 does not take an
+  inline block as reading or writing the variables a `jsr`'d routine uses, nor as writing
+  the variables it stores to itself, and in both cases reordered or reused values across the
+  block. A far-data model has to live in the compiler, not in inline assembler.
+
+Not yet known: how fast NetHack itself runs on a C64 before any of this. That is the
+baseline everything is a multiple of.
