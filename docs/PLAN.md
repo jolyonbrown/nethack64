@@ -55,10 +55,14 @@ with `__noinline` stubs the code is ≈ 1.19 MB, and `mhitm.c` aborts the compil
 - [ ] Partition: map OVL0/1/2/3/B + call graph to banks; trampolines for
       `trampoli.h` functions; resident set fits under `$8000`
       — 2026-11-15: the whole game's code and literals fit 103 banks of 16 KB (a plan from
-      its own sizes, BANKING-SPIKE.md); with the linker's bank call stubs (fork branch, a pin
-      candidate, T2.9) the resident code is 65 KB, not 156 KB. Resident data, 155 KB, is next.
+      its own sizes, BANKING-SPIKE.md); with the linker's bank call stubs (in the pin since
+      2026-11-15, T2.9) the resident code is 65 KB, not 156 KB. Resident data, 155 KB, is next.
 - [ ] RAM plan for dynamic state (~45-60 KB vs 30 KB resident): what goes
       under the cart window / I/O / KERNAL; BUFSZ policy (ADR)
+      — 2026-11-15 (RAM-PLAN.md): the data needs far pointers; Jolyon chose to explore far
+      data in the compiler. Measured: a far access, the working set a turn (28-31 KB), and
+      the game's speed before any of it (about 1.8 s a turn for the bot's crowded level 1;
+      far data would add 15-30%). Next: the far-data design ADR.
 - [ ] REU RAM-disk file layer + dlb over compressed blobs
 - [ ] Text compression measurement on `data`, `quest.dat`, `rumors`
 

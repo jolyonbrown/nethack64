@@ -20,6 +20,10 @@
 #                                        to build/host-banked-install: the rewrite must not change
 #                                        what the game does (docs/BANKING-SPIKE.md);
 #                                        BANKGEN_FLAGS (e.g. --linker-stubs) are passed to bankgen.py
+#   tools/host-build.sh --trace          src/ built with clang reporting every load and store to
+#                                        tools/measure/trace/nh_trace.c (malloc and friends wrapped),
+#                                        installed to build/host-trace-install: which C64 data pages
+#                                        each turn touches (docs/RAM-PLAN.md; needs clang)
 #
 # Needs: gcc, make, ncurses headers, bison/yacc, flex/lex.
 set -euo pipefail
@@ -35,6 +39,8 @@ elif [ "${1:-}" = "--profile" ]; then
   # the banking spike needs call counts per caller and callee (BANKING-SPIKE.md)
   H=build/host-prof; INSTALL=host-prof-install
   SAN="-pg -fno-inline -fno-inline-functions-called-once -fno-optimize-sibling-calls"
+elif [ "${1:-}" = "--trace" ]; then
+  H=build/host-trace; INSTALL=host-trace-install; TRACE=1
 elif [ "${1:-}" = "--banked" ]; then
   H=build/host-banked; INSTALL=host-banked-install
   PLAN=$(realpath "${2:?--banked needs a plan file}")
@@ -56,6 +62,16 @@ sed -i "s|^CFLAGS = -O -I../include|CFLAGS = -O -g $SAN -std=gnu89 -w -DUNWIDENE
 # util/ links some of src/'s objects, so it needs the sanitizer (or profiling) runtime too
 [ -z "$SAN" ] || sed -i "s|^LFLAGS =.*|LFLAGS = $SAN|" src/Makefile util/Makefile
 sed -i 's|^CFLAGS = -O -I../include|CFLAGS = -O -g -std=gnu89 -w -I../include|' util/Makefile
+if [ -n "${TRACE:-}" ]; then
+  # src/ with clang reporting loads and stores; util/ links some of src/'s objects, so it
+  # gets the runtime too (in LFLAGS: makedefs's link line has no LIBS).  Since clang 16 a
+  # mismatched function pointer is an error even with -w: wintty.c's signal(SIGWINCH, winch)
+  clang -O2 -c -o nh_trace.o "$ROOT/tools/measure/trace/nh_trace.c"
+  wrap="-Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc,--wrap=free"
+  sed -i "1i CC = clang" src/Makefile
+  sed -i "s|^CFLAGS = -O -g |CFLAGS = -O -g -fsanitize-coverage=edge,trace-loads,trace-stores -Wno-incompatible-function-pointer-types |; s|^LFLAGS =.*|LFLAGS = $wrap|; s|^LIBS =.*|LIBS = $(pwd)/nh_trace.o|" src/Makefile
+  sed -i "s|^LFLAGS =.*|LFLAGS = $wrap $(pwd)/nh_trace.o|" util/Makefile
+fi
 sed -i 's|^WINTTYLIB = -ltermlib|WINTTYLIB = -lncurses|' src/Makefile
 # modern ncurses declares tparm() with a prototype
 sed -i 's|^extern char \*tparm();|/* tparm() comes from <term.h> */|' win/tty/termcap.c

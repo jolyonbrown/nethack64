@@ -527,6 +527,14 @@ Add new tasks at the bottom of the right section.
       `level` 49 KB), against 34-55 KB of RAM a C64 can show the CPU. Banking the code does
       not help: the data needs wider pointers (the DOS builds use far data, `-mh`/`/AL`) or a
       restructuring. Direction is Jolyon's to choose.
+      — 2026-11-15: Jolyon: explore far data in the compiler (option 1). Measured since
+      (RAM-PLAN.md): a far access through an REU page cache costs 21 cycles on a hit, 600 on a
+      fault (`tests/spikes/fardata.c`, VICE); a turn touches 28-31 KB of far data, 38-41 KB
+      over ten turns (`tools/measure/trace/`); far data would cost 0.25-0.5 s a turn on
+      average, against about 1.8 s for the game itself on a C64 (`tools/measure/speed/`:
+      about 10 cycles for each x86 instruction of NetHack's code). Two speed wins found:
+      `levl[x][y]` multiplies by 126 through `mul16by8` (a third of monster movement's
+      cycles), `dist2()` squares through `mul16`. Next: the far-data design (an ADR).
 - [ ] T2.4 REU RAM-disk file layer with an AUTOTEST
 - [ ] T2.5 Compress `data`/`quest.dat`/`rumors` three ways; table of ratios + decode speed
 - [ ] T2.6 Host build variant with `COMPRESS` off, so `host_smoke` exercises the

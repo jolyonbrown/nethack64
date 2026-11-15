@@ -1,0 +1,73 @@
+total Ir 2442717450 (self costs sum to 2442717450)
+turns: nh_timeout 13896, settrack 13896, mcalcdistress 13896
+
+self Ir by place:                         total      a turn    share
+  game code (src)                          1708678898     122962    69.9%
+  library libc                              442549482      31847    18.1%
+  library libtinfo                          171958636      12375     7.0%
+  window port (win/tty)                     101606977       7312     4.2%
+  library ???                                17436800       1255     0.7%
+  library ld-linux-x86-64                      486003         35     0.0%
+  system (sys/unix, sys/share)                    526          0     0.0%
+  game binary, no file                             68          0     0.0%
+  library libncurses                               30          0     0.0%
+  library vgpreload_core-amd64-linux               30          0     0.0%
+
+inclusive Ir of the main phases:          total      calls    a call
+  newgame                                     1086123        1    1086123
+  moveloop                                 2440785587        1 2440785587
+  mklev                                        370690        1     370690
+  makelevel                                    186042        1     186042
+  movemon                                  1608221936    21220      75788
+  rhack                                     240192076    13493      17801
+  dosave0                                      114010        1     114010
+  vision_recalc                              32221504     3606       8936
+  flush_screen                              161639662    26744       6044
+  bot                                       508907150    24775      20541
+  dochug                                   1523667199   371422       4102
+  m_move                                   1322202462   371199       3562
+  mfndpos                                   482161498   370971       1300
+  newsym                                     90339049   665847        136
+
+game code by self Ir (607 functions; 122962 a turn in all):
+  function                        self Ir   share      calls   Ir/call     a turn
+  mfndpos                       322283269   18.9%     370971     868.8      23193
+  m_move                        214099944   12.5%     371199     576.8      15407
+  can_reach_location'2           83870612    4.9%     375830     223.2       6036
+  isok                           81111438    4.7%    9012382       9.0       5837
+  is_pool                        75489291    4.4%    2603079      29.0       5432
+  is_lava                        72692144    4.3%    2596148      28.0       5231
+  newsym                         63725611    3.7%     665847      95.7       4586
+  dochug                         52778292    3.1%     371422     142.1       3798
+  dist2                          37725352    2.2%    5389336       7.0       2715
+  distfleeck                     34570348    2.0%     742621      46.6       2488
+  gettrack                       30857832    1.8%     347140      88.9       2221
+  attacktype_fordmg              26312632    1.5%     626540      42.0       1894
+  set_apparxy                    25437107    1.5%     742408      34.3       1831
+  dmgtype_fromattack             24672774    1.4%     587447      42.0       1776
+  dog_move                       23812402    1.4%      17815    1336.6       1714
+  linedup                        23255369    1.4%     643128      36.2       1674
+  minliquid                      18573050    1.1%     371461      50.0       1337
+  distmin                        18091645    1.1%    1391665      13.0       1302
+  vision_recalc                  17371050    1.0%       3606    4817.3       1250
+  show_glyph                     16550725    1.0%     665909      24.9       1191
+  ranged_attk                    15732558    0.9%     307137      51.2       1132
+  can_reach_location             15663755    0.9%      77925     201.0       1127
+  movemon                        15150374    0.9%      21220     714.0       1090
+  dochugw                        14810052    0.9%     371422      39.9       1066
+  flush_screen                   13732047    0.8%      26744     513.5        988
+  t_at                           13682705    0.8%    1243711      11.0        985
+  could_reach_item               12771416    0.7%     456122      28.0        919
+  dogfood                        12179635    0.7%     171081      71.2        876
+  mcalcdistress                  11512107    0.7%      13896     828.4        828
+  may_dig                        11471917    0.7%     498779      23.0        826
+  getpos                         10670273    0.6%        497   21469.4        768
+  online2                        10330567    0.6%     817321      12.6        743
+  find_offensive                 10098131    0.6%     289635      34.9        727
+  find_misc                      10069203    0.6%     371422      27.1        725
+  eos                             9348634    0.5%     260630      35.9        673
+  bad_rock                        9135929    0.5%     310653      29.4        657
+  mintrap                         9016917    0.5%     310908      29.0        649
+  sobj_at                         8431994    0.5%     583264      14.5        607
+  on_level                        8288614    0.5%     880661       9.4        596
+  max_mon_load                    8256679    0.5%     360518      22.9        594

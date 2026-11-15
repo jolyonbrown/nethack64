@@ -120,5 +120,111 @@ What follows:
   the variables it stores to itself, and in both cases reordered or reused values across the
   block. A far-data model has to live in the compiler, not in inline assembler.
 
-Not yet known: how fast NetHack itself runs on a C64 before any of this. That is the
-baseline everything is a multiple of.
+## Measured: the working set a turn (2026-11-15)
+
+`tools/host-build.sh --trace` builds the host game with clang reporting every load and store
+(`-fsanitize-coverage=trace-loads,trace-stores`) to `tools/measure/trace/nh_trace.c`, which puts
+each access on the C64 page it would touch: a global by name at its C64 size (`layout.py`, from
+the whole-game build's map), a string literal in the 37.7 KB of resident strings, a heap block in
+a slab allocator at C64 sizes (monsters with monsters, objects with objects). Each kind of data
+has page-aligned regions of its own, and every access also goes through simulated caches of 32
+to 128 RAM pages (FIFO, CLOCK, LRU). `summary.py` prices a turn at the spike's costs: 21 cycles
+for each far access (an upper bound: each is counted as a translation) and 600 for each fault.
+Two games of `tools/profile_play.py --keys 6000 --seed 64` (the bot's moves are seeded; NetHack
+seeds itself from the clock, so the two are different games):
+
+| | Run A: all data far | Run B: 4 KB of globals near |
+|---|---|---|
+| turns | 13,367 | 10,903 |
+| C64 pages touched a turn, median / p90 | 124 / 153 | 112 / 194 |
+| pages touched over the last 10 turns, median | 162 | 150 |
+| far accesses a turn, median / p90 | 10,050 / 15,530 | 10,723 / 33,838 |
+| of them to globals, median | 3,166 | 57 |
+| faults a turn, CLOCK with 64 pages, median / p90 | 160 / 243 | 123 / 781 |
+| far-data cost a turn, CLOCK 64: median / p90 / mean | 314 / 477 / 327 ms | 306 / 1,194 / 499 ms |
+| the same with CLOCK 128: median / mean | 237 / 250 ms | 236 / 374 ms |
+
+Run B keeps near the 140 globals that an earlier run ranked best by accesses per C64 byte: 4,085
+bytes, led by `u`, `youmonst`, `utrack`, `dungeon_topology` and `flags`, and 97.7% of run A's
+accesses to globals. (The summaries and the list: `docs/data/fardata-trace-*-2026-11-15.txt`.)
+
+- **A turn needs 28-31 KB of far data** (110-125 pages), 38-41 KB over ten turns: a 64-page cache
+  holds most of a turn, 128 pages nearly all of it (11 to 19 faults a turn at the median).
+- **Translations cost more than faults**: about 10,000 far accesses a turn at 21 cycles is 0.21 s,
+  against 0.08 to 0.1 s of faults at 64 pages. The lever is the compiler reusing a translation for the
+  next fields of the same object, which the spike measured at 1.7x instead of 3x.
+- **Near globals help** as expected: they took a third of the far accesses in run A, and 4 KB
+  of them leave 57 a turn. Run B went deeper, with more monsters and objects on the heap, so its
+  total is no smaller.
+
+## Measured: how fast NetHack runs on a C64 (2026-11-15)
+
+In two steps: the host game's x86 instructions a turn, then the 6502 cycles that the C64 build
+spends for each x86 instruction on the same code.
+
+**Instructions a turn.** callgrind (valgrind 3.22) on the ordinary host build (gcc 13.3 `-O`, as
+`tools/host-build.sh` compiles it) playing `tools/profile_play.py --keys 6000 --seed 64`: 13,896
+turns, all of them on level 1, and 2.44 billion instructions, which `tools/measure/speed/
+cgsummary.py` splits (`docs/data/speed-host-callgrind-2026-11-15.txt`):
+
+| Where | x86 instructions a turn (mean) |
+|---|---|
+| NetHack's code (`src/`) | 122,962 |
+| libc (mostly `printf` for the status line and messages) | 31,847 |
+| ncurses' terminal library | 12,375 |
+| the tty window port | 7,312 |
+| in all | 175,786 |
+
+| What (inclusive of what it calls) | a turn | calls a turn | a call |
+|---|---|---|---|
+| monsters (`movemon`) | 115,733 | 26.7 monster moves | 4,330 a move |
+| the status line (`bot`), redrawn every turn because `time` is on | 36,623 | 1.8 | 20,541 |
+| the hero's command (`rhack`) | 17,285 | 1.0 | 17,801 |
+| messages (`pline`) | 8,052 | 0.7 | 11,418 |
+| vision (`vision_recalc`) | 2,319 | 0.26 | 8,936 |
+
+The bot hardly fights, so level 1 filled up with monsters: 26.7 monster moves a turn is more than
+ordinary play.
+
+**Cycles for each instruction.** `tools/measure/speed/calibrate.py` copies hot functions verbatim
+out of `port/src` (`extract.py`: `isok`, `dist2`, `is_pool`, `is_lava`, `mfndpos` and the 17
+functions `mfndpos` calls, each source file's functions in a file of their own as in the game),
+and runs them on one level (five rooms, doors in every state, water, traps, objects, nine
+monsters standing about): compiled by gcc as the host build compiles them and counted by
+callgrind, and compiled by Oscar64 `-Os` as the C64 build compiles them and timed in Oscar64's
+emulator (`-ep`, page crossings counted). Both print the same checksum. (`docs/data/speed-calibration-2026-11-15.json`; pin 73.)
+
+| Workload (a call includes the harness's loop) | x86 instructions a call | 6502 cycles a call | cycles per instruction |
+|---|---|---|---|
+| `isok` | 16.9 | 133 | 7.9 |
+| `is_pool` and `is_lava` | 45.0 | 464 | 10.3 |
+| `mfndpos`, with what it calls | 1,942 | 18,543 | 9.6 |
+| `dist2` | 15.5 | 509 | 32.7 |
+
+**The estimate**, at 9.6 cycles an instruction (7.9 to 10.3 measured), and 32.7 for the 2,715
+instructions a turn in `dist2`, at PAL's 0.985 MHz:
+
+- NetHack's own code: 1.24 million cycles a turn, **1.26 s** (1.05 to 1.35 s).
+- One monster's move: about 41,000 cycles, **42 ms**.
+- The status line, redrawn every turn: about 0.36 s. Uncalibrated: on the C64 it is Oscar64's
+  `printf` and our own window port, not glibc and ncurses, and neither is measured yet.
+- In all about **1.8 s a turn** for this crowded game, and about 1 s for a turn with ten monster
+  moves. With the screen on, the VIC-II takes about 5% of the cycles on top.
+
+Banking adds little: about 80 bank crossings a turn at 142 cycles, some 10 ms
+(BANKING-SPIKE.md). Far data adds 0.25 to 0.5 s a turn on average (the trace above, 64 to 128
+pages): 15 to 30% on top of the game.
+
+**Where the cycles go: two cheap wins.** Oscar64's runtime routines have entries of their own
+in the emulator's profile:
+
+- **`levl[x][y]`**: a column of the map is 21 rows of 6 bytes, and Oscar64 multiplies `x` by 126
+  with its general `mul16by8` routine, about 250 cycles for each access: 35% of all the cycles
+  in the `mfndpos` workload and 53% in `is_pool`/`is_lava`'s. A table of the 80 column offsets
+  (160 bytes), or a shift-and-subtract for the constant in the compiler, would take a fifth to
+  a third off monster movement.
+- **`dist2()`**: two 16-bit multiplications, 80% of its cost; the game calls it 388 times a turn
+  here, about 0.2 s. A table of squares (`|dx|` and `|dy|` are under 80) would make a call a few
+  tens of cycles.
+
+Both change speed only; the game computes the same values.

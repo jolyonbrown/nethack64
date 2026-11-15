@@ -1,0 +1,60 @@
+workload               calls   x86 Ir/call   6502 cycles/call   cycles per Ir
+  isok                 21000         16.9              133.1             7.9
+  dist2                13272         15.5              509.0            32.7
+  is_pool + is_lava    16590         45.0              463.6            10.3
+  mfndpos               3157       1941.5            18542.7             9.6
+
+isok: 6502 cycles by function (less workload 0), and x86 self Ir
+  main                  1711713 cycles  61.3%       169173 Ir    10.1 cycles/Ir
+  isok                  1077270 cycles  38.6%       185250 Ir     5.8 cycles/Ir
+  divmod                   2756 cycles   0.1%            0 Ir 
+  nforml                   1478 cycles   0.1%            0 Ir 
+  divmod32                  550 cycles   0.0%            0 Ir 
+  puts                      424 cycles   0.0%            0 Ir 
+  load32                    340 cycles   0.0%            0 Ir 
+  nformi                     39 cycles   0.0%            0 Ir 
+  which_armor                 2 cycles   0.0%            0 Ir 
+  m_carrying                  2 cycles   0.0%            0 Ir 
+  curr_mon_load               2 cycles   0.0%            0 Ir 
+
+dist2: 6502 cycles by function (less workload 0), and x86 self Ir
+  mul16                 5378112 cycles  79.6%            0 Ir 
+  main                  1367434 cycles  20.2%       113229 Ir    12.1 cycles/Ir
+  divmod32                 4278 cycles   0.1%            0 Ir 
+  divmod                   2760 cycles   0.0%            0 Ir 
+  nforml                   1922 cycles   0.0%            0 Ir 
+  puts                      583 cycles   0.0%            0 Ir 
+  load32                    442 cycles   0.0%            0 Ir 
+  nformi                     39 cycles   0.0%            0 Ir 
+  onscary                     6 cycles   0.0%            0 Ir 
+  which_armor                 2 cycles   0.0%            0 Ir 
+  m_carrying                  2 cycles   0.0%            0 Ir 
+  curr_mon_load               2 cycles   0.0%            0 Ir 
+
+is_pool + is_lava: 6502 cycles by function (less workload 0), and x86 self Ir
+  mul16by8              4081140 cycles  53.1%            0 Ir 
+  main                  1097539 cycles  14.3%       124899 Ir     8.8 cycles/Ir
+  isok                   879270 cycles  11.4%       149310 Ir     5.9 cycles/Ir
+  is_pool                847765 cycles  11.0%       240525 Ir     3.5 cycles/Ir
+  is_lava                781525 cycles  10.2%       232260 Ir     3.4 cycles/Ir
+  divmod                   1764 cycles   0.0%            0 Ir 
+  nforml                   1015 cycles   0.0%            0 Ir 
+  divmod32                  385 cycles   0.0%            0 Ir 
+  puts                      265 cycles   0.0%            0 Ir 
+  load32                    238 cycles   0.0%            0 Ir 
+  nformi                     39 cycles   0.0%            0 Ir 
+  onscary                     8 cycles   0.0%            0 Ir 
+
+mfndpos: 6502 cycles by function (less workload 0), and x86 self Ir
+  mfndpos              22523600 cycles  38.5%      3416948 Ir     6.6 cycles/Ir
+  mul16by8             20585139 cycles  35.2%            0 Ir 
+  t_at                  4467178 cycles   7.6%       510242 Ir     8.8 cycles/Ir
+  main                  3988248 cycles   6.8%       264129 Ir    15.1 cycles/Ir
+  is_pool               2164169 cycles   3.7%       613999 Ir     3.5 cycles/Ir
+  isok                  2073042 cycles   3.5%       352026 Ir     5.9 cycles/Ir
+  is_lava               1689618 cycles   2.9%       502096 Ir     3.4 cycles/Ir
+  bad_rock               621776 cycles   1.1%       214160 Ir     2.9 cycles/Ir
+  is_pool@proxy          211820 cycles   0.4%            0 Ir 
+  sobj_at                117470 cycles   0.2%        15259 Ir     7.7 cycles/Ir
+  onscary                 62861 cycles   0.1%        15873 Ir     4.0 cycles/Ir
+  sengr_at                11220 cycles   0.0%         3315 Ir     3.4 cycles/Ir
