@@ -510,8 +510,10 @@ Add new tasks at the bottom of the right section.
       — 2026-11-15: it did not finish in an hour (`tools/bank/build_c64.py`). Two global
       analyses walk every path through the call graph's cycles (r62, compat #64): NetHack's
       direct calls form one cycle of 279 functions, and with calls through pointers one of
-      2,465. (a) `MarkRecursions`: Tarjan's search, exact (308/308 programs), candidate pin
-      commit ab12523 on `fix/scc-recursion`. (b) `CheckFastcall`: open. A first rewrite that
+      2,465. (a) `MarkRecursions`: Tarjan's search, exact: the same recursive functions in
+      308/308 programs, corpus 983/983 identical, NetHack listings 214/214 identical; commit
+      ab12523 on `fix/scc-recursion`, for the pin together with (b) and one test, since the
+      two blow up on the same graphs. (b) `CheckFastcall`: open. A first rewrite that
       gives every member of a cycle stack parameters (`scratch/fastcall-scc-v1`) gets past the
       analysis in 31 s, but changes 29 of 983 corpus programs: the old walk cuts a cycle
       through a pointer call where its path meets itself, and keeps fastcall parameters for
