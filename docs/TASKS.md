@@ -484,6 +484,15 @@ Add new tasks at the bottom of the right section.
       limit in docs/BANKING-SPIKE.md; a first simulation from gprof call counts
       (`tools/profile_play.py`, `tools/measure/bankpart.py`): about 80 calls a turn leave
       their bank with an 8 KB resident core; next a wider profile, prototypes, ADR-0008.
+      — 2026-11-14: VICE prototype `tests/spikes/bankcall.c`: a bank switch through a C
+      trampoline costs 34 cycles; an REU fetch about 1,090 cycles per KB.
+      — 2026-11-15: `tools/bank/bankgen.py` rewrites the source for a bank plan (pragmas,
+      a renaming macro for calls within a bank, resident trampolines); the whole game
+      built from it on the host (`tools/host-build.sh --banked`, 2,142 functions in 84
+      banks) passes the smoke test and a 6,000-command bot game with every banked
+      function checking its bank on entry. Oscar64 past 64 banks: Codex's patch
+      (`fix/banks-past-64`, 75d6b73), checked, a pin candidate for Jolyon. Next: the
+      Oscar64 build of the rewritten source, literals kept by callees (`killer`).
 - [ ] T2.2 Banking spike B (REU overlays) with the same files (BANKING-SPIKE.md)
 - [ ] T2.3 RAM map for dynamic state; BUFSZ policy ADR
 - [ ] T2.4 REU RAM-disk file layer with an AUTOTEST

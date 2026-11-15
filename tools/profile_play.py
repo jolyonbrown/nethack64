@@ -10,8 +10,12 @@ down staircase it has seen ('_', '>', '.') and goes down, searches and rests.  I
 proxy for real play: exploration, monsters' turns, fighting, vision and level
 creation, much less of inventory, shops and spells.
 
-usage: tools/profile_play.py [--keys N] [--seed S] [-o OUT.json]
+usage: tools/profile_play.py [--keys N] [--seed S] [-o OUT.json] [--install DIR]
 needs: tools/host-build.sh --profile, python3 -m pip install pexpect, gprof
+
+--install plays another install of the host game the same way, without gprof: the bank
+spike's rewritten build (tools/host-build.sh --banked), whose functions check the
+selected bank on entry, so a long game exercises far more of them than the smoke test.
 """
 import argparse
 import json
@@ -75,9 +79,15 @@ def main():
     ap.add_argument("--keys", type=int, default=6000, help="commands to type")
     ap.add_argument("--seed", type=int, default=64)
     ap.add_argument("-o", "--out", default=os.path.join(ROOT, "build", "profile-arcs.json"))
+    ap.add_argument("--install", help="play this install instead, with no call counts")
     a = ap.parse_args()
+    global INST, GAMEDIR, EXE
+    if a.install:
+        INST = os.path.abspath(a.install)
+        GAMEDIR = os.path.join(INST, "nethackdir")
+        EXE = os.path.join(GAMEDIR, "nethack")
     if not os.path.exists(EXE):
-        sys.exit("no profiling build at %s; run tools/host-build.sh --profile" % EXE)
+        sys.exit("no build at %s; run tools/host-build.sh --profile" % EXE)
     gmon = os.path.join(GAMEDIR, "gmon.out")
     if os.path.exists(gmon):
         os.remove(gmon)
@@ -112,6 +122,10 @@ def main():
     levels = sorted(set(int(x) for x in re.findall(r"Dlvl:(\d+)", transcript)))
     print("session: %s%s; commands %s; dungeon levels seen %s" % (
         s.ended, "; " + s.problem if s.problem else "", stats, levels))
+    if a.install:
+        for line in sorted(set(re.findall(r"nhbank: [^\r\n]*", transcript))):
+            print(line)                  # a bank check that stopped the game
+        sys.exit(0 if s.ended == "exit status 0" and not s.problem else 1)
     if not os.path.exists(gmon):
         sys.exit("no gmon.out: the game did not exit normally")
     g = subprocess.run(["gprof", "-b", "-q", EXE, gmon], capture_output=True, text=True)

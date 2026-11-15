@@ -15,6 +15,10 @@
 #   tools/host-build.sh --profile        full build for gprof (-pg, no inlining, no sibling
 #                                        calls, so every call is an arc), installed to
 #                                        build/host-prof-install (tools/profile_play.py)
+#   tools/host-build.sh --banked PLAN    full build of src/ as tools/bank/bankgen.py rewrites it
+#                                        for the bank plan PLAN (bankpart.py --plan-out), installed
+#                                        to build/host-banked-install: the rewrite must not change
+#                                        what the game does (docs/BANKING-SPIKE.md)
 #
 # Needs: gcc, make, ncurses headers, bison/yacc, flex/lex.
 set -euo pipefail
@@ -30,11 +34,20 @@ elif [ "${1:-}" = "--profile" ]; then
   # the banking spike needs call counts per caller and callee (BANKING-SPIKE.md)
   H=build/host-prof; INSTALL=host-prof-install
   SAN="-pg -fno-inline -fno-inline-functions-called-once -fno-optimize-sibling-calls"
+elif [ "${1:-}" = "--banked" ]; then
+  H=build/host-banked; INSTALL=host-banked-install
+  PLAN=$(realpath "${2:?--banked needs a plan file}")
 fi
 rm -rf "$H"; mkdir -p "$H"
 cp -r port/. "$H"/
 cd "$H"
 sh sys/unix/setup.sh > /dev/null
+if [ -n "${PLAN:-}" ]; then
+  # make runs makedefs again for monstr.c and vis_tab.c, so a rewrite of those would be lost
+  (cd src && python3 "$ROOT/tools/bank/bankgen.py" --plan "$PLAN" --dir . --inc ../include \
+      --cpp=-DUNWIDENED_PROTOTYPES --report ../bankgen-report.json \
+      $(ls *.c | grep -v -x -e monstr.c -e vis_tab.c))
+fi
 
 # compiler flags: the converted source is ANSI; keep prototypes narrow like
 # the C64 build (UNWIDENED_PROTOTYPES), silence 1990s-era warnings.

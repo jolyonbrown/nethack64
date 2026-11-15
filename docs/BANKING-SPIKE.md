@@ -171,6 +171,47 @@ rarely fetched, not just rarely crossed. (An Oscar64 EasyFlash program starts wi
 KERNAL run and the cartridge not mapped: the prototype maps the ROMs and initialises
 the CIAs first, as Oscar64's own sample does.)
 
+The REU times vary from run to run of the same binary (2026-11-15: 1 KB took 1,089 and
+1,215 cycles, 16 KB 17,499 and 17,289): the screen is on, so the VIC takes the bus on
+its bad lines and the DMA waits, more or fewer times depending on where the raster is.
+The call times do not vary.
+
+## The bank generator (2026-11-15)
+
+`tools/bank/bankgen.py` rewrites copies of the source files for a bank plan
+(`tools/measure/bankpart.py --plan-out`), with no hand edits to `port/`:
+
+- `#pragma code(nhbank_N)` before each function of bank N, `#pragma code(code)` before
+  resident ones; data stays resident, and a function's literals go with its code.
+- `#define f(...) f__bN(__VA_ARGS__)` renames the definition and is in force only in the
+  file's functions of bank N, so their calls go straight to `f__bN`; calls from elsewhere,
+  and `f` used as a pointer, reach `f`, a resident trampoline appended to the file, which
+  switches the bank and copies string arguments and results out of the window
+  (`nh_stash()`).
+- A function the plan does not name (Oscar64 inlined it in the measurement) follows its
+  callers into their bank when they all share one: Oscar64 inlines a function called once
+  only into a caller in the same section (at `-Os`), so left resident it would stay a
+  separate resident function. 260 functions follow this way.
+- Variadic functions stay resident (a trampoline cannot pass `...` on): the 13 of the
+  message family. So do a name that is also a macro somewhere (4), and `objects.c`, which
+  includes itself.
+
+**Checked on the host.** `tools/host-build.sh --banked build/bankplan-8k.json` builds the
+whole game from the rewritten source: 2,142 functions in 84 banks of 16 KB around an 8 KB
+resident core (the plan from the first simulation, literals spread). On the host each
+banked function checks on entry that its bank is the one selected, so a call that
+reached another bank's function without its trampoline, which on the C64 would run
+whatever the window holds, stops the game. `tests/host_smoke.py` passes on it (play,
+save, restore), and so does a 6,000-command bot game (`tools/profile_play.py --install
+build/host-banked-install`, levels 1-3) with no check firing. With the bank switch taken
+out of the trampolines, makedefs's first banked call stops at its check (`monst_init__b35
+(bank 35) entered with bank 0 selected`), so the checks do run. This covers the paths
+those games take, not the whole game.
+
+**Not yet:** the Oscar64 build of the rewritten source; string literals passed to a
+function that keeps the pointer (`losehp()`'s `killer`, `nomovemsg`, `digtxt`), which
+`nh_stash()`'s four rotating buffers would not keep; the code size of the trampolines.
+
 ## Next
 
 1. **A wider profile:** a bot that plays more of the game (deeper levels, special levels,

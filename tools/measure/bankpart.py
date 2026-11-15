@@ -123,6 +123,10 @@ def main():
                          "each file's functions by code size, since literals travel with their code")
     ap.add_argument("--flash-banks", type=int, default=0,
                     help="hybrid: this many banks execute in place, the coldest rest are REU overlays")
+    ap.add_argument("--plan-out", default=None,
+                    help="write the partition for the first --resident budget as JSON "
+                         "{\"banks\": {\"file.c:name\": bank}}, banks numbered from 1 "
+                         "(tools/bank/bankgen.py reads it)")
     a = ap.parse_args()
     size, home, arcs, turns, p = load(a.graph, a.profile)
     if a.literals:
@@ -139,9 +143,13 @@ def main():
         sum(p["commands"].values()), p["levels"], total, turns))
     print("code: %d functions, %d B; bank size %d B" % (len(size), sum(size.values()), a.bank))
     print("%9s %8s %6s %14s %10s" % ("resident", "used", "banks", "calls leaving", "per turn"))
-    for r in a.resident:
+    for n, r in enumerate(a.resident):
         resident, used, bins, cross = partition(size, arcs, r, a.bank)
         print("%9d %8d %6d %14d %10.1f" % (r, used, len(bins), cross, cross / turns))
+        if a.plan_out and n == 0:
+            plan = {"%s:%s" % (home[f], f): i + 1 for i, b in enumerate(bins) for f in b["funcs"]}
+            json.dump({"bank_size": a.bank, "resident_budget": r, "resident": sorted(resident),
+                       "banks": plan}, open(a.plan_out, "w"), indent=0, sort_keys=True)
         if a.flash_banks and len(bins) > a.flash_banks:
             where = {f: i for i, b in enumerate(bins) for f in b["funcs"]}
             into = collections.Counter()
