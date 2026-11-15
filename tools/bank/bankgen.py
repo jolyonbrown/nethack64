@@ -97,6 +97,8 @@ def definitions(toks):
             depth -= 1
             if depth == 0:
                 start = i + 1
+                if cur is not None:
+                    cur["end"] = line
                 cur = None
         elif t == ";" and depth == 0:
             start = i + 1
@@ -159,6 +161,83 @@ def signature(d):
     return ret, params, variadic
 
 
+KEEP_EXTERN = re.compile(r"(?m)^E\s+(?:NEARDATA\s+)?(?:const\s+)?char\s*\*\s*([A-Za-z_]\w*)\s*;")
+KEEP_STATIC = re.compile(r"(?m)^(?:static|STATIC_VAR|STATIC_OVL)\s+(?:NEARDATA\s+)?(?:const\s+)?char\s*\*\s*"
+                         r"([A-Za-z_]\w*)\s*(?:=[^;(]*)?;")
+LITERAL = re.compile(r'"(?:[^"\\\n]|\\.)*"')
+KEEP_SIZE = 128
+
+
+def keep(raw, li, last, f, keep_extern, keep_static, banked, bufs, report):
+    """Wrap the assignments to keeper variables that start on raw[li] in NH_KEEP; the
+    statement may end on a later line of the function (up to line `last`)."""
+    line, n = raw[li], li + 1
+    code = LITERAL.sub(lambda m: "\0" * len(m.group(0)), line)   # find `=` outside strings
+    out, pos, tail = [], 0, None
+    for m in re.finditer(r"\b([A-Za-z_]\w*)\s*=(?!=)", code):
+        name = m.group(1)
+        if name not in keep_extern and name not in keep_static:
+            continue
+        if m.start() > 0 and code[:m.start()].rstrip()[-1:] in (".", ">"):
+            continue                                       # a struct member of that name
+        end = code.find(";", m.end())
+        if end >= 0:
+            rhs, lj = code[m.end():end], li
+        else:                                              # the statement goes on
+            rest = [code[m.end():]]
+            for lj in range(li + 1, min(last, li + 6)):
+                c2 = LITERAL.sub(lambda x: "\0" * len(x.group(0)), raw[lj])
+                if ";" in c2:
+                    rest.append(c2[:c2.index(";")])
+                    break
+                rest.append(c2)
+            else:
+                report["keep_unhandled"].append("%s:%d" % (f, n))
+                continue
+            rhs = " ".join(rest)
+        if "=" in rhs.replace("==", "").replace("!=", "").replace("<=", "").replace(">=", "") \
+                or top_comma(rhs) or tail is not None:
+            report["keep_unhandled"].append("%s:%d" % (f, n))
+            continue
+        buf = "nh_keep_" + name if name in keep_extern else "nh_keep_%s_%s" % (f[:-2], name)
+        if name not in keep_extern and (buf, KEEP_SIZE) not in bufs:
+            bufs.append((buf, KEEP_SIZE))
+        if lj == li:
+            out.append(line[pos:m.end()] + " NH_KEEP(%s, %s)" % (buf, line[m.end():end].strip()))
+            pos = end
+        else:
+            out.append(line[pos:m.end()] + " NH_KEEP(%s," % buf + line[m.end():])
+            pos = len(line)
+            tail = lj
+        report["kept"] += 1
+    if banked and tail is None:
+        # a literal stored in a struct field (options.c: obj_descr[...].oc_name = "fruit")
+        for m in re.finditer(r"(?:->|\.)\s*[A-Za-z_]\w*\s*=\s*(\"(?:[^\"\\\n]|\\.)*\")\s*;", line):
+            if m.start(1) < pos:
+                continue
+            buf = "nh_keep_%s_%d" % (f[:-2], n)
+            bufs.append((buf, len(m.group(1))))
+            out.append(line[pos:m.start(1)] + "NH_KEEP(%s, %s)" % (buf, m.group(1)))
+            pos = m.end(1)
+            report["kept_fields"].append("%s:%d" % (f, n))
+    if out:
+        raw[li] = "".join(out) + line[pos:]
+    if tail is not None:
+        c2 = LITERAL.sub(lambda x: "\0" * len(x.group(0)), raw[tail])
+        k = c2.index(";")
+        raw[tail] = raw[tail][:k] + ")" + raw[tail][k:]
+
+
+def top_comma(text):
+    depth = 0
+    for c in text:
+        depth += c in "(["
+        depth -= c in ")]"
+        if c == "," and depth == 0:
+            return True
+    return False
+
+
 def insertion_line(raw, line):
     """Index (0-based) of the first line of the declaration whose name is on `line`
     (1-based): back over the return type, up to a blank line, a comment, a directive or
@@ -203,6 +282,14 @@ def main():
         text = preprocess(path, a.inc, a.cpp)
         info[f] = definitions(tokens(text, path))
         macros |= set(re.findall(r"(?m)^#define\s+([A-Za-z_]\w*)", preprocess_dm(path, a.inc, a.cpp)))
+    # Global `char *` variables: one may be given a literal of a banked function, or a
+    # trampoline's temporary copy of one, and be read after that bank is unmapped or the
+    # copy reused, so assignments to them keep a copy (NH_KEEP, nhbank.h)
+    keep_extern = set()
+    for d in a.inc:
+        for h in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+            if h.endswith(".h"):
+                keep_extern |= set(KEEP_EXTERN.findall(open(os.path.join(d, h), encoding="latin-1").read()))
     # a struct member called like a function (`p->name(...)`) would be renamed too
     members = set()
     for f in files:
@@ -210,7 +297,9 @@ def main():
         members |= set(re.findall(r"(?:\.|->)\s*([A-Za-z_]\w*)\s*\(", code))
 
     report = {"banked": 0, "resident": 0, "kept_resident": {}, "trampolines": 0, "banks": set(),
-              "followed_callers": 0, "files_left_alone": selfinc, "entry_checks": 0, "shadowed": []}
+              "followed_callers": 0, "files_left_alone": selfinc, "entry_checks": 0, "shadowed": [],
+              "used_bare": [], "kept": 0, "kept_fields": [], "keep_unhandled": [],
+              "keep_globals": sorted(keep_extern)}
     bank_of, sig_of = {}, {}
 
     def place(f, d, b):
@@ -292,16 +381,33 @@ def main():
         first = True
         for d in defs:
             b = bank_of.get("%s:%s" % (f, d["name"]))
-            if b is not None and d["brace"] and raw[d["brace"] - 1].strip() == "{":
+            if b is None:
+                continue
+            # the definition is renamed in the text, not by the macro, which Oscar64
+            # cannot have in force wherever the name appears without a `(` (r61)
+            li = d["line"] - 1
+            new = re.sub(r"\b%s(\s*\()" % re.escape(d["name"]), r"%s__b%d\1" % (d["name"], b), raw[li], count=1)
+            if new == raw[li]:
+                sys.exit("%s:%d: cannot find the definition of %s" % (f, d["line"], d["name"]))
+            raw[li] = new
+            if d["brace"] and raw[d["brace"] - 1].strip() == "{":
                 inserts.setdefault(d["brace"], []).append("NH_ENTER(%d)" % b)
                 report["entry_checks"] += 1
-        for run in runs:
+        starts = [insertion_line(raw, run["defs"][0]["line"]) for run in runs] + [len(raw)]
+        keep_static = set(KEEP_STATIC.findall("\n".join(raw)))
+        keep_bufs = []
+        for d in defs:
+            banked = "%s:%s" % (f, d["name"]) in bank_of
+            for li in range(d["brace"] - 1, d.get("end", d["brace"])):
+                keep(raw, li, d.get("end", d["brace"]), f, keep_extern, keep_static, banked, keep_bufs, report)
+        for k, run in enumerate(runs):
             b = run["bank"]
             lines = []
             if first:
                 if f == a.define_in:
                     lines.append("#define NHBANK_DEFINE")
                 lines.append('#include "nhbank.h"')
+                lines += ["NH_KEEPBUF(static char %s[%d];)" % (n, size) for n, size in keep_bufs]
                 first = False
             lines.append("#pragma code(%s)" % ("nhbank_%d" % b if b is not None else "code"))
             lines += ["#undef %s" % n for n in sorted(defined_macros)]
@@ -324,7 +430,17 @@ def main():
                 for n in sorted(shadowed & set(names)):
                     report["shadowed"].append("%s:%s" % (f, n))
                     del names[n]
-                for n in sorted(names):
+                # Oscar64 expands a function-like macro's name even with no `(` after it
+                # (r61): a name the run uses so (a struct member, a function pointer)
+                # gets no macro in this run, and its calls here go through the trampoline
+                code = COMMENT_OR_STRING.sub(" ", "\n".join(raw[starts[k]:starts[k + 1]]))
+                bare = set(re.findall(r"\b([A-Za-z_]\w*)\b(?!\s*\()", code))
+                for n in sorted(bare & set(names)):
+                    report["used_bare"].append("%s:%s" % (f, n))
+                    del names[n]
+                for d in run["defs"]:
+                    names.setdefault(d["name"], d)    # declared, not renamed by macro
+                for n in sorted(set(names) - bare - shadowed):
                     lines.append("#define %s(...) %s__b%d(__VA_ARGS__)" % (n, n, b))
                     defined_macros.add(n)
                 for n in sorted(names):
@@ -335,8 +451,7 @@ def main():
                         lines.append(p)
                         declared.add(n)
                 report["banks"].add(b)
-            line = insertion_line(raw, run["defs"][0]["line"])
-            inserts.setdefault(line, []).extend(lines)
+            inserts.setdefault(starts[k], []).extend(lines)
         tail = []
         if first:
             if f == a.define_in:
@@ -364,7 +479,7 @@ def main():
         out += ["", "/* bankgen: trampolines */"] + tail + [""]
         open(path, "w", encoding="latin-1").write("\n".join(out))
 
-    open(os.path.join(a.dir, "nhbank.h"), "w").write(header(sorted(report["banks"])))
+    open(os.path.join(a.dir, "nhbank.h"), "w").write(header(sorted(report["banks"]), keep_extern))
     report["banks"] = sorted(report["banks"])
     if a.report:
         json.dump(report, open(a.report, "w"), indent=1, sort_keys=True)
@@ -400,7 +515,9 @@ def trampoline(d, sig, bank):
     return "__noinline %s\n{\n%s\n}" % (head, "\n".join(body))
 
 
-def header(banks):
+def header(banks, keep_extern=()):
+    bufs_decl = "\n".join("extern char nh_keep_%s[%d];" % (n, KEEP_SIZE) for n in sorted(keep_extern))
+    bufs_def = "\n".join("char nh_keep_%s[%d];" % (n, KEEP_SIZE) for n in sorted(keep_extern))
     regions = "\n".join("#pragma section( nhbank_%d, 0 )\n#pragma region( nhbank_%d_r, 0x8000, 0xc000, , %d, "
                         "{ nhbank_%d } )" % (b, b, b, b) for b in banks)
     return """/* nhbank.h - written by tools/bank/bankgen.py: the banks, the bank switch and the
@@ -419,6 +536,12 @@ extern char *nh_stash(const char *s);
 #define NH_IN_WINDOW(p) ((unsigned)(p) >= 0x8000u && (unsigned)(p) < 0xc000u)
 #define NH_STASH(p) (NH_IN_WINDOW(p) ? nh_stash(p) : (p))
 #define NH_ENTER(n)
+/* a pointer about to be kept in a variable: a literal in the bank window, or a
+ * trampoline's temporary copy, is copied into the variable's own buffer */
+extern char *nh_keep(char *buf, unsigned size, const char *p);
+#define NH_KEEP(buf, p) nh_keep((buf), sizeof(buf), (p))
+#define NH_KEEPBUF(decl) decl
+%s
 
 #ifdef NHBANK_DEFINE
 unsigned char nh_bank;
@@ -438,6 +561,20 @@ nh_stash(const char *s)
 	d[i] = 0;
 	return d;
 }
+
+char *
+nh_keep(char *buf, unsigned size, const char *p)
+{
+	unsigned i;
+
+	if (!p || (!NH_IN_WINDOW(p) && (p < nh_stash_buf[0] || p >= nh_stash_buf[4])))
+		return (char *)p;
+	for (i = 0; i + 1 < size && p[i]; i++)
+		buf[i] = p[i];
+	buf[i] = 0;
+	return buf;
+}
+%s
 #endif
 
 #else
@@ -464,10 +601,12 @@ nh_enter(int n, const char *f)
 #define NH_BANK(n) (nh_bank = (n))
 #define NH_STASH(p) (p)
 #define NH_ENTER(n) int nh_entered = nh_enter((n), __FUNCTION__);
+#define NH_KEEP(buf, p) (p)
+#define NH_KEEPBUF(decl)
 #endif
 
 #endif
-""" % regions
+""" % (regions, bufs_decl, bufs_def)
 
 
 if __name__ == "__main__":

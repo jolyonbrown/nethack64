@@ -195,6 +195,19 @@ The call times do not vary.
 - Variadic functions stay resident (a trampoline cannot pass `...` on): the 13 of the
   message family. So do a name that is also a macro somewhere (4), and `objects.c`, which
   includes itself.
+- Oscar64 expands a function-like macro's name even with no `(` after it (r61, compat #63),
+  so the definitions are renamed in the text, and a run of code gets no macro for a name
+  it uses without `(`, as a struct member (`botl.c`'s `role->rank[i]`) or a function
+  pointer: 12 names in this plan, whose calls there go through the trampoline.
+- A pointer kept in a global outlives the call that made it: `killer = "falling rock"` in
+  a banked function, or `occtxt = txt` given a trampoline's temporary copy. Every
+  assignment to a global or file-static `char *` (`killer`, `delayed_killer`,
+  `nomovemsg`, `occtxt`, ... and 2 file statics) is wrapped in `NH_KEEP()`, which copies
+  a pointer into the bank window or into a temporary copy into that variable's own
+  128-byte buffer and leaves any other pointer alone (`nomovemsg == eatmbuf` still
+  works); 158 assignments, and the one literal stored in a struct field
+  (`options.c`'s `obj_descr[SLIME_MOLD].oc_name = "fruit"`). None of these globals is
+  compared as a pointer except that one.
 
 **Checked on the host.** `tools/host-build.sh --banked build/bankplan-8k.json` builds the
 whole game from the rewritten source: 2,142 functions in 84 banks of 16 KB around an 8 KB
@@ -208,9 +221,9 @@ out of the trampolines, makedefs's first banked call stops at its check (`monst_
 (bank 35) entered with bank 0 selected`), so the checks do run. This covers the paths
 those games take, not the whole game.
 
-**Not yet:** the Oscar64 build of the rewritten source; string literals passed to a
-function that keeps the pointer (`losehp()`'s `killer`, `nomovemsg`, `digtxt`), which
-`nh_stash()`'s four rotating buffers would not keep; the code size of the trampolines.
+**Not yet:** the Oscar64 build of the rewritten source; the code size of the
+trampolines; pointers into a bank kept anywhere but those variables (none found by
+these patterns, but they are patterns).
 
 ## Next
 
