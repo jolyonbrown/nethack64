@@ -1,6 +1,7 @@
 # RAM plan (T2.3): the data does not fit a 64 KB address space
 
-Status 2026-11-15: measured, not decided. The question for Jolyon is at the end.
+Status 2026-11-15: measured; Jolyon chose far data in the compiler (option 1), to be designed
+from experiments. The direction after the brainstorm is at the end.
 
 ## What the CPU can see
 
@@ -29,15 +30,15 @@ many banks, so it has to be in view whenever that code runs:
 | `rooms[]`, `u`, `mvitals`, `dungeons`, `bufs`, other globals | about 21 KB | |
 | other initialised tables (`obj_descr`, `roles`, `artilist`, options, ...) | about 22 KB | mostly constant |
 | strings in resident code and file-scope tables | 37.7 KB | constant; 3,288 objects, nearly all under 64 B |
-| static frames of non-recursive functions | 11.5 KB | many 256-byte `BUFSZ` buffers |
+| static frames of non-recursive functions | 3.2 KB | 2,306 frames, 11.2 KB in sum, many 256-byte `BUFSZ` buffers: Oscar64 already lays frames that are never live together over each other |
 | heap: monsters and objects of the level, inventory | about 5-15 KB | estimate (ARCHITECTURE.md), not measured yet |
 | software stack | about 4-6 KB | estimate |
 | resident code | 65.1 KB | could come down to perhaps 15-20 KB (string trampolines, stubs, libc) |
 
 Even leaving out every constant table and string, the mutable data alone (level, grids,
-globals, heap, frames, stack) comes to roughly 70-85 KB, while the RAM left beside a minimal
-resident code comes to about 25-40 KB. With the constants it is about 165-175 KB (the
-measured 155 KB plus the heap and the stack).
+globals, heap, frames, stack) comes to roughly 62-77 KB, while the RAM left beside a minimal
+resident code comes to about 25-40 KB. With the constants it is about 155-170 KB (the map's
+155 KB counts each frame on its own, 8 KB more than they take; plus the heap and the stack).
 `mons[]`, `objects[]` and `level` together, 49 KB, are more than any configuration above
 shows the CPU.
 
@@ -228,3 +229,48 @@ in the emulator's profile:
   tens of cycles.
 
 Both change speed only; the game computes the same values.
+
+## The brainstorm and the direction (2026-11-15)
+
+Four models worked from one brief, independently (docs/research/2026-11-15-brainstorm/: Fable
+on the compiler and the code, GPT-6 Astra on hardware and prior art, GPT-6.1 Sol on 6502
+techniques, Gemini for the widest list). Checked against the code, the docs or a rerun:
+
+- **Map indexing without a multiply** (all four). A table of the 80 column pointers behind
+  `levl` (160 bytes) makes the real `is_pool`/`is_lava` 2.0x and `mfndpos` 1.33x faster with
+  the same checksums (Fable's run, reproduced). Oscar64 tables a constant multiply only when the
+  index is a byte known to be under 16, and inlines only a few factors (3, 5, 7, 9, 25 after
+  shifts; `ShortMultiply` in `NativeCodeGenerator.cpp`), so a compiler change would cover every
+  stride at once (`level.objects` 42, `mons[]` 55, ...).
+- **`dist2()` through a table of squares** (all four), about 0.15-0.2 s a turn.
+- **Fewer translations rather than a bigger cache**: 8,000 fewer translations save about 170 ms
+  a turn; 128 pages instead of 64 save 70-90 ms for 16 KB more.
+- **Typed far spaces with 16-bit pointers** (Fable): each far type gets an address space of its
+  own, under 64 KB, so a `struct permonst *` stays two bytes and the type says which translation
+  table to use; structures and save files keep their layout. The hard cases are `char *` and
+  `genericptr_t`.
+- **The RNG is missing from the estimate above** (Fable): `Rand()` is `lrand48()`, not written
+  for the C64 yet (T2.7); in C it costs about 4,900 cycles a call, 36 calls a turn, about 0.2 s;
+  in assembler about 50 ms.
+- Smaller: `isok()` inline (649 calls a turn), `monsndx()` divides by 55, `rn2()` with a
+  constant argument at 1,100 of 1,366 sites, 128-byte map columns (two to a page, no cell
+  across a page), an assembler fault handler (603 to about 350 cycles, 25-44 ms a turn), a
+  status line that formats and draws only what changed. Undocumented opcodes save a cycle here
+  and there (`LAX`, `DCP`), not on the translation path.
+- **Hardware**: the Ultimate 64 runs its CPU at up to 48 MHz and the Elite-II and C64 Ultimate
+  at up to 64 MHz, the cartridge port at 1 MHz (1541u-documentation, "Turbo mode settings"); the
+  C128 offers shared RAM between its banks, the VDC's own 80-column memory and 2 MHz. The
+  REU-aware EasyFlash sub-type is already in HARDWARE.md.
+- **Corrections**: 103 banks of 16 KB are more than a 1 MB EasyFlash and a 512 KB REU, and REU
+  memory does not execute, so 39 banks have to be copied in to run (ADR-0008); the static
+  frames take 3.2 KB, not 11.5 KB (above); `time` is off by default, so the status line
+  measured here is the worst case; the REU's compare command needs a read of `$DF00`.
+- **Not taken**: keeping the heap and the level near (they hold 77% of the far accesses, but
+  with about 21 KB left beside the code, the stack and the frames, they do not fit); an early
+  return for sleeping monsters (`dochug()` has one, `monmove.c` 305 and 314).
+
+Jolyon's direction: make the `#ifdef C64` changes now (the column table, the squares table,
+`isok()` inline, a bit-exact `lrand48` in assembler), the compiler fixes after them; run the
+far-data experiments comparing 3-byte pointers with typed 16-bit spaces; keep the C128 in view;
+the Ultimate family runs the C64 build by emulation; a stock C64 stays a stretch, but one to
+test (ADR-0003's amendment).

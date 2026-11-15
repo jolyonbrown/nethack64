@@ -7,8 +7,9 @@ Details live in `docs/`.
 ## What we are building
 
 The real NetHack 3.4.3, compiled from its own C source, running on a
-Commodore 64. Primary target: **EasyFlash cartridge + REU** (VICE and the
-Ultimate family / C64 Ultimate). Fallbacks: C128, then (stretch) stock C64.
+Commodore 64. Primary target: **EasyFlash cartridge + REU**, in VICE first (the Ultimate
+family / C64 Ultimate should run the same build by emulation). Next: a C128 conversion
+(ADR-0003). Stretch, but one to test: stock C64.
 We **port**, we do not rewrite: game logic stays NetHack's code. Our work is
 making it fit: compiler compatibility, banking, memory, I/O, an 80-column
 window port.

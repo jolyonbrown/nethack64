@@ -503,6 +503,10 @@ Add new tasks at the bottom of the right section.
       `if (...) goto x;`, a new compiler gap), `pline.c` only at the harness's own stub
       for `pline` (defined through `VA_DECL`, T1.10), `invent.c` and `options.c` at
       their earlier errors as before. Totals unchanged: C64 45/107, UNIX 40/107.
+- [ ] T1.49 Compiler speed for NetHack's idioms, after T2.10 (Jolyon, 2026-11-15: "the compiler
+      fixes afterward as you see fit"): constant multiplies by shifts and adds, byte-index
+      tables up to 256 entries, division by constants, narrowing of promoted `xchar` loop
+      variables (RAM-PLAN.md, the brainstorm); pin additions with an explanation each.
 
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 
@@ -523,7 +527,8 @@ Add new tasks at the bottom of the right section.
 - [ ] T2.2 Banking spike B (REU overlays) with the same files (BANKING-SPIKE.md)
 - [ ] T2.3 RAM map for dynamic state; BUFSZ policy ADR
       — 2026-11-15: measured (docs/RAM-PLAN.md): what NetHack reaches through plain
-      pointers is about 165-175 KB (mutable alone 70-85 KB; `mons[]`, `objects[]` and
+      pointers is about 155-170 KB (mutable alone 62-77 KB, corrected the same day: Oscar64
+      overlays the static frames, 3.2 KB not 11.5; `mons[]`, `objects[]` and
       `level` 49 KB), against 34-55 KB of RAM a C64 can show the CPU. Banking the code does
       not help: the data needs wider pointers (the DOS builds use far data, `-mh`/`/AL`) or a
       restructuring. Direction is Jolyon's to choose.
@@ -603,6 +608,14 @@ Add new tasks at the bottom of the right section.
 - [ ] T2.7 RNG + clock ADR before Phase 3 first light: which generator implements
       `lrand48`/`srand48` (exact, for seed-for-seed replays vs the host, or faster), seed
       width, clock source for seeding, moon phase, Friday 13th and `night()`/`midnight()`
+      — 2026-11-15: the generator: bit-exact `lrand48` in assembler (Jolyon, with the
+      `#ifdef C64` changes, T2.10); in C it would cost about 0.2 s a turn (RAM-PLAN.md).
+- [ ] T2.10 Speed amendments behind `#ifdef C64` (Jolyon, 2026-11-15: "i love the changes
+      behind #ifdef C64 - yes lets make those"): `levl` through a table of column pointers,
+      `dist2()` through a table of squares, `isok()` inline; identical results (host build,
+      smoke test, the calibration harness's checksums), cycles re-measured.
+- [ ] T2.11 Far-data experiments: 3-byte far pointers against typed far spaces with 16-bit
+      pointers (RAM-PLAN.md, the brainstorm), `mons[]` first; then the far-data ADR.
 
 ## Housekeeping
 
