@@ -31,6 +31,9 @@
 
 /* the globals the extracted functions read (decl.c's, and engrave.c's file-scope list) */
 dlevel_t level;
+#ifdef C64
+struct rm_s * const nh_levl_cols[COLNO] = LEVL_COLS_INIT;	/* rm.h */
+#endif
 struct you_s u;
 struct monst_s youmonst;
 struct trap_s *ftrap;

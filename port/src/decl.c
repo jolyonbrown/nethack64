@@ -143,6 +143,9 @@ NEARDATA struct mkroom_s* subrooms = &rooms[MAXNROFROOMS+1];
 struct mkroom_s *upstairs_room, *dnstairs_room, *sstairs_room;
 
 dlevel_t level;		/* level map */
+#ifdef C64
+struct rm_s * const nh_levl_cols[COLNO] = LEVL_COLS_INIT;	/* rm.h */
+#endif
 struct trap_s *ftrap = (struct trap_s *)0;
 NEARDATA struct monst_s youmonst = DUMMY;
 NEARDATA struct flag_s flags = DUMMY;

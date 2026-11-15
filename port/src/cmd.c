@@ -2,6 +2,7 @@
 /* Copyright (c) Stichting Mathematisch Centrum, Amsterdam, 1985. */
 /* NetHack may be freely redistributed.  See license for details. */
 
+#define NH_ISOK_FUNCTION	/* isok() is defined here, not inline (hack.h) */
 #include "hack.h"
 #include "func_tab.h"
 /* #define DEBUG */	/* uncomment for debugging */

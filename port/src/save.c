@@ -505,7 +505,7 @@ savelev(int fd, xchar lev, int mode)
 	    }
 	}
 #else
-	bwrite(fd,(genericptr_t) levl,sizeof(levl));
+	bwrite(fd,(genericptr_t) level.locations,sizeof(level.locations));
 #endif /* RLECOMP */
 
 	bwrite(fd,(genericptr_t) &monstermoves,sizeof(monstermoves));

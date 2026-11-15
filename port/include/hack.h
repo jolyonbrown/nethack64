@@ -128,6 +128,24 @@ NEARDATA extern coord bhitpos;	/* place where throw or zap hits or stops */
 #include "extern.h"
 #endif /* USE_TRAMPOLI */
 
+#if defined(C64) && !defined(NH_ISOK_FUNCTION)
+/*
+ * isok() inline: some 650 calls a turn (docs/RAM-PLAN.md), each about 50
+ * cycles of call and return on the 6502 around a test of 20.  The function
+ * itself stays in cmd.c, which defines NH_ISOK_FUNCTION.  One unsigned
+ * comparison for each range gives the same answer for every int.  An
+ * object-like macro, so that the name alone (a generated table of function
+ * addresses) is not an error under Oscar64 (compat #63, r61).
+ */
+static inline int
+nh_isok(int x, int y)
+{
+	return (unsigned) x - 1U < (unsigned) (COLNO - 1) &&
+	       (unsigned) y < (unsigned) ROWNO;
+}
+#define isok	nh_isok
+#endif
+
 #define NO_SPELL	0
 
 /* flags to control makemon() */

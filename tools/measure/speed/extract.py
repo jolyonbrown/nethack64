@@ -8,8 +8,8 @@ A function is found by its definition line (`name(` at the start of a line, as t
 conversion left every one in port/src); its return type is the line before, and it ends at the
 first `}` in column 0.  The functions of each source file go to DIR/x_<file>.c, one translation
 unit each as in the game, so gcc inlines across them no more than in the host build; each starts
-with its source's own #include lines.  A static one (STATIC_OVL) gets a prototype at the top of
-its file.  #line keeps port/src's file names and line numbers in compiler messages and debug
+with its source's own #include lines, and the preprocessor lines before them that configure the
+headers (cmd.c's NH_ISOK_FUNCTION, mon.c's MICROPORT_BUG block).  A static one (STATIC_OVL) gets a prototype at the top of its file.  #line keeps port/src's file names and line numbers in compiler messages and debug
 information.
 """
 import argparse
@@ -20,6 +20,8 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# the preprocessor lines before a file's first #include, kept with their conditionals
+PRE = r"^#\s*(if|ifdef|ifndef|elif|else|endif|define|undef)\b"
 # file-scope statics an extracted function reads, defined in cal.c instead
 PRELUDE = {"engrave.c": "extern struct engr_s *head_engr;\n"}
 
@@ -53,8 +55,11 @@ def main():
         path, start, text = find(name, files)
         protos, bodies = units.setdefault(os.path.basename(path), ([], []))
         if not protos and not bodies:
-            incs[os.path.basename(path)] = [l for l in open(path, errors="replace").read().split("\n")
-                                            if re.match(r"^#\s*include\b", l)]
+            lines = open(path, errors="replace").read().split("\n")
+            first = next(i for i, l in enumerate(lines) if re.match(r"^#\s*include\b", l))
+            incs[os.path.basename(path)] = [l for i, l in enumerate(lines)
+                                            if re.match(r"^#\s*include\b", l) or
+                                            (i < first and re.match(PRE, l))]
         if re.match(r"^(STATIC_OVL|static)\b", text[0]):
             protos.append("%s %s;" % (text[0].strip(), re.sub(r"\s*/\*.*\*/\s*$", "", text[1])))
         bodies.append('#line %d "%s"\n%s\n' % (start + 1, os.path.relpath(path, ROOT), "\n".join(text)))

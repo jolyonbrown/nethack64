@@ -747,7 +747,7 @@ getlev(int fd, int pid, xchar lev, boolean ghostly)
 		}
 	}
 #else
-	mread(fd, (genericptr_t) levl, sizeof(levl));
+	mread(fd, (genericptr_t) level.locations, sizeof(level.locations));
 #endif	/* RLECOMP */
 
 	mread(fd, (genericptr_t)&omoves, sizeof(omoves));

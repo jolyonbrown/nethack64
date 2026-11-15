@@ -492,7 +492,28 @@ extern dlevel_t level;	/* structure describing the current level */
 /*
  * Macros for compatibility with old code. Someday these will go away.
  */
+#ifdef C64
+/*
+ * levl[x][y] through a table of the columns' addresses.  A column is ROWNO
+ * cells of 6 bytes, and Oscar64 multiplies by 126 with its general routine,
+ * about 250 cycles an access; the table costs 160 bytes (docs/RAM-PLAN.md).
+ * The array is still level.locations, which save.c and restore.c use whole.
+ */
+#if COLNO != 80
+ #error "LEVL_COLS_INIT lists 80 columns"
+#endif
+#define LEVL_COL10(c)	level.locations[c], level.locations[c+1], \
+	level.locations[c+2], level.locations[c+3], level.locations[c+4], \
+	level.locations[c+5], level.locations[c+6], level.locations[c+7], \
+	level.locations[c+8], level.locations[c+9]
+#define LEVL_COLS_INIT	{ LEVL_COL10(0), LEVL_COL10(10), LEVL_COL10(20), \
+	LEVL_COL10(30), LEVL_COL10(40), LEVL_COL10(50), LEVL_COL10(60), \
+	LEVL_COL10(70) }
+extern struct rm_s * const nh_levl_cols[COLNO];
+#define levl		nh_levl_cols
+#else
 #define levl		level.locations
+#endif
 #define fobj		level.objlist
 #define fmon		level.monlist
 
