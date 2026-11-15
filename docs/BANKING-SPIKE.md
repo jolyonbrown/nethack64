@@ -65,6 +65,10 @@ source scan (preprocessed, each file's own code) gives the size of the problem:
 - Oscar64 places code in banks with `#pragma region(name, start, end, , bank, {...})` and
   reports a function's bank with `__bankof()`. Its cross-bank call helper `EF_CALL` is C++,
   so C needs generated trampolines.
+- Checked 2026-11-14: a banked function's string literals go into its bank, after its code
+  (the bank's code section), and a static `const` table into the bank's data section; only
+  resident code's literals are copied to RAM at boot. So the constant-data rules below
+  apply as stated: nothing moves literals out of a bank by itself.
 - Checked 2026-11-14: `__VA_ARGS__` macros work, and a `#define` in one source file does not
   reach the next file of the same compile. So a per-bank wrapper file can
   `#define f(...) f_B(__VA_ARGS__)` and `#include` the unchanged NetHack file: calls inside
