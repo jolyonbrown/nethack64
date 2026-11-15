@@ -358,6 +358,13 @@ Add new tasks at the bottom of the right section.
       `codex/r60-mattackm`) and was cut off the same way while reducing `mattackm()`, which
       may itself be what the filter dislikes (monster combat code). Repro, test and checks
       left to Claude.
+      — 2026-11-15: done, as pin candidate commits 60-61 (branch `codex/r60-mattackm`, 85030a2;
+      Codex's fix, Claude's test `joinentryzptest.c`), for Jolyon's decision. Repro r60 (34
+      lines; compat #62) aborts on v1.32.273, the pin and upstream main (7a37b06) at every
+      native level. With the fix: autotest 1,531 emulations, none failing (1,521 before, plus
+      the new test's 10); corpus 984 of 984 programs identical, the new test and repro crash
+      -> ok; the other 107 NetHack files' listings, maps and labels identical; `mhitm.c`
+      compiles (23,380 B); `.crt` 875297a7 and `.prg` 2a6c8dfd unchanged; `make test` 5/5.
 - [x] T1.44 Two compiler aborts left in the C64 run, both in the native code generator
       at `-Os`: `muse.c` (`rnd_defensive_item`: an index assertion in
       `NativeCodeBasicBlock::BinaryAddCarry`, with the 48 commits; it showed once the

@@ -13,7 +13,7 @@ Measured 2026-11-14, C64 configuration, the 59-commit compiler, with the harness
 
 | Item | Size | Notes |
 |---|---|---|
-| Code | **≈ 1.19 MB** | 1,161,881 B in the 107 files that compile, 8.9 B/line, plus about 24 KB for `mhitm.c` (a compiler abort, T1.45). 1,964 functions; the largest is `doapply()` at 11,208 B; 10 are over 8 KB, none over 16 KB |
+| Code | **≈ 1.19 MB** | 1,161,881 B in the 107 files that compile, 8.9 B/line, plus 23,380 B for `mhitm.c`, which aborts the compiler (T1.45; measured with the candidate fix, pin commits 60-61): 1,185,261 B in all. 1,964 functions; the largest is `doapply()` at 11,208 B; 10 are over 8 KB, none over 16 KB |
 | String literals | 210,562 B | 13,134 literals in the files' own code (`options.c` 9.6 KB, `trap.c` 9.4 KB, `apply.c` 8.6 KB); not merged across functions |
 | Named initialised data | ≈ 61 KB | `mons[]` 21,065 B, `objects[]` 11,284 B, `rooms[]` 4,920 B, `obj_descr[]`, `roles[]`, `u`, `artilist[]` |
 | Dynamic state | 45-60 KB | T2.3; the current level alone is 16,813 B |
