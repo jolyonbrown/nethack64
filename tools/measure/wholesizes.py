@@ -41,7 +41,7 @@ def main():
                     help="add the literals placed after each function to its size")
     a = ap.parse_args()
 
-    code, lit, last, left = {}, {}, {}, {}
+    code, lit, last, left, sec_of = {}, {}, {}, {}, {}
     for line in open(a.map, errors="replace"):
         m = OBJ.match(line)
         if not m:
@@ -51,6 +51,7 @@ def main():
         if m.group(4) == "NATIVE_CODE":
             if n > 0:
                 code[m.group(3)] = (n, m.group(5).startswith("nhbank_"))
+                sec_of[m.group(3)] = m.group(5)
                 if placed:
                     last[m.group(5)] = m.group(3)
         elif m.group(4) == "DATA" and placed and n > 0 and m.group(3) == "*" and m.group(5) in last:
@@ -60,8 +61,7 @@ def main():
             left[m.group(5)] = left.get(m.group(5), 0) + n
     if a.with_literals:
         for sec, n in left.items():
-            owners = {f: k for f, k in lit.items() if f in code and last.get(sec) and
-                      (sec == "code" or f.endswith("__b" + sec.rsplit("_", 1)[-1]))}
+            owners = {f: k for f, k in lit.items() if f in code and last.get(sec) and sec_of.get(f) == sec}
             share = sum(owners.values())
             for f, k in owners.items():
                 lit[f] += n * k // share
@@ -100,7 +100,7 @@ def main():
             continue
         size = twins.get(name, n)
         if a.with_literals:
-            size += lit.get("%s__b%s" % (name, k.rsplit("__b", 1)[1]) if banked else k, 0)
+            size += lit.get(k, 0)        # the object's own literals (a banked twin's, not its trampoline's)
         out[name] = {"size": size, "file": f}
     json.dump({"functions": out}, open(a.out, "w"), indent=0, sort_keys=True)
     print("%d functions, %d B%s, from %d files; %d code objects outside NetHack's sources" % (

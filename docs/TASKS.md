@@ -576,6 +576,18 @@ Add new tasks at the bottom of the right section.
       103 banks live (more than EasyFlash's 64: the REU), for an ADR. (d) The harness's `nh_refs[]`
       takes every function's address, which makes Oscar64 give them all stack parameters:
       measure code size with calls instead, since 1.19 MB is probably high.
+- [ ] T2.9 Smaller bank calls: the C trampolines took 124 KB of resident code in the whole
+      game, 85% of it for functions that take stack arguments, which a trampoline copies.
+      — 2026-11-15: the Oscar64 fork's linker makes 6-byte stubs instead
+      (`feature/bank-call-stubs`, 7caff8d and test 7cead7f, on top of r64's fix): a call into
+      a bank from outside it, or a banked function's address, goes through
+      `jsr nh_bankcall; .byte bank; .word function`. VICE: 13/13 checks
+      (`tests/spikes/run_bankstub.py`), 142 cycles a switch. `bankgen.py --linker-stubs`
+      keeps trampolines for the 295 string-handling functions only. Whole game: checks pass,
+      resident code 65 KB (156 KB with trampolines); host build plays. The stack (r64 + stubs,
+      4 commits): autotest 1,591/1,591, corpus identical except the new test and #67.
+      Next: Jolyon's decision (pin rows on the decision page); then the string trampolines
+      (26 KB), stubs in the callers' banks, and T2.3.
 - [ ] T2.7 RNG + clock ADR before Phase 3 first light: which generator implements
       `lrand48`/`srand48` (exact, for seed-for-seed replays vs the host, or faster), seed
       width, clock source for seeding, moon phase, Friday 13th and `night()`/`midnight()`

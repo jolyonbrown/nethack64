@@ -313,6 +313,89 @@ parameters, so the 1.19 MB of code was measured with stack calls throughout: pro
 high. And the whole game, compiled together, has the 279-function recursive cycle that
 no single-file compile has, which costs stack calls in the other direction.
 
+## Bank calls through linker stubs (2026-11-15)
+
+Where the trampolines' bytes go, in the build whose plan fits (1,749 trampolines,
+124 KB):
+
+| Trampoline | Number | Bytes | Median |
+|---|---|---|---|
+| arguments on the stack | 1,099 | 85.9 KB | 75 B |
+| on the stack, copying strings | 152 | 19.4 KB | 123 B |
+| arguments in zero page | 400 | 11.9 KB | 25 B |
+| in zero page, copying strings | 98 | 6.5 KB | 65 B |
+
+A function on the game's big recursive cycle takes its arguments on the stack, and its C
+trampoline has to set up a frame, save a register and copy every argument into the new
+frame (about 8 bytes of code per byte of argument). A stub that leaves the arguments where
+the caller put them, and does not move the software stack pointer, needs no copying. It
+cannot be written by hand, though: a stub in assembler would hide its call to the real
+function from Oscar64's call graph, from which the compiler decides which functions are
+recursive (the others get static frames) and where each function's zero-page parameters
+go, and that would be wrong code.
+
+So the Oscar64 fork's linker makes the stubs (branch `feature/bank-call-stubs`, on top of
+the pin and r64's fix; not in the pin). A program that names a bank call routine,
+`#pragma runtime(bankcall, nh_bankcall)`, has every call into a bank from outside it, and
+every use of a banked function's address, go through a 6-byte resident stub,
+`jsr nh_bankcall; .byte bank; .word function`; calls within a bank stay direct. The pass
+runs after all of the compiler's analysis, which saw the calls as they are written. The
+code at a call was generated for a direct call, so the routine has to leave A, X, Y, the
+zero page and the software stack as it found them, on the way in and on the way out:
+Oscar64 passes some arguments and results in A and X and keeps values in X or Y across a
+call to a function that preserves them (the VICE test has such a loop counter). The
+routine keeps the caller's bank and its own return address on the hardware stack (3 bytes
+per crossing) and patches its own operands, so it is not re-entrant: no interrupt handler
+may call banked code (ours is the KERNAL's). A program without the pragma links exactly as
+before: autotest 1,571/1,571, corpus 1,021/1,022 identical, the one difference being
+compat #67, an existing read of uninitialised memory in the bytecode generator that the
+new compiler's heap exposes.
+
+- **Checked in VICE** (`tests/spikes/bankstub.c`, `run_bankstub.py`): 13 checks pass:
+  recursion through two banks with stack parameters, a byte in A and an int in A/X, a loop
+  counter kept in Y across calls, `long` results, function pointers handed to resident
+  code and kept in const tables, tail calls in both directions, callbacks; after every
+  return the caller reads a tag in its own bank. A switch costs **142 cycles** against the
+  C trampolines' 34: about 9 ms a turn at the simulated 80 crossings.
+- **bankgen.py --linker-stubs:** a banked function keeps its name and is called directly;
+  only the 295 that take or return a `char *` keep a renamed twin and a trampoline, which
+  copies the strings out of the bank window. The host build of this rewrite passes the
+  smoke test and a 6,000-command bot game (levels 1-3); there is no entry check on the
+  host in this mode, since nothing there sees the linker's stubs.
+- **Strings in file-scope initialisers.** Oscar64 puts a string literal into the code
+  section in force where it is written, so `const char *names[] = {"alpha", "beta"}`
+  between two banked functions had its strings in a bank, though the table is resident
+  data that every bank reads (checked with a small program). This was true of the
+  trampoline builds too. bankgen.py now wraps each banked definition in pragmas of its own,
+  and the linker warns of any reference to data in another bank ("Reference to data in
+  another bank").
+- **The whole game with stubs** (one compile on the desktop: 624 s, peak 12.8 GB): every
+  check passes. No call of 30,912 in the listing reaches another bank's code directly, no
+  direct call of 23,581 reaches a renamed twin from outside its bank, no banked function
+  writes the bank register, and nothing refers to data in another bank. The 103 banks hold
+  1.58 MB as before (bank 4 overflowed by a few hundred bytes: `planfix.py` moved 8
+  functions out over two rounds). **Resident code: 65.0 KB instead of 156.4 KB:**
+
+| Resident code | Trampolines | Stubs |
+|---|---|---|
+| trampolines | 1,749, 123.6 KB | 252, 26.0 KB (string handlers) |
+| bank call stubs | — | 2,025, 12.2 KB |
+| bank call routine | — | 91 B |
+| other: NetHack functions the plan keeps resident | | 11.7 KB |
+| other: the Oscar64 runtime and libc (`fpscanf` 2.3 KB, `sformat` 1.9 KB) | | 13.2 KB |
+| other: the variadic message family | | 1.8 KB |
+| **all** | **156.4 KB** | **65.0 KB** |
+
+  Resident data is 155 KB, 9.3 KB more than before: the strings of file-scope tables, now
+  resident (see below). With 64 KB in the machine, the data is now the larger problem
+  (T2.3); the 26 KB of string trampolines and the 12 KB of stubs are the next code to look
+  at (a stub could live in its caller's bank if the compiler made far calls at the call
+  site).
+- **Two compiler bugs on the way.** r64 (compat #66): with the callees called directly,
+  `PropagateVariableCopy` forwarded `lev_by_name()`'s load of a struct copy to the copy's
+  source without its memory base, and the compiler aborted; fixed on `fix/r64-copy-memory-base`
+  (a pin candidate). And compat #67, bytecode only.
+
 ## Next
 
 1. **A wider profile:** a bot that plays more of the game (deeper levels, special levels,
