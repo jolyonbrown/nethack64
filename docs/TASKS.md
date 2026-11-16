@@ -629,6 +629,8 @@ Add new tasks at the bottom of the right section.
       — 2026-11-16: `farify.py` + `calibrate.py --far` (RAM-PLAN.md): `mons[]` far costs
       `mfndpos` 4%, `mons[]` and the heap 13%, on a warm cache, without reusing translations;
       typed 16-bit spaces keep the layouts and saves. Next: translation reuse, faults, the ADR.
+      — 2026-11-16: ADR-0009 proposed (typed far spaces, identity window for near objects,
+      translation at far -> `void *`/`char *`, allocators per space, reuse and pinning).
 
 ## Housekeeping
 
