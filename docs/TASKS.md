@@ -525,6 +525,11 @@ Add new tasks at the bottom of the right section.
       which keep everything; next, group calls through pointers by type (RAM-PLAN.md).
       — 2026-11-16: grouping by type tried, no gain: all 17 types need the whole area, from the
       unions over their many call sites (RAM-PLAN.md). Dropped. Next: the multiply/divide items.
+      — 2026-11-16: the other items measured (Oscar64's emulator, -Os, pin 80): `rn2()`'s 32-bit
+      modulo 1,354 cycles a call, about 18 calls a turn, 24,000 cycles a turn; a 16-bit division
+      or modulo by 10 about 440; multiplies now 0.2% of `mfndpos`. Each is 1-2% of a turn while
+      the game cannot run yet, so the rest of T1.49 waits behind ADR-0008 and T2.12. First when
+      it resumes: a 32-bit modulo with a 16-bit divisor in the runtime (`rn2`).
 
 - [x] T1.50 Zero page past $8F (compat #72, r69): Oscar64 gives a function the temporaries it
       needs past the end of its area, unchecked, where the KERNAL's IRQ changes them.
