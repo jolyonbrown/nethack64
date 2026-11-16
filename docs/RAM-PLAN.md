@@ -278,10 +278,12 @@ test (ADR-0003's amendment).
 ## Done: the `#ifdef C64` speed changes (2026-11-15, T2.10)
 
 `levl` reads through a table of the 80 columns' addresses (`rm.h`, `decl.c`; `save.c` and
-`restore.c` write and read `level.locations` whole); `dist2()` looks the squares of differences
+`restore.c` write and read `level.locations` whole), and so do the object and monster grids
+through `OBJ_AT`, `MON_AT`, `m_at` and the other macros of `rm.h` and `display.h`, and
+`sobj_at()` (21 pointers a column, a stride of 42; 480 bytes for the three tables); `dist2()` looks the squares of differences
 under 128 up in a table (`hacklib.c`, the multiplication for the rest, so every input gives the
 same answer); `isok()` is inline (`hack.h`, the function stays in `cmd.c`). The host build is
-unchanged. All 108 files still compile for the C64, with 2,245 bytes more code in all (0.19%;
+unchanged. All 108 files still compile for the C64, with 2,388 bytes more code in all (0.20%;
 `docs/data/oscar64-pin73-c64conf-t210-2026-11-15.json`). `calibrate.py` again, same checksums
 on both builds (`docs/data/speed-calibration-t210-2026-11-15.json`):
 
@@ -289,7 +291,7 @@ on both builds (`docs/data/speed-calibration-t210-2026-11-15.json`):
 |---|---|---|
 | `isok` | 133 | 45 |
 | `is_pool` and `is_lava` | 464 | 163 |
-| `mfndpos`, with what it calls | 18,543 | 13,062 |
+| `mfndpos`, with what it calls | 18,543 | 12,005 |
 | `dist2` | 509 | 237 |
 
 And the generator (T2.7): `src/hal/rng.c`, `lrand48()` in assembler, the multiply as 14 shifted
@@ -299,9 +301,13 @@ for seven seeds in Oscar64's emulator, and `make test` checks four in VICE. (On 
 compiler bug: an `__asm` block that opens with a comment loses the first digit of its first
 immediate operand, compat #69, r66.)
 
-What is left of the multiply in the `mfndpos` workload, 7% of its cycles, is
-`level.objects[x][y]` and `level.monsters[x][y]` (21 pointers a column, a stride of 42): the
-compiler's fix (T1.49) covers them, and every other stride, at once. A rough turn: with about
+The multiply by a constant elsewhere: the whole-game listing calls `mul16by8` from 1,551
+places with 35 different factors, four of them 87% of the calls: 26 (`objects[]`, 465), 126
+(`levl`, 421, now the table), 55 (`mons[]`, 239) and 42 (the grids, 227, now the tables). A
+routine of shifts and adds for each factor (in canonical signed digits) would take a multiply
+from about 250 cycles to about 100, but all 35 would have to be resident, as `mul16by8` is,
+some 1-2 KB of the scarcest RAM; the tables do better where it matters most (about 15
+cycles). So T1.49 takes the compiler's side later, with the resident cost in view. A rough turn: with about
 1,000-1,450 accesses to the level a turn saving some 230 cycles each, `dist2()` 105,000 cycles
 and `isok()` 57,000, NetHack's own code comes to about 0.8-0.9 s a turn for the bot's crowded
 level 1, from 1.26 s, and the generator adds about 44 ms rather than 0.2 s.

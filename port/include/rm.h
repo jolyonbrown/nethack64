@@ -498,21 +498,26 @@ extern dlevel_t level;	/* structure describing the current level */
  * cells of 6 bytes, and Oscar64 multiplies by 126 with its general routine,
  * about 250 cycles an access; the table costs 160 bytes (docs/RAM-PLAN.md).
  * The array is still level.locations, which save.c and restore.c use whole.
+ * The object and monster grids (42 bytes a column) get the same, below.
  */
 #if COLNO != 80
- #error "LEVL_COLS_INIT lists 80 columns"
+ #error "NH_COLS_INIT lists 80 columns"
 #endif
-#define LEVL_COL10(c)	level.locations[c], level.locations[c+1], \
-	level.locations[c+2], level.locations[c+3], level.locations[c+4], \
-	level.locations[c+5], level.locations[c+6], level.locations[c+7], \
-	level.locations[c+8], level.locations[c+9]
-#define LEVL_COLS_INIT	{ LEVL_COL10(0), LEVL_COL10(10), LEVL_COL10(20), \
-	LEVL_COL10(30), LEVL_COL10(40), LEVL_COL10(50), LEVL_COL10(60), \
-	LEVL_COL10(70) }
+#define NH_COL10(a,c)	a[c], a[c+1], a[c+2], a[c+3], a[c+4], a[c+5], \
+	a[c+6], a[c+7], a[c+8], a[c+9]
+#define NH_COLS_INIT(a)	{ NH_COL10(a,0), NH_COL10(a,10), NH_COL10(a,20), \
+	NH_COL10(a,30), NH_COL10(a,40), NH_COL10(a,50), NH_COL10(a,60), \
+	NH_COL10(a,70) }
 extern struct rm_s * const nh_levl_cols[COLNO];
+extern struct obj_s ** const nh_lobj_cols[COLNO];
+extern struct monst_s ** const nh_lmon_cols[COLNO];
 #define levl		nh_levl_cols
+#define NH_OBJS		nh_lobj_cols
+#define NH_MONS		nh_lmon_cols
 #else
 #define levl		level.locations
+#define NH_OBJS		level.objects
+#define NH_MONS		level.monsters
 #endif
 #define fobj		level.objlist
 #define fmon		level.monlist
@@ -525,23 +530,23 @@ extern struct rm_s * const nh_levl_cols[COLNO];
 #define trap_to_defsym(t) (S_arrow_trap+(t)-1)
 #define defsym_to_trap(d) ((d)-S_arrow_trap+1)
 
-#define OBJ_AT(x,y)	(level.objects[x][y] != (struct obj_s *)0)
+#define OBJ_AT(x,y)	(NH_OBJS[x][y] != (struct obj_s *)0)
 /*
  * Macros for encapsulation of level.monsters references.
  */
-#define MON_AT(x,y)	(level.monsters[x][y] != (struct monst_s *)0 && \
-			 !(level.monsters[x][y])->mburied)
-#define MON_BURIED_AT(x,y)	(level.monsters[x][y] != (struct monst_s *)0 && \
-				(level.monsters[x][y])->mburied)
+#define MON_AT(x,y)	(NH_MONS[x][y] != (struct monst_s *)0 && \
+			 !(NH_MONS[x][y])->mburied)
+#define MON_BURIED_AT(x,y)	(NH_MONS[x][y] != (struct monst_s *)0 && \
+				(NH_MONS[x][y])->mburied)
 #ifndef STEED
 #define place_monster(m,x,y)	((m)->mx=(x),(m)->my=(y),\
 				 level.monsters[(m)->mx][(m)->my]=(m))
 #endif
-#define place_worm_seg(m,x,y)	level.monsters[x][y] = m
-#define remove_monster(x,y)	level.monsters[x][y] = (struct monst_s *)0
-#define m_at(x,y)		(MON_AT(x,y) ? level.monsters[x][y] : \
+#define place_worm_seg(m,x,y)	NH_MONS[x][y] = m
+#define remove_monster(x,y)	NH_MONS[x][y] = (struct monst_s *)0
+#define m_at(x,y)		(MON_AT(x,y) ? NH_MONS[x][y] : \
 						(struct monst_s *)0)
-#define m_buried_at(x,y)	(MON_BURIED_AT(x,y) ? level.monsters[x][y] : \
+#define m_buried_at(x,y)	(MON_BURIED_AT(x,y) ? NH_MONS[x][y] : \
 						       (struct monst_s *)0)
 
 #endif /* RM_H */

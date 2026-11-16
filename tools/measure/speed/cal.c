@@ -32,7 +32,9 @@
 /* the globals the extracted functions read (decl.c's, and engrave.c's file-scope list) */
 dlevel_t level;
 #ifdef C64
-struct rm_s * const nh_levl_cols[COLNO] = LEVL_COLS_INIT;	/* rm.h */
+struct rm_s * const nh_levl_cols[COLNO] = NH_COLS_INIT(level.locations);	/* rm.h */
+struct obj_s ** const nh_lobj_cols[COLNO] = NH_COLS_INIT(level.objects);
+struct monst_s ** const nh_lmon_cols[COLNO] = NH_COLS_INIT(level.monsters);
 #endif
 struct you_s u;
 struct monst_s youmonst;

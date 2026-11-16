@@ -507,6 +507,10 @@ Add new tasks at the bottom of the right section.
       fixes afterward as you see fit"): constant multiplies by shifts and adds, byte-index
       tables up to 256 entries, division by constants, narrowing of promoted `xchar` loop
       variables (RAM-PLAN.md, the brainstorm); pin additions with an explanation each.
+      — 2026-11-16: per-factor multiply routines measured on paper first: 1,551 calls of
+      `mul16by8`, 35 factors, 26/126/55/42 = 87%; about 2.5x faster each, but 1-2 KB more
+      resident code; the hottest (126, 42) went to column tables in the source instead
+      (T2.10). Kept for later, with the resident budget.
 
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 
@@ -618,7 +622,8 @@ Add new tasks at the bottom of the right section.
       `dist2()` through a table of squares, `isok()` inline; identical results (host build,
       smoke test, the calibration harness's checksums), cycles re-measured.
       — 2026-11-15: done (RAM-PLAN.md): `is_pool`/`is_lava` 2.8x, `mfndpos` 1.4x, `dist2`
-      2.1x, `isok` 2.9x faster; all 108 files compile for the C64.
+      2.1x, `isok` 2.9x faster; all 108 files compile for the C64. Then the object and
+      monster grids through column tables too (their macros and `sobj_at()`): `mfndpos` 1.54x.
 - [ ] T2.11 Far-data experiments: 3-byte far pointers against typed far spaces with 16-bit
       pointers (RAM-PLAN.md, the brainstorm), `mons[]` first; then the far-data ADR.
 

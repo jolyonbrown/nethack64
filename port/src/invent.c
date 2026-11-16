@@ -576,7 +576,7 @@ sobj_at(int n, int x, int y)
 {
 	register struct obj_s *otmp;
 
-	for(otmp = level.objects[x][y]; otmp; otmp = otmp->nexthere)
+	for(otmp = NH_OBJS[x][y]; otmp; otmp = otmp->nexthere)
 		if(otmp->otyp == n)
 		    return(otmp);
 	return((struct obj_s *)0);
