@@ -518,6 +518,11 @@ Add new tasks at the bottom of the right section.
       and the bot's call counts, about 259,000 cycles a turn go to such saves (`m_move` 55,000,
       `mfndpos` 46,000, `newsym` 33,000, `dochug` 31,000). First T1.49 change: save only what
       the callers need.
+      — 2026-11-16: done, pin commits 79-80 (`-Ot` in `-Os`; `-xb`, which our builds now pass,
+      for programs that never return to BASIC): `mfndpos` 6.8% faster in the harness; the whole
+      game's saves 12% fewer cycles a turn (277,000 -> 243,000), banked code 3.7 KB smaller.
+      Most of what stays is owed to address-taken functions (command handlers, callbacks),
+      which keep everything; next, group calls through pointers by type (RAM-PLAN.md).
 
 - [x] T1.50 Zero page past $8F (compat #72, r69): Oscar64 gives a function the temporaries it
       needs past the end of its area, unchecked, where the KERNAL's IRQ changes them.

@@ -1,0 +1,60 @@
+workload               calls   x86 Ir/call   6502 cycles/call   cycles per Ir
+  isok                 21000         16.9               43.2             2.6
+  dist2                13272         15.5              237.2            15.3
+  is_pool + is_lava    16590         45.0              164.1             3.6
+  mfndpos               3157       1941.5            11250.7             5.8
+highest zero-page temporaries (Oscar64's area ends at $8F): 0 $80 mfndpos, 1 $80 mfndpos, 2 $80 mfndpos, 3 $80 mfndpos, 4 $80 mfndpos
+
+isok: 6502 cycles by function (less workload 0), and x86 self Ir
+  main                   901165 cycles  99.4%       169173 Ir     5.3 cycles/Ir
+  divmod                   2756 cycles   0.3%            0 Ir 
+  nforml                   1478 cycles   0.2%            0 Ir 
+  divmod32                  550 cycles   0.1%            0 Ir 
+  puts                      424 cycles   0.0%            0 Ir 
+  load32                    340 cycles   0.0%            0 Ir 
+  startup                   166 cycles   0.0%            0 Ir 
+  nformi                     39 cycles   0.0%            0 Ir 
+  setlev                      1 cycles   0.0%            0 Ir 
+  isok                        0 cycles   0.0%       185250 Ir     0.0 cycles/Ir
+
+dist2: 6502 cycles by function (less workload 0), and x86 self Ir
+  dist2                 2099292 cycles  66.7%        92904 Ir    22.6 cycles/Ir
+  main                  1037188 cycles  33.0%       113229 Ir     9.2 cycles/Ir
+  divmod32                 4278 cycles   0.1%            0 Ir 
+  divmod                   2760 cycles   0.1%            0 Ir 
+  nforml                   1922 cycles   0.1%            0 Ir 
+  setup                     650 cycles   0.0%            0 Ir 
+  puts                      583 cycles   0.0%            0 Ir 
+  load32                    442 cycles   0.0%            0 Ir 
+  printf                    225 cycles   0.0%            0 Ir 
+  touch                     218 cycles   0.0%            0 Ir 
+  setlev                     62 cycles   0.0%            0 Ir 
+  nformi                     39 cycles   0.0%            0 Ir 
+
+is_pool + is_lava: 6502 cycles by function (less workload 0), and x86 self Ir
+  main                  1155712 cycles  42.4%       124899 Ir     9.3 cycles/Ir
+  is_pool                814320 cycles  29.9%       240525 Ir     3.4 cycles/Ir
+  is_lava                748080 cycles  27.5%       232260 Ir     3.2 cycles/Ir
+  divmod                   1764 cycles   0.1%            0 Ir 
+  nforml                   1015 cycles   0.0%            0 Ir 
+  setup                     557 cycles   0.0%            0 Ir 
+  divmod32                  385 cycles   0.0%            0 Ir 
+  puts                      265 cycles   0.0%            0 Ir 
+  load32                    238 cycles   0.0%            0 Ir 
+  printf                    229 cycles   0.0%            0 Ir 
+  touch                     218 cycles   0.0%            0 Ir 
+  setlev                     63 cycles   0.0%            0 Ir 
+
+mfndpos: 6502 cycles by function (less workload 0), and x86 self Ir
+  mfndpos              22155003 cycles  62.4%      3416948 Ir     6.5 cycles/Ir
+  t_at                  4467178 cycles  12.6%       510242 Ir     8.8 cycles/Ir
+  main                  4025031 cycles  11.3%       264095 Ir    15.2 cycles/Ir
+  is_pool               2083372 cycles   5.9%       613999 Ir     3.4 cycles/Ir
+  is_lava               1621173 cycles   4.6%       502096 Ir     3.2 cycles/Ir
+  bad_rock               777682 cycles   2.2%       214160 Ir     3.6 cycles/Ir
+  sobj_at                112692 cycles   0.3%        15259 Ir     7.4 cycles/Ir
+  is_pool@proxy          105910 cycles   0.3%            0 Ir 
+  mul16by8                73140 cycles   0.2%            0 Ir 
+  onscary                 64525 cycles   0.2%        15873 Ir     4.1 cycles/Ir
+  sengr_at                11220 cycles   0.0%         3315 Ir     3.4 cycles/Ir
+  engr_at                  8160 cycles   0.0%         1275 Ir     6.4 cycles/Ir

@@ -1,0 +1,143 @@
+From 0d71c3a61ee2d6af89cd4a26b1f92ba8a7a60a9e Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Mon, 16 Nov 2026 18:11:29 +0000
+Subject: [PATCH 80/80] Test saving only the zero page temporaries a caller
+ needs
+
+Values kept in the callee-saved temporaries over calls at several depths,
+through a callee that uses none of them between two that do, a tail call,
+recursion and a call through a pointer, and a function with two callers that
+keep different values.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat   |   3 ++
+ autotest/tempsavetest.c | 103 ++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 106 insertions(+)
+ create mode 100644 autotest/tempsavetest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index cda43ec..0ec7162 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test tempsavetest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test copyloopzeropagetest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/tempsavetest.c b/autotest/tempsavetest.c
+new file mode 100644
+index 0000000..1a846a5
+--- /dev/null
++++ b/autotest/tempsavetest.c
+@@ -0,0 +1,103 @@
++#include <assert.h>
++
++// A procedure saves the callee-saved zero page temporaries it uses only where a caller needs
++// them (NativeCodeGenerator::ReduceTempSaves).  Each function below reads a run of values
++// from volatile memory, keeps them over a call and checks them afterwards, so they live in
++// those temporaries while the callee uses its own: at several depths, through a callee that
++// uses none of the area between two that do, through a tail call, through recursion, through
++// a function pointer, and in a function with two callers that keep different values.
++
++volatile unsigned	vin[24];
++unsigned			sink;
++
++#define R4(b)		unsigned v##b = vin[b], v##b##a = vin[b + 1], v##b##b = vin[b + 2], v##b##c = vin[b + 3]
++#define S4(b)		(v##b + v##b##a * 3 + v##b##b * 5 + v##b##c * 7)
++#define C4(b)		assert(v##b == vin[b] && v##b##a == vin[b + 1] && v##b##b == vin[b + 2] && v##b##c == vin[b + 3])
++
++// Twenty values at once, and no call: as many temporaries as it can use
++__noinline unsigned leaf(unsigned a)
++{
++	R4(0); R4(4); R4(8); R4(12); R4(16);
++	return (S4(0) ^ S4(4)) + (S4(8) ^ S4(12)) + S4(16) + a;
++}
++
++__noinline unsigned leaf2(unsigned a)
++{
++	R4(0); R4(4); R4(8); R4(12); R4(16);
++	return (S4(16) ^ S4(12)) + (S4(8) ^ S4(4)) + S4(0) - a;
++}
++
++// Keeps twelve values over a call of leaf
++__noinline unsigned mid(unsigned a)
++{
++	R4(0); R4(4); R4(8);
++	unsigned r = leaf(a);
++	C4(0); C4(4); C4(8);
++	return r + S4(0) + S4(4) + S4(8);
++}
++
++// Keeps eight others over a call of leaf: leaf has two callers
++__noinline unsigned mid2(unsigned a)
++{
++	R4(16); R4(12);
++	unsigned r = leaf(a + 1);
++	C4(16); C4(12);
++	return r ^ S4(16) ^ S4(12);
++}
++
++// Little of its own: what its callers keep has to survive the leaf below it
++__noinline unsigned thin(unsigned a)
++{
++	return leaf(a) + 1;
++}
++
++// A call it can end with a jump
++__noinline unsigned tail(unsigned a)
++{
++	return leaf2(a);
++}
++
++unsigned (* fp)(unsigned);
++
++// Keeps sixteen values over calls of each kind
++__noinline unsigned top(unsigned a)
++{
++	R4(0); R4(4); R4(8); R4(12);
++	unsigned r = mid(a);
++	C4(0); C4(4); C4(8); C4(12);
++	r += mid2(a);
++	C4(0); C4(4); C4(8); C4(12);
++	r += thin(a);
++	C4(0); C4(4); C4(8); C4(12);
++	r += tail(a);
++	C4(0); C4(4); C4(8); C4(12);
++	r += fp(a);
++	C4(0); C4(4); C4(8); C4(12);
++	return r + S4(0) + S4(4) + S4(8) + S4(12);
++}
++
++__noinline unsigned rec(unsigned a, unsigned n)
++{
++	R4(4); R4(16);
++	unsigned r = n ? rec(a + 1, n - 1) : leaf(a);
++	C4(4); C4(16);
++	return r + S4(4) + S4(16);
++}
++
++int main(void)
++{
++	for (int i = 0; i < 24; i++)
++		vin[i] = 0x1111 * (i + 1) + i;
++	fp = leaf2;
++
++	unsigned r1 = top(7);
++	unsigned r2 = top(7);
++	assert(r1 == r2);
++
++	unsigned r3 = rec(3, 5);
++	unsigned r4 = rec(3, 5);
++	assert(r3 == r4);
++
++	sink = r1 + r3;
++	return 0;
++}
+-- 
+2.43.0
+

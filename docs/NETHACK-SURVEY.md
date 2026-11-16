@@ -647,4 +647,8 @@ same harness. Data: `docs/data/oscar64-pin67-c64conf-2026-11-15.json` and `-base
   (compat #74), and so is every UNIX record (`docs/data/oscar64-pin78-*-2026-11-16.json`).
   The per-file listings put `m_move` at $9D and `dog_move` at $98 (UNIX $9C and $95), past
   Oscar64's $8F; the whole game, whose callers make it inline less, gives $8B (T1.54).
+- With 80 commits (79-80: a function saves only the zero page its callers need, `-Ot`, in
+  `-Os`) the whole game's saves and restores take 12% fewer cycles a turn and its banked code
+  is 3.7 KB smaller (RAM-PLAN.md, "Measured: zero page saves"); with `-Ot-` the compiler is
+  byte-identical to 78 commits'.
 

@@ -230,7 +230,7 @@ checks, and its `-Os` size is understood.
 - The six fixed rows above stop being "must be settled before game code runs" once
   the build uses the pin; r18-r23 and r25 pass, and so does r26 (commit 8). r24 stays
   open (T1.15).
-- We carry a patch stack until upstream releases: of the 78 commits, eight are upstream's
+- We carry a patch stack until upstream releases: of the 80 commits (79-80, T1.49's save pass, ours too), eight are upstream's
   (1169268, bf42402, 1ae3216, 3bb084f, 1073206, 46e60d6, 160c92b, c8da6bd), two backport
   upstream fixes (fbca293 and the CoerceType hunk of 57655c5), four are tests for upstream
   fixes, and sixty-four are ours (the r31, r45, r46, r50, r51, r59 and r60 fixes, the bank
@@ -513,3 +513,25 @@ to 73 commits', the other being `uhitm.c`'s listing, where `hmon_hitmon()`'s cop
 branches to $22CD, its first instruction, instead of $22CC; 108/108 (1,187,649 B); UNIX the
 same branch, 317 of 318 identical, every record identical, 97/108 (1,120,579 B)
 (`docs/data/oscar64-pin78-*-2026-11-16.json`).
+
+Added on 2026-11-16 (commits 79-80, T1.49, under Jolyon's "the compiler fixes afterward as you
+see fit" of 2026-11-15 for the speed work): the first speed change, a pass that lets a function
+save only the zero page temporaries its callers need. Oscar64 saves every callee-saved temporary
+a function uses ($53 up) on entry and restores it on exit, and over the whole game that is about
+277,000 cycles a turn (RAM-PLAN.md, "Measured: zero page saves"). Once every function is compiled,
+`NativeCodeGenerator::ReduceTempSaves` takes, for each direct call, the bytes the caller reads
+after it before writing them (the native data flow sets, plus the reach of copy loops), adds what
+the caller's own callers need of bytes the caller does not save, and narrows each function's
+save and restore to the result, in up to three runs, in the same frame slots. A function whose
+address is taken, that an interrupt reaches or that assembler refers to keeps its full save, and
+so does `main` unless the program says it never returns to BASIC (`-xb`, new; our Makefile,
+`build_c64.py` and `calibrate.py` pass it). `-Ot` is part of `-O2`, `-O3` and `-Os`; `-Ot-`
+turns it off, and with it the compiler is byte-identical to 78 commits'. Commit 80 is its test.
+
+Results 2026-11-16 (80 commits, tip 0d71c3a; the patch files give tree ed539b4, the branch's
+and the installed compiler's). Autotest 1,621 emulations, all 0 (the new test in all ten
+configurations), and again with `-xb` on every native build (1,621, all 0); with `-Ot-` the
+corpus is byte-identical to 78 commits' (1,080 of 1,080: the autotest sources and the repros,
+five configurations); repros 44 of 72; nethack64 `make test` 5/5 (built with `-xb`); the speed
+harness's checksums the host's, `mfndpos` 6.8% faster; the whole game's checks clean, its
+saves and restores 12% fewer cycles a turn (RAM-PLAN.md).

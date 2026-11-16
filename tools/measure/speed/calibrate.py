@@ -55,7 +55,7 @@ FUNCS = ["isok", "dist2", "distmin", "online2", "strstri", "lowc", "is_pool", "i
 # as tools/host-build.sh compiles src/
 HOST_CFLAGS = ["-O", "-g", "-std=gnu89", "-w", "-DUNWIDENED_PROTOTYPES"]
 # as tools/bank/build_c64.py and measure_oscar64.py's c64 configuration compile it
-C64_FLAGS = ["-Os", "-dC64", "-dregister="]
+C64_FLAGS = ["-Os", "-xb", "-dC64", "-dregister="]	# -xb: as the game, which never returns to BASIC
 ZP_END = check_listing.ZP_END	# the last byte of Oscar64's temporaries on the C64 (oscar64.md)
 ZP_CLOCK = 0xA0		# the KERNAL's jiffy clock, $A0-$A2, which Oscar64's emulator ticks too
 

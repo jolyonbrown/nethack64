@@ -1,7 +1,7 @@
 # Oscar64 compatibility log
 
 Pinned compiler: **Oscar64 v1.32.273** (tag on github.com/drmortalwombat/oscar64) plus the
-78 commits in `tools/oscar64-upstream/patches/pin/` (ADR-0007), which the
+80 commits in `tools/oscar64-upstream/patches/pin/` (ADR-0007), which the
 setup scripts build as `oscar64` since 2026-11-13 (`oscar64-plain` is the release).
 Each row has a minimal repro in `tests/oscar64-repros/`; `make repros` reports
 which still fail. When an upgrade fixes one, retire its workaround and update

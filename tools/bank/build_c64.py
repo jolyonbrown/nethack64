@@ -274,7 +274,9 @@ def main():
             h = os.path.join(out, "h_real.c")
             open(h, "w").write(stubs + "/* the game's own entry, as sys/unix/unixmain.c makes it */\n"
                                "int main(void) { newgame(); moveloop(); return 0; }\n")
-        args = ["-rmp", "-Os", "-i=inc", "-i=stub", "-i=src", "-o=nethack.prg"] + \
+        # -xb: the game never returns to BASIC, so main need not keep BASIC's zero page
+        # (the pin's -Ot, part of -Os, then saves less in the game's functions)
+        args = ["-rmp", "-Os", "-xb", "-i=inc", "-i=stub", "-i=src", "-o=nethack.prg"] + \
             ["src/" + f for f in files] + [os.path.basename(h)] + mo.DEFS
         if a.generate_only:
             open(os.path.join(out, "compile.args"), "w").write("\n".join(args) + "\n")

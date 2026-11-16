@@ -30,8 +30,10 @@ SRCS     := src/main.c src/hal/sys.c src/hal/screen80.c src/hal/rng.c
 HDRS     := $(wildcard src/*.h src/hal/*.h) $(GEN)/font4x8.h
 
 # -Os: code density matters more than speed for this project (see docs/ARCHITECTURE.md)
+# -xb: the program never returns to BASIC (main ends in a reset), so with the pin's -Ot
+#      (part of -Os) main need not keep BASIC's zero page and its callees save less
 # -g : source-level debug info, .lbl labels for VICE, annotated .asm
-OSCFLAGS ?= -Os -g
+OSCFLAGS ?= -Os -xb -g
 OSC      := $(OSCAR64) $(OSCFLAGS) -i=src -i=$(GEN)
 
 CRT      := $(BUILD)/nethack-ef.crt

@@ -1,0 +1,1418 @@
+# Whole game (build_c64.py --plan docs/data/bankplan-2026-11-15-stubs.json --linker-stubs --main real), pin of 80 commits, -Os -xb -v2,
+# 2026-11-16: ReduceTempSaves' report (function, bytes saved before -> after, runs, the range, the bytes needed), then
+# the cycles a turn by the bot game's call counts (build/profile-arcs.json, 9,273 turns; about 33 cycles a byte saved and restored).
+# 9273 turns; 1372 functions that save; 683 narrowed; escaped 98
+# cycles a turn in saves and restores: before 276936, after 242709 (12% less); one range each 252906; the needed bytes alone 237162
+#   m_move                29.1 calls a turn  57 -> 55 bytes (55 needed, 1 runs)    54719 ->   52799 cycles a turn
+#   mfndpos               28.8 calls a turn  48 -> 37 bytes (33 needed, 1 runs)    45592 ->   35144 cycles a turn
+#   newsym                45.8 calls a turn  22 -> 22 bytes (22 needed, 1 runs)    33253 ->   33253 cycles a turn
+#   dochug                29.3 calls a turn  32 -> 29 bytes (28 needed, 1 runs)    30920 ->   28021 cycles a turn
+#   find_misc             29.2 calls a turn  21 ->  9 bytes ( 9 needed, 2 runs)    20241 ->    8675 cycles a turn
+#   mintrap               19.7 calls a turn  23 -> 21 bytes (20 needed, 1 runs)    14943 ->   13644 cycles a turn
+#   test_move             14.5 calls a turn  25 -> 23 bytes (23 needed, 1 runs)    12002 ->   11041 cycles a turn
+#   distfleeck            58.3 calls a turn   6 ->  6 bytes ( 6 needed, 1 runs)    11543 ->   11543 cycles a turn
+#   minliquid             30.2 calls a turn  11 -> 11 bytes (11 needed, 1 runs)    10970 ->   10970 cycles a turn
+#   m_in_out_region       19.7 calls a turn  14 -> 14 bytes (14 needed, 1 runs)     9090 ->    9090 cycles a turn
+#   linedup               46.8 calls a turn   4 ->  4 bytes ( 4 needed, 1 runs)     6175 ->    6175 cycles a turn
+#   find_offensive        18.2 calls a turn   9 ->  7 bytes ( 7 needed, 1 runs)     5416 ->    4213 cycles a turn
+#   wipe_engr_at          30.0 calls a turn   3 ->  3 bytes ( 3 needed, 1 runs)     2972 ->    2972 cycles a turn
+#   were_change           44.6 calls a turn   2 ->  2 bytes ( 2 needed, 1 runs)     2942 ->    2942 cycles a turn
+#   oselect               13.4 calls a turn   6 ->  6 bytes ( 6 needed, 1 runs)     2648 ->    2648 cycles a turn
+#   touch_artifact         2.6 calls a turn  17 -> 17 bytes (17 needed, 1 runs)     1456 ->    1456 cycles a turn
+#   bot1                   2.3 calls a turn  12 -> 10 bytes (10 needed, 1 runs)      915 ->     762 cycles a turn
+#   domove                 0.8 calls a turn  31 ->  5 bytes ( 5 needed, 1 runs)      798 ->     129 cycles a turn
+#   movemon                1.1 calls a turn  18 ->  6 bytes ( 6 needed, 2 runs)      673 ->     224 cycles a turn
+#   flush_screen           2.9 calls a turn   7 ->  7 bytes ( 7 needed, 1 runs)      667 ->     667 cycles a turn
+#   bot2                   2.3 calls a turn   8 ->  6 bytes ( 6 needed, 1 runs)      610 ->     457 cycles a turn
+#   left_side__b34         0.8 calls a turn  21 -> 19 bytes (19 needed, 1 runs)      536 ->     485 cycles a turn
+#   mattacku               0.8 calls a turn  19 -> 13 bytes (13 needed, 2 runs)      532 ->     364 cycles a turn
+#   invault                1.0 calls a turn  16 ->  6 bytes ( 6 needed, 2 runs)      528 ->     198 cycles a turn
+#   right_side__b34        0.8 calls a turn  19 -> 19 bytes (19 needed, 1 runs)      485 ->     485 cycles a turn
+#   rhack__b11             1.5 calls a turn   9 ->  7 bytes ( 6 needed, 1 runs)      432 ->     336 cycles a turn
+#   vision_recalc          0.4 calls a turn  34 -> 34 bytes (34 needed, 1 runs)      422 ->     422 cycles a turn
+#   run_regions            1.0 calls a turn  11 ->  5 bytes ( 5 needed, 1 runs)      363 ->     165 cycles a turn
+#   dosearch0              0.4 calls a turn  29 -> 29 bytes (29 needed, 1 runs)      338 ->     338 cycles a turn
+#   exerchk                1.0 calls a turn   9 ->  5 bytes ( 5 needed, 1 runs)      297 ->     165 cycles a turn
+#   pickup                 0.4 calls a turn  22 -> 22 bytes (22 needed, 1 runs)      288 ->     288 cycles a turn
+#   nh_timeout             1.0 calls a turn   8 ->  5 bytes ( 5 needed, 1 runs)      264 ->     165 cycles a turn
+#   lookaround             0.2 calls a turn  35 ->  5 bytes ( 5 needed, 1 runs)      249 ->      36 cycles a turn
+#   view_from__b34         0.4 calls a turn  18 -> 10 bytes ( 9 needed, 1 runs)      230 ->     128 cycles a turn
+#   monster_nearby         0.3 calls a turn  20 ->  5 bytes ( 5 needed, 1 runs)      183 ->      46 cycles a turn
+#   dog_move               0.1 calls a turn  46 -> 18 bytes (17 needed, 3 runs)      169 ->      66 cycles a turn
+#   check_leash            0.4 calls a turn  12 ->  6 bytes ( 6 needed, 2 runs)      157 ->      79 cycles a turn
+#   x_monnam__b6           0.3 calls a turn  18 -> 18 bytes (18 needed, 1 runs)      157 ->     157 cycles a turn
+#   map_background         2.2 calls a turn   2 ->  2 bytes ( 2 needed, 1 runs)      144 ->     144 cycles a turn
+#   encumber_msg           2.1 calls a turn   2 ->  2 bytes ( 2 needed, 1 runs)      140 ->     140 cycles a turn
+Temp saves <sformat> 4 -> 4
+Temp saves <vsprintf> 2 -> 2
+Temp saves <vraw_printf__b101> 2 -> 2
+Temp saves <vraw_printf> 1 -> 1
+Temp saves <setgemprobs> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <plnamesuffix> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <sprintf> 2 -> 2
+Temp saves <alloc> 2 -> 2
+Temp saves <You_buf> 1 -> 1
+Temp saves <paniclog__b99> 4 -> 4
+Temp saves <paniclog> 1 -> 1
+Temp saves <impossible> 2 -> 2
+Temp saves <inhishop> 2 -> 2
+Temp saves <costly_spot> 3 -> 3
+Temp saves <align_gname> 1 -> 1
+Temp saves <halu_gname__b98> 1 -> 1
+Temp saves <halu_gname> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <priestname__b89> 6 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <priestname> 1 -> 1
+Temp saves <x_monnam__b6> 18 -> 18
+Temp saves <mon_nam> 1 -> 1
+Temp saves <mon_owns> 1 -> 1
+Temp saves <shk_your__b97> 4 -> 4
+Temp saves <shk_your> 1 -> 1
+Temp saves <makeplural__b58> 19 -> 19
+Temp saves <makeplural> 1 -> 1
+Temp saves <corpse_xname__b100> 4 -> 4
+Temp saves <corpse_xname> 1 -> 1
+Temp saves <xname__b14> 17 -> 17
+Temp saves <cxname> 1 -> 1
+Temp saves <yname__b100> 8 -> 8
+Temp saves <yname> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <Yname2__b102> 2 -> 2
+Temp saves <Yname2> 1 -> 1
+Temp saves <vtense__b34> 2 -> 2
+Temp saves <otense__b34> 2 -> 2
+Temp saves <otense> 1 -> 1
+Temp saves <xname> 1 -> 1 (escapes)
+Temp saves <start_timer> 6 -> 6
+Temp saves <obj_timer_checks> 7 -> 7
+Temp saves <remove_object> 4 -> 4
+Temp saves <eaten_stat> 2 -> 2
+Temp saves <weight> 8 -> 8
+Temp saves <container_weight> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <encumber_msg> 2 -> 2
+Temp saves <exercise> 4 -> 4
+Temp saves <docall> 6 -> 6
+Temp saves <setnotworn> 3 -> 3
+Temp saves <the__b34> 2 -> 2
+Temp saves <The__b34> 2 -> 2
+Temp saves <Tobjnam__b34> 6 -> 6
+Temp saves <Tobjnam> 1 -> 1
+Temp saves <setworn> 11 -> 11
+Temp saves <uwepgone> 2 -> 2
+Temp saves <onbill> 2 -> 2
+Temp saves <splitbill> 6 -> 2 in 1 runs [4..5], 2 needed
+Temp saves <obj_split_timers> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <obj_split_light_source> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <splitobj> 8 -> 8
+Temp saves <add_to_billobjs> 2 -> 2
+Temp saves <sub_one_frombill> 6 -> 6
+Temp saves <subfrombill> 6 -> 6
+Temp saves <costly_gold> 6 -> 2 in 1 runs [4..5], 2 needed
+Temp saves <get_cost> 6 -> 6
+Temp saves <add_one_tobill> 6 -> 6
+Temp saves <contained_cost> 7 -> 7
+Temp saves <contained_gold> 6 -> 6
+Temp saves <bill_box_content> 2 -> 2
+Temp saves <picked_container> 2 -> 2
+Temp saves <Monnam__b6> 2 -> 2
+Temp saves <Monnam> 1 -> 1
+Temp saves <the> 1 -> 1
+Temp saves <The> 1 -> 1
+Temp saves <addtobill> 20 -> 20
+Temp saves <bill_dummy_object> 4 -> 4
+Temp saves <setuwep> 4 -> 4
+Temp saves <map_object> 6 -> 6
+Temp saves <map_trap> 7 -> 7
+Temp saves <wall_angle> 4 -> 4
+Temp saves <map_background> 2 -> 2
+Temp saves <display_monster> 7 -> 0 in 0 runs [7..-1], 0 needed
+Temp saves <feel_location> 17 -> 17
+Temp saves <newsym> 22 -> 22
+Temp saves <bury_objs> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <You_hear> 4 -> 4
+Temp saves <swallow_to_glyph> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <swallowed> 9 -> 7 in 1 runs [2..8], 7 needed
+Temp saves <under_water> 6 -> 4 in 1 runs [2..5], 4 needed
+Temp saves <see_wsegs> 4 -> 4
+Temp saves <see_monsters> 2 -> 2
+Temp saves <docrt> 4 -> 4
+Temp saves <adjattrib> 9 -> 9
+Temp saves <bot1> 12 -> 10 in 1 runs [2..11], 10 needed
+Temp saves <bot2> 8 -> 6 in 1 runs [2..7], 6 needed
+Temp saves <newuhs> 4 -> 4
+Temp saves <flush_screen> 7 -> 7
+Temp saves <yn_function__b15> 8 -> 8
+Temp saves <yn_function> 1 -> 1
+Temp saves <dealloc_obj> 2 -> 2
+Temp saves <inven_inuse> 4 -> 3 in 1 runs [1..3], 3 needed
+Temp saves <strprepend__b14> 2 -> 2
+Temp saves <strprepend> 1 -> 1
+Temp saves <aobjnam__b98> 6 -> 6
+Temp saves <is_pure> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <down_gate> 1 -> 1
+Temp saves <count_unpaid> 2 -> 2
+Temp saves <stolen_container> 7 -> 7
+Temp saves <check_credit> 10 -> 10
+Temp saves <angry_guards> 11 -> 11
+Temp saves <stolen_value> 18 -> 18
+Temp saves <add_to_migration> 2 -> 2
+Temp saves <impact_drop> 39 -> 37 in 1 runs [2..38], 36 needed
+Temp saves <otransit_msg> 10 -> 4 in 1 runs [6..9], 3 needed
+Temp saves <ship_object> 19 -> 19
+Temp saves <unpaid_cost> 6 -> 6
+Temp saves <doname__b14> 19 -> 19
+Temp saves <doname> 1 -> 1 (escapes)
+Temp saves <Doname2__b102> 2 -> 2
+Temp saves <Doname2> 1 -> 1
+Temp saves <doaltarobj> 2 -> 2
+Temp saves <dropx> 2 -> 2
+Temp saves <drop_uswapwep> 2 -> 2
+Temp saves <attach_fig_transform_timeout> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <curse> 4 -> 4
+Temp saves <bless> 2 -> 2
+Temp saves <blessorcurse> 2 -> 2
+Temp saves <replace_object> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <obj_move_timers> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <realloc_obj__b53> 8 -> 8
+Temp saves <realloc_obj> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <oname__b91> 5 -> 5
+Temp saves <oname> 1 -> 1
+Temp saves <mk_artifact> 5 -> 3 in 1 runs [2..4], 3 needed
+Temp saves <mkclass> 12 -> 12
+Temp saves <qt_montype> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <rndmonst> 17 -> 17
+Temp saves <attach_egg_hatch_timeout> 3 -> 3
+Temp saves <mkobj> 6 -> 6
+Temp saves <obj_no_longer_held> 5 -> 5
+Temp saves <same_price> 10 -> 10
+Temp saves <mergable> 4 -> 4
+Temp saves <obj_merge_light_sources> 4 -> 4
+Temp saves <merged> 10 -> 10
+Temp saves <add_to_container> 2 -> 2
+Temp saves <mkbox_cnts> 12 -> 2 in 1 runs [8..9], 2 needed
+Temp saves <start_corpse_timeout> 13 -> 13
+Temp saves <mksobj> 17 -> 17
+Temp saves <enexto_core> 12 -> 12
+Temp saves <set_mimic_sym> 12 -> 12
+Temp saves <place_object> 8 -> 8 (escapes)
+Temp saves <mkobj_at> 2 -> 2
+Temp saves <mon_adjust_speed> 9 -> 9
+Temp saves <new_light_source> 2 -> 2
+Temp saves <x_monnam> 1 -> 1
+Temp saves <mon_animal_list> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <name_to_mon__b14> 10 -> 10
+Temp saves <name_to_mon> 1 -> 1
+Temp saves <select_newcham_form> 6 -> 1 in 1 runs [3..3], 1 needed
+Temp saves <toss_wsegs> 5 -> 5
+Temp saves <wormgone> 1 -> 1
+Temp saves <remove_worm> 2 -> 2
+Temp saves <add_mon_to_reg> 2 -> 2
+Temp saves <update_monster_region> 6 -> 5 in 1 runs [0..4], 5 needed
+Temp saves <place_worm_tail_randomly> 16 -> 16
+Temp saves <setpaid> 4 -> 4
+Temp saves <make_angry_shk> 4 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <rloc_to> 10 -> 10
+Temp saves <mnexto> 2 -> 2
+Temp saves <landing_spot> 11 -> 5 in 1 runs [6..10], 5 needed
+Temp saves <set_bc> 3 -> 3
+Temp saves <make_blinded> 11 -> 11
+Temp saves <getpos_help__b89> 2 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <getpos_help> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <getpos__b67> 20 -> 20
+Temp saves <getpos> 1 -> 1
+Temp saves <vtense> 1 -> 1
+Temp saves <growl> 4 -> 4
+Temp saves <setmangry> 10 -> 10
+Temp saves <setmnotwielded> 4 -> 4
+Temp saves <mshot_xname__b22> 4 -> 4
+Temp saves <mshot_xname> 1 -> 1 (escapes)
+Temp saves <distant_name__b22> 4 -> 4
+Temp saves <distant_name> 1 -> 1
+Temp saves <possibly_unwield> 6 -> 6
+Temp saves <update_mon_intrinsics> 11 -> 11
+Temp saves <m_useup> 4 -> 4
+Temp saves <m_unleash> 2 -> 2
+Temp saves <wary_dog> 6 -> 4 in 1 runs [2..5], 4 needed
+Temp saves <lifesaved_monster> 6 -> 4 in 1 runs [2..5], 4 needed
+Temp saves <mksobj_at> 2 -> 2
+Temp saves <unmap_object> 5 -> 5
+Temp saves <yelp> 5 -> 5
+Temp saves <map_location> 6 -> 6
+Temp saves <clear_fcorr> 15 -> 15
+Temp saves <grddead> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <ldrname> 1 -> 1
+Temp saves <convert_line> 6 -> 6
+Temp saves <deliver_by_pline> 6 -> 4 in 1 runs [2..5], 4 needed
+Temp saves <deliver_by_window> 8 -> 6 in 1 runs [2..7], 6 needed
+Temp saves <qt_pager> 2 -> 2
+Temp saves <mdrop_obj> 8 -> 8
+Temp saves <add_to_minv> 2 -> 2
+Temp saves <mkgold> 8 -> 8
+Temp saves <relobj> 19 -> 19
+Temp saves <fill_pit> 6 -> 6
+Temp saves <carry_obj_effects> 2 -> 2
+Temp saves <snuff_light_source> 2 -> 2
+Temp saves <mpickobj> 5 -> 5
+Temp saves <repair_damage> 20 -> 18 in 1 runs [2..19], 18 needed
+Temp saves <remove_damage> 20 -> 20
+Temp saves <shkgone> 10 -> 10
+Temp saves <m_detach> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <mondead> 6 -> 6
+Temp saves <monstone> 15 -> 13 in 1 runs [2..14], 13 needed
+Temp saves <delobj> 3 -> 3
+Temp saves <make_corpse> 19 -> 15 in 1 runs [4..18], 15 needed
+Temp saves <mondied> 4 -> 4
+Temp saves <tmp_at> 6 -> 6
+Temp saves <obj_ice_effects> 7 -> 6 in 1 runs [1..6], 6 needed
+Temp saves <unearth_objs> 9 -> 4 in 2 runs [1..8], 4 needed
+Temp saves <melt_ice> 8 -> 6 in 1 runs [2..7], 5 needed
+Temp saves <mdrop_special_objs> 6 -> 6
+Temp saves <discard_minvent> 4 -> 4
+Temp saves <mongone> 2 -> 2
+Temp saves <mkroll_launch> 16 -> 8 in 1 runs [8..15], 7 needed
+Temp saves <add_damage> 9 -> 9
+Temp saves <maketrap> 12 -> 12
+Temp saves <Amonnam__b19> 2 -> 2
+Temp saves <Amonnam> 1 -> 1
+Temp saves <dryup> 9 -> 9
+Temp saves <useupf> 3 -> 3
+Temp saves <burn_floor_paper> 23 -> 23
+Temp saves <seemimic> 2 -> 2
+Temp saves <linedup> 4 -> 4
+Temp saves <a_gname_at> 1 -> 1
+Temp saves <aobjnam> 1 -> 1
+Temp saves <grease_protect__b82> 2 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <grease_protect> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <rust_dmg__b23> 11 -> 11
+Temp saves <burnarmor> 4 -> 4
+Temp saves <make_confused> 8 -> 8
+Temp saves <replshk> 4 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <replmon> 4 -> 4
+Temp saves <christen_monst__b95> 8 -> 8
+Temp saves <christen_monst> 1 -> 1
+Temp saves <cloneu> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <dogfood> 2 -> 1 in 1 runs [1..1], 1 needed
+Temp saves <dog_nutrition> 8 -> 6 in 1 runs [0..5], 6 needed
+Temp saves <noit_Monnam__b102> 2 -> 2
+Temp saves <noit_Monnam> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <singular__b6> 6 -> 6
+Temp saves <singular> 1 -> 1
+Temp saves <grow_up> 23 -> 22 in 1 runs [1..22], 20 needed
+Temp saves <dog_eat> 15 -> 11 in 1 runs [4..14], 11 needed
+Temp saves <spec_applies> 7 -> 7
+Temp saves <touch_artifact> 17 -> 17
+Temp saves <oselect> 6 -> 6
+Temp saves <select_hwep> 7 -> 2 in 1 runs [4..5], 2 needed
+Temp saves <select_rwep> 8 -> 6 in 1 runs [2..7], 6 needed
+Temp saves <begin_burn> 9 -> 9
+Temp saves <mon_wield_item> 12 -> 12
+Temp saves <tamedog> 8 -> 8
+Temp saves <clone_mon> 9 -> 9
+Temp saves <split_mon> 6 -> 6
+Temp saves <monflee> 4 -> 4
+Temp saves <tele_restrict> 2 -> 2
+Temp saves <stealarm> 4 -> 4 (escapes)
+Temp saves <dig_check> 9 -> 7 in 1 runs [2..8], 6 needed
+Temp saves <E_phrase__b99> 4 -> 3 in 1 runs [0..2], 2 needed
+Temp saves <E_phrase> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <check_capacity> 1 -> 1
+Temp saves <make_stunned> 8 -> 8
+Temp saves <spell_backfire> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <throwspell> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <shieldeff> 6 -> 6
+Temp saves <add_weapon_skill> 5 -> 0 in 0 runs [5..-1], 0 needed
+Temp saves <lose_weapon_skill> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <adjabil> 12 -> 9 in 1 runs [3..11], 9 needed
+Temp saves <redist_attr> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <make_sick__b90> 8 -> 7 in 1 runs [1..7], 7 needed
+Temp saves <make_sick> 2 -> 2
+Temp saves <polyman__b21> 6 -> 6
+Temp saves <polyman> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <newman> 9 -> 5 in 1 runs [0..4], 4 needed
+Temp saves <instapetrify> 1 -> 1
+Temp saves <selftouch> 1 -> 1
+Temp saves <polyself> 20 -> 20
+Temp saves <monkilled__b13> 5 -> 5
+Temp saves <monkilled> 1 -> 1
+Temp saves <resist> 4 -> 4
+Temp saves <costly_cancel> 3 -> 3
+Temp saves <unbless> 2 -> 2
+Temp saves <uncurse> 2 -> 2
+Temp saves <cancel_item> 3 -> 2 in 1 runs [0..1], 2 needed
+Temp saves <m_lose_armor> 4 -> 1 in 1 runs [2..2], 1 needed
+Temp saves <mon_break_armor> 13 -> 13
+Temp saves <new_were> 4 -> 4
+Temp saves <were_change> 2 -> 2
+Temp saves <cancel_monst> 9 -> 9
+Temp saves <losexp__b86> 4 -> 4
+Temp saves <losexp> 1 -> 1
+Temp saves <fall_asleep> 2 -> 2
+Temp saves <revive_egg> 2 -> 2
+Temp saves <unturn_dead> 14 -> 10 in 1 runs [4..13], 10 needed
+Temp saves <ustatusline> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <boxlock> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <do_osshock> 12 -> 0 in 0 runs [12..-1], 0 needed
+Temp saves <delete_contents> 4 -> 4
+Temp saves <Cloak_off> 6 -> 6
+Temp saves <movobj> 4 -> 2 in 1 runs [0..1], 2 needed
+Temp saves <restartcham> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <Ring_off_or_gone> 7 -> 7
+Temp saves <Blindf_off> 3 -> 3
+Temp saves <move_bc> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <spec_abon> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <hitval> 14 -> 14
+Temp saves <omon_adj> 4 -> 3 in 1 runs [0..2], 3 needed
+Temp saves <wakeup> 2 -> 2
+Temp saves <spec_dbon> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <dmgval> 18 -> 18
+Temp saves <mstatusline> 7 -> 7
+Temp saves <feel_cockatrice> 2 -> 2
+Temp saves <dfeature_at__b14> 8 -> 4 in 1 runs [4..7], 4 needed
+Temp saves <read_engr_at> 6 -> 4 in 1 runs [2..5], 4 needed
+Temp saves <look_here> 15 -> 15
+Temp saves <let_to_name__b96> 5 -> 5
+Temp saves <let_to_name> 1 -> 1
+Temp saves <query_objlist__b76> 21 -> 21
+Temp saves <query_objlist> 1 -> 1
+Temp saves <invdisp_nothing__b95> 2 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <invdisp_nothing> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <display_minventory__b88> 9 -> 9
+Temp saves <display_minventory> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <probe_monster> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <Mb_hit__b57> 23 -> 7 in 2 runs [0..22], 7 needed
+Temp saves <Mb_hit> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <artifact_hit> 17 -> 14 in 1 runs [3..16], 12 needed
+Temp saves <mon_set_minvis> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <sleep_monst> 2 -> 2
+Temp saves <slept_monst> 2 -> 2
+Temp saves <hit__b34> 4 -> 2 in 1 runs [0..1], 2 needed
+Temp saves <hit> 1 -> 1
+Temp saves <miss__b34> 4 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <miss> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <m_dowear_type> 32 -> 29 in 1 runs [3..31], 29 needed
+Temp saves <m_dowear> 6 -> 4 in 1 runs [2..5], 4 needed
+Temp saves <u_teleport_mon> 4 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <obj_typename__b86> 13 -> 13
+Temp saves <obj_typename> 1 -> 1
+Temp saves <simple_typename__b101> 6 -> 6
+Temp saves <simple_typename> 1 -> 1
+Temp saves <mimic_hit_msg> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <flash_hits_mon> 12 -> 6 in 1 runs [6..11], 6 needed
+Temp saves <ureflects> 1 -> 1
+Temp saves <mon_reflects__b86> 2 -> 2
+Temp saves <mon_reflects> 1 -> 1
+Temp saves <m_monnam> 1 -> 1
+Temp saves <done_in_by> 6 -> 6
+Temp saves <gazemu> 9 -> 7 in 1 runs [2..8], 7 needed
+Temp saves <m_respond> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <bhitm> 18 -> 18 (escapes)
+Temp saves <potionhit> 13 -> 5 in 1 runs [8..12], 3 needed
+Temp saves <mon_consume_unstone> 11 -> 7 in 1 runs [4..10], 6 needed
+Temp saves <a_monnam> 1 -> 1
+Temp saves <mon_to_stone> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <minstapetrify> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <use_skill> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <thitm> 15 -> 8 in 1 runs [4..11], 8 needed
+Temp saves <steedintrap> 5 -> 1 in 1 runs [4..4], 1 needed
+Temp saves <killer_xname__b22> 7 -> 4 in 1 runs [2..5], 4 needed
+Temp saves <thitu__b22> 12 -> 12
+Temp saves <thitu> 1 -> 1
+Temp saves <poisoned__b22> 8 -> 6 in 1 runs [2..7], 5 needed
+Temp saves <poisoned> 3 -> 2 in 1 runs [1..2], 2 needed
+Temp saves <ceiling__b96> 4 -> 4
+Temp saves <rust_dmg> 1 -> 1
+Temp saves <erode_obj> 8 -> 8
+Temp saves <dofiretrap> 7 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <ballfall> 3 -> 0 in 0 runs [3..-1], 0 needed
+Temp saves <next_to_u> 4 -> 4
+Temp saves <shopdig> 8 -> 5 in 1 runs [2..6], 3 needed
+Temp saves <schedule_goto__b99> 2 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <schedule_goto> 1 -> 1
+Temp saves <fall_through> 7 -> 0 in 0 runs [7..-1], 0 needed
+Temp saves <print_branch> 11 -> 9 in 1 runs [2..10], 9 needed
+Temp saves <print_dungeon> 10 -> 10
+Temp saves <addinv_core1> 2 -> 2
+Temp saves <find_branch__b4> 8 -> 8
+Temp saves <find_branch> 1 -> 1
+Temp saves <ledger_to_dlev> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <lev_by_name__b86> 5 -> 4 in 1 runs [0..3], 3 needed
+Temp saves <lev_by_name> 1 -> 1
+Temp saves <rouse_shk> 4 -> 3 in 1 runs [0..2], 3 needed
+Temp saves <rob_shop> 6 -> 6
+Temp saves <makekops> 9 -> 9
+Temp saves <call_kops> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <u_left_shop__b93> 4 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <u_left_shop> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <get_level> 2 -> 2
+Temp saves <create_levelfile> 6 -> 4 in 1 runs [2..5], 4 needed
+Temp saves <y_monnam> 1 -> 1
+Temp saves <dname_to_dnum__b4> 3 -> 2 in 1 runs [0..1], 2 needed
+Temp saves <dname_to_dnum> 1 -> 1
+Temp saves <dungeon_branch__b1> 4 -> 4
+Temp saves <dungeon_branch> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <expulsion> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <fully_identify_obj> 2 -> 2
+Temp saves <com_pager> 4 -> 4
+Temp saves <prisoner_speaks> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <wipe_engr_at> 3 -> 3
+Temp saves <mnearto> 10 -> 10
+Temp saves <tactics> 8 -> 4 in 1 runs [2..5], 4 needed
+Temp saves <histemple_at> 4 -> 3 in 1 runs [0..2], 3 needed
+Temp saves <findpriest> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <in_your_sanctuary> 4 -> 4
+Temp saves <distfleeck> 6 -> 6
+Temp saves <mquaffmsg> 4 -> 3 in 1 runs [0..2], 2 needed
+Temp saves <precheck> 10 -> 7 in 1 runs [3..9], 7 needed
+Temp saves <awaken_soldiers> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <mzapmsg> 3 -> 2 in 1 runs [0..1], 2 needed
+Temp saves <mbhitm> 8 -> 8 (escapes)
+Temp saves <obstructed> 5 -> 5
+Temp saves <mb_trapped> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <doorlock> 15 -> 11 in 1 runs [4..14], 8 needed
+Temp saves <mbhit> 14 -> 7 in 2 runs [3..13], 7 needed
+Temp saves <mreadmsg> 9 -> 6 in 1 runs [3..8], 6 needed
+Temp saves <migrate_to_level> 9 -> 3 in 1 runs [6..8], 3 needed
+Temp saves <worm_move> 10 -> 3 in 1 runs [6..8], 3 needed
+Temp saves <use_defensive> 25 -> 10 in 2 runs [2..21], 10 needed
+Temp saves <find_misc> 21 -> 9 in 2 runs [2..20], 9 needed
+Temp saves <Can_rise_up> 2 -> 1 in 1 runs [1..1], 1 needed
+Temp saves <noit_mon_nam> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <you_aggravate> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <use_misc> 17 -> 5 in 2 runs [2..16], 5 needed
+Temp saves <fpscanf> 19 -> 19
+Temp saves <demon_talk> 13 -> 4 in 1 runs [2..5], 4 needed
+Temp saves <watch_dig> 6 -> 4 in 1 runs [2..5], 3 needed
+Temp saves <watch_on_duty> 5 -> 3 in 1 runs [2..4], 3 needed
+Temp saves <cursetxt> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <clonewiz> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <ndemon> 6 -> 6
+Temp saves <dlord> 6 -> 6
+Temp saves <dprince> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <lminion> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <msummon> 11 -> 5 in 1 runs [6..10], 5 needed
+Temp saves <nasty> 15 -> 8 in 2 runs [2..13], 7 needed
+Temp saves <rndcurse> 7 -> 7
+Temp saves <destroy_arm> 2 -> 2
+Temp saves <cast_wizard_spell> 9 -> 0 in 0 runs [9..-1], 0 needed
+Temp saves <cast_cleric_spell> 14 -> 1 in 1 runs [13..13], 1 needed
+Temp saves <castmu> 13 -> 13
+Temp saves <mselftouch__b93> 4 -> 3 in 1 runs [0..2], 2 needed
+Temp saves <mselftouch> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <teleport_pet> 2 -> 2
+Temp saves <mlevel_tele_trap> 9 -> 1 in 1 runs [8..8], 1 needed
+Temp saves <mtele_trap> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <fracture_rock> 2 -> 2
+Temp saves <get_mtraits> 6 -> 2 in 1 runs [4..5], 2 needed
+Temp saves <montraits> 8 -> 4 in 1 runs [4..7], 3 needed
+Temp saves <animate_statue> 10 -> 9 in 1 runs [1..9], 8 needed
+Temp saves <activate_statue_trap> 11 -> 9 in 1 runs [2..10], 8 needed
+Temp saves <break_statue> 4 -> 4
+Temp saves <breakmsg> 4 -> 4
+Temp saves <dropped_container> 3 -> 3
+Temp saves <shk_names_obj__b88> 6 -> 6
+Temp saves <shk_names_obj> 1 -> 1
+Temp saves <pay> 10 -> 10
+Temp saves <sellobj> 40 -> 40
+Temp saves <check_shop_obj> 6 -> 4 in 1 runs [2..5], 3 needed
+Temp saves <breakobj> 8 -> 8
+Temp saves <breaks> 7 -> 7
+Temp saves <drain_item> 2 -> 2
+Temp saves <passive_obj> 6 -> 4 in 1 runs [2..5], 4 needed
+Temp saves <drop_throw> 10 -> 2 in 1 runs [8..9], 2 needed
+Temp saves <ohitmon> 16 -> 12 in 2 runs [0..15], 12 needed
+Temp saves <scatter> 28 -> 28 (escapes)
+Temp saves <blow_up_landmine> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <hero_breaks> 3 -> 3
+Temp saves <hits_bars> 7 -> 0 in 0 runs [7..-1], 0 needed
+Temp saves <launch_obj> 18 -> 5 in 2 runs [8..17], 5 needed
+Temp saves <mintrap> 23 -> 21 in 1 runs [2..22], 20 needed
+Temp saves <init_rumors> 4 -> 4
+Temp saves <getrumor__b82> 10 -> 10
+Temp saves <getrumor> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <outrumor> 4 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <init_oracles> 7 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <outoracle> 10 -> 4 in 1 runs [3..6], 3 needed
+Temp saves <pluslvl> 3 -> 3
+Temp saves <doconsult> 9 -> 0 in 0 runs [9..-1], 0 needed
+Temp saves <priest_talk> 8 -> 0 in 0 runs [8..-1], 0 needed
+Temp saves <shk_chat> 8 -> 0 in 0 runs [8..-1], 0 needed
+Temp saves <safe_qbuf__b97> 12 -> 12
+Temp saves <safe_qbuf> 1 -> 1
+Temp saves <float_up> 2 -> 2
+Temp saves <rescham> 2 -> 2
+Temp saves <Ring_on> 13 -> 11 in 1 runs [2..12], 11 needed
+Temp saves <xprname__b88> 13 -> 13
+Temp saves <xprname> 1 -> 1
+Temp saves <prinv> 1 -> 1
+Temp saves <mayberem__b90> 4 -> 4
+Temp saves <mayberem> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <doseduce> 19 -> 4 in 1 runs [15..18], 4 needed
+Temp saves <cuss> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <domonnoise> 15 -> 7 in 1 runs [8..14], 6 needed
+Temp saves <beg> 7 -> 0 in 0 runs [7..-1], 0 needed
+Temp saves <dog_hunger> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <dog_invent> 13 -> 4 in 1 runs [9..12], 3 needed
+Temp saves <can_reach_location> 16 -> 16
+Temp saves <magic_map_background> 3 -> 1 in 1 runs [2..2], 1 needed
+Temp saves <findone> 12 -> 12 (escapes)
+Temp saves <b_trapped__b97> 2 -> 2
+Temp saves <b_trapped> 1 -> 1
+Temp saves <e_nam> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <do_entity> 17 -> 15 in 1 runs [2..16], 13 needed
+Temp saves <revive_nasty__b90> 11 -> 11
+Temp saves <revive_nasty> 1 -> 1
+Temp saves <delallobj> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <open_drawbridge> 9 -> 9
+Temp saves <openone> 4 -> 4 (escapes)
+Temp saves <do_clear_area> 16 -> 16
+Temp saves <dog_goal> 27 -> 16 in 1 runs [11..26], 16 needed
+Temp saves <mk_roamer> 7 -> 5 in 1 runs [0..4], 5 needed
+Temp saves <mfndpos> 48 -> 37 in 1 runs [11..47], 33 needed
+Temp saves <mswingsm> 4 -> 1 in 1 runs [2..2], 1 needed
+Temp saves <mon_nam_too__b29> 4 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <mon_nam_too> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <mrustm> 9 -> 0 in 0 runs [9..-1], 0 needed
+Temp saves <on_fire> 1 -> 1
+Temp saves <erode_armor> 2 -> 2
+Temp saves <hurtmarmor> 3 -> 0 in 0 runs [3..-1], 0 needed
+Temp saves <mdamagem> 19 -> 19
+Temp saves <hitmm> 10 -> 10
+Temp saves <missmm> 8 -> 6 in 1 runs [2..7], 5 needed
+Temp saves <gazemm> 4 -> 1 in 1 runs [2..2], 1 needed
+Temp saves <explmm> 4 -> 1 in 1 runs [2..2], 1 needed
+Temp saves <gulpmm> 17 -> 15 in 1 runs [2..16], 14 needed
+Temp saves <passivemm> 12 -> 10 in 1 runs [2..11], 9 needed
+Temp saves <mattackm> 19 -> 16 in 1 runs [3..18], 15 needed
+Temp saves <whimper> 5 -> 5
+Temp saves <were_summon__b83> 11 -> 11
+Temp saves <were_summon> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <find_offensive> 9 -> 7 in 1 runs [2..8], 7 needed
+Temp saves <hold_another_object__b71> 16 -> 16
+Temp saves <hold_another_object> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <m_throw> 17 -> 17
+Temp saves <use_offensive> 32 -> 21 in 2 runs [6..30], 16 needed
+Temp saves <u_slip_free> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <hitmsg> 2 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <urustm> 7 -> 0 in 0 runs [7..-1], 0 needed
+Temp saves <forget_levels> 5 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <forget_objects> 7 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <stealgold> 12 -> 0 in 0 runs [12..-1], 0 needed
+Temp saves <Adjmonnam__b100> 2 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <Adjmonnam> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <steal__b55> 20 -> 8 in 2 runs [0..19], 6 needed
+Temp saves <steal> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <stealamulet> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <hurtarmor> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <passiveum> 10 -> 0 in 0 runs [10..-1], 0 needed
+Temp saves <hitmu> 26 -> 23 in 1 runs [0..22], 16 needed
+Temp saves <missmu> 4 -> 3 in 1 runs [0..2], 3 needed
+Temp saves <wildmiss> 4 -> 1 in 1 runs [2..2], 1 needed
+Temp saves <explmu> 11 -> 8 in 1 runs [2..9], 6 needed
+Temp saves <gulpmu> 14 -> 12 in 1 runs [2..13], 8 needed
+Temp saves <breamu> 7 -> 5 in 1 runs [2..6], 3 needed
+Temp saves <spitmu> 8 -> 6 in 1 runs [2..7], 4 needed
+Temp saves <thrwmu> 16 -> 14 in 1 runs [2..15], 9 needed
+Temp saves <mswings> 4 -> 3 in 1 runs [0..2], 3 needed
+Temp saves <buzzmu> 7 -> 5 in 1 runs [2..6], 3 needed
+Temp saves <mattacku> 19 -> 13 in 2 runs [0..18], 13 needed
+Temp saves <m_in_out_region> 14 -> 14
+Temp saves <dog_move> 46 -> 18 in 3 runs [14..45], 17 needed
+Temp saves <move_special> 23 -> 16 in 1 runs [7..22], 12 needed
+Temp saves <after_shk_move> 2 -> 2
+Temp saves <shk_move> 23 -> 11 in 1 runs [12..22], 10 needed
+Temp saves <hidden_gold> 6 -> 5 in 1 runs [1..5], 5 needed
+Temp saves <move_gold> 9 -> 5 in 1 runs [4..8], 5 needed
+Temp saves <wallify_vault> 22 -> 17 in 1 runs [5..21], 14 needed
+Temp saves <restfakecorr> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <mpickgold> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <gd_move> 31 -> 15 in 2 runs [12..30], 14 needed
+Temp saves <pri_move> 11 -> 0 in 0 runs [11..-1], 0 needed
+Temp saves <worm_nomove> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <mdig_tunnel> 7 -> 0 in 0 runs [7..-1], 0 needed
+Temp saves <meatmetal> 13 -> 0 in 0 runs [13..-1], 0 needed
+Temp saves <meatobj> 19 -> 5 in 1 runs [14..18], 5 needed
+Temp saves <mpickstuff__b6> 11 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <mpickstuff> 1 -> 1
+Temp saves <m_move> 57 -> 55 in 1 runs [2..56], 55 needed
+Temp saves <wormhitu> 4 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <dochug> 32 -> 29 in 1 runs [3..31], 28 needed
+Temp saves <u_entered_shop__b67> 9 -> 4 in 1 runs [0..3], 3 needed
+Temp saves <u_entered_shop> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <monstinroom> 2 -> 2
+Temp saves <intemple> 10 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <check_special_room> 10 -> 8 in 1 runs [2..9], 7 needed
+Temp saves <keepdogs> 9 -> 8 in 1 runs [1..8], 8 needed
+Temp saves <bwrite> 5 -> 5
+Temp saves <save_room> 5 -> 5
+Temp saves <save_rooms> 6 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <write_timer> 4 -> 4
+Temp saves <maybe_write_timer> 5 -> 5
+Temp saves <save_timers> 7 -> 7
+Temp saves <write_ls> 4 -> 4
+Temp saves <maybe_write_ls> 5 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <save_light_sources> 7 -> 7
+Temp saves <saveobjchn> 10 -> 10
+Temp saves <savemonchn> 10 -> 10
+Temp saves <save_worm> 7 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <savetrapchn> 6 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <save_engravings> 7 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <savedamage> 4 -> 4
+Temp saves <save_regions> 11 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <bflush> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <savelev> 12 -> 12
+Temp saves <delete_levelfile> 2 -> 2
+Temp saves <set_bonesfile_name__b98> 4 -> 2 in 1 runs [0..1], 2 needed
+Temp saves <set_bonesfile_name> 1 -> 1
+Temp saves <open_bonesfile> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <check_version> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <uptodate__b99> 3 -> 3
+Temp saves <uptodate> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <trickery> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <loadfruitchn> 6 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <rest_room> 5 -> 5
+Temp saves <restore_timers> 5 -> 0 in 0 runs [5..-1], 0 needed
+Temp saves <restore_light_sources> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <fruitadd__b83> 12 -> 12
+Temp saves <fruitadd> 1 -> 1
+Temp saves <ghostfruit> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <restobjchn> 9 -> 7 in 1 runs [2..8], 7 needed
+Temp saves <restmonchn> 11 -> 5 in 1 runs [6..10], 5 needed
+Temp saves <mon_catchup_elapsed_time> 6 -> 6
+Temp saves <restore_cham> 2 -> 2
+Temp saves <rest_worm> 12 -> 6 in 1 runs [6..11], 6 needed
+Temp saves <find_lev_obj> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <rest_engravings> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <restdamage> 10 -> 4 in 1 runs [6..9], 4 needed
+Temp saves <remove_region> 10 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <rest_regions> 13 -> 5 in 1 runs [8..12], 5 needed
+Temp saves <mazexy> 7 -> 7
+Temp saves <o_on> 2 -> 2
+Temp saves <find_oid> 3 -> 2 in 1 runs [0..1], 2 needed
+Temp saves <relink_timers> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <relink_light_sources> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <getlev> 9 -> 7 in 1 runs [2..8], 7 needed
+Temp saves <resetobjs> 3 -> 3
+Temp saves <getbones> 8 -> 0 in 0 runs [8..-1], 0 needed
+Temp saves <flood_fill_rm> 18 -> 18
+Temp saves <wallification> 27 -> 21 in 1 runs [6..26], 20 needed
+Temp saves <do_room_or_subroom> 6 -> 6
+Temp saves <add_room> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <dig_corridor> 19 -> 19
+Temp saves <join_map> 9 -> 0 in 0 runs [9..-1], 0 needed
+Temp saves <mkmap> 20 -> 10 in 3 runs [0..17], 10 needed
+Temp saves <load_common_data> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <load_one_monster> 6 -> 2 in 1 runs [0..1], 2 needed
+Temp saves <load_one_object> 6 -> 5 in 1 runs [0..4], 3 needed
+Temp saves <load_one_engraving> 6 -> 2 in 1 runs [0..1], 2 needed
+Temp saves <add_subroom> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <create_subroom> 9 -> 6 in 1 runs [0..5], 4 needed
+Temp saves <check_room> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <add_rect> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <split_rects> 11 -> 6 in 2 runs [0..9], 5 needed
+Temp saves <create_room> 40 -> 36 in 2 runs [0..39], 33 needed
+Temp saves <get_room_loc> 4 -> 4
+Temp saves <get_free_room_loc> 7 -> 7
+Temp saves <create_stairs> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <get_location> 11 -> 11
+Temp saves <create_feature> 5 -> 3 in 1 runs [2..4], 3 needed
+Temp saves <mongets> 8 -> 8
+Temp saves <priestini> 9 -> 3 in 2 runs [0..8], 3 needed
+Temp saves <create_altar> 8 -> 8
+Temp saves <create_door> 7 -> 3 in 1 runs [4..6], 3 needed
+Temp saves <mktrap> 6 -> 6
+Temp saves <create_trap> 2 -> 2
+Temp saves <get_mplname__b92> 13 -> 13
+Temp saves <get_mplname> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <mk_mplayer_armor> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <rnd_offensive_item> 9 -> 4 in 1 runs [2..5], 4 needed
+Temp saves <rnd_defensive_item> 11 -> 4 in 1 runs [2..5], 4 needed
+Temp saves <rnd_misc_item> 7 -> 4 in 1 runs [2..5], 4 needed
+Temp saves <mk_mplayer> 21 -> 10 in 2 runs [2..20], 9 needed
+Temp saves <create_monster> 13 -> 13
+Temp saves <create_object> 11 -> 11
+Temp saves <create_gold> 2 -> 2
+Temp saves <make_engr_at__b90> 6 -> 6
+Temp saves <make_engr_at> 1 -> 1
+Temp saves <create_engraving> 2 -> 2
+Temp saves <topologize> 12 -> 12
+Temp saves <shkinit> 17 -> 4 in 1 runs [4..7], 4 needed
+Temp saves <mkshobj_at> 7 -> 3 in 1 runs [4..6], 3 needed
+Temp saves <stock_room> 22 -> 14 in 1 runs [8..21], 12 needed
+Temp saves <courtmon> 2 -> 2
+Temp saves <morguemon> 2 -> 2
+Temp saves <fscanf> 2 -> 2
+Temp saves <readentry> 6 -> 6
+Temp saves <classmon__b98> 5 -> 5
+Temp saves <classmon> 1 -> 1
+Temp saves <tt_oname> 8 -> 8
+Temp saves <mk_tt_object> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <make_grave__b90> 5 -> 5
+Temp saves <make_grave> 1 -> 1
+Temp saves <fill_zoo> 23 -> 17 in 2 runs [0..22], 15 needed
+Temp saves <fill_room> 6 -> 1 in 1 runs [2..2], 1 needed
+Temp saves <build_room> 10 -> 8 in 1 runs [2..9], 7 needed
+Temp saves <dosdoor> 6 -> 6
+Temp saves <join> 22 -> 12 in 2 runs [2..21], 12 needed
+Temp saves <makecorridors> 8 -> 4 in 1 runs [2..5], 3 needed
+Temp saves <search_door> 2 -> 2
+Temp saves <create_corridor> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <load_rooms> 18 -> 2 in 1 runs [3..4], 2 needed
+Temp saves <remove_rooms> 3 -> 0 in 0 runs [3..-1], 0 needed
+Temp saves <create_drawbridge> 9 -> 0 in 0 runs [9..-1], 0 needed
+Temp saves <okay> 6 -> 3 in 1 runs [2..4], 2 needed
+Temp saves <walkfrom> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <load_maze> 20 -> 2 in 1 runs [3..4], 2 needed
+Temp saves <load_special__b98> 5 -> 4 in 1 runs [0..3], 3 needed
+Temp saves <load_special> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <mv_bubble> 19 -> 3 in 2 runs [4..10], 3 needed
+Temp saves <mk_bubble> 8 -> 8
+Temp saves <setup_waterlevel> 8 -> 6 in 1 runs [2..7], 6 needed
+Temp saves <find_branch_room> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <place_branch> 8 -> 3 in 1 runs [4..6], 3 needed
+Temp saves <put_lregion_here> 3 -> 3
+Temp saves <place_lregion> 20 -> 18 in 1 runs [2..19], 17 needed
+Temp saves <sokoban_detect> 10 -> 4 in 1 runs [4..7], 4 needed
+Temp saves <create_secret_door> 13 -> 4 in 1 runs [4..7], 4 needed
+Temp saves <fixup_special> 11 -> 0 in 0 runs [11..-1], 0 needed
+Temp saves <makemaz__b64> 20 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <makemaz> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <miniwalk> 5 -> 0 in 0 runs [5..-1], 0 needed
+Temp saves <roguecorr> 18 -> 7 in 1 runs [0..6], 5 needed
+Temp saves <makeroguerooms> 10 -> 0 in 0 runs [10..-1], 0 needed
+Temp saves <makerogueghost> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <makerooms> 3 -> 0 in 0 runs [3..-1], 0 needed
+Temp saves <makeniche> 13 -> 8 in 1 runs [2..9], 6 needed
+Temp saves <make_niches> 6 -> 1 in 1 runs [2..2], 1 needed
+Temp saves <at_dgn_entrance> 1 -> 1
+Temp saves <insert_branch> 12 -> 11 in 1 runs [1..11], 8 needed
+Temp saves <mk_knox_portal> 5 -> 1 in 1 runs [2..2], 1 needed
+Temp saves <mktemple> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <mkswamp> 10 -> 2 in 1 runs [8..9], 2 needed
+Temp saves <mkshop> 9 -> 1 in 1 runs [8..8], 1 needed
+Temp saves <mkfount> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <add_to_buried> 2 -> 2
+Temp saves <mkgrave> 6 -> 2 in 1 runs [4..5], 2 needed
+Temp saves <random_engraving__b88> 2 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <random_engraving> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <makelevel> 16 -> 0 in 0 runs [16..-1], 0 needed
+Temp saves <mineralize> 13 -> 0 in 0 runs [13..-1], 0 needed
+Temp saves <mklev> 20 -> 12 in 1 runs [8..19], 12 needed
+Temp saves <open_levelfile> 6 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <u_on_sstairs> 3 -> 0 in 0 runs [3..-1], 0 needed
+Temp saves <canletgo__b89> 4 -> 4
+Temp saves <canletgo> 1 -> 1
+Temp saves <litter> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <drag_down> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <obj_delivery> 7 -> 0 in 0 runs [7..-1], 0 needed
+Temp saves <create_worm_tail> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <initworm> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <mon_arrive> 16 -> 16
+Temp saves <losedogs> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <kill_eggs> 2 -> 2
+Temp saves <kill_genocided_monsters> 4 -> 3 in 1 runs [1..3], 3 needed
+Temp saves <revive_mon> 2 -> 2 (escapes)
+Temp saves <Shk_Your__b102> 2 -> 2
+Temp saves <Shk_Your> 1 -> 1
+Temp saves <burn_object> 13 -> 13 (escapes)
+Temp saves <cleanup_burn> 2 -> 2 (escapes)
+Temp saves <hatch_egg> 22 -> 22 (escapes)
+Temp saves <figurine_location_checks> 2 -> 2
+Temp saves <cost_per_charge> 4 -> 3 in 1 runs [0..2], 3 needed
+Temp saves <check_unpaid_usage> 12 -> 12
+Temp saves <catch_lit> 4 -> 2 in 1 runs [0..1], 2 needed
+Temp saves <fire_damage> 17 -> 8 in 2 runs [4..16], 8 needed
+Temp saves <minliquid> 11 -> 11
+Temp saves <make_familiar> 8 -> 6 in 1 runs [2..7], 6 needed
+Temp saves <fig_transform> 14 -> 14 (escapes)
+Temp saves <run_timers> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <movebubbles> 20 -> 18 in 1 runs [2..19], 14 needed
+Temp saves <resurrect> 11 -> 5 in 1 runs [2..6], 5 needed
+Temp saves <reset_hostility> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <create_mplayers> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <final_level> 8 -> 0 in 0 runs [8..-1], 0 needed
+Temp saves <save_dungeon> 4 -> 3 in 1 runs [0..2], 3 needed
+Temp saves <savelevchn> 7 -> 7
+Temp saves <save_artifacts> 2 -> 2
+Temp saves <save_oracles> 3 -> 3
+Temp saves <savefruitchn> 5 -> 5
+Temp saves <savenames> 9 -> 9
+Temp saves <save_waterlevel> 5 -> 5
+Temp saves <savegamestate> 4 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <savestateinlock> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <save_currentstate> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <check_here> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <autopick> 9 -> 0 in 0 runs [9..-1], 0 needed
+Temp saves <carry_count> 33 -> 25 in 2 runs [4..32], 25 needed
+Temp saves <merge_choice> 7 -> 3 in 1 runs [4..6], 3 needed
+Temp saves <lift_object> 15 -> 8 in 1 runs [7..14], 7 needed
+Temp saves <remote_burglary> 2 -> 2
+Temp saves <pick_obj> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <pickup_object> 13 -> 6 in 1 runs [7..12], 6 needed
+Temp saves <collect_obj_classes> 5 -> 3 in 1 runs [2..4], 3 needed
+Temp saves <simple_look> 7 -> 5 in 1 runs [2..6], 5 needed
+Temp saves <display_pickinv__b77> 14 -> 14
+Temp saves <display_pickinv> 1 -> 1
+Temp saves <display_inventory> 1 -> 1
+Temp saves <query_classes__b81> 23 -> 13 in 2 runs [0..22], 11 needed
+Temp saves <query_classes> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <pickup> 22 -> 22
+Temp saves <goto_level> 15 -> 15
+Temp saves <deferred_goto> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <level_tele> 7 -> 7
+Temp saves <p_glow2__b94> 2 -> 2
+Temp saves <p_glow2> 1 -> 1
+Temp saves <create_particular> 14 -> 14
+Temp saves <create_critters> 8 -> 8
+Temp saves <chwepon> 12 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <kops_gone> 9 -> 0 in 0 runs [9..-1], 0 needed
+Temp saves <home_shk> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <make_happy_shk> 10 -> 8 in 1 runs [2..9], 8 needed
+Temp saves <maybe_tame> 2 -> 2
+Temp saves <makesingular__b72> 16 -> 16
+Temp saves <makesingular> 1 -> 1
+Temp saves <do_class_genocide> 17 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <do_genocide> 13 -> 13
+Temp saves <litroom> 11 -> 11
+Temp saves <sense_trap> 2 -> 2
+Temp saves <trap_detect> 7 -> 7
+Temp saves <o_material> 4 -> 4
+Temp saves <o_in> 3 -> 3
+Temp saves <clear_stale_map> 8 -> 6 in 1 runs [2..7], 6 needed
+Temp saves <gold_detect> 10 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <food_detect> 16 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <identify> 2 -> 2 (escapes)
+Temp saves <out_container> 12 -> 12 (escapes)
+Temp saves <weldmsg> 6 -> 6
+Temp saves <mbag_explodes> 6 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <in_container> 10 -> 10 (escapes)
+Temp saves <select_off> 8 -> 8 (escapes)
+Temp saves <fruitname__b100> 2 -> 2
+Temp saves <fruitname> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <container_impact_dmg> 18 -> 18
+Temp saves <drop> 7 -> 7 (escapes)
+Temp saves <mkgoldobj> 2 -> 2
+Temp saves <askchain__b82> 21 -> 14 in 2 runs [0..20], 8 needed
+Temp saves <askchain> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <ggetobj__b65> 19 -> 19
+Temp saves <ggetobj> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <menu_identify> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <identify_pack> 8 -> 8
+Temp saves <already_wearing> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <silly_thing__b92> 6 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <silly_thing> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <canwearobj> 9 -> 9
+Temp saves <eatmdone> 2 -> 2 (escapes)
+Temp saves <doorganize> 7 -> 7 (escapes)
+Temp saves <shop_object> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <price_quote> 16 -> 8 in 1 runs [8..15], 6 needed
+Temp saves <dowhatdoes_core__b91> 10 -> 10
+Temp saves <dowhatdoes_core> 1 -> 1
+Temp saves <help_dir__b63> 6 -> 6
+Temp saves <help_dir> 1 -> 1
+Temp saves <getdir> 1 -> 1
+Temp saves <dotalk> 11 -> 11 (escapes)
+Temp saves <enlght_line> 1 -> 1
+Temp saves <show_conduct> 1 -> 1
+Temp saves <floating_above> 1 -> 1
+Temp saves <get_wet> 2 -> 2
+Temp saves <wishymatch__b83> 4 -> 4
+Temp saves <wishymatch> 1 -> 1
+Temp saves <readobjnam__b26> 53 -> 53
+Temp saves <readobjnam> 1 -> 1
+Temp saves <makewish> 4 -> 4
+Temp saves <dowaterdemon> 4 -> 3 in 1 runs [0..2], 3 needed
+Temp saves <dowaternymph> 2 -> 2
+Temp saves <dowatersnakes> 4 -> 3 in 1 runs [0..2], 3 needed
+Temp saves <dipfountain> 5 -> 0 in 0 runs [5..-1], 0 needed
+Temp saves <dodip> 19 -> 19 (escapes)
+Temp saves <enhance_weapon_skill> 23 -> 23 (escapes)
+Temp saves <forcelock> 15 -> 15 (escapes)
+Temp saves <doforce> 6 -> 6 (escapes)
+Temp saves <consume_obj_charge> 2 -> 2
+Temp saves <do_dknown_of> 2 -> 2
+Temp saves <object_detect> 21 -> 20 in 1 runs [1..20], 20 needed
+Temp saves <detect_wsegs> 4 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <monster_detect> 5 -> 4 in 1 runs [1..4], 4 needed
+Temp saves <use_crystal_ball> 6 -> 2 in 1 runs [4..5], 2 needed
+Temp saves <abuse_dog> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <check_leash> 12 -> 6 in 2 runs [2..11], 6 needed
+Temp saves <try_disarm> 13 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <cnv_trap_obj> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <disarm_holdingtrap> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <disarm_landmine> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <disarm_squeaky_board> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <disarm_shooting_trap> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <try_lift> 3 -> 1 in 1 runs [2..2], 1 needed
+Temp saves <help_monster_out> 8 -> 0 in 0 runs [8..-1], 0 needed
+Temp saves <chest_trap> 18 -> 16 in 1 runs [2..17], 16 needed
+Temp saves <stumble_onto_mimic> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <untrap> 15 -> 13 in 1 runs [2..14], 13 needed
+Temp saves <wand_explode> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <stripspe> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <p_glow1> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <recharge> 13 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <enlght_combatinc__b95> 4 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <enlght_combatinc> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <u_gname> 1 -> 1
+Temp saves <stuck_ring> 4 -> 2 in 1 runs [0..1], 2 needed
+Temp saves <in_trouble> 8 -> 8
+Temp saves <can_pray> 1 -> 1
+Temp saves <enlightenment> 7 -> 7
+Temp saves <arti_invoke> 19 -> 17 in 1 runs [2..18], 17 needed
+Temp saves <doinvoke> 2 -> 2 (escapes)
+Temp saves <jump> 6 -> 6
+Temp saves <ysimple_name__b100> 6 -> 5 in 1 runs [0..4], 4 needed
+Temp saves <ysimple_name> 1 -> 1
+Temp saves <in_or_out_menu__b65> 10 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <in_or_out_menu> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <query_category__b65> 16 -> 16
+Temp saves <query_category> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <menu_loot> 16 -> 5 in 1 runs [11..15], 2 needed
+Temp saves <container_contents> 9 -> 9
+Temp saves <use_container> 25 -> 21 in 1 runs [4..24], 21 needed
+Temp saves <get_adjacent_loc> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <loot_mon> 6 -> 6
+Temp saves <doloot> 12 -> 12 (escapes)
+Temp saves <hurtle> 5 -> 0 in 0 runs [5..-1], 0 needed
+Temp saves <boomhit> 11 -> 0 in 0 runs [11..-1], 0 needed
+Temp saves <shkcatch> 11 -> 2 in 1 runs [9..10], 2 needed
+Temp saves <close_drawbridge> 12 -> 7 in 1 runs [5..11], 6 needed
+Temp saves <polyuse> 7 -> 2 in 1 runs [4..5], 2 needed
+Temp saves <create_polymon> 10 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <bhitpile> 10 -> 7 in 1 runs [2..8], 6 needed
+Temp saves <pay_for_damage__b66> 26 -> 26
+Temp saves <pay_for_damage> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <still_chewing> 13 -> 7 in 1 runs [6..12], 7 needed
+Temp saves <attack_checks> 9 -> 5 in 1 runs [4..8], 5 needed
+Temp saves <can_twoweapon> 4 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <find_roll_to_hit> 13 -> 7 in 1 runs [6..12], 7 needed
+Temp saves <missum> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <cutworm> 13 -> 5 in 1 runs [8..12], 5 needed
+Temp saves <known_hitum> 9 -> 5 in 2 runs [0..8], 5 needed
+Temp saves <steal_it> 10 -> 2 in 1 runs [4..5], 2 needed
+Temp saves <m_slips_free> 5 -> 5
+Temp saves <damageum> 13 -> 11 in 1 runs [2..12], 9 needed
+Temp saves <explum> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <gulpum> 10 -> 4 in 1 runs [6..9], 4 needed
+Temp saves <passive> 13 -> 11 in 1 runs [2..12], 10 needed
+Temp saves <hmonas> 16 -> 10 in 1 runs [6..15], 10 needed
+Temp saves <hitum> 3 -> 0 in 0 runs [3..-1], 0 needed
+Temp saves <attack> 8 -> 3 in 1 runs [5..7], 3 needed
+Temp saves <use_pick_axe2> 15 -> 6 in 1 runs [9..14], 6 needed
+Temp saves <block_door> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <block_entry> 5 -> 0 in 0 runs [5..-1], 0 needed
+Temp saves <moverock> 20 -> 0 in 0 runs [20..-1], 0 needed
+Temp saves <test_move> 25 -> 23 in 1 runs [2..24], 23 needed
+Temp saves <bhit> 26 -> 26
+Temp saves <snuff_candle> 4 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <gem_accept> 11 -> 0 in 0 runs [11..-1], 0 needed
+Temp saves <sho_obj_return_to_u> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <tmiss> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <thitmonst> 18 -> 18
+Temp saves <drop_ball> 6 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <throwit> 13 -> 13
+Temp saves <l_monnam> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <dogaze> 7 -> 4 in 1 runs [3..6], 4 needed
+Temp saves <dospinweb> 4 -> 1 in 1 runs [3..3], 1 needed
+Temp saves <domindblast> 5 -> 2 in 1 runs [3..4], 2 needed
+Temp saves <make_vomiting> 4 -> 4
+Temp saves <use_unicorn_horn> 19 -> 16 in 1 runs [3..18], 16 needed
+Temp saves <domonability> 3 -> 3 (escapes)
+Temp saves <do_oname> 9 -> 7 in 1 runs [2..8], 7 needed
+Temp saves <ddocall> 2 -> 2 (escapes)
+Temp saves <floorfood__b70> 7 -> 7
+Temp saves <floorfood> 1 -> 1
+Temp saves <angry_priest> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <godvoice__b98> 2 -> 2
+Temp saves <godvoice> 1 -> 1
+Temp saves <summon_minion> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <fry_by_god> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <angrygods> 3 -> 2 in 1 runs [1..2], 2 needed
+Temp saves <a_gname> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <at_your_feet> 1 -> 1
+Temp saves <dosacrifice> 14 -> 14 (escapes)
+Temp saves <water_prayer> 5 -> 5
+Temp saves <fix_worst_trouble> 5 -> 0 in 0 runs [5..-1], 0 needed
+Temp saves <gcrownu> 10 -> 0 in 0 runs [10..-1], 0 needed
+Temp saves <pleased> 10 -> 9 in 1 runs [1..9], 9 needed
+Temp saves <prayer_done> 1 -> 1 (escapes)
+Temp saves <mount_steed> 10 -> 10
+Temp saves <use_stone> 14 -> 10 in 1 runs [4..13], 10 needed
+Temp saves <arti_speak> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <ready_weapon> 6 -> 6
+Temp saves <doswapweapon> 6 -> 6 (escapes)
+Temp saves <wield_tool__b80> 7 -> 7
+Temp saves <wield_tool> 1 -> 1
+Temp saves <djinni_from_bottle> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <dorub> 4 -> 4 (escapes)
+Temp saves <altar_wrath> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <show_map_spot> 5 -> 5
+Temp saves <do_mapping> 3 -> 3
+Temp saves <dosit> 7 -> 7 (escapes)
+Temp saves <doturn> 8 -> 8 (escapes)
+Temp saves <dotwoweapon> 2 -> 2 (escapes)
+Temp saves <dountrap> 2 -> 2 (escapes)
+Temp saves <doextlist> 3 -> 3 (escapes)
+Temp saves <fmt_ptr__b102> 2 -> 2
+Temp saves <fmt_ptr> 1 -> 1
+Temp saves <wiz_light_sources> 14 -> 14 (escapes)
+Temp saves <wiz_show_seenv> 12 -> 12 (escapes)
+Temp saves <count_obj> 12 -> 12
+Temp saves <obj_chain> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <mon_invent_chain__b96> 4 -> 4
+Temp saves <mon_invent_chain> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <contained__b94> 4 -> 4
+Temp saves <contained> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <mon_chain__b96> 4 -> 4
+Temp saves <mon_chain> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <wiz_show_stats> 4 -> 4 (escapes)
+Temp saves <print_queue> 16 -> 16
+Temp saves <wiz_timeout_queue> 2 -> 2 (escapes)
+Temp saves <wiz_show_vision> 4 -> 4 (escapes)
+Temp saves <wiz_show_wmodes> 4 -> 4 (escapes)
+Temp saves <kick_steed> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <find_trap> 7 -> 2 in 1 runs [4..5], 2 needed
+Temp saves <ghitm> 17 -> 17
+Temp saves <kick_object> 15 -> 3 in 1 runs [12..14], 3 needed
+Temp saves <dokick> 26 -> 26 (escapes)
+Temp saves <wiz_map> 10 -> 10 (escapes)
+Temp saves <wiz_wish> 1 -> 1 (escapes)
+Temp saves <minimal_enlightenment> 12 -> 12
+Temp saves <picklock> 2 -> 2 (escapes)
+Temp saves <set_trap> 6 -> 6 (escapes)
+Temp saves <breaksink> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <digactualhole> 26 -> 24 in 1 runs [2..25], 21 needed
+Temp saves <do_break_wand> 13 -> 7 in 1 runs [6..12], 7 needed
+Temp saves <on_msg> 2 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <Blindf_on> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <use_cream_pie> 3 -> 0 in 0 runs [3..-1], 0 needed
+Temp saves <use_whip> 16 -> 10 in 1 runs [6..15], 10 needed
+Temp saves <use_grapple> 11 -> 5 in 1 runs [6..10], 5 needed
+Temp saves <bagotricks> 3 -> 0 in 0 runs [3..-1], 0 needed
+Temp saves <use_grease> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <pick_lock> 16 -> 12 in 1 runs [4..15], 12 needed
+Temp saves <use_pick_axe> 10 -> 4 in 1 runs [6..9], 4 needed
+Temp saves <use_tinning_kit> 6 -> 2 in 1 runs [4..5], 2 needed
+Temp saves <use_leash> 5 -> 1 in 1 runs [4..4], 1 needed
+Temp saves <use_saddle> 11 -> 5 in 1 runs [6..10], 5 needed
+Temp saves <use_magic_whistle> 8 -> 4 in 1 runs [4..7], 4 needed
+Temp saves <its_dead> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <use_stethoscope> 7 -> 1 in 1 runs [6..6], 1 needed
+Temp saves <use_mirror> 12 -> 6 in 1 runs [6..11], 6 needed
+Temp saves <mkundead> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <use_bell> 6 -> 2 in 1 runs [4..5], 2 needed
+Temp saves <use_candelabrum> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <use_lamp> 5 -> 1 in 1 runs [4..4], 1 needed
+Temp saves <use_candle> 10 -> 6 in 1 runs [4..9], 6 needed
+Temp saves <light_cocktail> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <use_camera> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <use_towel> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <dowrite> 14 -> 8 in 1 runs [6..13], 8 needed
+Temp saves <use_figurine> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <awaken_monsters> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <do_improvisation> 20 -> 13 in 1 runs [7..19], 13 needed
+Temp saves <do_play_instrument> 7 -> 1 in 1 runs [6..6], 1 needed
+Temp saves <use_trap> 7 -> 3 in 1 runs [4..6], 3 needed
+Temp saves <use_pole> 8 -> 2 in 1 runs [6..7], 2 needed
+Temp saves <doapply> 6 -> 6 (escapes)
+Temp saves <take_off> 2 -> 2 (escapes)
+Temp saves <doddoremarm> 8 -> 8 (escapes)
+Temp saves <doclose> 11 -> 11 (escapes)
+Temp saves <distant_monnam__b93> 6 -> 6
+Temp saves <distant_monnam> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <do_mname> 14 -> 14 (escapes)
+Temp saves <dodrop> 2 -> 2 (escapes)
+Temp saves <doddrop> 15 -> 15 (escapes)
+Temp saves <costly_tin__b98> 2 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <costly_tin> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <cprefx> 2 -> 2
+Temp saves <givit> 5 -> 0 in 0 runs [5..-1], 0 needed
+Temp saves <cpostfx> 13 -> 13
+Temp saves <foodword__b99> 2 -> 2
+Temp saves <foodword> 1 -> 1
+Temp saves <food_xname__b88> 4 -> 4
+Temp saves <food_xname> 1 -> 1
+Temp saves <choke> 2 -> 2
+Temp saves <opentin> 6 -> 6 (escapes)
+Temp saves <edibility_prompts> 20 -> 20
+Temp saves <rottenfood> 2 -> 2
+Temp saves <doup> 1 -> 1 (escapes)
+Temp saves <peffects> 14 -> 14
+Temp saves <recalc_wt> 2 -> 2
+Temp saves <fpostfx> 4 -> 4
+Temp saves <eatcorpse> 23 -> 16 in 2 runs [0..22], 16 needed
+Temp saves <rounddiv> 2 -> 2
+Temp saves <doeat> 13 -> 13 (escapes)
+Temp saves <zapnodir> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <rloc_engr> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <doengrave> 37 -> 37 (escapes)
+Temp saves <throw_obj> 17 -> 17
+Temp saves <dothrow> 3 -> 3 (escapes)
+Temp saves <autoquiver> 12 -> 12
+Temp saves <pmatch__b100> 5 -> 5
+Temp saves <pmatch> 1 -> 1
+Temp saves <checkfile__b71> 15 -> 6 in 2 runs [0..10], 6 needed
+Temp saves <checkfile> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <coyotename__b98> 4 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <coyotename> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <lookat__b44> 19 -> 9 in 3 runs [0..16], 9 needed
+Temp saves <lookat> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <do_look> 24 -> 24
+Temp saves <next_opt__b1> 5 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <next_opt> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <option_help> 7 -> 7
+Temp saves <dohelp> 7 -> 7 (escapes)
+Temp saves <doinvbill> 19 -> 1 in 1 runs [9..9], 1 needed
+Temp saves <find_unpaid> 2 -> 2
+Temp saves <shopper_financial_report> 11 -> 11
+Temp saves <dotypeinv> 25 -> 25 (escapes)
+Temp saves <doopen> 8 -> 8 (escapes)
+Temp saves <oc_to_str> 1 -> 1
+Temp saves <get_compopt_value__b103> 8 -> 2 in 2 runs [0..7], 2 needed
+Temp saves <get_compopt_value> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <doset_add_menu__b93> 7 -> 7
+Temp saves <doset_add_menu> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <badoption> 1 -> 1
+Temp saves <duplicate_opt_detection__b30> 5 -> 3 in 1 runs [2..4], 3 needed
+Temp saves <rejectoption> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <string_for_opt__b30> 2 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <string_for_opt> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <bad_negation> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <graphics_opts__b100> 2 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <graphics_opts> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <choose_classes_menu__b89> 9 -> 8 in 1 runs [0..7], 7 needed
+Temp saves <choose_classes_menu> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <feature_alert_opts> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <freedynamicdata> 2 -> 2
+Temp saves <terminate> 2 -> 2
+Temp saves <choose_windows__b96> 4 -> 4
+Temp saves <choose_windows> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <wc_set_window_colors__b84> 11 -> 6 in 1 runs [0..5], 5 needed
+Temp saves <wc_set_window_colors> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <parseoptions__b30> 17 -> 13 in 2 runs [0..16], 13 needed
+Temp saves <parseoptions> 1 -> 1
+Temp saves <special_handling__b51> 9 -> 9
+Temp saves <special_handling> 1 -> 1
+Temp saves <doset> 13 -> 13 (escapes)
+Temp saves <dopayobj> 22 -> 18 in 1 runs [4..21], 17 needed
+Temp saves <dopay> 28 -> 28 (escapes)
+Temp saves <Amulet_on> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <doputon> 7 -> 7 (escapes)
+Temp saves <drinkfountain> 9 -> 5 in 1 runs [4..8], 5 needed
+Temp saves <drinksink> 10 -> 6 in 1 runs [4..9], 6 needed
+Temp saves <dodrink> 4 -> 4 (escapes)
+Temp saves <dowieldquiver> 8 -> 8 (escapes)
+Temp saves <mkinvpos> 10 -> 10
+Temp saves <mkinvokearea> 7 -> 2 in 1 runs [0..1], 2 needed
+Temp saves <learn> 14 -> 14 (escapes)
+Temp saves <study_book> 7 -> 2 in 1 runs [5..6], 2 needed
+Temp saves <doread> 5 -> 5 (escapes)
+Temp saves <doremring> 2 -> 2 (escapes)
+Temp saves <dosearch0> 29 -> 29
+Temp saves <armoroff> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <dotakeoff> 2 -> 2 (escapes)
+Temp saves <dowield> 4 -> 4 (escapes)
+Temp saves <dowear> 4 -> 4 (escapes)
+Temp saves <zap_steed> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <display_binventory> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <zap_updown> 18 -> 14 in 1 runs [4..17], 11 needed
+Temp saves <zap_dig> 14 -> 10 in 1 runs [4..13], 7 needed
+Temp saves <weffects> 10 -> 4 in 1 runs [6..9], 4 needed
+Temp saves <dozap> 6 -> 6 (escapes)
+Temp saves <dospellmenu__b77> 14 -> 14
+Temp saves <dospellmenu> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <getspell> 4 -> 4
+Temp saves <dodown> 9 -> 9 (escapes)
+Temp saves <dopickup> 5 -> 5 (escapes)
+Temp saves <doidtrap> 4 -> 4 (escapes)
+Temp saves <disp_artifact_discoveries> 9 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <dodiscovered> 15 -> 15 (escapes)
+Temp saves <doprring> 5 -> 5 (escapes)
+Temp saves <doprtool> 2 -> 2 (escapes)
+Temp saves <doprinuse> 3 -> 3 (escapes)
+Temp saves <dovspell> 2 -> 2 (escapes)
+Temp saves <dotravel> 2 -> 2 (escapes)
+Temp saves <doextcmd> 1 -> 1 (escapes)
+Temp saves <click_to_cmd__b79> 12 -> 12
+Temp saves <click_to_cmd> 1 -> 1
+Temp saves <getobj__b51> 31 -> 31
+Temp saves <getobj> 1 -> 1
+Temp saves <losespells> 3 -> 2 in 1 runs [1..2], 2 needed
+Temp saves <forget> 1 -> 1
+Temp saves <add_rect_to_reg> 4 -> 4
+Temp saves <add_region> 11 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <create_gas_cloud> 6 -> 4 in 1 runs [0..3], 4 needed
+Temp saves <seffects> 24 -> 24
+Temp saves <domagictrap> 10 -> 2 in 1 runs [8..9], 2 needed
+Temp saves <keep_saddle_with_steedcorpse> 2 -> 2
+Temp saves <dotrap> 17 -> 17
+Temp saves <hurtle_step> 11 -> 11 (escapes)
+Temp saves <mhurtle_step> 6 -> 6 (escapes)
+Temp saves <walk_path> 19 -> 19
+Temp saves <mhurtle> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <hmon_hitmon> 38 -> 38
+Temp saves <hmon> 4 -> 4
+Temp saves <drag_ball> 37 -> 0 in 0 runs [37..-1], 0 needed
+Temp saves <invocation_message> 4 -> 1 in 1 runs [3..3], 1 needed
+Temp saves <teleds> 3 -> 3
+Temp saves <safe_teleds> 7 -> 7
+Temp saves <lava_effects> 5 -> 5
+Temp saves <float_down> 10 -> 6 in 1 runs [4..9], 6 needed
+Temp saves <Boots_off> 6 -> 6 (escapes)
+Temp saves <remove_worn_item> 3 -> 3
+Temp saves <poly_obj> 16 -> 16
+Temp saves <display_cinventory> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <bhito> 12 -> 12 (escapes)
+Temp saves <zapyourself> 16 -> 14 in 1 runs [2..15], 14 needed
+Temp saves <do_vicinity_map> 10 -> 8 in 1 runs [2..9], 8 needed
+Temp saves <cast_protection> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <spelleffects> 15 -> 15
+Temp saves <dotele> 6 -> 6 (escapes)
+Temp saves <emergency_disrobe> 8 -> 0 in 0 runs [8..-1], 0 needed
+Temp saves <drown> 16 -> 16
+Temp saves <e_died> 8 -> 2 in 1 runs [6..7], 2 needed
+Temp saves <destroy_drawbridge> 12 -> 7 in 1 runs [5..11], 7 needed
+Temp saves <dig_up_grave> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <dighole> 12 -> 0 in 0 runs [12..-1], 0 needed
+Temp saves <mkcavepos> 6 -> 6
+Temp saves <mkcavearea> 12 -> 0 in 0 runs [12..-1], 0 needed
+Temp saves <dig> 21 -> 21 (escapes)
+Temp saves <unmul> 1 -> 1
+Temp saves <drop_weapon> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <break_armor> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <polymon> 16 -> 16
+Temp saves <you_were> 2 -> 2
+Temp saves <potionbreathe> 3 -> 3
+Temp saves <destroy_item> 23 -> 23
+Temp saves <destroy_mitem> 19 -> 19
+Temp saves <zhitm> 11 -> 4 in 1 runs [7..10], 4 needed
+Temp saves <zhitu__b69> 5 -> 1 in 1 runs [0..0], 1 needed
+Temp saves <zhitu> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <buzz> 38 -> 36 in 1 runs [2..37], 36 needed
+Temp saves <ghod_hitsu> 12 -> 12
+Temp saves <zap_over_floor> 21 -> 18 in 1 runs [3..20], 17 needed
+Temp saves <explode> 43 -> 43
+Temp saves <corpse_chance> 10 -> 8 in 1 runs [2..9], 8 needed
+Temp saves <xkilled> 20 -> 20
+Temp saves <inside_gas_cloud> 6 -> 6 (escapes)
+Temp saves <in_out_region> 7 -> 6 in 1 runs [1..6], 6 needed
+Temp saves <teleok> 1 -> 1
+Temp saves <rloc> 12 -> 12
+Temp saves <dismount_steed> 13 -> 13
+Temp saves <dosinkfall> 10 -> 0 in 0 runs [10..-1], 0 needed
+Temp saves <spoteffects> 10 -> 10
+Temp saves <expels> 2 -> 2
+Temp saves <newcham> 15 -> 15
+Temp saves <m_initgrp> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <m_initthrow> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <m_initweap> 10 -> 2 in 1 runs [6..7], 2 needed
+Temp saves <m_initinv> 8 -> 2 in 1 runs [6..7], 2 needed
+Temp saves <makemon> 22 -> 22
+Temp saves <revive> 15 -> 15
+Temp saves <revive_corpse> 19 -> 19
+Temp saves <rloco> 14 -> 14
+Temp saves <save_mtraits> 8 -> 6 in 1 runs [2..7], 6 needed
+Temp saves <mkcorpstat> 4 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <mk_named_object> 3 -> 2 in 1 runs [1..2], 2 needed
+Temp saves <inherits> 12 -> 12
+Temp saves <paybill> 9 -> 8 in 1 runs [1..8], 8 needed
+Temp saves <paygd> 10 -> 9 in 1 runs [1..9], 9 needed
+Temp saves <clearpriests> 2 -> 1 in 1 runs [1..1], 1 needed
+Temp saves <clearlocks> 2 -> 1 in 1 runs [1..1], 1 needed
+Temp saves <should_query_disclose_option__b95> 2 -> 2
+Temp saves <should_query_disclose_option> 1 -> 1
+Temp saves <list_vanquished> 14 -> 12 in 1 runs [0..11], 12 needed
+Temp saves <list_genocided> 8 -> 8
+Temp saves <disclose> 2 -> 1 in 1 runs [1..1], 1 needed
+Temp saves <finish_paybill> 6 -> 5 in 1 runs [1..5], 5 needed
+Temp saves <drop_upon_death> 8 -> 7 in 1 runs [1..7], 5 needed
+Temp saves <obj_attach_mid> 4 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <set_bonestemp_name> 1 -> 1
+Temp saves <create_bonesfile> 6 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <commit_bonesfile> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <savebones> 6 -> 5 in 1 runs [1..5], 5 needed
+Temp saves <get_valuables> 2 -> 2
+Temp saves <artifact_score> 13 -> 12 in 1 runs [0..11], 12 needed
+Temp saves <lock_file> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <writeentry> 8 -> 8
+Temp saves <topten_print> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <topten_print_bold> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <outentry> 12 -> 10 in 1 runs [2..11], 10 needed
+Temp saves <topten> 27 -> 11 in 1 runs [1..11], 11 needed
+Temp saves <done> 30 -> 30
+Temp saves <losehp> 1 -> 1
+Temp saves <boulder_hits_pool> 15 -> 15
+Temp saves <flooreffects__b10> 16 -> 16
+Temp saves <flooreffects> 1 -> 1
+Temp saves <dropy> 9 -> 9
+Temp saves <touchfood> 4 -> 4
+Temp saves <rot_corpse> 6 -> 6 (escapes)
+Temp saves <obj_stop_timers> 6 -> 6
+Temp saves <obfree> 6 -> 6
+Temp saves <useupall> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <useup> 2 -> 2
+Temp saves <strange_feeling__b96> 2 -> 2
+Temp saves <strange_feeling> 1 -> 1
+Temp saves <see_objects> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <see_traps> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <make_hallucinated> 12 -> 12
+Temp saves <set_artifact_intrinsic> 15 -> 15
+Temp saves <freeinv_core> 5 -> 3 in 1 runs [2..4], 3 needed
+Temp saves <freeinv> 2 -> 2
+Temp saves <obj_extract_self> 2 -> 2
+Temp saves <bury_an_obj> 8 -> 8
+Temp saves <rot_organic> 2 -> 2 (escapes)
+Temp saves <stop_timer> 6 -> 6
+Temp saves <end_burn> 2 -> 2
+Temp saves <snuff_lit> 2 -> 2
+Temp saves <water_damage> 10 -> 10
+Temp saves <gush> 8 -> 8 (escapes)
+Temp saves <right_side__b34> 19 -> 19
+Temp saves <left_side__b34> 21 -> 19 in 1 runs [2..20], 19 needed
+Temp saves <view_from__b34> 18 -> 10 in 1 runs [8..17], 9 needed
+Temp saves <rogue_vision__b85> 16 -> 7 in 2 runs [0..15], 7 needed
+Temp saves <rogue_vision> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <vision_recalc> 34 -> 34
+Temp saves <vpline__b8> 2 -> 2
+Temp saves <vpline> 1 -> 1
+Temp saves <dosave0> 6 -> 6
+Temp saves <panic> 2 -> 2
+Temp saves <parent_dnum__b4> 9 -> 9
+Temp saves <level_range> 4 -> 4
+Temp saves <parent_dlevel__b4> 7 -> 3 in 1 runs [0..2], 3 needed
+Temp saves <add_branch> 9 -> 5 in 1 runs [4..8], 5 needed
+Temp saves <init_level> 9 -> 5 in 2 runs [0..8], 5 needed
+Temp saves <possible_places> 8 -> 8
+Temp saves <place_level> 7 -> 7
+Temp saves <init_dungeons> 15 -> 0 in 0 runs [15..-1], 0 needed
+Temp saves <ini_inv> 10 -> 0 in 0 runs [10..-1], 0 needed
+Temp saves <skill_init> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <knows_class> 5 -> 0 in 0 runs [5..-1], 0 needed
+Temp saves <read_wizkit> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <u_init> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <construct_qtlist> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <load_qtlist> 4 -> 0 in 0 runs [4..-1], 0 needed
+Temp saves <welcome> 3 -> 0 in 0 runs [3..-1], 0 needed
+Temp saves <newgame> 13 -> 0 in 0 runs [13..-1], 0 needed
+Temp saves <movemon> 18 -> 6 in 2 runs [2..11], 6 needed
+Temp saves <mcalcdistress> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <glibr> 9 -> 5 in 1 runs [2..6], 5 needed
+Temp saves <slip_or_trip> 9 -> 2 in 1 runs [4..5], 2 needed
+Temp saves <nh_timeout> 8 -> 5 in 1 runs [2..6], 5 needed
+Temp saves <run_regions> 11 -> 5 in 1 runs [2..6], 5 needed
+Temp saves <exerchk> 9 -> 5 in 1 runs [2..6], 5 needed
+Temp saves <invault> 16 -> 6 in 2 runs [2..11], 6 needed
+Temp saves <amulet> 4 -> 2 in 1 runs [2..3], 2 needed
+Temp saves <monster_nearby> 20 -> 5 in 1 runs [2..6], 5 needed
+Temp saves <check_contained__b95> 4 -> 4
+Temp saves <check_contained> 1 -> 1
+Temp saves <obj_sanity_check> 6 -> 4 in 1 runs [2..5], 4 needed
+Temp saves <timer_sanity_check> 2 -> 0 in 0 runs [2..-1], 0 needed
+Temp saves <lookaround> 35 -> 5 in 1 runs [2..6], 5 needed
+Temp saves <findtravelpath> 34 -> 3 in 1 runs [11..13], 3 needed
+Temp saves <find_skates> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <water_friction> 6 -> 0 in 0 runs [6..-1], 0 needed
+Temp saves <domove> 31 -> 5 in 1 runs [2..6], 5 needed
+Temp saves <rhack__b11> 9 -> 7 in 1 runs [0..6], 6 needed
+Temp saves <rhack> 1 -> 0 in 0 runs [1..-1], 0 needed
+Temp saves <md_rush> 23 -> 6 in 2 runs [2..21], 6 needed
+Temp saves <moveloop> 23 -> 0 in 0 runs [23..-1], 0 needed
+Temp saves: 686 of 1375 procedures that save narrowed, 7161 of 10104 bytes kept

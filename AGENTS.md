@@ -58,9 +58,9 @@ VICE passing is necessary, not sufficient: real-hardware caveats are in `docs/HA
 
 ## Ground rules
 
-- **Oscar64 is the compiler** (pinned: v1.32.273 plus the fixes, and two features the
-  banked build needs, in `tools/oscar64-upstream/patches/pin/`, ADR-0007; `oscar64-plain`
-  is the release). It has known gaps with 1990s C; see `docs/OSCAR64-COMPAT.md`.
+- **Oscar64 is the compiler** (pinned: v1.32.273 plus the fixes, two features the
+  banked build needs and a speed pass, T1.49's `-Ot`, which our builds use with `-xb`, in
+  `tools/oscar64-upstream/patches/pin/`, ADR-0007; `oscar64-plain` is the release). It has known gaps with 1990s C; see `docs/OSCAR64-COMPAT.md`.
   When you hit a new one: reduce it to a tiny file in `tests/oscar64-repros/`
   (header says expected vs actual and the workaround), add the workaround, note
   it in the compat doc. Do not silently rewrite game code around a compiler bug.

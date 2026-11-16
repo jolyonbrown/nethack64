@@ -436,3 +436,43 @@ Where the far cost goes (all four types, cycles a call, `calibrate.py` prints it
   21 cycles each (228 ms at p90) before any reuse, where all data far cost 314 ms (run A). A
   deeper game keeps more monsters and objects on the heap (run B), so 64 pages is where to
   start, not a bound.
+
+## Measured: zero page saves (2026-11-16, T1.49)
+
+After the padding (ADR-0009 point 5), what is left of Oscar64's multiply routine is small: 0.2%
+of the `mfndpos` workload. The emulator's profile by address (`-ep` lists the busiest
+instructions besides the functions) points elsewhere: the busiest code in that workload is a
+loop at `mfndpos`'s entry that copies 46 bytes of zero page into its frame, and the same loop
+the other way at its exit, 1,244 cycles a call, 10% of its time. Oscar64 keeps a function's
+temporaries in zero page, $43-$52 for its caller to keep, $53-$8F for the function itself:
+whatever of those it uses it copies away on entry and back on return, about 33 cycles a byte
+through the software stack (27 with a static frame). Over the whole game, by its listing and
+the bot game's call counts (`build/profile-arcs.json`, 9,273 turns), that is about 277,000
+cycles a turn: `m_move` (57 bytes, 29 calls a turn) 55,000, `mfndpos` (48, 29) 46,000,
+`newsym` (22, 46) 33,000, `dochug` (32, 29) 31,000.
+
+A function only has to keep the bytes a caller still needs after the call. The pin's commit 79
+(`-Ot`, part of `-Os`) works that out once the whole program is compiled, from the bytes each
+caller reads after each call, and from what the caller's own callers need of bytes the caller
+leaves alone; a function then saves only those (in up to three runs). A function whose address
+is taken is a callee of every call through a pointer. `main` would keep all of BASIC's zero page
+for the startup code, which returns to BASIC; our programs never do, and say so (`-xb`).
+
+Results (`docs/data/oscar64-pin80-tempsaves-2026-11-16.txt`,
+`docs/data/speed-calibration-t149-2026-11-16.txt`):
+
+- the speed harness: `mfndpos` 12,072.5 -> 11,250.7 cycles a call (-6.8%; it saves 16 bytes,
+  the ones `main` keeps over the call, instead of 46), the host's checksums;
+- the whole game: 686 of the 1,375 functions that save are narrowed, 7,161 of 10,104 bytes
+  kept; by the call counts, saves and restores take 242,709 cycles a turn instead of 276,936
+  (-12%, about 35 ms a turn); one range a function would leave 252,906, the needed bytes alone
+  237,162. Banked code 3,710 bytes smaller, resident code 9 bytes bigger, every bank and
+  zero-page check clean; the listing against the same sources with `-Ot-` differs only in
+  saves and restores, addresses, and where the assembler now copies a shorter epilogue;
+- what stays: much of it is real (`m_move` keeps 33 bytes over its call of `mfndpos`, so
+  `mfndpos` keeps 37 of 48), but most of the rest comes from functions whose address is taken
+  (the command handlers, callbacks): they keep everything, and what they keep their callees
+  owe them, so `m_move` keeps 55 of 57 bytes for callers (`attack`, `u_entered_shop`) reached
+  from commands, where `dochug` itself needs 8. One node for all calls through a pointer does
+  not help (it gathers everything; tried and dropped); grouping those calls by the function's
+  type might, with care for casts of function pointers. Next for T1.49.

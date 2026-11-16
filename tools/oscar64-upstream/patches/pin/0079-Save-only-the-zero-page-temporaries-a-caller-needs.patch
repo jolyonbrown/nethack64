@@ -1,0 +1,757 @@
+From d87f81331507830e2de0bf5e981fa948f4414bc0 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Mon, 16 Nov 2026 18:11:18 +0000
+Subject: [PATCH 79/80] Save only the zero page temporaries a caller needs
+
+A function saves the callee-saved temporaries it uses (BC_REG_TMP_SAVED on)
+when it is entered and restores them when it returns, for its callers. Many
+callers need few of those bytes, or none: in a NetHack workload mfndpos()
+saves and restores 46 bytes on every call, 1,244 cycles, 10% of its time,
+for a caller that keeps 16 of them over the call.
+
+NativeCodeGenerator::ReduceTempSaves runs once every procedure is compiled,
+before any call becomes a proxy, an outlined sequence or a bank stub. For
+each direct call (a JSR or JMP to a procedure) it takes the callee-saved
+bytes the caller reads after the call before it writes them: the native data
+flow sets, plus the reach of copy loops (LDX #n / LDA zp,x ... / DEX / BPL),
+which the sets do not follow; any other indexed access to the area makes the
+caller need all of it. To that it adds what the caller's own callers need
+from bytes the caller does not save itself (all of it, for a tail call). The
+fixed point is what each procedure has to keep. A procedure then saves and
+restores only those bytes, in up to three runs (runs closer than four bytes
+are one), in the same slots of the same frame, with X only where its
+prologue used X already (LOBJF_PRESERVE_REG_X); its zero page set grows by
+the bytes it no longer keeps.
+
+A procedure whose address is taken, that an interrupt can reach, or that
+anything but a native procedure refers to keeps its full save, and so does
+what it relies on from its callees. That includes main, whose caller, the
+startup code, returns to basic, which needs basic's zero page as it was:
+-xb says that the program does not return to basic (as -xz does, but with
+the zero page laid out as usual), and main is then free too. A program with
+byte code is left as it is.
+
+-Ot turns the pass on, and it is part of -O2, -O3 and -Os; -Ot- turns it off.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64.md                      |   2 +
+ oscar64/Compiler.cpp            |  11 +
+ oscar64/CompilerTypes.h         |   8 +-
+ oscar64/NativeCodeGenerator.cpp | 462 +++++++++++++++++++++++++++++++-
+ oscar64/NativeCodeGenerator.h   |  13 +
+ oscar64/oscar64.cpp             |  10 +
+ 6 files changed, 502 insertions(+), 4 deletions(-)
+
+diff --git a/oscar64.md b/oscar64.md
+index b880d08..311054e 100644
+--- a/oscar64.md
++++ b/oscar64.md
+@@ -131,6 +131,7 @@ The compiler is command line driven, and creates an executable .prg file.
+ * -Op : optimize constant parameters
+ * -Oo : optimize size using "outliner" (extract repeated code sequences into functions)
+ * -Ox : optimize pointer arithmetic by blocking shorter arrays to not cross page boundaries
++* -Ot : save in a function only the zero page temporaries its callers need (part of O2/O3/Os; -Ot- turns it off)
+ * -OM : enable generation of self modifying code
+ * -g : create source level debug info and add source line numbers to asm listing
+ * -gp : create source level debug info and add source line numbers to asm listing and static profile data
+@@ -141,6 +142,7 @@ The compiler is command line driven, and creates an executable .prg file.
+ * -fz : add a compressed binary file to the disk image
+ * -fi : sector skip for data files on disk image
+ * -xz : extended zero page usage, more zero page space, but no return to basic
++* -xb : the program does not return to basic, with the zero page used as without it; main then need not keep basic's zero page for it (see -Ot)
+ * -cid : cartridge type ID, used by vice emulator
+ * -csub : cartridge sub type
+ * -cname : cartridge name
+diff --git a/oscar64/Compiler.cpp b/oscar64/Compiler.cpp
+index 88f4a5b..939b52f 100644
+--- a/oscar64/Compiler.cpp
++++ b/oscar64/Compiler.cpp
+@@ -1189,6 +1189,17 @@ bool Compiler::GenerateCode(void)
+ 			mCompilationUnits->mSectionStack->mSections.Push(proc->mLinkerObject->mStackSection);
+ 	}
+ 
++	if (mCompilerOptions & COPT_OPTIMIZE_TEMP_SAVES)
++	{
++		// Byte code calls native code and back by other rules: leave such a program alone
++		bool	allNative = true;
++		for (int i = 0; i < mInterCodeModule->mProcedures.Size(); i++)
++			if (!mInterCodeModule->mProcedures[i]->mNativeProcedure)
++				allNative = false;
++		if (allNative)
++			mNativeCodeGenerator->ReduceTempSaves();
++	}
++
+ 	mNativeCodeGenerator->BuildFunctionProxies();
+ 
+ 	mNativeCodeGenerator->OutlineFunctions();
+diff --git a/oscar64/CompilerTypes.h b/oscar64/CompilerTypes.h
+index 340b99d..b8b086a 100644
+--- a/oscar64/CompilerTypes.h
++++ b/oscar64/CompilerTypes.h
+@@ -16,11 +16,13 @@ static const uint64 COPT_OPTIMIZE_MERGE_CALLS = 1ULL << 10;
+ static const uint64 COPT_OPTIMIZE_GLOBAL = 1ULL << 11;
+ static const uint64 COPT_OPTIMIZE_OUTLINE = 1ULL << 12;
+ static const uint64 COPT_OPTIMIZE_PAGE_CROSSING = 1ULL << 13;
++static const uint64 COPT_OPTIMIZE_TEMP_SAVES = 1ULL << 15;
+ 
+ static const uint64 COPT_OPTIMIZE_CODE_SIZE = 1ULL << 16;
+ static const uint64 COPT_NATIVE = 1ULL << 17;
+ static const uint64 COPT_EXTENDED_ZERO_PAGE = 1ULL << 20;
+ static const uint64 COPT_OPTIMIZE_SELF_MOD = 1ULL << 21;
++static const uint64 COPT_NO_BASIC_RETURN = 1ULL << 22;
+ 
+ static const uint64 COPT_TARGET_PRG = 1ULL << 32;
+ static const uint64 COPT_TARGET_CRT8 = 1ULL << 33;
+@@ -55,11 +57,11 @@ static const uint64 COPT_DEFAULT = COPT_OPTIMIZE_BASIC | COPT_OPTIMIZE_INLINE |
+ 
+ static const uint64 COPT_OPTIMIZE_DEFAULT = COPT_OPTIMIZE_BASIC | COPT_OPTIMIZE_INLINE | COPT_OPTIMIZE_CONST_EXPRESSIONS;
+ 
+-static const uint64 COPT_OPTIMIZE_SIZE = COPT_OPTIMIZE_BASIC | COPT_OPTIMIZE_INLINE | COPT_OPTIMIZE_AUTO_INLINE | COPT_OPTIMIZE_CONST_EXPRESSIONS | COPT_OPTIMIZE_CODE_SIZE | COPT_OPTIMIZE_CONST_PARAMS | COPT_OPTIMIZE_MERGE_CALLS | COPT_OPTIMIZE_GLOBAL;// | COPT_OPTIMIZE_OUTLINE;
++static const uint64 COPT_OPTIMIZE_SIZE = COPT_OPTIMIZE_BASIC | COPT_OPTIMIZE_INLINE | COPT_OPTIMIZE_AUTO_INLINE | COPT_OPTIMIZE_CONST_EXPRESSIONS | COPT_OPTIMIZE_CODE_SIZE | COPT_OPTIMIZE_CONST_PARAMS | COPT_OPTIMIZE_MERGE_CALLS | COPT_OPTIMIZE_GLOBAL | COPT_OPTIMIZE_TEMP_SAVES;// | COPT_OPTIMIZE_OUTLINE;
+ 
+-static const uint64 COPT_OPTIMIZE_SPEED = COPT_OPTIMIZE_BASIC | COPT_OPTIMIZE_INLINE | COPT_OPTIMIZE_AUTO_INLINE | COPT_OPTIMIZE_AUTO_UNROLL | COPT_OPTIMIZE_CONST_EXPRESSIONS | COPT_OPTIMIZE_ASSEMBLER | COPT_OPTIMIZE_CONST_PARAMS | COPT_OPTIMIZE_MERGE_CALLS | COPT_OPTIMIZE_GLOBAL;
++static const uint64 COPT_OPTIMIZE_SPEED = COPT_OPTIMIZE_BASIC | COPT_OPTIMIZE_INLINE | COPT_OPTIMIZE_AUTO_INLINE | COPT_OPTIMIZE_AUTO_UNROLL | COPT_OPTIMIZE_CONST_EXPRESSIONS | COPT_OPTIMIZE_ASSEMBLER | COPT_OPTIMIZE_CONST_PARAMS | COPT_OPTIMIZE_MERGE_CALLS | COPT_OPTIMIZE_GLOBAL | COPT_OPTIMIZE_TEMP_SAVES;
+ 
+-static const uint64 COPT_OPTIMIZE_ALL = COPT_OPTIMIZE_BASIC | COPT_OPTIMIZE_INLINE | COPT_OPTIMIZE_AUTO_INLINE | COPT_OPTIMIZE_AUTO_INLINE_ALL | COPT_OPTIMIZE_AUTO_UNROLL | COPT_OPTIMIZE_CONST_EXPRESSIONS | COPT_OPTIMIZE_ASSEMBLER | COPT_OPTIMIZE_AUTO_ZEROPAGE | COPT_OPTIMIZE_CONST_PARAMS | COPT_OPTIMIZE_MERGE_CALLS | COPT_OPTIMIZE_GLOBAL;
++static const uint64 COPT_OPTIMIZE_ALL = COPT_OPTIMIZE_BASIC | COPT_OPTIMIZE_INLINE | COPT_OPTIMIZE_AUTO_INLINE | COPT_OPTIMIZE_AUTO_INLINE_ALL | COPT_OPTIMIZE_AUTO_UNROLL | COPT_OPTIMIZE_CONST_EXPRESSIONS | COPT_OPTIMIZE_ASSEMBLER | COPT_OPTIMIZE_AUTO_ZEROPAGE | COPT_OPTIMIZE_CONST_PARAMS | COPT_OPTIMIZE_MERGE_CALLS | COPT_OPTIMIZE_GLOBAL | COPT_OPTIMIZE_TEMP_SAVES;
+ 
+ enum TargetMachine
+ {
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index bec8f45..4e42bfc 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -68626,7 +68626,9 @@ NativeCodeBasicBlock::~NativeCodeBasicBlock(void)
+ }
+ 
+ NativeCodeProcedure::NativeCodeProcedure(NativeCodeGenerator* generator)
+-	: mGenerator(generator), mSimpleInline(false)
++	: mGenerator(generator), mSimpleInline(false),
++	mTempSave(0), mTempSaveKind(NTS_NONE), mTempSaveSlot(0), mTempSaveIndex(-1),
++	mTempSaveBegin(0), mTempSaveEnd(0), mTempRestoreBegin(0), mTempRestoreEnd(0), mTempSaveUsesX(false)
+ {
+ 	mTempBlocks = 1000;
+ }
+@@ -68880,6 +68882,158 @@ void NativeCodeProcedure::LoadTempsFromStack(int tempSave)
+ }
+ 
+ 
++// The save (restore false) or the restore of the callee-saved temporaries lo to hi
++// (offsets from BC_REG_TMP_SAVED), into the same save area slots as Compile's full
++// sequence: in the save object, or at stack slot mTempSaveSlot + k for byte k.  X is only
++// used where Compile's sequence used it: a procedure that does not touch X tells its
++// callers so (LOBJF_PRESERVE_REG_X).
++void NativeCodeProcedure::BuildTempSaves(ExpandingArray<NativeCodeInstruction>& ins, const InterInstruction* iins, bool restore, int lo, int hi)
++{
++	int	n = hi - lo + 1;
++	if (n <= 0)
++		return;
++
++	if (mTempSaveKind == NTS_STATIC)
++	{
++		LinkerObject* sobj = mInterProc->mSaveTempsLinkerObject;
++		if (mTempSaveUsesX && n > 3)
++		{
++			ins.Push(NativeCodeInstruction(iins, ASMIT_LDX, ASMIM_IMMEDIATE, n - 1));
++			if (restore)
++			{
++				ins.Push(NativeCodeInstruction(iins, ASMIT_LDA, ASMIM_ABSOLUTE_X, lo, sobj));
++				ins.Push(NativeCodeInstruction(iins, ASMIT_STA, ASMIM_ZERO_PAGE_X, BC_REG_TMP_SAVED + lo));
++			}
++			else
++			{
++				ins.Push(NativeCodeInstruction(iins, ASMIT_LDA, ASMIM_ZERO_PAGE_X, BC_REG_TMP_SAVED + lo));
++				ins.Push(NativeCodeInstruction(iins, ASMIT_STA, ASMIM_ABSOLUTE_X, lo, sobj));
++			}
++			ins.Push(NativeCodeInstruction(iins, ASMIT_DEX, ASMIM_IMPLIED));
++			ins.Push(NativeCodeInstruction(iins, ASMIT_BPL, ASMIM_RELATIVE, -8));
++		}
++		else
++		{
++			for (int k = lo; k <= hi; k++)
++			{
++				if (restore)
++				{
++					ins.Push(NativeCodeInstruction(iins, ASMIT_LDA, ASMIM_ABSOLUTE, k, sobj));
++					ins.Push(NativeCodeInstruction(iins, ASMIT_STA, ASMIM_ZERO_PAGE, BC_REG_TMP_SAVED + k));
++				}
++				else
++				{
++					ins.Push(NativeCodeInstruction(iins, ASMIT_LDA, ASMIM_ZERO_PAGE, BC_REG_TMP_SAVED + k));
++					ins.Push(NativeCodeInstruction(iins, ASMIT_STA, ASMIM_ABSOLUTE, k, sobj));
++				}
++			}
++		}
++		return;
++	}
++
++	int	slot = mTempSaveSlot;
++	if (n <= 2)
++	{
++		ins.Push(NativeCodeInstruction(iins, ASMIT_LDY, ASMIM_IMMEDIATE, slot + hi));
++		for (int k = hi; k >= lo; k--)
++		{
++			if (k < hi)
++				ins.Push(NativeCodeInstruction(iins, ASMIT_DEY, ASMIM_IMPLIED));
++			if (restore)
++			{
++				ins.Push(NativeCodeInstruction(iins, ASMIT_LDA, ASMIM_INDIRECT_Y, BC_REG_STACK));
++				ins.Push(NativeCodeInstruction(iins, ASMIT_STA, ASMIM_ZERO_PAGE, BC_REG_TMP_SAVED + k));
++			}
++			else
++			{
++				ins.Push(NativeCodeInstruction(iins, ASMIT_LDA, ASMIM_ZERO_PAGE, BC_REG_TMP_SAVED + k));
++				ins.Push(NativeCodeInstruction(iins, ASMIT_STA, ASMIM_INDIRECT_Y, BC_REG_STACK));
++			}
++		}
++	}
++	else if (mTempSaveUsesX)
++	{
++		ins.Push(NativeCodeInstruction(iins, ASMIT_LDY, ASMIM_IMMEDIATE, slot + hi));
++		ins.Push(NativeCodeInstruction(iins, ASMIT_LDX, ASMIM_IMMEDIATE, n - 1));
++		if (restore)
++		{
++			ins.Push(NativeCodeInstruction(iins, ASMIT_LDA, ASMIM_INDIRECT_Y, BC_REG_STACK));
++			ins.Push(NativeCodeInstruction(iins, ASMIT_STA, ASMIM_ZERO_PAGE_X, BC_REG_TMP_SAVED + lo));
++		}
++		else
++		{
++			ins.Push(NativeCodeInstruction(iins, ASMIT_LDA, ASMIM_ZERO_PAGE_X, BC_REG_TMP_SAVED + lo));
++			ins.Push(NativeCodeInstruction(iins, ASMIT_STA, ASMIM_INDIRECT_Y, BC_REG_STACK));
++		}
++		ins.Push(NativeCodeInstruction(iins, ASMIT_DEY, ASMIM_IMPLIED));
++		ins.Push(NativeCodeInstruction(iins, ASMIT_DEX, ASMIM_IMPLIED));
++		ins.Push(NativeCodeInstruction(iins, ASMIT_BPL, ASMIM_RELATIVE, -8));
++	}
++	else
++	{
++		// Y alone indexes both the slot and the byte (an absolute address below 256 with ,y
++		// is assembled in three bytes: LDA and STA have no zero page,y form)
++		assert(slot <= BC_REG_TMP_SAVED);
++		ins.Push(NativeCodeInstruction(iins, ASMIT_LDY, ASMIM_IMMEDIATE, slot + hi));
++		if (restore)
++		{
++			ins.Push(NativeCodeInstruction(iins, ASMIT_LDA, ASMIM_INDIRECT_Y, BC_REG_STACK));
++			ins.Push(NativeCodeInstruction(iins, ASMIT_STA, ASMIM_ABSOLUTE_Y, BC_REG_TMP_SAVED - slot));
++		}
++		else
++		{
++			ins.Push(NativeCodeInstruction(iins, ASMIT_LDA, ASMIM_ABSOLUTE_Y, BC_REG_TMP_SAVED - slot));
++			ins.Push(NativeCodeInstruction(iins, ASMIT_STA, ASMIM_INDIRECT_Y, BC_REG_STACK));
++		}
++		ins.Push(NativeCodeInstruction(iins, ASMIT_DEY, ASMIM_IMPLIED));
++		if (slot + lo == 0)
++			ins.Push(NativeCodeInstruction(iins, ASMIT_BPL, ASMIM_RELATIVE, -8));
++		else
++		{
++			ins.Push(NativeCodeInstruction(iins, ASMIT_CPY, ASMIM_IMMEDIATE, slot + lo));
++			ins.Push(NativeCodeInstruction(iins, ASMIT_BCS, ASMIM_RELATIVE, -10));
++		}
++	}
++}
++
++// Save and restore only the callee-saved temporaries in runs (pairs of offsets lo, hi; none
++// if empty), in place of Compile's sequences, which nothing has changed since (the entry
++// and exit blocks hold only the prologue and the epilogue).
++void NativeCodeProcedure::NarrowTempSaves(const ExpandingArray<int>& runs)
++{
++	ExpandingArray<NativeCodeInstruction>	save, restore;
++	for (int r = 0; r + 1 < runs.Size(); r += 2)
++	{
++		BuildTempSaves(save, nullptr, false, runs[r], runs[r + 1]);
++		BuildTempSaves(restore, mExitBlock->mBranchIns, true, runs[r], runs[r + 1]);
++	}
++
++	mEntryBlock->mIns.Remove(mTempSaveBegin, mTempSaveEnd - mTempSaveBegin);
++	for (int i = 0; i < save.Size(); i++)
++		mEntryBlock->mIns.Insert(mTempSaveBegin + i, save[i]);
++	mTempSaveEnd = mTempSaveBegin + save.Size();
++
++	mExitBlock->mIns.Remove(mTempRestoreBegin, mTempRestoreEnd - mTempRestoreBegin);
++	for (int i = 0; i < restore.Size(); i++)
++		mExitBlock->mIns.Insert(mTempRestoreBegin + i, restore[i]);
++	mTempRestoreEnd = mTempRestoreBegin + restore.Size();
++
++	// The bytes left out are now changed by this procedure, which its zero page set (made
++	// when the full save was assumed) did not say
++	if (mLinkerObject->mFlags & LOBJF_ZEROPAGESET)
++	{
++		for (int k = 0; k < mTempSave; k++)
++		{
++			bool	kept = false;
++			for (int r = 0; r + 1 < runs.Size(); r += 2)
++				if (k >= runs[r] && k <= runs[r + 1])
++					kept = true;
++			if (!kept)
++				mLinkerObject->mZeroPageSet += BC_REG_TMP_SAVED + k;
++		}
++	}
++}
++
+ void NativeCodeProcedure::Compile(InterCodeProcedure* proc)
+ {
+ 	mInterProc = proc;
+@@ -69168,6 +69322,9 @@ void NativeCodeProcedure::Compile(InterCodeProcedure* proc)
+ 				mEntryBlock->mIns.Push(NativeCodeInstruction(nullptr, ASMIT_DEC, ASMIM_ZERO_PAGE, BC_REG_STACK + 1));
+ 				ignoreExpandCommonFrame = true;
+ 
++				mTempSaveBegin = mEntryBlock->mIns.Size();
++				mTempSaveSlot = commonFrameSize;
++				mTempSaveUsesX = proc->mSaveTempsLinkerObject ? tempSave > 3 : tempSave > 2 && commonFrameSize > 0;
+ 				if (proc->mSaveTempsLinkerObject)
+ 					SaveTempsToStack(tempSave);
+ 				else if (tempSave)
+@@ -69204,9 +69361,15 @@ void NativeCodeProcedure::Compile(InterCodeProcedure* proc)
+ 						mEntryBlock->mIns.Push(NativeCodeInstruction(nullptr, ASMIT_BPL, ASMIM_RELATIVE, -8));
+ 					}
+ 				}
++				mTempSaveEnd = mEntryBlock->mIns.Size();
+ 			}
+ 			else if (proc->mSaveTempsLinkerObject)
++			{
++				mTempSaveBegin = mEntryBlock->mIns.Size();
++				mTempSaveUsesX = tempSave > 3;
+ 				SaveTempsToStack(tempSave);
++				mTempSaveEnd = mEntryBlock->mIns.Size();
++			}
+ 		}
+ 		else
+ 		{
+@@ -69228,6 +69391,9 @@ void NativeCodeProcedure::Compile(InterCodeProcedure* proc)
+ 			mEntryBlock->mIns.Push(NativeCodeInstruction(nullptr, ASMIT_LDA, ASMIM_ZERO_PAGE, BC_REG_LOCALS + 1));
+ 			mEntryBlock->mIns.Push(NativeCodeInstruction(nullptr, ASMIT_STA, ASMIM_INDIRECT_Y, BC_REG_STACK));
+ 
++			mTempSaveBegin = mEntryBlock->mIns.Size();
++			mTempSaveSlot = 0;
++			mTempSaveUsesX = proc->mSaveTempsLinkerObject && tempSave > 3;
+ 			if (proc->mSaveTempsLinkerObject)
+ 				SaveTempsToStack(tempSave);
+ 			else if (tempSave)
+@@ -69243,6 +69409,7 @@ void NativeCodeProcedure::Compile(InterCodeProcedure* proc)
+ 					mEntryBlock->mIns.Push(NativeCodeInstruction(nullptr, ASMIT_BPL, ASMIM_RELATIVE, -8));
+ 				}
+ 			}
++			mTempSaveEnd = mEntryBlock->mIns.Size();
+ 
+ 			mEntryBlock->mIns.Push(NativeCodeInstruction(nullptr, ASMIT_CLC, ASMIM_IMPLIED));
+ 			mEntryBlock->mIns.Push(NativeCodeInstruction(nullptr, ASMIT_LDA, ASMIM_ZERO_PAGE, BC_REG_STACK));
+@@ -69292,6 +69459,7 @@ void NativeCodeProcedure::Compile(InterCodeProcedure* proc)
+ 		{
+ 			if (mStackExpand > 0)
+ 			{
++				mTempRestoreBegin = mExitBlock->mIns.Size();
+ 				if (proc->mSaveTempsLinkerObject)
+ 					LoadTempsFromStack(tempSave);
+ 				else if (tempSave)
+@@ -69328,6 +69496,7 @@ void NativeCodeProcedure::Compile(InterCodeProcedure* proc)
+ 						mExitBlock->mIns.Push(NativeCodeInstruction(mExitBlock->mBranchIns, ASMIT_BPL, ASMIM_RELATIVE, -8));
+ 					}
+ 				}
++				mTempRestoreEnd = mExitBlock->mIns.Size();
+ 
+ 				mExitBlock->mIns.Push(NativeCodeInstruction(mExitBlock->mBranchIns, ASMIT_CLC, ASMIM_IMPLIED));
+ 				mExitBlock->mIns.Push(NativeCodeInstruction(mExitBlock->mBranchIns, ASMIT_LDA, ASMIM_ZERO_PAGE, BC_REG_STACK));
+@@ -69337,7 +69506,11 @@ void NativeCodeProcedure::Compile(InterCodeProcedure* proc)
+ 				mExitBlock->mIns.Push(NativeCodeInstruction(mExitBlock->mBranchIns, ASMIT_INC, ASMIM_ZERO_PAGE, BC_REG_STACK + 1));
+ 			}
+ 			else if (proc->mSaveTempsLinkerObject)
++			{
++				mTempRestoreBegin = mExitBlock->mIns.Size();
+ 				LoadTempsFromStack(tempSave);
++				mTempRestoreEnd = mExitBlock->mIns.Size();
++			}
+ 
+ 		}
+ 		else
+@@ -69352,6 +69525,7 @@ void NativeCodeProcedure::Compile(InterCodeProcedure* proc)
+ 			mExitBlock->mIns.Push(NativeCodeInstruction(mExitBlock->mBranchIns, ASMIT_LDA, ASMIM_INDIRECT_Y, BC_REG_STACK));
+ 			mExitBlock->mIns.Push(NativeCodeInstruction(mExitBlock->mBranchIns, ASMIT_STA, ASMIM_ZERO_PAGE, BC_REG_LOCALS + 1));
+ 
++			mTempRestoreBegin = mExitBlock->mIns.Size();
+ 			if (proc->mSaveTempsLinkerObject)
+ 				LoadTempsFromStack(tempSave);
+ 			else if (tempSave)
+@@ -69367,6 +69541,7 @@ void NativeCodeProcedure::Compile(InterCodeProcedure* proc)
+ 					mExitBlock->mIns.Push(NativeCodeInstruction(mExitBlock->mBranchIns, ASMIT_BPL, ASMIM_RELATIVE, -8));
+ 				}
+ 			}
++			mTempRestoreEnd = mExitBlock->mIns.Size();
+ 
+ 			mExitBlock->mIns.Push(NativeCodeInstruction(mExitBlock->mBranchIns, ASMIT_CLC, ASMIM_IMPLIED));
+ 			mExitBlock->mIns.Push(NativeCodeInstruction(mExitBlock->mBranchIns, ASMIT_LDA, ASMIM_ZERO_PAGE, BC_REG_STACK));
+@@ -69412,6 +69587,14 @@ void NativeCodeProcedure::Compile(InterCodeProcedure* proc)
+ 		}
+ 	}
+ 
++	// What ReduceTempSaves may narrow: a save and a restore of the callee-saved temporaries,
++	// both written above (an interrupt routine saves the zero page it uses its own way)
++	if (tempSave > 0 && !mInterProc->mInterrupt && mTempSaveEnd > mTempSaveBegin && mTempRestoreEnd > mTempRestoreBegin)
++	{
++		mTempSave = tempSave;
++		mTempSaveKind = proc->mSaveTempsLinkerObject ? NTS_STATIC : NTS_STACK;
++	}
++
+ 	ResetVisited();
+ 
+ 	bool	globalStores = false, globalLoads = false;
+@@ -73098,6 +73281,283 @@ void NativeCodeGenerator::OutlineFunctions(void)
+ 	} while (progress);
+ }
+ 
++// A procedure saves the callee-saved temporaries it uses (BC_REG_TMP_SAVED on) when it is
++// entered and restores them when it returns, for whoever called it.  It only has to keep
++// the bytes a caller needs: those the caller reads after the call before it writes them,
++// and those the caller's own callers need and the caller does not restore itself.  When
++// this runs every procedure is compiled and no call has been changed into a stub, a proxy
++// or an outlined sequence yet, so every direct call is a JSR or JMP to its procedure.  A
++// procedure whose address is taken, that an interrupt can reach, or that something other
++// than a native procedure refers to keeps its full save, and so does what its callees owe
++// to it.  Saving fewer bytes changes nothing else: the frame keeps its size and its slots.
++void NativeCodeGenerator::ReduceTempSaves(void)
++{
++	int	np = mProcedures.Size();
++	if (np == 0)
++		return;
++
++	for (int i = 0; i < np; i++)
++		mProcedures[i]->mTempSaveIndex = i;
++
++	ZeroPageSet	all;
++	for (int k = BC_REG_TMP_SAVED; k < 256; k++)
++		all += k;
++
++	ZeroPageSet	*	need = new ZeroPageSet[np];
++	ZeroPageSet	*	used = new ZeroPageSet[np];
++	bool		*	escaped = new bool[np];
++
++	for (int i = 0; i < np; i++)
++	{
++		NativeCodeProcedure* p = mProcedures[i];
++		InterCodeProcedure* ip = p->mInterProc;
++		escaped[i] = !ip || !p->mEntryBlock || ip->mInterrupt || ip->mHardwareInterrupt || ip->mInterruptCalled || ip->mFuncVariable || ip->mDispatchedCall;
++		for (int k = 0; k < p->mTempSave; k++)
++			used[i] += BC_REG_TMP_SAVED + k;
++	}
++
++	// Referred to from data (a function pointer), assembler or the runtime: native
++	// procedures have no references of their own before they are assembled.  The startup
++	// code calls main, and returns to basic after it, which needs basic's zero page as
++	// it was, so main keeps it all, unless the program does not return to basic (-xz,
++	// -xb): then the startup is main's only caller and needs nothing.
++	bool	basicReturn = !(mCompilerOptions & (COPT_EXTENDED_ZERO_PAGE | COPT_NO_BASIC_RETURN));
++	for (int i = 0; i < mLinker->mObjects.Size(); i++)
++	{
++		LinkerObject* lo = mLinker->mObjects[i];
++		for (int j = 0; j < lo->mReferences.Size(); j++)
++		{
++			LinkerObject* ro = lo->mReferences[j]->mRefObject;
++			if (ro && ro->mNativeProc && ro->mNativeProc->mTempSaveIndex >= 0)
++			{
++				NativeCodeProcedure* rp = ro->mNativeProc;
++				if (basicReturn || !rp->mIdent || strcmp(rp->mIdent->mString, "main") || !lo->mIdent || strcmp(lo->mIdent->mString, "startup"))
++					escaped[rp->mTempSaveIndex] = true;
++			}
++		}
++	}
++
++	struct TempSaveCall
++	{
++		int			mCaller, mCallee;
++		bool		mTail;
++		ZeroPageSet	mLive;
++	};
++	ExpandingArray<TempSaveCall>	calls;
++
++	for (int i = 0; i < np; i++)
++	{
++		NativeCodeProcedure* p = mProcedures[i];
++		if (!p->mEntryBlock)
++			continue;
++
++		p->ResetVisited();
++		p->mEntryBlock->BuildLocalRegSets();
++		p->ResetVisited();
++		p->mEntryBlock->BuildGlobalProvidedRegSet(NumberSet(NUM_REGS));
++		NumberSet	total(NUM_REGS);
++		do {
++			p->ResetVisited();
++		} while (p->mEntryBlock->BuildGlobalRequiredRegSet(total));
++
++		ExpandingArray<NativeCodeBasicBlock*>	blocks;
++		p->ResetVisited();
++		p->mEntryBlock->mVisited = true;
++		blocks.Push(p->mEntryBlock);
++		for (int bi = 0; bi < blocks.Size(); bi++)
++		{
++			NativeCodeBasicBlock* b = blocks[bi];
++			if (b->mTrueJump && !b->mTrueJump->mVisited)
++			{
++				b->mTrueJump->mVisited = true;
++				blocks.Push(b->mTrueJump);
++			}
++			if (b->mFalseJump && !b->mFalseJump->mVisited)
++			{
++				b->mFalseJump->mVisited = true;
++				blocks.Push(b->mFalseJump);
++			}
++		}
++
++		// Indexed or absolute accesses to the zero page from the temporaries up, which
++		// the data flow sets do not follow, are taken as live after every call: a copy
++		// loop (LDX #n / LDA zp,x ... / DEX / BPL) reaches zp to zp + n; anything else
++		// makes the procedure opaque, all of the area live (the entry and the exit block
++		// hold this procedure's own save and restore)
++		bool		opaque = false;
++		ZeroPageSet	indexed;
++		int			first = calls.Size();
++		for (int bi = 0; bi < blocks.Size(); bi++)
++		{
++			NativeCodeBasicBlock* b = blocks[bi];
++			for (int j = 0; j < b->mIns.Size(); j++)
++			{
++				const NativeCodeInstruction& ins(b->mIns[j]);
++
++				if (b != p->mEntryBlock && b != p->mExitBlock)
++				{
++					bool	ix = (ins.mMode == ASMIM_ZERO_PAGE_X || ins.mMode == ASMIM_ABSOLUTE_X && !ins.mLinkerObject) && ins.mAddress < 256;
++					bool	iy = (ins.mMode == ASMIM_ZERO_PAGE_Y || ins.mMode == ASMIM_ABSOLUTE_Y && !ins.mLinkerObject) && ins.mAddress < 256;
++
++					if (ins.mMode == ASMIM_INDIRECT_X && ins.mAddress >= BC_REG_TMP)
++						opaque = true;
++					else if (ins.mMode == ASMIM_ABSOLUTE && !ins.mLinkerObject && ins.mAddress < 256)
++						indexed += int(ins.mAddress);
++					else if ((ix || iy) && ins.mAddress + 255 >= BC_REG_TMP_SAVED && ins.mAddress >= BC_REG_TMP)
++					{
++						AsmInsType	ld = ix ? ASMIT_LDX : ASMIT_LDY, de = ix ? ASMIT_DEX : ASMIT_DEY;
++
++						int	n = -1;
++						for (int k = j - 1; k >= 0; k--)
++						{
++							const NativeCodeInstruction& pins(b->mIns[k]);
++							if (ix ? pins.ChangesXReg() : pins.ChangesYReg())
++							{
++								if (pins.mType == ld && pins.mMode == ASMIM_IMMEDIATE)
++									n = int(pins.mAddress);
++								break;
++							}
++						}
++						int k = j + 1;
++						while (k < b->mIns.Size() && !(ix ? b->mIns[k].ChangesXReg() : b->mIns[k].ChangesYReg()))
++							k++;
++						if (n < 0 || k < b->mIns.Size() && b->mIns[k].mType != de)
++							opaque = true;
++						else
++						{
++							for (int a = int(ins.mAddress); a <= int(ins.mAddress) + n && a < 256; a++)
++								indexed += a;
++						}
++					}
++				}
++
++				if (ins.mLinkerObject && ins.mLinkerObject->mNativeProc && ins.mLinkerObject->mNativeProc->mTempSaveIndex >= 0)
++				{
++					int	ci = ins.mLinkerObject->mNativeProc->mTempSaveIndex;
++					if ((ins.mType == ASMIT_JSR || ins.mType == ASMIT_JMP) && ins.mMode == ASMIM_ABSOLUTE && ins.mAddress == 0)
++					{
++						TempSaveCall	c;
++						c.mCaller = i;
++						c.mCallee = ci;
++						c.mTail = ins.mType == ASMIT_JMP;
++						if (!c.mTail)
++						{
++							NumberSet	req(NUM_REGS), prov(NUM_REGS);
++							for (int k = j + 1; k < b->mIns.Size(); k++)
++								b->mIns[k].FilterRegUsage(req, prov);
++							NumberSet	live(b->mExitRequiredRegs);
++							live -= prov;
++							live |= req;
++							for (int k = BC_REG_TMP_SAVED; k < 256; k++)
++								if (live[k])
++									c.mLive += k;
++						}
++						calls.Push(c);
++					}
++					else
++						escaped[ci] = true;
++				}
++			}
++		}
++
++		for (int k = first; k < calls.Size(); k++)
++		{
++			if (opaque)
++				calls[k].mLive = all;
++			else
++				calls[k].mLive |= indexed;
++		}
++	}
++
++	for (int i = 0; i < np; i++)
++		if (escaped[i])
++			need[i] = all;
++
++	// What a callee must keep: what the caller needs after the call, and what the caller's
++	// callers need from bytes the caller does not save (all of it, for a tail call)
++	bool	changed;
++	do {
++		changed = false;
++		for (int e = 0; e < calls.Size(); e++)
++		{
++			const TempSaveCall& c(calls[e]);
++			for (int w = 0; w < 8; w++)
++			{
++				uint32	add = c.mLive.mBits[w] | (c.mTail ? need[c.mCaller].mBits[w] : need[c.mCaller].mBits[w] & ~used[c.mCaller].mBits[w]);
++				if (add & ~need[c.mCallee].mBits[w])
++				{
++					need[c.mCallee].mBits[w] |= add;
++					changed = true;
++				}
++			}
++		}
++	} while (changed);
++
++	int	nsave = 0, nnarrow = 0, before = 0, after = 0;
++	for (int i = 0; i < np; i++)
++	{
++		NativeCodeProcedure* p = mProcedures[i];
++		if (p->mTempSaveKind == NativeCodeProcedure::NTS_NONE)
++			continue;
++		nsave++;
++		before += p->mTempSave;
++
++		// The bytes to keep, in runs.  A run costs about twelve bytes of code each way and a
++		// few cycles, a byte saved for nothing about 33 cycles a call: runs closer than four
++		// bytes are one, and there are three at most (the closest are merged).
++		ExpandingArray<int>	runs;
++		int	exact = 0;
++		for (int k = 0; k < p->mTempSave; k++)
++		{
++			if (need[i][BC_REG_TMP_SAVED + k])
++			{
++				exact++;
++				if (runs.Size() && k - runs[runs.Size() - 1] <= 4)
++					runs[runs.Size() - 1] = k;
++				else
++				{
++					runs.Push(k);
++					runs.Push(k);
++				}
++			}
++		}
++		while (runs.Size() > 6)
++		{
++			int	best = 2;
++			for (int r = 4; r < runs.Size(); r += 2)
++				if (runs[r] - runs[r - 1] < runs[best] - runs[best - 1])
++					best = r;
++			runs[best - 1] = runs[best + 1];
++			runs.Remove(best, 2);
++		}
++		int	kept = 0;
++		for (int r = 0; r + 1 < runs.Size(); r += 2)
++			kept += runs[r + 1] - runs[r] + 1;
++		int	lo = runs.Size() ? runs[0] : p->mTempSave, hi = runs.Size() ? runs[runs.Size() - 1] : -1;
++
++		if (escaped[i] || kept == p->mTempSave)
++		{
++			after += p->mTempSave;
++			if (mCompilerOptions & COPT_VERBOSE2)
++				printf("Temp saves <%s> %d -> %d%s\n", p->mIdent->mString, p->mTempSave, p->mTempSave, escaped[i] ? " (escapes)" : "");
++			continue;
++		}
++
++		after += kept;
++		if (mCompilerOptions & COPT_VERBOSE2)
++			printf("Temp saves <%s> %d -> %d in %d runs [%d..%d], %d needed\n", p->mIdent->mString, p->mTempSave, kept, runs.Size() / 2, lo, hi, exact);
++		p->NarrowTempSaves(runs);
++		nnarrow++;
++	}
++
++	if (mCompilerOptions & COPT_VERBOSE)
++		printf("Temp saves: %d of %d procedures that save narrowed, %d of %d bytes kept\n", nnarrow, nsave, after, before);
++
++	delete[] need;
++	delete[] used;
++	delete[] escaped;
++}
++
+ void NativeCodeGenerator::BuildFunctionProxies(void)
+ {
+ 	FunctionCall* cp = mFunctionCalls;
+diff --git a/oscar64/NativeCodeGenerator.h b/oscar64/NativeCodeGenerator.h
+index 9751840..e003f0d 100644
+--- a/oscar64/NativeCodeGenerator.h
++++ b/oscar64/NativeCodeGenerator.h
+@@ -1148,6 +1148,18 @@ class NativeCodeProcedure
+ 
+ 		void SaveTempsToStack(int tempSave);
+ 		void LoadTempsFromStack(int tempSave);
++
++		// The prologue's save of the callee-saved temporaries (BC_REG_TMP_SAVED on) and the
++		// epilogue's restore, as Compile wrote them: where they are in the entry and exit
++		// blocks, and how they address the save area, so that NativeCodeGenerator::
++		// ReduceTempSaves can narrow them to the bytes some caller needs.
++		enum { NTS_NONE, NTS_STATIC, NTS_STACK };
++		int		mTempSave, mTempSaveKind, mTempSaveSlot, mTempSaveIndex;
++		int		mTempSaveBegin, mTempSaveEnd, mTempRestoreBegin, mTempRestoreEnd;
++		bool	mTempSaveUsesX;
++
++		void BuildTempSaves(ExpandingArray<NativeCodeInstruction>& ins, const InterInstruction* iins, bool restore, int lo, int hi);
++		void NarrowTempSaves(const ExpandingArray<int>& runs);
+ };
+ 
+ class NativeCodeGenerator
+@@ -1158,6 +1170,7 @@ public:
+ 
+ 	void RegisterRuntime(const Ident * ident, LinkerObject * object, int offset);
+ 	void CompleteRuntime(void);
++	void ReduceTempSaves(void);
+ 
+ 	uint64		mCompilerOptions;
+ 
+diff --git a/oscar64/oscar64.cpp b/oscar64/oscar64.cpp
+index b4842ee..b67b014 100644
+--- a/oscar64/oscar64.cpp
++++ b/oscar64/oscar64.cpp
+@@ -94,6 +94,7 @@ void writeHelp(void)
+ 	printf("-Op : optimize constant parameters\n");
+ 	printf("-Oo : optimize size using \"outliner\" (extract repeated code sequences into functions)\n");
+ 	printf("-Ox : optimize pointer arithmetic by blocking shorter arrays to not cross page boundaries\n");
++	printf("-Ot : save only the zero page temporaries a caller needs (part of O2 / O3 / Os; -Ot- turns it off)\n");
+ 	printf("-g  : create source level debug info and add source line numbers to asm listing\n");
+ 	printf("-gp : create source level debug info and add source line numbers to asm listing and static profile data\n");
+ 	printf("-tf : target format, may be prg, crt or bin\n");
+@@ -103,6 +104,7 @@ void writeHelp(void)
+ 	printf("-fz : add a compressed binary file to the disk image\n");
+ 	printf("-fi : sector skip for data files on disk image\n");
+ 	printf("-xz : extended zero page usage, more zero page space, but no return to basic\n");
++	printf("-xb : no return to basic, the zero page layout unchanged (with -Ot, main need not keep basic's zero page)\n");
+ 	printf("-cid : cartridge type ID, used by vice emulator\n");
+ 	printf("-csub : cartridge sub type\n");
+ 	printf("-cname : cartridge name\n");
+@@ -324,6 +326,10 @@ int main2(int argc, const char** argv)
+ 						compiler->mCompilerOptions |= COPT_OPTIMIZE_OUTLINE;
+ 					else if (arg[2] == 'x' && !arg[3])
+ 						compiler->mCompilerOptions |= COPT_OPTIMIZE_PAGE_CROSSING;
++					else if (arg[2] == 't' && !arg[3])
++						compiler->mCompilerOptions |= COPT_OPTIMIZE_TEMP_SAVES;
++					else if (arg[2] == 't' && arg[3] == '-' && !arg[4])
++						compiler->mCompilerOptions &= ~COPT_OPTIMIZE_TEMP_SAVES;
+ 					else if (arg[2] == 'M' && !arg[3])
+ 						compiler->mCompilerOptions |= COPT_OPTIMIZE_SELF_MOD;
+ 					else
+@@ -395,6 +401,10 @@ int main2(int argc, const char** argv)
+ 				{
+ 					compiler->mCompilerOptions |= COPT_EXTENDED_ZERO_PAGE;
+ 				}
++				else if (arg[1] == 'x' && arg[2] == 'b' && !arg[3])
++				{
++					compiler->mCompilerOptions |= COPT_NO_BASIC_RETURN;
++				}
+ 				else if (arg[1] == 'p' && arg[2] == 'p' && !arg[3])
+ 				{
+ 					compiler->mCompilerOptions |= COPT_CPLUSPLUS;
+-- 
+2.43.0
+
