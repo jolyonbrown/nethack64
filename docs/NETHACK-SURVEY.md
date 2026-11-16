@@ -646,5 +646,5 @@ same harness. Data: `docs/data/oscar64-pin67-c64conf-2026-11-15.json` and `-base
   `uhitm.c`'s listing, where `hmon_hitmon()`'s copy loop no longer branches one byte short
   (compat #74), and so is every UNIX record (`docs/data/oscar64-pin78-*-2026-11-16.json`).
   The per-file listings put `m_move` at $9D and `dog_move` at $98 (UNIX $9C and $95), past
-  Oscar64's $8F; the whole game, whose callers make it inline less, last gave $8D (T1.54).
+  Oscar64's $8F; the whole game, whose callers make it inline less, gives $8B (T1.54).
 

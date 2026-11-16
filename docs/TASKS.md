@@ -517,7 +517,7 @@ Add new tasks at the bottom of the right section.
       — 2026-11-16: the pin warns (commit 74: warning 2025, with the function and its highest
       address; `#pragma warning(error: 2025)` makes it an error; `make repros` counts r69 as
       diagnosed). `tools/check_listing.py` runs in `build_c64.py` (the whole game: `m_move`'s
-      $8D highest, 2026-11-15 listings) and `calibrate.py` (the harness now within $8F,
+      $8B highest, T1.54) and `calibrate.py` (the harness now within $8F,
       re-published). Spilling what does not fit is compiler work for ADR-0009 (with all four
       types far, `mfndpos` needs $90). Upstream's own `mmultest.c` reaches $99/$A0 at -O3.
       The per-file C64 measurement (each file alone, more inlined) puts `m_move` at $9D and
@@ -538,11 +538,12 @@ Add new tasks at the bottom of the right section.
       the `LDX`'s operand. Found by `check_listing.py` in `hmon_hitmon()` of the C64
       measurement's `uhitm.c` listing; none in the whole game's 2026-11-15 listings. Fixed in
       the pin, 2026-11-16 (commit 77, test 78).
-- [ ] T1.54 The whole game with the pin of 78 commits, after T2.10: `build_c64.py` (stub mode,
-      on the desktop: 13 GB) and its `check_listing.py` step. The last whole-game listing
-      (2026-11-15, before T2.10, 73 commits) gave `m_move` $8D of $8F; the per-file listings
-      now give $9D (T1.50). Past $8F the build has to change before it can run on a C64
-      (a function split, `__noinline`, or the compiler spilling).
+- [x] T1.54 The whole game with the pin of 78 commits, after T2.10 (2026-11-16, on the desktop,
+      stub mode, the game's own `main()`: 615 s, 12.8 GB): no warning 2025, and
+      `build_c64.py --check-only` passes, `check_listing.py` included: highest temporary $8B
+      (`m_move`; $8D before T2.10), then `readobjnam` $87, `mfndpos` $82, `dog_move` $80; no
+      branch to no instruction; every bank check clean. The per-file listings' $9D is the
+      per-file build inlining more, not the game.
 
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 

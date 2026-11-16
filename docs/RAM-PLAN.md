@@ -363,7 +363,8 @@ compat #72, below):
   The host's counts a call are unchanged; on the 6502 `isok` is 43.2 cycles a call (45.3), `dist2`
   237.8 (237.1), `is_pool` and `is_lava` 163.0 (162.9), `mfndpos` 12,025 (12,005).
 - **Zero page is the limit to watch.** The whole game's highest temporary (listing of
-  2026-11-15) is `m_move`'s $8D, two bytes short of $8F; past it, the KERNAL's IRQ changes
+  2026-11-16, after T2.10, 78 commits) is `m_move`'s $8B, four bytes short of $8F (it was $8D
+  before T2.10); past it, the KERNAL's IRQ changes
   them on the real machine. With all four types far, `mfndpos()` itself needs $90 already,
   without any reuse: one byte too many (the emulator does not touch $90, so the 13% stands,
   but that code would not run on a C64 as it is). Translations reused across a function

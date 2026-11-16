@@ -7,9 +7,10 @@
  * 110,000 cycles; the 25th gets $9F-$A2 and the clock ticks its top three bytes.  24 longs
  * (up to $9E) pass, and so does this program with the emulator's clock off (the same bytes,
  * from a scratch build with Emulator::mJiffies false, or -xz).
- * v1.32.273 and the pin.  NetHack: not in the game yet (the whole game's highest temporary,
- * 2026-11-15, is m_move's $8D: two bytes to spare); the speed harness's main(), which
- * inlines its workloads, reached $A2-$AD (compat #72, found 2026-11-16 in its far build).
+ * v1.32.273, and the pin before commit 74.  NetHack: not in the game (the whole game's
+ * highest temporary, 2026-11-16, is m_move's $8B: four bytes to spare); the speed
+ * harness's main(), which inlined its workloads, reached $A2-$AD (compat #72, found
+ * 2026-11-16 in its far build).
  * Expect when fixed: exit 0 (temporaries kept to $53-$8F, the rest spilled to memory), or
  * a diagnostic that says the function needs more.  The pin (commit 74, T1.50) warns:
  * "warning 2025: Zero page temporaries up to $a2, past the end of their area at $8f, in

@@ -57,7 +57,7 @@ pointers at 16 bits: the type of the pointer says which space it is an address i
 - Open: strings (37.7 KB of literals reached as `char *`, which mixes provenance): keep them
   banked with today's trampolines, or a string space with a range test. Decided separately.
 - Zero page: reused and pinned translations stay in zero page, and the game is close to the
-  end of Oscar64's area already (`m_move` reaches $8D of $8F, 2026-11-15); in the experiment
+  end of Oscar64's area already (`m_move` reaches $8B of $8F, 2026-11-16); in the experiment
   with all four types far, `mfndpos` needs $90 before any reuse (2026-11-16). Oscar64 did
   not check the end (compat #72: past it the KERNAL's IRQ changes the values); the pin now
   warns (2025), and every listing is checked (`tools/check_listing.py`). So the compiler
