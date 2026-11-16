@@ -1,0 +1,79 @@
+# ADR-0008: Code placement: the busiest banks on the EasyFlash, the rest from the REU
+
+- Status: proposed (for Jolyon)
+- Date: 2026-11-16
+- Deciders: Jolyon (+ Claude, who proposes it)
+
+## Context
+ADR-0003 chose EasyFlash + REU and left open where the code goes (ARCHITECTURE.md, "Code:
+banking", options A-C). Measured since (BANKING-SPIKE.md):
+
+- The whole game, built by Oscar64 with the pin of 80 commits from the bank plan of 2026-11-15
+  (`tools/bank/build_c64.py --linker-stubs`), is 104 banks of up to 16 KB: 1,569,516 bytes of
+  code and literals, plus 17 KB of resident code. An EasyFlash holds 64 banks, one of them the
+  boot bank, so about 62 can hold banked code: some 42 banks (about 670 KB) do not fit.
+- A call into another bank costs 34 cycles through a resident stub (`tests/spikes/bankcall.c`);
+  the pin's linker stubs make every such call (commit 72). An REU transfer costs about 1,090
+  cycles a KB (the same spike), so a 16 KB bank is about 18 ms.
+- How often play needs which bank (`tools/measure/bankplace.py`, `docs/data/bankplace-2026-11-16.txt`):
+  in the host game's profile with the old bot (run, walk, stairs; 9,273 turns) 40 of the 104
+  banks are never entered. That profile hides the cold code, so the bot gained `--wide`: it also
+  picks up, quaffs, reads, zaps, eats, applies, wears, wields, throws, casts, kicks, engraves,
+  opens doors and prays, in a game for each of the 13 roles (4,222 turns merged). Then 1,246
+  functions are called and only 4 banks are never entered. Keeping the banks entered most on
+  the cartridge, the others are entered:
+
+  | Banks on the EasyFlash | Off it | Entries a turn into those (wide profile) |
+  |---|---|---|
+  | 62 | 42 | 1.0 |
+  | 56 | 48 | 1.6 |
+  | 48 | 56 | 2.8 |
+  | 32 | 72 | 9.5 |
+  | 24 | 80 | 20.8 |
+
+  An entry is an upper bound on a load: the counts do not give the calls' order, and a bank
+  already in the window needs none.
+- The code and literals compress about 1.85:1 (deflate, per bank) to 2:1 (lzma). Keeping the
+  overflow on the cartridge packed would leave room for only about 14-20 unpacked banks, so play
+  would enter packed banks some 20 times a turn, each an unpacking of a fraction of a second on a
+  6502: too slow.
+- RAM: with the cartridge switched off, `$8000-$BFFF` is RAM. While banked code runs from the
+  EasyFlash, data cannot live there anyway, so a 16 KB window there costs no data RAM.
+
+## Decision (proposed)
+1. **The 62 banks entered most execute in place from the EasyFlash; the other banks (about 42
+   today) live in the REU** and run in a 16 KB RAM window at `$8000-$BFFF`, with the cartridge
+   switched off while they run. A call into such a bank goes through the same resident bank call
+   routine: it loads the bank into the window by REU DMA if another one is there, switches the
+   cartridge off, and on return switches back to the caller's bank. The routine keeps the rules
+   of the linker stubs (A, X, Y, the zero page and the stack as it found them, both ways).
+2. **The REU needs at least 1 MB, 2 MB recommended**: the overflow code (about 670 KB) beside
+   far data (ADR-0009: `mons[]`, `objects[]`, the heap, about 60 KB plus its page cache), the
+   RAM disk for levels and saves (T2.4) and room to grow. The 512 KB REU of `make run` stops
+   being enough for the whole game. VICE and the Ultimate family offer up to 16 MB.
+3. **The REU's code arrives as an image**: in VICE as an REU image file beside the `.crt`
+   (`x64sc -reuimage`); on real hardware loaded from disk at start (about 670 KB) until a
+   faster path is checked (the Ultimate's documentation reached on 2026-11-16 does not say
+   whether it preloads an REU image; to be tested).
+4. **The bank plan is made from the wide profile** (hot code together, rarely used code in the
+   REU banks), and re-made as the code changes.
+
+## Consequences
+- Easier: everything the game needs fits, with no packing, and the cost is small: about one
+  window load a turn at about 18 ms in this profile, against about 1 s a turn of game code.
+- Harder: the bank call routine grows (a bank number past the cartridge means the REU, a check
+  of what the window holds, the cartridge switched off and on); a function in an REU bank may
+  not hand out a pointer into its own code or literals that outlives its call (the window can
+  change: the same rule as for literals in EasyFlash banks today, BANKING-SPIKE.md); interrupt
+  code must not run from the window. Real hardware needs the REU-aware EasyFlash (HARDWARE.md,
+  the `$DF00` problem) and a way to fill the REU at start.
+- Watch: the profile is a bot's, levels 1-4 at most; special levels, shops, the quest and the
+  endgame are barely in it. If they enter REU banks often, the remedy is the plan (move hot
+  functions to the cartridge), not the design. A stock C64 is outside this plan (as in
+  ADR-0003, a stretch).
+
+## Evidence / how to re-check
+`python3 tools/profile_play.py --wide --role R --merge -o build/profile-arcs-wide.json` for each
+role (`tools/host-build.sh --profile` first); `python3 tools/measure/bankplace.py --profile
+build/profile-arcs-wide.json`; the whole game's bank sizes from `tools/bank/build_c64.py
+--check-only` (BANKING-SPIKE.md); `tests/spikes/bankcall.c` for the call and REU costs.

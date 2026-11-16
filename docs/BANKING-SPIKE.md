@@ -410,3 +410,10 @@ new compiler's heap exposes.
 4. **Oscar64 past 64 banks**, as a pin patch, if B or a large cartridge wins.
 
 Then ADR-0008.
+
+**2026-11-16: ADR-0008 proposed.** The whole game is 104 banks; with the bot's new `--wide`
+mode (inventory, spells, all 13 roles) only 4 banks go unentered, and keeping the 62 entered
+most on the EasyFlash leaves about one entry a turn into the rest, which would run from the REU
+through a RAM window under the cartridge (`tools/measure/bankplace.py`,
+`docs/data/bankplace-2026-11-16.txt`). Packing the overflow on the cartridge instead (about 2:1)
+leaves too few banks unpacked: about 20 unpackings a turn.
