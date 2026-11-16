@@ -18,7 +18,10 @@ arithmetic) apart from the functions that call them.
 access through a `struct TAG *` to go through that type's table of pages first (far_pre.h),
 the pointers being far addresses NH_VOFF from the real ones; the checksums must still be the
 host's, and no page may fault.  --far-volatile makes the tables volatile: no translation is
-reused, one an access.
+reused, one an access.  --far-reuse models a compiler that translates a pointer once a value
+(farify.py --reuse: variables with one definition; --far-reuse-all: all of them, at each
+definition); --far-expand only macro-expands the functions first (the control for both).
+Each far run also prints, for each workload, where the far cost goes, function by function.
 
 Every 6502 listing is checked (tools/check_listing.py): no branch out of range (compat #73),
 and no zero-page temporary past $8F, the end of Oscar64's area on the C64 (compat #72); past
@@ -126,15 +129,16 @@ NH_VOFF = 0x4000
 
 def far_runs(a, out, res, monst):
     fdir = os.path.join(out, "far")
+    mode = ["--reuse-all"] if a.far_reuse_all else ["--reuse"] if a.far_reuse else ["--expand"] if a.far_expand else []
     print("\nfar build: " + run([sys.executable, os.path.join(HERE, "farify.py"), "--src", os.path.join(out, "x"),
                                  "--inc", os.path.join(out, "inc"), "--out", fdir] +
-                                ["--type=" + t for t in a.far] + ["--cflag=-DC64", "--cflag=-Dregister="]).strip()
-          .replace("\n", "\n  "))
+                                ["--type=" + t for t in a.far] + ["--cflag=-DC64", "--cflag=-Dregister="] + mode)
+          .strip().replace("\n", "\n  "))
     defs = ["-dNH_FAR", "-dNH_VOFF=%d" % NH_VOFF] + ["-dNH_FAR_%s" % t.upper() for t in a.far] + \
         (["-dmons=nh_mons_real"] if "permonst" in a.far else []) + \
         (["-dNH_FAR_VOLATILE"] if a.far_volatile else []) + (["-dNH_FAR_COUNT"] if a.far_count else [])
     xs = sorted(glob.glob(os.path.join(fdir, "x", "x_*.c")))
-    rows, counts, zps, past = {}, {}, {}, []
+    rows, counts, zps, past, ffuncs = {}, {}, {}, [], {}
     for w in [0] + sorted(WORKS):
         o = run([OSCAR64] + C64_FLAGS + ["-ep", "-dWORK=%d" % w, "-i=" + os.path.join(fdir, "inc")] + defs +
                 ["-o=" + os.path.join(fdir, "c64_%d.prg" % w), os.path.join(HERE, "cal.c")] + xs + [monst],
@@ -146,11 +150,15 @@ def far_runs(a, out, res, monst):
         if line != res[w]["checksum"] or faults:
             sys.exit("far build, workload %d: %s, %d faults (the host: %s)" % (w, line, faults, res[w]["checksum"]))
         rows[w] = int(re.search(r"^Total Cycles (\d+)$", o, re.M).group(1))
+        ffuncs[w] = {}
+        for m in re.finditer(r"^\s+\d+ : (\S+) : (\d+)$", o, re.M):
+            if not re.match(r"^[0-9a-f]{4}$", m.group(1)):
+                ffuncs[w][m.group(1)] = ffuncs[w].get(m.group(1), 0) + int(m.group(2))
         m = re.search(r"^count (.*)$", o, re.M)
         if m:
             counts[w] = dict(zip(m.group(1).split()[0::2], map(int, m.group(1).split()[1::2])))
-    print("far %s%s, same checksums, no faults; highest zero-page temporaries: %s" % (
-        "+".join(a.far), " (volatile tables)" if a.far_volatile else "",
+    print("far %s%s%s, same checksums, no faults; highest zero-page temporaries: %s" % (
+        "+".join(a.far), " (volatile tables)" if a.far_volatile else "", (" (" + mode[0][2:] + ")") if mode else "",
         ", ".join("%d %s" % (w, zps[w]) for w in sorted(zps))))
     for x in past:
         print("  past Oscar64's zero page, would not run on a C64 as it is: " + x)
@@ -161,13 +169,24 @@ def far_runs(a, out, res, monst):
         f = (rows[w] - rows[0]) / res[w]["calls"]
         summary[WORKS[w]] = dict(near=n, far=f)
         print("  %-18s %18.1f %17.1f %8.2fx" % (WORKS[w], n, f, f / n))
+    for w in sorted(WORKS):
+        n = res[w]["calls"]
+        cost = []
+        for f in set(ffuncs[w]) | set(res[w]["c64_funcs"]):
+            d = ((ffuncs[w].get(f, 0) - ffuncs[0].get(f, 0)) -
+                 (res[w]["c64_funcs"].get(f, 0) - res[0]["c64_funcs"].get(f, 0))) / n
+            if abs(d) >= 0.5:
+                cost.append((d, f))
+        summary[WORKS[w]]["far_cost_by_function"] = {f: round(d, 1) for d, f in cost}
+        print("  far cost a call, %s: %s" % (WORKS[w], ", ".join("%s %+.1f" % (f, d) for d, f in
+                                                              sorted(cost, reverse=True)[:6]) or "none"))
     if counts:
         print("translations a call (less workload 0):")
         for w in sorted(WORKS):
             c = {k: (v - counts[0].get(k, 0)) / res[w]["calls"] for k, v in counts[w].items()}
             summary[WORKS[w]]["translations"] = c
             print("  %-18s %s" % (WORKS[w], "  ".join("%s %.1f" % kv for kv in c.items())))
-    return dict(types=a.far, volatile=a.far_volatile, workloads=summary,
+    return dict(types=a.far, volatile=a.far_volatile, mode=mode[0][2:] if mode else "plain", workloads=summary,
                 zp_high={str(w): v for w, v in zps.items()}, zp_past_8f=past)
 
 
@@ -178,6 +197,9 @@ def main():
     ap.add_argument("--far", action="append", default=[], metavar="TAG")
     ap.add_argument("--far-volatile", action="store_true")
     ap.add_argument("--far-count", action="store_true", help="count the translations of each type (slower)")
+    ap.add_argument("--far-expand", action="store_true", help="farify.py --expand (the control for --far-reuse)")
+    ap.add_argument("--far-reuse", action="store_true", help="farify.py --reuse")
+    ap.add_argument("--far-reuse-all", action="store_true", help="farify.py --reuse-all")
     a = ap.parse_args()
     out = os.path.abspath(a.out)
     xs, monst = prepare(out)

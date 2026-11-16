@@ -364,9 +364,65 @@ compat #72, below):
   237.8 (237.1), `is_pool` and `is_lava` 163.0 (162.9), `mfndpos` 12,025 (12,005).
 - **Zero page is the limit to watch.** The whole game's highest temporary (listing of
   2026-11-16, after T2.10, 78 commits) is `m_move`'s $8B, four bytes short of $8F (it was $8D
-  before T2.10); past it, the KERNAL's IRQ changes
-  them on the real machine. With all four types far, `mfndpos()` itself needs $90 already,
-  without any reuse: one byte too many (the emulator does not touch $90, so the 13% stands,
-  but that code would not run on a C64 as it is). Translations reused across a function
-  (ADR-0009, point 4) keep more pointers there. `tools/check_listing.py` checks a listing.
+  before T2.10); past it, the KERNAL's IRQ changes them on the real machine. With all four
+  types far, `mfndpos()` needs $90 without reuse, one byte too many (the emulator does not
+  touch $90, so the 13% stands, but that code would not run on a C64 as it is), and $88 with
+  it (below). `tools/check_listing.py` checks a listing; the pin warns past $8F (2025).
 
+## Measured: translation reuse (2026-11-16, T2.11)
+
+`farify.py --reuse` rewrites the functions as a compiler that translates a pointer once a value
+would: the bodies macro-expanded first (`--expand`, so that `mondata.h`'s accessors are spelled
+in the function), then every far pointer variable defined once (a parameter, or a local set in
+one place, like `mfndpos`'s `mon`, `mdat` and the trap of each position) gets a shadow holding
+its translation, set at that definition, and its accesses go through the shadow. Pointers that
+are not variables, and variables set in several places (a list walk's cursor), keep a
+translation at every access; `--reuse-all` shadows those too. Same checksums as the host build,
+no faults, all pages mapped (`calibrate.py --far-reuse`, `docs/data/speed-far-reuse-2026-11-16.txt`):
+
+| `mfndpos`, cycles a call | Far | Highest temporary |
+|---|---|---|
+| near | 12,025 | $80 |
+| `mons[]` far, no reuse / reuse | 12,469 (+3.7%) / 12,431 (+3.4%) | $87 / $85 |
+| all four far, no reuse | 13,632 (+13.4%) | $90 |
+| all four far, reuse (one definition) | 13,066 (+8.7%) | $88 |
+| all four far, reuse everywhere | 13,352 (+11.0%) | $88 |
+
+Where the far cost goes (all four types, cycles a call, `calibrate.py` prints it by function):
+
+| Function | No reuse | Reuse | Reuse everywhere |
+|---|---|---|---|
+| `mfndpos` | +1,020 | +401 | +405 |
+| `t_at` | +553 | +553 | +826 |
+| `bad_rock` | +2 | +71 | +72 |
+| `onscary`, `sobj_at` and the rest | +33 | +17 | +24 |
+
+- **Reuse takes 60% of `mfndpos`'s own far cost away**: about 70 translations a call become 51
+  (counted with `-dNH_FAR_COUNT`; 45 of them `t_at()`'s, and 28 in all with reuse everywhere),
+  and with fewer intermediate results `mfndpos` needs less zero page ($88, back inside
+  Oscar64's area).
+- **A translation at each definition is not what a compiler would do everywhere.** `t_at()`
+  walks the trap list, reading `tx` and `ntrap` of each trap (and `ty` when `tx` matches): two
+  translations a step without reuse, one with it, but the shadow's null test and copies cost
+  more than the translation saved (+826). `bad_rock()` translates its `mdat` at entry and
+  reads it only when the square is rock (+71). Translating at the first access on each path,
+  and reusing it where that access dominates, needs neither: estimated, `t_at` at one
+  translation a step (about +280) and `bad_rock` as without reuse, all four far comes to
+  about **+700 cycles, 6%** (ADR-0009 said 4-5%). The measured 8.7% is the bound.
+- **One translation for all of an object's fields assumes the object is in one page.** It is
+  for the heap's monsters (80 bytes, three to a page) and objects (48, five to a page) from a
+  slab allocator, as the spike laid its list out; not for the tables: `mons[]` has 55-byte
+  entries and `objects[]` 26-byte ones, which cross pages. The experiment maps every page
+  contiguously, so it cannot show this. A table that goes far needs entries that keep to a
+  page: `struct permonst` padded to 64 bytes (24.4 KB instead of 21.0 KB of REU, four to a
+  page; `ptr - mons` then a shift, where `monsndx()` divides by 55 today), `objects[]` to 32
+  (13.9 instead of 11.3 KB), or a translation of the field's own address at each access.
+- **The cache for the first far set** (`mons[]`, `objects[]` and the heap: run C, with
+  `nh_trace.c`'s `NH_TRACE_FAR` counting everything else as near,
+  `docs/data/fardata-trace-runC-far3-2026-11-16.txt`; the bot stayed on level 1): a turn
+  touches 36 pages at the median (49 at p90, 63 at most; 38 over ten turns), and CLOCK with 64
+  pages takes no fault a turn at the median or at p90 (4 at most); with 32 pages, 21 and 77.
+  What is left is the translations: 5,655 far accesses a turn at the median, at most 121 ms at
+  21 cycles each (228 ms at p90) before any reuse, where all data far cost 314 ms (run A). A
+  deeper game keeps more monsters and objects on the heap (run B), so 64 pages is where to
+  start, not a bound.

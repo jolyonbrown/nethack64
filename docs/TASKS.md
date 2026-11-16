@@ -671,6 +671,14 @@ Add new tasks at the bottom of the right section.
       (`docs/data/speed-far-c72-2026-11-16.txt`): `mfndpos` 12,025, +4% and +13% far, as
       before; with all four types far `mfndpos` itself needs $90. Next: translation reuse,
       faults.
+      — 2026-11-16: reuse (`farify.py --expand/--reuse/--reuse-all`, `calibrate.py
+      --far-reuse`): all four far 13.4% -> 8.7% (one translation at each single-definition
+      variable; `mfndpos`'s own far cost -60%, its zero page back to $88), `mons[]` far 3.7% ->
+      3.4%; a list walk (`t_at`) needs a compiler's lazy reuse: about 6% estimated. Faults
+      (`nh_trace.c` `NH_TRACE_FAR`, run C): for `mons[]`, `objects[]` and the heap, 36 pages a
+      turn (63 at most), CLOCK 64 no faults, 121 ms of translations a turn before reuse. A
+      layout rule for ADR-0009: far objects keep to a page (slabs; tables padded, `permonst`
+      to 64 bytes). ADR-0009 amended (points 4-6). Next: Jolyon's decision on ADR-0009.
 
 ## Housekeeping
 

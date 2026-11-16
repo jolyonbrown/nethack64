@@ -1,0 +1,57 @@
+# tools/measure/speed/calibrate.py --far ... with farify.py's --expand (the control), --reuse and --reuse-all, 2026-11-16,
+# oscar64-pin 78 commits; the near part as in speed-far-c72-2026-11-16.txt (the same cycles and checksums).
+# --far permonst --far monst_s --far obj_s --far trap_s --far-expand:
+far permonst+monst_s+obj_s+trap_s (expand), same checksums, no faults; highest zero-page temporaries: 0 $90 mfndpos, 1 $90 mfndpos, 2 $90 mfndpos, 3 $90 mfndpos, 4 $90 mfndpos
+  past Oscar64's zero page, would not run on a C64 as it is: workload 0: mfndpos: temporaries up to $90, past $8f (compat #72)
+  past Oscar64's zero page, would not run on a C64 as it is: workload 1: mfndpos: temporaries up to $90, past $8f (compat #72)
+  past Oscar64's zero page, would not run on a C64 as it is: workload 2: mfndpos: temporaries up to $90, past $8f (compat #72)
+  past Oscar64's zero page, would not run on a C64 as it is: workload 3: mfndpos: temporaries up to $90, past $8f (compat #72)
+  past Oscar64's zero page, would not run on a C64 as it is: workload 4: mfndpos: temporaries up to $90, past $8f (compat #72)
+workload              near cycles/call   far cycles/call   slower
+  isok                             43.2              43.1     1.00x
+  dist2                           237.8             238.0     1.00x
+  is_pool + is_lava               163.0             163.2     1.00x
+  mfndpos                       12025.0           13632.2     1.13x
+  far cost a call, isok: none
+  far cost a call, dist2: none
+  far cost a call, is_pool + is_lava: none
+  far cost a call, mfndpos: mfndpos +1020.1, t_at +552.5, onscary +17.2, sobj_at +7.9, main +4.4, is_pool +1.8
+
+# the same, --far-reuse:
+far build: reuse: 12 variables shadowed in 22 functions
+far permonst+monst_s+obj_s+trap_s (reuse), same checksums, no faults; highest zero-page temporaries: 0 $88 mfndpos, 1 $88 mfndpos, 2 $88 mfndpos, 3 $88 mfndpos, 4 $88 mfndpos
+workload              near cycles/call   far cycles/call   slower
+  isok                             43.2              43.2     1.00x
+  dist2                           237.8             237.3     1.00x
+  is_pool + is_lava               163.0             162.9     1.00x
+  mfndpos                       12025.0           13066.4     1.09x
+  far cost a call, isok: none
+  far cost a call, dist2: dist2 -0.6
+  far cost a call, is_pool + is_lava: none
+  far cost a call, mfndpos: t_at +552.5, mfndpos +401.0, bad_rock +71.3, onscary +9.7, sobj_at +7.8, main +4.1
+
+# the same, --far-reuse-all:
+far build: reuse: 17 variables shadowed in 22 functions
+far permonst+monst_s+obj_s+trap_s (reuse-all), same checksums, no faults; highest zero-page temporaries: 0 $88 mfndpos, 1 $88 mfndpos, 2 $88 mfndpos, 3 $88 mfndpos, 4 $88 mfndpos
+workload              near cycles/call   far cycles/call   slower
+  isok                             43.2              43.2     1.00x
+  dist2                           237.8             237.6     1.00x
+  is_pool + is_lava               163.0             162.9     1.00x
+  mfndpos                       12025.0           13351.5     1.11x
+  far cost a call, isok: none
+  far cost a call, dist2: none
+  far cost a call, is_pool + is_lava: none
+  far cost a call, mfndpos: t_at +825.7, mfndpos +404.7, bad_rock +71.9, sobj_at +12.2, onscary +9.8, main +4.2
+
+# --far permonst --far-reuse:
+far build: reuse: 2 variables shadowed in 22 functions
+far permonst (reuse), same checksums, no faults; highest zero-page temporaries: 0 $85 mfndpos, 1 $85 mfndpos, 2 $85 mfndpos, 3 $85 mfndpos, 4 $85 mfndpos
+workload              near cycles/call   far cycles/call   slower
+  isok                             43.2              43.1     1.00x
+  dist2                           237.8             239.2     1.01x
+  is_pool + is_lava               163.0             163.6     1.00x
+  mfndpos                       12025.0           12431.4     1.03x
+  far cost a call, isok: none
+  far cost a call, dist2: dist2 +1.4
+  far cost a call, is_pool + is_lava: none
+  far cost a call, mfndpos: mfndpos +323.5, bad_rock +73.3, onscary +8.1, is_pool +3.1, is_lava +2.7, main -4.4

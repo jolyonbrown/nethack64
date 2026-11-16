@@ -27,6 +27,8 @@
  * touched over the last ten turns, and each cache's faults.  At exit, NH_TRACE_OUT.objects
  * lists each global's accesses and the turns it was touched in.  NH_TRACE_NEAR names
  * globals (one a line) to keep near: their accesses are counted as near and reach no page.
+ * NH_TRACE_FAR names the kinds that are far, comma-separated (e.g. "mons,objects,heap", the
+ * first set of ADR-0009); every other kind is counted as near.  Without it all are far.
  * Environment: NH_TRACE_LAYOUT (the table), NH_TRACE_OUT (the output); without them the
  * callbacks do nothing.
  */
@@ -50,6 +52,7 @@ static FILE *out;
 static uintptr_t stack_lo, stack_hi, ro_lo, ro_hi, moves_addr;
 static uint32_t str_base, str_size, heap_next, obj_host, monst_host;
 static unsigned long acc[NKINDS];
+static int far_kind[NKINDS];           /* NH_TRACE_FAR: the kinds that are far */
 #define PAGES 8192                     /* 2 MB of C64 far space */
 static uint8_t page_kind[PAGES];
 static uint8_t turnbits[PAGES / 8], ring[10][PAGES / 8];
@@ -178,6 +181,26 @@ static void start(void)
 		}
 		if (nf)
 			fclose(nf);
+	}
+	{
+		const char *fp = getenv("NH_TRACE_FAR");
+		for (int k = 0; k < NKINDS; k++)
+		{
+			size_t n = strlen(kname[k]);
+			const char *q = fp;
+			far_kind[k] = !fp;
+			while (q && *q)
+			{
+				if (!strncmp(q, kname[k], n) && (q[n] == ',' || !q[n]))
+					far_kind[k] = 1;
+				q = strchr(q, ',');
+				q = q ? q + 1 : NULL;
+			}
+		}
+		far_kind[K_OTHER] = far_kind[K_NEAR] = 0;
+		for (int i = 0; i < nents; i++)
+			if (ents[i].kind != K_OTHER && !far_kind[ents[i].kind])
+				ents[i].kind = K_NEAR;
 	}
 	for (int pl = 0; pl < NPOL; pl++)
 		for (int z = 0; z < NSIZE; z++)
@@ -370,6 +393,11 @@ static void trace_access(uintptr_t a, int store)
 	}
 	if (a >= ro_lo && a < ro_hi)
 	{
+		if (!far_kind[K_STRINGS])
+		{
+			acc[K_NEAR]++;
+			return;
+		}
 		acc[K_STRINGS]++;
 		mark(str_base + (uint32_t)((uint64_t)(a - ro_lo) * str_size / (ro_hi - ro_lo)));
 		return;
@@ -440,12 +468,12 @@ static void heap_add(void *p, size_t n)
 		heap[i].size = n ? n : 1;
 		heap[i].c64addr = at;
 		heap[i].c64size = c64;
-		heap[i].kind = K_HEAP;
+		heap[i].kind = far_kind[K_HEAP] ? K_HEAP : K_NEAR;
 		heap[i].hcat = hcat;
 		nheap++;
 	}
 	for (uint32_t q = at >> 8; q <= (at + c64 - 1) >> 8 && q < PAGES; q++)
-		page_kind[q] = K_HEAP;
+		page_kind[q] = far_kind[K_HEAP] ? K_HEAP : K_NEAR;
 }
 
 static void heap_del(void *p)

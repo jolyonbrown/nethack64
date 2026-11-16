@@ -1,7 +1,7 @@
 # ADR-0009: Far data as typed far spaces in the compiler
 
 - Status: proposed (for Jolyon)
-- Date: 2026-11-16
+- Date: 2026-11-16 (amended the same day with T2.11's reuse and cache results: points 4-6)
 - Deciders: Jolyon (+ Claude, who proposes it)
 
 ## Context
@@ -38,12 +38,23 @@ pointers at 16 bits: the type of the pointer says which space it is an address i
    allocate from the type's space (C64 macros in `monst.h`/`obj.h`).
 4. **Reuse and pinning.** The compiler translates a pointer once a function when it does not
    change there, once a loop step when it does; pages translated by a function stay pinned
-   until it returns (the fault handler does not evict them). Estimated to take `mfndpos`'s
-   far cost from 13% to about 4-5%.
-5. **Cache.** REU pages under a CLOCK policy, 64 RAM pages (16 KB) to start; the fault
-   handler in assembler (about 350 cycles). The cache sits behind one interface, so that a
+   until it returns (the fault handler does not evict them). Measured on `mfndpos` with all
+   four types far: 13.4% slower without reuse, 8.7% with a translation at each variable's
+   single definition (`farify.py --reuse`); about 6% estimated for a compiler that
+   translates at the first access on each path (a list walk then costs one translation a
+   step, which a source rewrite cannot show). It also took `mfndpos`'s zero page from $90
+   back to $88 (RAM-PLAN.md, "Measured: translation reuse").
+5. **Objects keep to a page.** One translation serves all of an object's fields only if the
+   object lies in one page: monsters (80 bytes) and objects (48) come from slabs, three and
+   five to a page; a far table's entries are padded to a power of two (`struct permonst` 55
+   -> 64 bytes, 24.4 KB of REU instead of 21.0, and `ptr - mons` a shift; `objects[]` 26 ->
+   32), or the table's accesses translate the field's own address.
+6. **Cache.** REU pages under a CLOCK policy, 64 RAM pages (16 KB) to start; the fault
+   handler in assembler (about 350 cycles). For `mons[]`, `objects[]` and the heap a turn
+   touches 36 pages at the median and 63 at most, and 64 pages fault almost never (run C,
+   on level 1); the cost is then the translations, at most 121 ms a turn before reuse. The cache sits behind one interface, so that a
    C128's second bank, or a disk on a stock C64, could back it instead.
-6. **What goes far is decided per type, by measurement**: `mons[]`, `objects[]` and the heap
+7. **What goes far is decided per type, by measurement**: `mons[]`, `objects[]` and the heap
    first; the level and vision grids stay near while RAM allows.
 
 ## Consequences
@@ -58,10 +69,11 @@ pointers at 16 bits: the type of the pointer says which space it is an address i
   banked with today's trampolines, or a string space with a range test. Decided separately.
 - Zero page: reused and pinned translations stay in zero page, and the game is close to the
   end of Oscar64's area already (`m_move` reaches $8B of $8F, 2026-11-16); in the experiment
-  with all four types far, `mfndpos` needs $90 before any reuse (2026-11-16). Oscar64 did
-  not check the end (compat #72: past it the KERNAL's IRQ changes the values); the pin now
-  warns (2025), and every listing is checked (`tools/check_listing.py`). So the compiler
-  work includes temporaries that do not fit: spilled to memory, not only reported.
+  with all four types far, `mfndpos` needs $90 before any reuse and $88 with it
+  (2026-11-16). Oscar64 did not check the end (compat #72: past it the KERNAL's IRQ changes
+  the values); the pin now warns (2025), and every listing is checked
+  (`tools/check_listing.py`). So the compiler work includes temporaries that do not fit:
+  spilled to memory, not only reported.
 
 ## Evidence / how to re-check
 `python3 tests/spikes/run_fardata.py`; `python3 tools/measure/trace/summary.py TURNS`;
