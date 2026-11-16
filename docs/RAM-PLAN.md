@@ -332,8 +332,12 @@ mapped (a warm cache); the same checksums as the host build, no faults
 - `mons[]` far costs little: its fields are read a few times a call.
 - With the heap far as well, monster movement's hottest function is 13% slower on a warm cache,
   about 70 translations a call at some 22 cycles. Oscar64 reused none of them (volatile tables
-  cost the same); most are of `mon` and `mdat`, which do not change inside the function, so a
-  compiler that keeps a translation for a function's length would remove most of the cost.
+  cost the same). By the pointers they translate (counted in the rewritten source, an estimate):
+  `mon` and `mdat`, which do not change in `mfndpos`, have 14 sites of their own and 18 more in
+  `mondata.h`'s macros; the trap the loop looks at has 15 sites in one block; `t_at()` translates
+  each trap of its list three times, for `tx`, `ty` and `ntrap`. A compiler that translates a
+  pointer once a function when it does not change, and once a loop step when it does, would
+  bring the 70 down to perhaps 20-25, the 13% to about 4-5%.
 - **Typed 16-bit spaces against 3-byte pointers**: a translation costs the same either way
   (the spike: 20.9 cycles in place). 3-byte pointers make every far pointer half as big again:
   the object and monster grids from 6.7 to 10 KB, `struct monst` (80 bytes, 4 pointers) and
