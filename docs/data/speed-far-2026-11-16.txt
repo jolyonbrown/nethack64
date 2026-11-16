@@ -1,0 +1,25 @@
+far build: inc/mondata.h           13 accesses translated
+  x/x_mon.c                2 accesses translated
+  x/x_monmove.c            2 accesses translated
+far permonst, same checksums, no faults:
+workload              near cycles/call   far cycles/call   slower
+  isok                             45.3              45.2     1.00x
+  dist2                           237.1             237.8     1.00x
+  is_pool + is_lava               162.9             163.0     1.00x
+  mfndpos                       12005.2           12443.6     1.04x
+far build: inc/epri.h               1 accesses translated
+  inc/mondata.h           18 accesses translated
+  inc/monst.h              1 accesses translated
+  inc/rm.h                 1 accesses translated
+  x/x_invent.c             2 accesses translated
+  x/x_mon.c               42 accesses translated
+  x/x_monmove.c           12 accesses translated
+  x/x_mthrowu.c            3 accesses translated
+  x/x_trap.c               3 accesses translated
+  x/x_worn.c               3 accesses translated
+far permonst+monst_s+obj_s+trap_s, same checksums, no faults:
+workload              near cycles/call   far cycles/call   slower
+  isok                             45.3              45.3     1.00x
+  dist2                           237.1             237.1     1.00x
+  is_pool + is_lava               162.9             164.9     1.01x
+  mfndpos                       12005.2           13600.1     1.13x

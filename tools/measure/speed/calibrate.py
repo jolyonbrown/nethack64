@@ -13,8 +13,15 @@ Both builds print a checksum and must agree.  Needs gcc, valgrind and oscar64.
 For each workload: x86 instructions and 6502 cycles per call, and their ratio; then the 6502
 profile's split by function, which shows Oscar64's runtime helpers (multiplication, 32-bit
 arithmetic) apart from the functions that call them.
+
+--far TAG (repeatable) adds a far build of the 6502 side (T2.11): farify.py rewrites every
+access through a `struct TAG *` to go through that type's table of pages first (far_pre.h),
+the pointers being far addresses NH_VOFF from the real ones; the checksums must still be the
+host's, and no page may fault.  --far-volatile makes the tables volatile: no translation is
+reused, one an access.
 """
 import argparse
+import glob
 import hashlib
 import json
 import os
@@ -93,10 +100,56 @@ def c64(out, w, xs, monst):
     return line.strip(), total, funcs
 
 
+NH_VOFF = 0x4000
+
+
+def far_runs(a, out, res, monst):
+    fdir = os.path.join(out, "far")
+    print("\nfar build: " + run([sys.executable, os.path.join(HERE, "farify.py"), "--src", os.path.join(out, "x"),
+                                 "--inc", os.path.join(out, "inc"), "--out", fdir] +
+                                ["--type=" + t for t in a.far] + ["--cflag=-DC64", "--cflag=-Dregister="]).strip()
+          .replace("\n", "\n  "))
+    defs = ["-dNH_FAR", "-dNH_VOFF=%d" % NH_VOFF] + ["-dNH_FAR_%s" % t.upper() for t in a.far] + \
+        (["-dmons=nh_mons_real"] if "permonst" in a.far else []) + \
+        (["-dNH_FAR_VOLATILE"] if a.far_volatile else []) + (["-dNH_FAR_COUNT"] if a.far_count else [])
+    xs = sorted(glob.glob(os.path.join(fdir, "x", "x_*.c")))
+    rows, counts = {}, {}
+    for w in [0] + sorted(WORKS):
+        o = run([OSCAR64] + C64_FLAGS + ["-ep", "-dWORK=%d" % w, "-i=" + os.path.join(fdir, "inc")] + defs +
+                ["-o=" + os.path.join(fdir, "c64_%d.prg" % w), os.path.join(HERE, "cal.c")] + xs + [monst],
+                cwd=fdir, preexec_fn=cap)
+        line = next(l for l in o.splitlines() if l.startswith("work ")).strip()
+        faults = int(re.search(r"^faults (\d+)$", o, re.M).group(1))
+        if line != res[w]["checksum"] or faults:
+            sys.exit("far build, workload %d: %s, %d faults (the host: %s)" % (w, line, faults, res[w]["checksum"]))
+        rows[w] = int(re.search(r"^Total Cycles (\d+)$", o, re.M).group(1))
+        m = re.search(r"^count (.*)$", o, re.M)
+        if m:
+            counts[w] = dict(zip(m.group(1).split()[0::2], map(int, m.group(1).split()[1::2])))
+    print("far %s%s, same checksums, no faults:" % ("+".join(a.far), " (volatile tables)" if a.far_volatile else ""))
+    print("workload              near cycles/call   far cycles/call   slower")
+    summary = {}
+    for w in sorted(WORKS):
+        n = (res[w]["c64_cycles"] - res[0]["c64_cycles"]) / res[w]["calls"]
+        f = (rows[w] - rows[0]) / res[w]["calls"]
+        summary[WORKS[w]] = dict(near=n, far=f)
+        print("  %-18s %18.1f %17.1f %8.2fx" % (WORKS[w], n, f, f / n))
+    if counts:
+        print("translations a call (less workload 0):")
+        for w in sorted(WORKS):
+            c = {k: (v - counts[0].get(k, 0)) / res[w]["calls"] for k, v in counts[w].items()}
+            summary[WORKS[w]]["translations"] = c
+            print("  %-18s %s" % (WORKS[w], "  ".join("%s %.1f" % kv for kv in c.items())))
+    return dict(types=a.far, volatile=a.far_volatile, workloads=summary)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=os.path.join(ROOT, "build", "speed-cal"))
     ap.add_argument("--json")
+    ap.add_argument("--far", action="append", default=[], metavar="TAG")
+    ap.add_argument("--far-volatile", action="store_true")
+    ap.add_argument("--far-count", action="store_true", help="count the translations of each type (slower)")
     a = ap.parse_args()
     out = os.path.abspath(a.out)
     xs, monst = prepare(out)
@@ -131,13 +184,16 @@ def main():
         for c, h, f in sorted(rows, reverse=True)[:12]:
             print("  %-16s %12d cycles %5.1f%%   %10d Ir %s" % (f, c, 100.0 * c / max(1, cy), h,
                                                                "  %5.1f cycles/Ir" % (c / h) if h else ""))
+    far = None
+    if a.far:
+        far = far_runs(a, out, res, monst)
     if a.json:
         exe = os.path.realpath(shutil.which(OSCAR64) or OSCAR64)
         json.dump({"tools": {"oscar64": "%s sha256 %s" % (os.path.basename(os.path.dirname(os.path.dirname(exe))),
                                                           hashlib.sha256(open(exe, "rb").read()).hexdigest()[:16]),
                              "gcc": run(["gcc", "--version"]).splitlines()[0],
                              "valgrind": run(["valgrind", "--version"]).strip()},
-                   "host_cflags": HOST_CFLAGS, "c64_flags": C64_FLAGS, "workloads": summary,
+                   "host_cflags": HOST_CFLAGS, "c64_flags": C64_FLAGS, "workloads": summary, "far": far,
                    "raw": {str(k): v for k, v in res.items()}}, open(a.json, "w"), indent=1, sort_keys=True)
     return 0
 

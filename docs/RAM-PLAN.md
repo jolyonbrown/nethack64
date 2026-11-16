@@ -311,3 +311,41 @@ cycles). So T1.49 takes the compiler's side later, with the resident cost in vie
 1,000-1,450 accesses to the level a turn saving some 230 cycles each, `dist2()` 105,000 cycles
 and `isok()` 57,000, NetHack's own code comes to about 0.8-0.9 s a turn for the bot's crowded
 level 1, from 1.26 s, and the generator adds about 44 ms rather than 0.2 s.
+
+## Measured: far data on NetHack's own code (2026-11-16, T2.11)
+
+`tools/measure/speed/farify.py` rewrites the speed harness's copies of the real functions as a
+compiler with typed far spaces would: every access through a pointer to a far struct type goes
+through that type's table of pages first (`p->f` becomes `XL_tag(p)->f`, `far_pre.h`; clang
+finds the accesses from the types, macro bodies included). The pointers stay 16 bits, an
+address in the type's own space, 16 KB from the real one, so an access left untranslated reads
+the wrong bytes: with the translation switched off, the `mfndpos` checksum changes. Every page
+mapped (a warm cache); the same checksums as the host build, no faults
+(`calibrate.py --far`, `docs/data/speed-far-2026-11-16.txt`):
+
+| Far | Access sites translated | `mfndpos`, cycles a call |
+|---|---|---|
+| nothing | 0 | 12,005 |
+| `mons[]` | 17 (13 in `mondata.h`'s macros) | 12,444 (+4%) |
+| `mons[]`, monsters, objects, traps | 86 | 13,600 (+13%) |
+
+- `mons[]` far costs little: its fields are read a few times a call.
+- With the heap far as well, monster movement's hottest function is 13% slower on a warm cache,
+  about 70 translations a call at some 22 cycles. Oscar64 reused none of them (volatile tables
+  cost the same); most are of `mon` and `mdat`, which do not change inside the function, so a
+  compiler that keeps a translation for a function's length would remove most of the cost.
+- **Typed 16-bit spaces against 3-byte pointers**: a translation costs the same either way
+  (the spike: 20.9 cycles in place). 3-byte pointers make every far pointer half as big again:
+  the object and monster grids from 6.7 to 10 KB, `struct monst` (80 bytes, 4 pointers) and
+  `struct obj` (48, 3) a few bytes each, three bytes to move and compare in every list walk,
+  and every pointer operation in the compiler. Typed spaces keep every layout, the save files,
+  `ptr == &mons[PM_X]` and `ptr - mons`, as long as each far type fits 64 KB (`mons[]` 21 KB,
+  `objects[]` 11 KB, a level's monsters and objects a few KB). What they need instead: a rule
+  for `char *` and `genericptr_t` that point at far data (translate when converting to them);
+  allocation from the right space (`newmonst()`, `newobj()`); and near objects of a far type
+  (`youmonst`, locals): map the pages of near RAM to themselves in every type's table, so that
+  a near address is a far pointer too.
+- Two more preprocessor gaps on the way (compat #70, #71: a macro that names itself; `##` on a
+  nested macro's parameter), and a wrong-code bug at `-Os` that the counting build showed,
+  being reduced.
+

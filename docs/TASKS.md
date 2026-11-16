@@ -626,6 +626,9 @@ Add new tasks at the bottom of the right section.
       monster grids through column tables too (their macros and `sobj_at()`): `mfndpos` 1.54x.
 - [ ] T2.11 Far-data experiments: 3-byte far pointers against typed far spaces with 16-bit
       pointers (RAM-PLAN.md, the brainstorm), `mons[]` first; then the far-data ADR.
+      — 2026-11-16: `farify.py` + `calibrate.py --far` (RAM-PLAN.md): `mons[]` far costs
+      `mfndpos` 4%, `mons[]` and the heap 13%, on a warm cache, without reusing translations;
+      typed 16-bit spaces keep the layouts and saves. Next: translation reuse, faults, the ADR.
 
 ## Housekeeping
 

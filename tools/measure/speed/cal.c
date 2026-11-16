@@ -12,9 +12,15 @@
  * or they did not do the same work (int is 16 bits on Oscar64 and 32 on the host, long 32 and
  * 64: the checksum keeps to values both represent alike).
  */
+#ifdef NH_FAR
+#include "far_pre.h"
+#endif
 #include "hack.h"
 #include "mfndpos.h"
 #include <stdio.h>
+#ifdef NH_FAR
+#include "far_post.h"
+#endif
 
 #ifndef WORK
 #define WORK 0
@@ -45,6 +51,47 @@ struct engr_s *head_engr;
 /* only is_axe() reads it, in mfndpos()'s ALLOW_DIG branch, which no workload takes; the real
    table (11 KB and its names) would not fit beside level and mons[] in the emulator's 64 KB */
 struct objclass objects[1];
+
+#ifdef NH_FAR
+/* calibrate.py --far: each far type's table of pages (far_pre.h), all of them mapped */
+NH_TLB_QUAL unsigned char nh_tlb_permonst[256], nh_tlb_monst_s[256], nh_tlb_obj_s[256],
+	nh_tlb_trap_s[256];
+unsigned nh_far_faults;
+unsigned long nh_far_count_permonst, nh_far_count_monst_s, nh_far_count_obj_s, nh_far_count_trap_s;
+
+void
+nh_far_fault(void)
+{
+	nh_far_faults++;
+}
+
+static void
+far_map(NH_TLB_QUAL unsigned char *tlb, const char *real, unsigned size)
+{
+	unsigned a = (unsigned) real, p;
+
+	for (p = a >> 8; p <= (a + size - 1) >> 8; p++)
+		tlb[(p + (NH_VOFF >> 8)) & 0xff] = (unsigned char) p;
+}
+/* from an integer, not by pointer arithmetic outside the arrays (undefined) */
+#define NH_V(type, p)	((type *) ((unsigned) (p) + NH_VOFF))
+#endif
+/* the harness's own pointers are real; what it hands the code under test is far */
+#ifdef NH_FAR_MONST_S
+#define VMON(p)	NH_V(struct monst_s, p)
+#else
+#define VMON(p)	(p)
+#endif
+#ifdef NH_FAR_OBJ_S
+#define VOBJ(p)	NH_V(struct obj_s, p)
+#else
+#define VOBJ(p)	(p)
+#endif
+#ifdef NH_FAR_TRAP_S
+#define VTRAP(p)	NH_V(struct trap_s, p)
+#else
+#define VTRAP(p)	(p)
+#endif
 
 /* mfndpos() calls these only for a trap type that cannot happen, or on a level with a temple:
    never here */
@@ -116,6 +163,19 @@ setup(void)
 	int i, x, y;
 
 	u.ux = 23; u.uy = 6;
+#ifdef NH_FAR_PERMONST
+	far_map(nh_tlb_permonst, (char *) nh_mons_real, sizeof(struct permonst) * (NUMMONS + 1));
+#endif
+#ifdef NH_FAR_MONST_S
+	far_map(nh_tlb_monst_s, (char *) monv, sizeof(monv));
+	far_map(nh_tlb_monst_s, (char *) subjv, sizeof(subjv));
+#endif
+#ifdef NH_FAR_OBJ_S
+	far_map(nh_tlb_obj_s, (char *) objv, sizeof(objv));
+#endif
+#ifdef NH_FAR_TRAP_S
+	far_map(nh_tlb_trap_s, (char *) trapv, sizeof(trapv));
+#endif
 	youmonst.data = &mons[PM_HUMAN];
 	u.uz.dnum = 0; u.uz.dlevel = 1;
 	dungeon_topology.d_sokoban_dnum = 4;
@@ -153,14 +213,14 @@ setup(void)
 
 	for (i = 0; i < (int) (NELEM(cal_traps)); i++) {
 		trapv[i].tx = cal_traps[i][0]; trapv[i].ty = cal_traps[i][1]; trapv[i].ttyp = cal_traps[i][2];
-		trapv[i].ntrap = ftrap; ftrap = &trapv[i];
+		trapv[i].ntrap = ftrap; ftrap = VTRAP(&trapv[i]);
 	}
 	for (i = 0; i < (int) (NELEM(cal_objs)); i++) {
 		struct obj_s *o = &objv[i];
 		o->otyp = cal_objs[i][2]; o->ox = cal_objs[i][0]; o->oy = cal_objs[i][1]; o->owt = 10;
 		o->where = OBJ_FLOOR;
 		o->nexthere = level.objects[o->ox][o->oy];
-		level.objects[o->ox][o->oy] = o;
+		level.objects[o->ox][o->oy] = VOBJ(o);
 	}
 	for (i = 0; i < (int) (NELEM(cal_standing)); i++) {
 		struct monst_s *m = &monv[i];
@@ -170,7 +230,7 @@ setup(void)
 		m->mcansee = m->mcanmove = 1;
 		if (cal_standing[i][2] == PM_LITTLE_DOG)
 			m->mtame = 10, m->mpeaceful = 1;
-		level.monsters[m->mx][m->my] = m;
+		level.monsters[m->mx][m->my] = VMON(m);
 	}
 	for (i = 0; i < NSUBJ; i++) {
 		struct monst_s *m = &subjv[i];
@@ -206,11 +266,11 @@ touch(void)
 	t += is_pool(1, 1) + is_lava(1, 1) + on_level(&u.uz, &u.uz);
 	t += (strstri("Elbereth", "bere") != 0) + lowc('A');
 	m->mx = 5; m->my = 5;
-	t += mfndpos(m, poss, info, ALLOW_U);
-	t += curr_mon_load(m) + may_passwall(1, 1) + may_dig(1, 1) + bad_rock(m->data, 1, 1);
-	t += onscary(5, 5, m) + sengr_at("Elbereth", 5, 5) + (engr_at(5, 5) != 0);
-	t += (sobj_at(BOULDER, 40, 6) != 0) + (t_at(5, 3) != 0) + (m_carrying(m, PICK_AXE) != 0);
-	t += which_armor(m, W_ARMS) != 0;
+	t += mfndpos(VMON(m), poss, info, ALLOW_U);
+	t += curr_mon_load(VMON(m)) + may_passwall(1, 1) + may_dig(1, 1) + bad_rock(m->data, 1, 1);
+	t += onscary(5, 5, VMON(m)) + sengr_at("Elbereth", 5, 5) + (engr_at(5, 5) != 0);
+	t += (sobj_at(BOULDER, 40, 6) != 0) + (t_at(5, 3) != 0) + (m_carrying(VMON(m), PICK_AXE) != 0);
+	t += which_armor(VMON(m), W_ARMS) != 0;
 	touched = t;
 }
 
@@ -251,8 +311,8 @@ main(void)
 					for (i = 0; i < NSUBJ; i++) {
 						struct monst_s *m = &subjv[i];
 						m->mx = x; m->my = y;
-						level.monsters[x][y] = m;
-						n = mfndpos(m, poss, info, subjflags[i]);
+						level.monsters[x][y] = VMON(m);
+						n = mfndpos(VMON(m), poss, info, subjflags[i]);
 						level.monsters[x][y] = (struct monst_s *) 0;
 						sum += n, calls++;
 						for (j = 0; j < n; j++)
@@ -263,5 +323,12 @@ main(void)
 #endif
 	(void) x; (void) y; (void) pass;
 	printf("work %d calls %ld sum %ld touched %ld\n", WORK, calls, sum, touched);
+#ifdef NH_FAR
+	printf("faults %u\n", nh_far_faults);
+#ifdef NH_FAR_COUNT
+	printf("count permonst %ld monst_s %ld obj_s %ld trap_s %ld\n", nh_far_count_permonst,
+	       nh_far_count_monst_s, nh_far_count_obj_s, nh_far_count_trap_s);
+#endif
+#endif
 	return 0;
 }
