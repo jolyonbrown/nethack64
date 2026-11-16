@@ -23,8 +23,8 @@ many banks, so it has to be in view whenever that code runs:
 
 | Data | Size | Kind |
 |---|---|---|
-| `mons[]` | 21.1 KB | constant table, read through `struct permonst *` everywhere (the `mondata.h` macros expand in every bank) |
-| `objects[]` | 11.3 KB | mostly constant; a few fields change in play |
+| `mons[]` | 21.1 KB (24.5 KB padded, since 2026-11-16) | constant table, read through `struct permonst *` everywhere (the `mondata.h` macros expand in every bank) |
+| `objects[]` | 11.3 KB (13.9 KB padded, since 2026-11-16) | mostly constant; a few fields change in play |
 | `level` | 16.8 KB | the current level's map and object/monster grids (`levl[x][y]`) |
 | display and vision (`gbuf`, `could_see`, `viz_clear`, `left_ptrs`, `right_ptrs`, ...) | about 13 KB | per-square grids |
 | `rooms[]`, `u`, `mvitals`, `dungeons`, `bufs`, other globals | about 21 KB | |
@@ -417,6 +417,16 @@ Where the far cost goes (all four types, cycles a call, `calibrate.py` prints it
   page: `struct permonst` padded to 64 bytes (24.4 KB instead of 21.0 KB of REU, four to a
   page; `ptr - mons` then a shift, where `monsndx()` divides by 55 today), `objects[]` to 32
   (13.9 instead of 11.3 KB), or a translation of the field's own address at each access.
+  Done in the C64 build (2026-11-16, Jolyon: "go ahead with the padding"): `permonst.h` and
+  `objclass.h` pad the structs under `#ifdef C64`, and a `static_assert` checks the sizes
+  (Oscar64 accepts a negative array size, compat #75). Every named field of both tables
+  hashes the same as before in Oscar64's emulator, and `p - &mons[0]` is each entry's index.
+  Near, today, the padding is a speed change too: a `mons[]` index costs about 30 cycles
+  instead of 230, an `objects[]` index 39 instead of 185, and `ptr - mons` 66 instead of 300
+  (a 300-call loop in the emulator, -Os). In the per-file measurement, the files' own
+  functions lost 320 calls of `mul16by8` (201 by 26, 119 by 55) and 88 bytes of code in all
+  (106 files, 1,187,649 -> 1,187,561 bytes); the tables grow by 6,051 bytes (383 and 434
+  entries), and a save by 2,604 (`savenames()` writes `objects[]` whole).
 - **The cache for the first far set** (`mons[]`, `objects[]` and the heap: run C, with
   `nh_trace.c`'s `NH_TRACE_FAR` counting everything else as near,
   `docs/data/fardata-trace-runC-far3-2026-11-16.txt`; the bot stayed on level 1): a turn

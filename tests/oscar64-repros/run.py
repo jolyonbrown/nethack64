@@ -16,6 +16,8 @@ Header keys read from each file's first comment:
     DIAGNOSTIC: N              success too: the compiler reports warning or error N, where
                                it used to compile wrong code silently (r69: warning 2025,
                                temporaries past the end of the zero page area)
+    REJECT                     success = the compiler reports an error: the file is invalid
+                               C that it used to accept silently (r72: a negative array size)
 Otherwise success = compiles and "Emulation result 0".
 """
 import glob
@@ -42,6 +44,7 @@ def run(path):
     flags = re.search(r"FLAGS:\s*(.*)", head)
     flags = flags.group(1).split() if flags else ["-e"]
     compile_only = "COMPILE-ONLY" in head
+    reject = re.search(r"^\s*\*\s*REJECT\s*$", head, re.M)
     diagnostic = re.search(r"DIAGNOSTIC:\s*(\d+)", head)
     env = re.search(r"ENV:\s*(.*)", head)
     env = dict(os.environ, **dict(kv.split("=", 1) for kv in env.group(1).split())) if env else None
@@ -62,6 +65,9 @@ def run(path):
     if r.returncode < 0 or r.returncode >= 128:
         return "BROKEN", "compiler crashed (signal %d)" % (-r.returncode if r.returncode < 0 else r.returncode - 128)
     err = [l for l in text.splitlines() if "error" in l]
+    if reject:
+        return ("FIXED", "rejected: " + re.sub(r".*?: error", "error", err[0])[:60]) if err and r.returncode \
+            else ("BROKEN", "accepted (exit %d)" % r.returncode)
     if err:
         return "BROKEN", re.sub(r".*?: error", "error", err[0])[:70]
     if compile_only:

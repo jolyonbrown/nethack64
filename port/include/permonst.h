@@ -61,7 +61,18 @@ struct permonst {
  #ifdef TEXTCOLOR
 	uchar		mcolor;			/* color to use */
  #endif
+#ifdef C64
+	/* 64 bytes, not 55 (ADR-0009, point 5): an entry of the far table
+	 * never crosses a page, so one translation serves all its fields,
+	 * and &mons[i] and monsndx() are shifts instead of Oscar64's
+	 * multiply and divide by 55.  Checked below. */
+	uchar		mpad_c64[9];
+#endif
 };
+
+#if defined(C64) && defined(__OSCAR64C__)
+static_assert(sizeof (struct permonst) == 64, "struct permonst is 64 bytes (ADR-0009)");
+#endif
 
 extern NEARDATA struct permonst
 		mons[];		/* the master list of monster types */

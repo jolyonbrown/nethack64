@@ -511,6 +511,13 @@ Add new tasks at the bottom of the right section.
       `mul16by8`, 35 factors, 26/126/55/42 = 87%; about 2.5x faster each, but 1-2 KB more
       resident code; the hottest (126, 42) went to column tables in the source instead
       (T2.10). Kept for later, with the resident budget.
+      — 2026-11-16: the padding (T2.11, ADR-0009 point 5) made 26 and 55 shifts: 320 calls gone
+      from the files' own functions. What is left of `mul16by8` is small (0.2% of `mfndpos`).
+      The emulator's profile by address points elsewhere: `mfndpos` saves and restores 46 bytes
+      of zero page each call, 1,244 cycles, 10% of its time; over the whole game, by the listing
+      and the bot's call counts, about 259,000 cycles a turn go to such saves (`m_move` 55,000,
+      `mfndpos` 46,000, `newsym` 33,000, `dochug` 31,000). First T1.49 change: save only what
+      the callers need.
 
 - [x] T1.50 Zero page past $8F (compat #72, r69): Oscar64 gives a function the temporaries it
       needs past the end of its area, unchecked, where the KERNAL's IRQ changes them.
@@ -657,7 +664,7 @@ Add new tasks at the bottom of the right section.
       — 2026-11-15: done (RAM-PLAN.md): `is_pool`/`is_lava` 2.8x, `mfndpos` 1.4x, `dist2`
       2.1x, `isok` 2.9x faster; all 108 files compile for the C64. Then the object and
       monster grids through column tables too (their macros and `sobj_at()`): `mfndpos` 1.54x.
-- [ ] T2.11 Far-data experiments: 3-byte far pointers against typed far spaces with 16-bit
+- [x] T2.11 Far-data experiments: 3-byte far pointers against typed far spaces with 16-bit
       pointers (RAM-PLAN.md, the brainstorm), `mons[]` first; then the far-data ADR.
       — 2026-11-16: `farify.py` + `calibrate.py --far` (RAM-PLAN.md): `mons[]` far costs
       `mfndpos` 4%, `mons[]` and the heap 13%, on a warm cache, without reusing translations;
@@ -679,6 +686,16 @@ Add new tasks at the bottom of the right section.
       turn (63 at most), CLOCK 64 no faults, 121 ms of translations a turn before reuse. A
       layout rule for ADR-0009: far objects keep to a page (slabs; tables padded, `permonst`
       to 64 bytes). ADR-0009 amended (points 4-6). Next: Jolyon's decision on ADR-0009.
+      — 2026-11-16: ADR-0009 accepted (Jolyon: "I've reviewed ADR-0009 and happy to proceed";
+      "go ahead with the padding"). Padding done in the C64 build: `struct permonst` 64 bytes,
+      `struct objclass` 32 (`static_assert`; Oscar64 accepts a negative array size, compat #75,
+      r72): every named field the same, 320 fewer multiply calls, 88 bytes less code, the tables
+      6,051 bytes bigger (RAM-PLAN.md). The implementation is T2.12.
+- [ ] T2.12 Far data in the compiler, as ADR-0009 decides: a far qualifier on struct types and
+      constant tables, translation through the space's page table at each access, reuse and
+      pinning, conversions to `void *`/`char *`, allocators per space, the REU page cache and
+      its fault handler; `mons[]`, `objects[]` and the heap first. Checked by `farify.py`'s
+      checksums, then the game.
 
 ## Housekeeping
 

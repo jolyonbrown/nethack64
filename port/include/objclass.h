@@ -107,7 +107,17 @@ struct objclass {
 #define oc_level	oc_oc2		/* books: spell level */
 
 	unsigned short	oc_nutrition;	/* food value */
+#ifdef C64
+	/* 32 bytes, not 26 (ADR-0009, point 5): an entry of the far table
+	 * never crosses a page, and objects[i] is a shift instead of
+	 * Oscar64's multiply by 26.  Checked below. */
+	uchar	oc_pad_c64[6];
+#endif
 };
+
+#if defined(C64) && defined(__OSCAR64C__)
+static_assert(sizeof (struct objclass) == 32, "struct objclass is 32 bytes (ADR-0009)");
+#endif
 
 struct objdescr {
 	const char *oc_name;		/* actual name */

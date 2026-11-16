@@ -1,8 +1,9 @@
 # ADR-0009: Far data as typed far spaces in the compiler
 
-- Status: proposed (for Jolyon)
+- Status: accepted (Jolyon, 2026-11-16: "I've reviewed ADR-0009 and happy to proceed, lets
+  see how that plays out"; and on point 5: "go ahead with the padding")
 - Date: 2026-11-16 (amended the same day with T2.11's reuse and cache results: points 4-6)
-- Deciders: Jolyon (+ Claude, who proposes it)
+- Deciders: Jolyon (+ Claude, who proposed it)
 
 ## Context
 NetHack reaches about 155-170 KB of data through plain pointers, 62-77 KB of it mutable,
@@ -24,7 +25,7 @@ make every far pointer half as big again: the object and monster grids 6.7 -> 10
 walk, the save layout, and every pointer operation in the compiler. **Typed far spaces** keep
 pointers at 16 bits: the type of the pointer says which space it is an address in.
 
-## Decision (proposed)
+## Decision
 1. **Typed spaces.** A struct type (or a constant table) can be declared far; a pointer to a
    far type is a 16-bit address in that type's own space (up to 64 KB: `mons[]` 21 KB,
    `objects[]` 11 KB, a level's monsters and objects a few KB). Before each access through
@@ -48,7 +49,11 @@ pointers at 16 bits: the type of the pointer says which space it is an address i
    object lies in one page: monsters (80 bytes) and objects (48) come from slabs, three and
    five to a page; a far table's entries are padded to a power of two (`struct permonst` 55
    -> 64 bytes, 24.4 KB of REU instead of 21.0, and `ptr - mons` a shift; `objects[]` 26 ->
-   32), or the table's accesses translate the field's own address.
+   32), or the table's accesses translate the field's own address. Done for the C64 build on
+   2026-11-16 (`permonst.h`, `objclass.h`, checked by `static_assert`): the same values in
+   every named field, 320 fewer calls of the multiply routine, 88 bytes less code; the
+   tables 6,051 bytes bigger and a save 2,604 (`objects[]` is saved whole). RAM-PLAN.md has
+   the measurements.
 6. **Cache.** REU pages under a CLOCK policy, 64 RAM pages (16 KB) to start; the fault
    handler in assembler (about 350 cycles). For `mons[]`, `objects[]` and the heap a turn
    touches 36 pages at the median and 63 at most, and 64 pages fault almost never (run C,

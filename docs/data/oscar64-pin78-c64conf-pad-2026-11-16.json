@@ -1,0 +1,685 @@
+{
+ "allmain.c": {
+  "status": "fits-not",
+  "code": 4746,
+  "funcs": "5/5",
+  "error": ""
+ },
+ "alloc.c": {
+  "status": "fits-not",
+  "code": 104,
+  "funcs": "2/2",
+  "error": ""
+ },
+ "apply.c": {
+  "status": "fits-not",
+  "code": 33791,
+  "funcs": "35/47",
+  "error": ""
+ },
+ "artifact.c": {
+  "status": "fits-not",
+  "code": 14121,
+  "funcs": "34/34",
+  "error": ""
+ },
+ "attrib.c": {
+  "status": "fits-not",
+  "code": 4638,
+  "funcs": "17/19",
+  "error": ""
+ },
+ "ball.c": {
+  "status": "fits-not",
+  "code": 6616,
+  "funcs": "9/10",
+  "error": ""
+ },
+ "bones.c": {
+  "status": "fits-not",
+  "code": 2750,
+  "funcs": "6/7",
+  "error": ""
+ },
+ "botl.c": {
+  "status": "fits-not",
+  "code": 2926,
+  "funcs": "8/9",
+  "error": ""
+ },
+ "cmd.c": {
+  "status": "fits-not",
+  "code": 26541,
+  "funcs": "52/55",
+  "error": ""
+ },
+ "dbridge.c": {
+  "status": "fits-not",
+  "code": 9448,
+  "funcs": "21/23",
+  "error": ""
+ },
+ "decl.c": {
+  "status": "fits-not",
+  "code": 1,
+  "funcs": "1/1",
+  "error": ""
+ },
+ "detect.c": {
+  "status": "fits-not",
+  "code": 16071,
+  "funcs": "24/25",
+  "error": ""
+ },
+ "dig.c": {
+  "status": "fits-not",
+  "code": 12091,
+  "funcs": "18/22",
+  "error": ""
+ },
+ "display.c": {
+  "status": "fits-not",
+  "code": 18946,
+  "funcs": "38/41",
+  "error": ""
+ },
+ "dlb.c": {
+  "status": "fits-not",
+  "code": 0,
+  "funcs": "0/0",
+  "error": ""
+ },
+ "do.c": {
+  "status": "fits-not",
+  "code": 15438,
+  "funcs": "25/28",
+  "error": ""
+ },
+ "do_name.c": {
+  "status": "fits-not",
+  "code": 10567,
+  "funcs": "27/27",
+  "error": ""
+ },
+ "do_wear.c": {
+  "status": "fits-not",
+  "code": 13293,
+  "funcs": "46/51",
+  "error": ""
+ },
+ "dog.c": {
+  "status": "fits-not",
+  "code": 9192,
+  "funcs": "14/14",
+  "error": ""
+ },
+ "dogmove.c": {
+  "status": "fits-not",
+  "code": 10134,
+  "funcs": "8/11",
+  "error": ""
+ },
+ "dokick.c": {
+  "status": "fits-not",
+  "code": 18671,
+  "funcs": "10/13",
+  "error": ""
+ },
+ "dothrow.c": {
+  "status": "fits-not",
+  "code": 15943,
+  "funcs": "22/25",
+  "error": ""
+ },
+ "drawing.c": {
+  "status": "fits-not",
+  "code": 723,
+  "funcs": "5/5",
+  "error": ""
+ },
+ "dungeon.c": {
+  "status": "fits-not",
+  "code": 13419,
+  "funcs": "53/60",
+  "error": ""
+ },
+ "eat.c": {
+  "status": "fits-not",
+  "code": 22807,
+  "funcs": "40/48",
+  "error": ""
+ },
+ "end.c": {
+  "status": "fits-not",
+  "code": 11141,
+  "funcs": "15/16",
+  "error": ""
+ },
+ "engrave.c": {
+  "status": "fits-not",
+  "code": 9834,
+  "funcs": "19/19",
+  "error": ""
+ },
+ "exper.c": {
+  "status": "fits-not",
+  "code": 2741,
+  "funcs": "8/8",
+  "error": ""
+ },
+ "explode.c": {
+  "status": "fits-not",
+  "code": 6458,
+  "funcs": "3/3",
+  "error": ""
+ },
+ "extralev.c": {
+  "status": "fits-not",
+  "code": 4463,
+  "funcs": "6/6",
+  "error": ""
+ },
+ "files.c": {
+  "status": "fits-not",
+  "code": 5655,
+  "funcs": "36/39",
+  "error": ""
+ },
+ "fountain.c": {
+  "status": "fits-not",
+  "code": 6897,
+  "funcs": "12/12",
+  "error": ""
+ },
+ "hack.c": {
+  "status": "fits-not",
+  "code": 28636,
+  "funcs": "30/33",
+  "error": ""
+ },
+ "hacklib.c": {
+  "status": "fits-not",
+  "code": 3188,
+  "funcs": "33/33",
+  "error": ""
+ },
+ "invent.c": {
+  "status": "fits-not",
+  "code": 25532,
+  "funcs": "76/77",
+  "error": ""
+ },
+ "light.c": {
+  "status": "fits-not",
+  "code": 3880,
+  "funcs": "17/18",
+  "error": ""
+ },
+ "lock.c": {
+  "status": "fits-not",
+  "code": 7970,
+  "funcs": "12/14",
+  "error": ""
+ },
+ "mail.c": {
+  "status": "fits-not",
+  "code": 2893,
+  "funcs": "3/6",
+  "error": ""
+ },
+ "makemon.c": {
+  "status": "fits-not",
+  "code": 17682,
+  "funcs": "20/24",
+  "error": ""
+ },
+ "mapglyph.c": {
+  "status": "fits-not",
+  "code": 1024,
+  "funcs": "1/1",
+  "error": ""
+ },
+ "mcastu.c": {
+  "status": "fits-not",
+  "code": 9461,
+  "funcs": "5/9",
+  "error": ""
+ },
+ "mhitm.c": {
+  "status": "fits-not",
+  "code": 23315,
+  "funcs": "15/17",
+  "error": ""
+ },
+ "mhitu.c": {
+  "status": "fits-not",
+  "code": 29355,
+  "funcs": "18/24",
+  "error": ""
+ },
+ "minion.c": {
+  "status": "fits-not",
+  "code": 3207,
+  "funcs": "9/9",
+  "error": ""
+ },
+ "mklev.c": {
+  "status": "fits-not",
+  "code": 13423,
+  "funcs": "23/36",
+  "error": ""
+ },
+ "mkmap.c": {
+  "status": "fits-not",
+  "code": 4872,
+  "funcs": "4/13",
+  "error": ""
+ },
+ "mkmaze.c": {
+  "status": "fits-not",
+  "code": 11954,
+  "funcs": "22/27",
+  "error": ""
+ },
+ "mkobj.c": {
+  "status": "fits-not",
+  "code": 13788,
+  "funcs": "44/45",
+  "error": ""
+ },
+ "mkroom.c": {
+  "status": "fits-not",
+  "code": 7211,
+  "funcs": "21/26",
+  "error": ""
+ },
+ "mon.c": {
+  "status": "fits-not",
+  "code": 31163,
+  "funcs": "58/61",
+  "error": ""
+ },
+ "mondata.c": {
+  "status": "fits-not",
+  "code": 5485,
+  "funcs": "30/30",
+  "error": ""
+ },
+ "monmove.c": {
+  "status": "fits-not",
+  "code": 17553,
+  "funcs": "13/16",
+  "error": ""
+ },
+ "monst.c": {
+  "status": "fits-not",
+  "code": 1,
+  "funcs": "1/1",
+  "error": ""
+ },
+ "monstr.c": {
+  "status": "fits-not",
+  "code": 1,
+  "funcs": "1/1",
+  "error": ""
+ },
+ "mplayer.c": {
+  "status": "fits-not",
+  "code": 3150,
+  "funcs": "4/6",
+  "error": ""
+ },
+ "mthrowu.c": {
+  "status": "fits-not",
+  "code": 12561,
+  "funcs": "12/12",
+  "error": ""
+ },
+ "muse.c": {
+  "status": "fits-not",
+  "code": 30237,
+  "funcs": "21/22",
+  "error": ""
+ },
+ "music.c": {
+  "status": "fits-not",
+  "code": 6397,
+  "funcs": "4/9",
+  "error": ""
+ },
+ "o_init.c": {
+  "status": "fits-not",
+  "code": 4025,
+  "funcs": "10/12",
+  "error": ""
+ },
+ "objects.c": {
+  "status": "fits-not",
+  "code": 1,
+  "funcs": "1/1",
+  "error": ""
+ },
+ "objnam.c": {
+  "status": "fits-not",
+  "code": 26124,
+  "funcs": "38/38",
+  "error": ""
+ },
+ "options.c": {
+  "status": "fits-not",
+  "code": 25174,
+  "funcs": "37/39",
+  "error": ""
+ },
+ "pager.c": {
+  "status": "fits-not",
+  "code": 10527,
+  "funcs": "11/13",
+  "error": ""
+ },
+ "pickup.c": {
+  "status": "fits-not",
+  "code": 24265,
+  "funcs": "28/35",
+  "error": ""
+ },
+ "pline.c": {
+  "status": "fits-not",
+  "code": 4153,
+  "funcs": "20/20",
+  "error": ""
+ },
+ "polyself.c": {
+  "status": "fits-not",
+  "code": 12616,
+  "funcs": "23/24",
+  "error": ""
+ },
+ "potion.c": {
+  "status": "fits-not",
+  "code": 26359,
+  "funcs": "23/24",
+  "error": ""
+ },
+ "pray.c": {
+  "status": "fits-not",
+  "code": 10806,
+  "funcs": "20/27",
+  "error": ""
+ },
+ "priest.c": {
+  "status": "fits-not",
+  "code": 7399,
+  "funcs": "18/18",
+  "error": ""
+ },
+ "quest.c": {
+  "status": "fits-not",
+  "code": 2078,
+  "funcs": "13/20",
+  "error": ""
+ },
+ "questpgr.c": {
+  "status": "fits-not",
+  "code": 3564,
+  "funcs": "14/19",
+  "error": ""
+ },
+ "read.c": {
+  "status": "fits-not",
+  "code": 19565,
+  "funcs": "22/24",
+  "error": ""
+ },
+ "rect.c": {
+  "status": "fits-not",
+  "code": 1559,
+  "funcs": "7/8",
+  "error": ""
+ },
+ "region.c": {
+  "status": "fits-not",
+  "code": 9160,
+  "funcs": "23/24",
+  "error": ""
+ },
+ "restore.c": {
+  "status": "fits-not",
+  "code": 7024,
+  "funcs": "16/22",
+  "error": ""
+ },
+ "rip.c": {
+  "status": "fits-not",
+  "code": 886,
+  "funcs": "2/2",
+  "error": ""
+ },
+ "rnd.c": {
+  "status": "fits-not",
+  "code": 820,
+  "funcs": "6/6",
+  "error": ""
+ },
+ "role.c": {
+  "status": "fits-not",
+  "code": 7065,
+  "funcs": "28/30",
+  "error": ""
+ },
+ "rumors.c": {
+  "status": "fits-not",
+  "code": 3312,
+  "funcs": "8/8",
+  "error": ""
+ },
+ "save.c": {
+  "status": "fits-not",
+  "code": 5652,
+  "funcs": "16/19",
+  "error": ""
+ },
+ "shk.c": {
+  "status": "fits-not",
+  "code": 45630,
+  "funcs": "84/90",
+  "error": ""
+ },
+ "shknam.c": {
+  "status": "fits-not",
+  "code": 3022,
+  "funcs": "3/6",
+  "error": ""
+ },
+ "sit.c": {
+  "status": "fits-not",
+  "code": 4004,
+  "funcs": "4/4",
+  "error": ""
+ },
+ "sounds.c": {
+  "status": "fits-not",
+  "code": 9400,
+  "funcs": "9/10",
+  "error": ""
+ },
+ "sp_lev.c": {
+  "status": "fits-not",
+  "code": 24281,
+  "funcs": "29/38",
+  "error": ""
+ },
+ "spell.c": {
+  "status": "fits-not",
+  "code": 9055,
+  "funcs": "16/23",
+  "error": ""
+ },
+ "steal.c": {
+  "status": "fits-not",
+  "code": 2294,
+  "funcs": "9/11",
+  "error": ""
+ },
+ "steed.c": {
+  "status": "fits-not",
+  "code": 7005,
+  "funcs": "11/11",
+  "error": ""
+ },
+ "teleport.c": {
+  "status": "fits-not",
+  "code": 12065,
+  "funcs": "23/25",
+  "error": ""
+ },
+ "timeout.c": {
+  "status": "fits-not",
+  "code": 13992,
+  "funcs": "32/40",
+  "error": ""
+ },
+ "topten.c": {
+  "status": "fits-not",
+  "code": 8384,
+  "funcs": "11/13",
+  "error": ""
+ },
+ "track.c": {
+  "status": "fits-not",
+  "code": 398,
+  "funcs": "3/3",
+  "error": ""
+ },
+ "trap.c": {
+  "status": "fits-not",
+  "code": 45017,
+  "funcs": "44/51",
+  "error": ""
+ },
+ "u_init.c": {
+  "status": "fits-not",
+  "code": 3983,
+  "funcs": "4/5",
+  "error": ""
+ },
+ "uhitm.c": {
+  "status": "fits-not",
+  "code": 32680,
+  "funcs": "18/26",
+  "error": ""
+ },
+ "vault.c": {
+  "status": "fits-not",
+  "code": 9525,
+  "funcs": "12/13",
+  "error": ""
+ },
+ "version.c": {
+  "status": "fits-not",
+  "code": 875,
+  "funcs": "9/9",
+  "error": ""
+ },
+ "vis_tab.c": {
+  "status": "fits-not",
+  "code": 0,
+  "funcs": "0/0",
+  "error": ""
+ },
+ "vision.c": {
+  "status": "fits-not",
+  "code": 14141,
+  "funcs": "11/16",
+  "error": ""
+ },
+ "weapon.c": {
+  "status": "fits-not",
+  "code": 11225,
+  "funcs": "25/27",
+  "error": ""
+ },
+ "were.c": {
+  "status": "fits-not",
+  "code": 2546,
+  "funcs": "5/6",
+  "error": ""
+ },
+ "wield.c": {
+  "status": "fits-not",
+  "code": 5024,
+  "funcs": "19/19",
+  "error": ""
+ },
+ "windows.c": {
+  "status": "fits-not",
+  "code": 290,
+  "funcs": "4/4",
+  "error": ""
+ },
+ "wizard.c": {
+  "status": "fits-not",
+  "code": 3974,
+  "funcs": "16/19",
+  "error": ""
+ },
+ "worm.c": {
+  "status": "fits-not",
+  "code": 3727,
+  "funcs": "18/20",
+  "error": ""
+ },
+ "worn.c": {
+  "status": "fits-not",
+  "code": 9830,
+  "funcs": "15/15",
+  "error": ""
+ },
+ "write.c": {
+  "status": "fits-not",
+  "code": 2335,
+  "funcs": "1/2",
+  "error": ""
+ },
+ "zap.c": {
+  "status": "fits-not",
+  "code": 46620,
+  "funcs": "43/49",
+  "error": ""
+ },
+ "_struct_sizes": [
+  "rm 6",
+  "dlevel_t 16813",
+  "obj 48",
+  "monst 80",
+  "permonst 64 x 382",
+  "objclass 32 x 433",
+  "you 1381",
+  "trap 11",
+  "flag 127",
+  "int 2 long 4 ptr 2"
+ ],
+ "_meta": {
+  "config": "c64",
+  "oscar64_defs": [
+   "-dC64",
+   "-dregister="
+  ],
+  "mkstubs_defs": [
+   "-DC64",
+   "-Dregister=",
+   "-D__OSCAR64C__=1",
+   "-D__C64__=1",
+   "-D__CBM__=1",
+   "-DOSCAR_TARGET_PRG=1"
+  ],
+  "oscar64": "1.32.273",
+  "oscar64_sha256": "3cabbebc2887bbb9",
+  "memory_limit_mb": 3000,
+  "gcc": "13.3.0",
+  "git": "94646e7-dirty",
+  "generated_tables_sha256": "18b7553b6c665aef",
+  "bytecode": false,
+  "date": "2026-11-16 17:00:24 UTC"
+ }
+}

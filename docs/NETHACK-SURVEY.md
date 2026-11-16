@@ -80,8 +80,8 @@ it in Oscar64's built-in emulator:
 | `dlevel_t` (the current level: 80x21 `rm` + object/monster grids) | **16,813** | resident while playing a level |
 | `struct obj` | 48 | + name/extra bytes |
 | `struct monst` | 80 | + `mextra` (pet/shopkeeper/priest data) |
-| `struct permonst` x 382 (`mons[]`) | 55 x 382 = 21,010 | read-only: can live in ROM/REU |
-| `struct objclass` x 433 (`objects[]`) | 26 x 433 = 11,258 | partly written at run time (discoveries, shuffled descriptions) |
+| `struct permonst` x 382 (`mons[]`) | 55 x 382 = 21,010; the C64 build pads it to 64 (24,448) since 2026-11-16 | read-only: can live in ROM/REU |
+| `struct objclass` x 433 (`objects[]`) | 26 x 433 = 11,258; the C64 build pads it to 32 (13,856) since 2026-11-16 | partly written at run time (discoveries, shuffled descriptions) |
 | `struct you` | 1,381 | |
 | `struct flag` | 127 | |
 | int / long / pointer | 2 / 4 / 2 | |
