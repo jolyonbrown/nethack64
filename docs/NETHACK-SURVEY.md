@@ -641,4 +641,10 @@ same harness. Data: `docs/data/oscar64-pin67-c64conf-2026-11-15.json` and `-base
 - With 73 commits (70-71 r64's fix, 72-73 the linker's bank call stubs) every C64 listing,
   intermediate code and map is identical again, and every UNIX record
   (`docs/data/oscar64-pin73-*-2026-11-15.json`).
+- With 78 commits (74 warning 2025 for zero-page temporaries past $8F, 75-78 the copy-loop
+  fixes) every C64 listing, intermediate code and map of today's `port/` is identical but
+  `uhitm.c`'s listing, where `hmon_hitmon()`'s copy loop no longer branches one byte short
+  (compat #74), and so is every UNIX record (`docs/data/oscar64-pin78-*-2026-11-16.json`).
+  The per-file listings put `m_move` at $9D and `dog_move` at $98 (UNIX $9C and $95), past
+  Oscar64's $8F; the whole game, whose callers make it inline less, last gave $8D (T1.54).
 

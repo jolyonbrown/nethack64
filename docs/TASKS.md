@@ -512,20 +512,37 @@ Add new tasks at the bottom of the right section.
       resident code; the hottest (126, 42) went to column tables in the source instead
       (T2.10). Kept for later, with the resident budget.
 
-- [ ] T1.50 Zero page past $8F (compat #72, r69): Oscar64 gives a function the temporaries it
-      needs past the end of its area, unchecked, where the KERNAL's IRQ changes them. A pin
-      fix: spill what does not fit to memory, or at least an error naming the function; and
-      `tools/check_listing.py` (2026-11-16) on every listing meanwhile: in the whole-game
-      build (`tools/bank/build_c64.py`) and the speed harness (`calibrate.py`; its `main()`
-      reaches $A2-$A4 in workloads 1-3, re-checked with the emulator's clock off: unaffected).
-      The game's highest is `m_move`'s $8D (2026-11-15 listing): re-measure on the next
-      whole-game build.
-- [ ] T1.51 A branch out of range in a folded copy loop at -Os (compat #73, r70): a pin fix
-      (a JMP back, or no fold past 25 copies). None in the game's listing (2026-11-15).
-- [ ] T1.52 Oscar64 hangs at -Os (CPU-bound, no memory growth; -O2 compiles in 3 s) on a line
-      reducer's candidate of the speed harness: `mfndpos` with `wantpool = FALSE; goto
-      nexttry;` inside the position loop. Reduce to a repro; case in
-      `build/oscar64-hang-2026-11-16/` (2026-11-16, not committed).
+- [x] T1.50 Zero page past $8F (compat #72, r69): Oscar64 gives a function the temporaries it
+      needs past the end of its area, unchecked, where the KERNAL's IRQ changes them.
+      — 2026-11-16: the pin warns (commit 74: warning 2025, with the function and its highest
+      address; `#pragma warning(error: 2025)` makes it an error; `make repros` counts r69 as
+      diagnosed). `tools/check_listing.py` runs in `build_c64.py` (the whole game: `m_move`'s
+      $8D highest, 2026-11-15 listings) and `calibrate.py` (the harness now within $8F,
+      re-published). Spilling what does not fit is compiler work for ADR-0009 (with all four
+      types far, `mfndpos` needs $90). Upstream's own `mmultest.c` reaches $99/$A0 at -O3.
+      The per-file C64 measurement (each file alone, more inlined) puts `m_move` at $9D and
+      `dog_move` at $98 (2026-11-16; $9C and $95 before T2.10): T1.54.
+- [x] T1.51 A branch out of range in a folded copy loop at -Os (compat #73, r70): fixed in the
+      pin, 2026-11-16 (commit 75, test 76): a loop takes the copies that fit in 128 bytes and
+      the rest get a loop of their own. None in the game's listing (2026-11-15).
+- [x] T1.52 ~~Oscar64 hangs at -Os~~ on a line reducer's candidate of the speed harness
+      (`mfndpos` with `wantpool = FALSE; goto nexttry;` inside the position loop): not the
+      compiler (2026-11-16). Without `-e` the pin compiles it at -Os in 8.4 s (368 MB, the
+      "hang"'s figure) and writes the program; with `-e` that program runs on in the
+      emulator, since the loop never ends and writes past `poss[9]` and `info[9]`, undefined
+      behaviour that the -O2 build happens to stop on (-1). The reducer's check runs in the
+      emulator, so it timed the program, not the compile.
+- [x] T1.53 A copy loop's branch one byte short at -Os (compat #74, r71): the folding of #73
+      counted an absolute address below 256 as three bytes, which the assembler writes in two
+      (a constant pointer into the zero page, the parameter registers), and the BPL landed in
+      the `LDX`'s operand. Found by `check_listing.py` in `hmon_hitmon()` of the C64
+      measurement's `uhitm.c` listing; none in the whole game's 2026-11-15 listings. Fixed in
+      the pin, 2026-11-16 (commit 77, test 78).
+- [ ] T1.54 The whole game with the pin of 78 commits, after T2.10: `build_c64.py` (stub mode,
+      on the desktop: 13 GB) and its `check_listing.py` step. The last whole-game listing
+      (2026-11-15, before T2.10, 73 commits) gave `m_move` $8D of $8F; the per-file listings
+      now give $9D (T1.50). Past $8F the build has to change before it can run on a C64
+      (a function split, `__noinline`, or the compiler spilling).
 
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 
@@ -648,8 +665,11 @@ Add new tasks at the bottom of the right section.
       translation at far -> `void *`/`char *`, allocators per space, reuse and pinning).
       — 2026-11-16: compat #72 was zero page, not the optimiser (T1.50): the counting build's
       `main()` had temporaries on the emulator's jiffy clock. Published numbers re-checked
-      with the clock off: the same. Next: the harness kept within $8F (`setup()`/`touch()`
-      out of line; `mfndpos` still inlined into `touch()` reaches $92), re-published.
+      with the clock off: the same. Then the harness kept within $8F (`setup()`/`touch()` out
+      of line, a second call of `mfndpos()`) and re-published
+      (`docs/data/speed-far-c72-2026-11-16.txt`): `mfndpos` 12,025, +4% and +13% far, as
+      before; with all four types far `mfndpos` itself needs $90. Next: translation reuse,
+      faults.
 
 ## Housekeeping
 

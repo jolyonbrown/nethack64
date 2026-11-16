@@ -201,6 +201,21 @@ pragma links as before; with it the whole game's resident code is 65 KB instead 
 (BANKING-SPIKE.md). And 73. `7cead7f` its test, which checks in the emulator what the linker
 made (the emulator has no cartridge; `tests/spikes/run_bankstub.py` makes the calls in VICE).
 
+Added on 2026-11-16 under Jolyon's direction for the compiler fixes ("the compiler fixes
+afterward as you see fit", 2026-11-15), each explained to him: 74. `410854c`, ours:
+warning 2025 when a function's zero-page temporaries pass the end of their area (compat #72,
+r69). Nothing kept them within $53-$8F, and past it the KERNAL's IRQ changes them (and
+Oscar64's emulator its jiffy clock); `BC_REG_TMP_END` is $90 in the Commodore machines'
+default layout, and there is no check where the end is not known (the Atari, X16, MEGA65 and
+NES targets, `-xz`, registers moved by `#pragma register`). `#pragma warning(error: 2025)`
+makes it an error; it changes no code. 75. `d54543a` r70 (compat #73): `BlockSizeCopyReduction`
+puts into one loop only the copies that fit a branch's 128 bytes, and the next pass folds the
+rest into another, and 76. `16a378d` its test; 77. `f950ae1` r71 (compat #74, found by
+`tools/check_listing.py` in the C64 measurement's listings): the same function sizes each
+operand by the assembler's rule, which writes an absolute address below 256 without a linker
+object in two bytes, so a copy loop's BPL no longer lands one byte short, in its `LDX`'s
+operand; and 78. `2f9733f` its test.
+
 `tools/oscar64-upstream/build-pin.sh [DIR]` builds it (`JOBS=N` for `make -jN`). Since
 2026-11-13 the setup scripts (`tools/setup-ubuntu.sh`, `tools/setup-arch.sh`) build the
 release and then this compiler, link this one as `oscar64` (the Makefile takes it from
@@ -215,10 +230,10 @@ checks, and its `-Os` size is understood.
 - The six fixed rows above stop being "must be settled before game code runs" once
   the build uses the pin; r18-r23 and r25 pass, and so does r26 (commit 8). r24 stays
   open (T1.15).
-- We carry a patch stack until upstream releases: of the 73 commits, eight are upstream's
+- We carry a patch stack until upstream releases: of the 78 commits, eight are upstream's
   (1169268, bf42402, 1ae3216, 3bb084f, 1073206, 46e60d6, 160c92b, c8da6bd), two backport
   upstream fixes (fbca293 and the CoerceType hunk of 57655c5), four are tests for upstream
-  fixes, and fifty-nine are ours (the r31, r45, r46, r50, r51, r59 and r60 fixes, the bank
+  fixes, and sixty-four are ours (the r31, r45, r46, r50, r51, r59 and r60 fixes, the bank
   patch and seven tests written by Codex). Most of ours have an upstream form as a
   draft PR in the fork or a local branch on main, on hold (OSCAR64-UPSTREAM.md; nothing
   sent yet), so the stack should shrink. Once
@@ -484,3 +499,17 @@ byte-identical, `make test` 5/5; `tests/spikes/run_bankstub.py` 13/13 in VICE; N
 (`docs/data/oscar64-pin73-*-2026-11-15.json`). The whole game with the stubs
 (`bankgen.py --linker-stubs`) passes every bank check, and its resident code is 65.1 KB
 instead of 156.4 KB (BANKING-SPIKE.md).
+
+Results 2026-11-16 (78 commits, tip 2f9733f; the patch files give tree 67b839a, the
+branch's, and the installed compiler's). Autotest 1,611 emulations, all 0 (the two new tests
+in all ten configurations; with 73 commits each fails at `-Os -n`), and warning 2025 twice,
+for upstream's own `mmultest.c` at -O3 ($99 native, $A0 byte code: it passes because $A0,
+the clock's top byte, changes once in about 18 minutes); corpus against 73 commits: 1,066 of
+1,070 identical, the other four being the two new tests and r70 and r71 at `-Os` (native),
+no status changes; repros 44 of 71 (r70 and r71 fixed, r69 diagnosed); nethack64 `.crt` and
+`.prg` byte-identical, `make test` 5/5; the speed harness's ten programs (near and far)
+byte-identical; NetHack (C64): 326 of the 327 listings, intermediate code and maps identical
+to 73 commits', the other being `uhitm.c`'s listing, where `hmon_hitmon()`'s copy loop now
+branches to $22CD, its first instruction, instead of $22CC; 108/108 (1,187,649 B); UNIX the
+same branch, 317 of 318 identical, every record identical, 97/108 (1,120,579 B)
+(`docs/data/oscar64-pin78-*-2026-11-16.json`).

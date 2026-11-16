@@ -1,0 +1,147 @@
+From 410854c064222834bc0727f261ecfac89c2980d6 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Mon, 16 Nov 2026 09:30:44 +0000
+Subject: [PATCH 74/76] Warn when a function's zero page temporaries pass the
+ end of their area
+
+A function's temporaries are allocated in the zero page from BC_REG_TMP
+on, the callee saved ones from BC_REG_TMP_SAVED, and nothing keeps them
+within the area the documentation gives, 0x53-0x8f on the Commodore
+machines ("No check for running out of temporary registers").  A
+function with more values live at once than that holds gets temporaries
+past 0x8f, in the KERNAL's zero page, which its interrupt changes in
+part: with 25 longs live across a loop the last is at 0x9f-0xa2, the
+jiffy clock (which the emulator ticks too) changes three of its bytes,
+and the program returns 1 instead of 0.
+
+Warn (2025) when a function's temporaries go past the end, with the
+function and the highest address; "#pragma warning(error: 2025)" makes it
+an error.  The end, BC_REG_TMP_END, is 0x90 in the default layout; there
+is no check where the end is not known: the Atari, X16, MEGA65 and NES
+targets, -xz, and a program that moves the registers with #pragma
+register.  The generated code does not change.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64.md               |  4 +++-
+ oscar64/Compiler.cpp     | 15 +++++++++++++++
+ oscar64/Errors.h         |  1 +
+ oscar64/MachineTypes.cpp |  3 +++
+ oscar64/MachineTypes.h   |  1 +
+ oscar64/Parser.cpp       |  6 ++++++
+ 6 files changed, 29 insertions(+), 1 deletion(-)
+
+diff --git a/oscar64.md b/oscar64.md
+index d5977c8..b880d08 100644
+--- a/oscar64.md
++++ b/oscar64.md
+@@ -49,7 +49,7 @@ There are still several open areas, but most targets have been reached.  The cur
+ 
+ ### Intermediate code generation
+ 
+-* No check for running out of temporary registers
++* Running out of temporary registers is only a warning (2025), and only in the Commodore machines' default zero page layout
+ 
+ ### Native code generation
+ 
+@@ -1534,6 +1534,8 @@ The intermediate code generator assumes a large number of registers so the zero
+ * **0x43-0x52** caller saved registers
+ * **0x53-0x8f** callee saved registers
+ 
++A function that needs more temporaries than these registers hold uses the zero page past 0x8f, which belongs to the KERNAL: its interrupt changes some of it.  The compiler warns (2025); `#pragma warning(error: 2025)` makes it an error.
++
+ ## Compiler Stages
+ 
+ The compiler uses most of the traditional stages:
+diff --git a/oscar64/Compiler.cpp b/oscar64/Compiler.cpp
+index a527bd9..88f4a5b 100644
+--- a/oscar64/Compiler.cpp
++++ b/oscar64/Compiler.cpp
+@@ -104,6 +104,10 @@ bool Compiler::ParseSource(void)
+ #endif
+ 	}
+ 
++	if (mTargetMachine == TMACH_ATARI || mTargetMachine == TMACH_X16 || mTargetMachine == TMACH_MEGA65 ||
++		(mCompilerOptions & (COPT_EXTENDED_ZERO_PAGE | COPT_TARGET_NES)))
++		BC_REG_TMP_END = 0;
++
+ 	switch (mTargetMachine)
+ 	{
+ 	case TMACH_VIC20:
+@@ -545,6 +549,17 @@ void Compiler::CompileProcedure(InterCodeProcedure* proc)
+ 			bgproc->Compile(mByteCodeGenerator, proc);
+ 			mByteCodeFunctions.Push(bgproc);
+ 		}
++
++		// Nothing limits the temporaries to their area: past its end they share the zero page
++		// with the system, on the Commodore machines with the KERNAL, whose interrupt changes
++		// some of it (the jiffy clock at 0xa0-0xa2, which the emulator ticks too)
++		if (BC_REG_TMP_END && BC_REG_TMP + proc->mTempSize > BC_REG_TMP_END)
++		{
++			char	msg[100];
++			sprintf_s(msg, 100, "Zero page temporaries up to $%02x, past the end of their area at $%02x, in",
++				BC_REG_TMP + proc->mTempSize - 1, BC_REG_TMP_END - 1);
++			mErrors->Error(proc->mLocation, EWARN_ZERO_PAGE_TEMPORARIES, msg, proc->mIdent);
++		}
+ 	}
+ }
+ 
+diff --git a/oscar64/Errors.h b/oscar64/Errors.h
+index 33964db..5823e25 100644
+--- a/oscar64/Errors.h
++++ b/oscar64/Errors.h
+@@ -55,6 +55,7 @@ enum ErrorID
+ 	EWARN_DIVISION_BY_ZERO,
+ 	EWARN_EXPAND_UNDEFINED_MACRO_IDENT,
+ 	EWARN_CROSS_BANK_DATA,
++	EWARN_ZERO_PAGE_TEMPORARIES,
+ 
+ 	EERR_GENERIC = 3000,
+ 	EERR_FILE_NOT_FOUND,
+diff --git a/oscar64/MachineTypes.cpp b/oscar64/MachineTypes.cpp
+index aeb3c71..3b7a49c 100644
+--- a/oscar64/MachineTypes.cpp
++++ b/oscar64/MachineTypes.cpp
+@@ -13,4 +13,7 @@ uint8 BC_REG_LOCALS = 0x25;
+ 
+ uint8 BC_REG_TMP = 0x43;
+ uint8 BC_REG_TMP_SAVED = 0x53;
++// Where the zero page stops being the compiler's: from 0x90 on it is the KERNAL's on the
++// Commodore machines.  Zero where the end is not known (other targets, -xz, moved registers).
++uint8 BC_REG_TMP_END = 0x90;
+ 
+diff --git a/oscar64/MachineTypes.h b/oscar64/MachineTypes.h
+index 628ec51..2ce55ef 100644
+--- a/oscar64/MachineTypes.h
++++ b/oscar64/MachineTypes.h
+@@ -100,6 +100,7 @@ extern uint8 BC_REG_LOCALS;
+ 
+ extern uint8 BC_REG_TMP;
+ extern uint8 BC_REG_TMP_SAVED;
++extern uint8 BC_REG_TMP_END;
+ 
+ inline int ustrlen(const uint8* s)
+ {
+diff --git a/oscar64/Parser.cpp b/oscar64/Parser.cpp
+index 76f6af9..28413dd 100644
+--- a/oscar64/Parser.cpp
++++ b/oscar64/Parser.cpp
+@@ -14938,9 +14938,15 @@ void Parser::ParsePragma(void)
+ 				else if (!strcmp(reg->mString, "__fp"))
+ 					BC_REG_LOCALS = index;
+ 				else if (!strcmp(reg->mString, "__sregs"))
++				{
+ 					BC_REG_TMP_SAVED = index;
++					BC_REG_TMP_END = 0;
++				}
+ 				else if (!strcmp(reg->mString, "__regs"))
++				{
+ 					BC_REG_TMP = index;
++					BC_REG_TMP_END = 0;
++				}
+ 				else
+ 					mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Unknown register name");
+ 			}
+-- 
+2.43.0
+

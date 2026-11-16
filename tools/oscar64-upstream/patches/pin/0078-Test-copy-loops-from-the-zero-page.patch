@@ -1,0 +1,83 @@
+From 2f9733f39d2fda0126ddad44babc99102091c669 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Mon, 16 Nov 2026 09:57:08 +0000
+Subject: [PATCH 78/78] Test copy loops from the zero page
+
+A long read through a constant pointer into the zero page, to one place
+and to two, and a zero page variable to two.  Without the fix each loop's
+bpl lands one byte short, in the ldx's operand, and the test fails at
+-Os -n.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat           |  3 +++
+ autotest/copyloopzeropagetest.c | 44 +++++++++++++++++++++++++++++++++
+ 2 files changed, 47 insertions(+)
+ create mode 100644 autotest/copyloopzeropagetest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 8322158..cda43ec 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -1,5 +1,8 @@
+ rem @echo off
+ 
++@call :test copyloopzeropagetest.c
++@if %errorlevel% neq 0 goto :error
++
+ @call :test copyloopbranchtest.c
+ @if %errorlevel% neq 0 goto :error
+ 
+diff --git a/autotest/copyloopzeropagetest.c b/autotest/copyloopzeropagetest.c
+new file mode 100644
+index 0000000..38c7f4d
+--- /dev/null
++++ b/autotest/copyloopzeropagetest.c
+@@ -0,0 +1,44 @@
++#include <assert.h>
++
++// With -Os, a copy of a few bytes becomes a loop, ldx #n-1 / lda a,x / sta b,x / dex / bpl,
++// and the bpl's offset is the loop's size.  An absolute address below 256 without a linker
++// object, such as a constant pointer into the zero page, is written by the assembler in its
++// two byte zero page form; counted as three bytes, the bpl went one byte too far back, into
++// the operand of the ldx.  Both kinds of loop: one store a byte, and two; the loop of two
++// stores did not count a zero page object as two bytes either.
++
++unsigned long a, b;
++__zeropage unsigned long zv;
++
++__noinline unsigned long load(void)
++{
++	return *(unsigned long *)0xfb;
++}
++
++__noinline void load2(void)
++{
++	a = b = *(unsigned long *)0xfb;
++}
++
++__noinline void loadzp2(void)
++{
++	a = b = zv;
++}
++
++int main(void)
++{
++	*(unsigned long *)0xfb = 0x12345678UL;
++
++	assert(load() == 0x12345678UL);
++
++	load2();
++	assert(a == 0x12345678UL);
++	assert(b == 0x12345678UL);
++
++	zv = 0x9abcdef0UL;
++	loadzp2();
++	assert(a == 0x9abcdef0UL);
++	assert(b == 0x9abcdef0UL);
++
++	return 0;
++}
+-- 
+2.43.0
+

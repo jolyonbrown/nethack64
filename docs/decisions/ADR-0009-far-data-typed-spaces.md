@@ -57,10 +57,11 @@ pointers at 16 bits: the type of the pointer says which space it is an address i
 - Open: strings (37.7 KB of literals reached as `char *`, which mixes provenance): keep them
   banked with today's trampolines, or a string space with a range test. Decided separately.
 - Zero page: reused and pinned translations stay in zero page, and the game is close to the
-  end of Oscar64's area already (`m_move` reaches $8D of $8F, 2026-11-15). Oscar64 does not
-  check the end (compat #72: past it the KERNAL's IRQ changes the values), so the compiler
-  work includes temporaries that do not fit (spilled to memory, or an error), and every
-  listing is checked (`tools/check_listing.py`).
+  end of Oscar64's area already (`m_move` reaches $8D of $8F, 2026-11-15); in the experiment
+  with all four types far, `mfndpos` needs $90 before any reuse (2026-11-16). Oscar64 did
+  not check the end (compat #72: past it the KERNAL's IRQ changes the values); the pin now
+  warns (2025), and every listing is checked (`tools/check_listing.py`). So the compiler
+  work includes temporaries that do not fit: spilled to memory, not only reported.
 
 ## Evidence / how to re-check
 `python3 tests/spikes/run_fardata.py`; `python3 tools/measure/trace/summary.py TURNS`;

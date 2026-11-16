@@ -11,8 +11,9 @@ usage: tools/check_listing.py [--zp-end ADDR] LISTING...
    KERNAL's IRQ changes them: STKEY $91, the jiffy clock $A0-$A2 (which Oscar64's emulator
    ticks too), the keyboard and cursor bytes; KERNAL calls use more.  Reported: every
    function with a temporary (an operand `T<n> + <k>`) past --zp-end (default $8F).
-2. Branches out of range (compat #73, repro r70): a relative branch whose target is not the
-   start of an instruction in the listing, because its offset was written truncated.
+2. Branches to no instruction: a relative branch whose target is not the start of an
+   instruction in the listing, because its offset was written truncated (compat #73, repro
+   r70) or worked out from the wrong instruction sizes (compat #74, r71).
 
 Banked listings (addresses written BB:XXXX) are read bank by bank.  A temporary used only
 through an index register (`T1 + 0,x`) counts at its base address, so its last bytes may be
@@ -58,7 +59,7 @@ def check(path, zp_end):
     for bank, addr, target, f in branches:
         if (bank, target) not in starts:
             problems.append("%s: the branch at %s$%04x goes to $%04x, which is no instruction "
-                            "(compat #73)" % (f, bank + ":" if bank else "", addr, target))
+                            "(compat #73, #74)" % (f, bank + ":" if bank else "", addr, target))
     top = max(((a, f) for f, a in high.items()), default=None)
     return problems, top
 

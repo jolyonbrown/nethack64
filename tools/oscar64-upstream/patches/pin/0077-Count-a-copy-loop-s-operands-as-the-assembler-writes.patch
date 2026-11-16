@@ -1,0 +1,131 @@
+From f950ae1efb47fbe8eaa2a4b4dcb3c9d4470d61d7 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Mon, 16 Nov 2026 09:57:08 +0000
+Subject: [PATCH 77/78] Count a copy loop's operands as the assembler writes
+ them
+
+BlockSizeCopyReduction closes a copy loop with a bpl whose offset it
+works out from the loop's instructions, three bytes for each operand
+that is not a zero page address or object.  The assembler also writes
+an absolute address below 256 without a linker object in its two byte
+zero page form, so for a copy from a constant pointer into the zero
+page the bpl goes one byte too far back, into the operand of the ldx #n
+that starts the loop: "return *(unsigned long *)0xfb;" at -Os returns
+garbage.  The loop of one load and two stores counted the same way and
+did not count a zero page object as two bytes either.  Size every
+operand by the assembler's rule, in both loops.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/NativeCodeGenerator.cpp | 50 ++++++++++++++-------------------
+ 1 file changed, 21 insertions(+), 29 deletions(-)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index d2b10a9..bec8f45 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -55083,6 +55083,19 @@ bool NativeCodeBasicBlock::OptimizeSelect(NativeCodeProcedure* proc)
+ 	return changed;
+ }
+ 
++// The bytes an operand of a copy loop takes once indexed (lda a,x / sta b,x): the assembler
++// writes the zero page form for a zero page address, for a zero page object and for an
++// absolute address below 256 without a linker object (NativeCodeInstruction::Assemble)
++static int BlockCopyIndexedSize(const NativeCodeInstruction& ins)
++{
++	if (ins.mMode == ASMIM_ZERO_PAGE ||
++		(ins.mLinkerObject && (ins.mLinkerObject->mFlags & LOBJF_ZEROPAGE)) ||
++		(!ins.mLinkerObject && ins.mAddress < 256))
++		return 2;
++	else
++		return 3;
++}
++
+ static bool CheckBlockCopySequence(const ExpandingArray<NativeCodeInstruction>& ins, int si, int n)
+ {
+ 	if (si + 2 * n <= ins.Size() &&
+@@ -55196,26 +55209,20 @@ bool NativeCodeBasicBlock::BlockSizeCopyReduction(NativeCodeProcedure* proc, int
+ 						}
+ 					}
+ 
+-					// The BPL at the end goes back over the whole loop, which has to be within
+-					// a branch's reach of 128 bytes: take as many copies as fit, four bytes
+-					// each and one more for each absolute address, and leave the rest
+-					int	lsz = 3, kfit = 0;
++					// The BPL at the end goes back over the whole loop, DEX and BPL included,
++					// which has to be within a branch's reach of 128 bytes: take as many
++					// copies as fit, and leave the rest
++					int	sz = 3, kfit = 0;
+ 					while (kfit < k)
+ 					{
+-						const NativeCodeInstruction& lins(mIns[si + 2 * i * kfit + 0]), & sins(mIns[si + 2 * i * kfit + 1]);
+-						int	csz = 4;
+-						if (!(lins.mMode == ASMIM_ZERO_PAGE || (lins.mLinkerObject && (lins.mLinkerObject->mFlags & LOBJF_ZEROPAGE))))
+-							csz++;
+-						if (!(sins.mMode == ASMIM_ZERO_PAGE || (sins.mLinkerObject && (sins.mLinkerObject->mFlags & LOBJF_ZEROPAGE))))
+-							csz++;
+-						if (lsz + csz > 128)
++						int	csz = BlockCopyIndexedSize(mIns[si + 2 * i * kfit + 0]) + BlockCopyIndexedSize(mIns[si + 2 * i * kfit + 1]);
++						if (sz + csz > 128)
+ 							break;
+-						lsz += csz;
++						sz += csz;
+ 						kfit++;
+ 					}
+ 					k = kfit;
+ 
+-					int	sz = 3 + 4 * k;
+ 					for (int j = 0; j < k; j++)
+ 					{
+ 						NativeCodeInstruction	lins = mIns[si + 2 * i * j + 0];
+@@ -55224,17 +55231,11 @@ bool NativeCodeBasicBlock::BlockSizeCopyReduction(NativeCodeProcedure* proc, int
+ 						if (lins.mMode == ASMIM_ZERO_PAGE || (lins.mLinkerObject && (lins.mLinkerObject->mFlags & LOBJF_ZEROPAGE)))
+ 							lins.mMode = ASMIM_ZERO_PAGE_X;
+ 						else
+-						{
+ 							lins.mMode = ASMIM_ABSOLUTE_X;
+-							sz++;
+-						}
+ 						if (sins.mMode == ASMIM_ZERO_PAGE || (sins.mLinkerObject && (sins.mLinkerObject->mFlags & LOBJF_ZEROPAGE)))
+ 							sins.mMode = ASMIM_ZERO_PAGE_X;
+ 						else
+-						{
+ 							sins.mMode = ASMIM_ABSOLUTE_X;
+-							sz++;
+-						}
+ 
+ 						if (j == 0)
+ 							mIns[di++] = NativeCodeInstruction(lins.mIns, ASMIT_LDX, ASMIM_IMMEDIATE, i - 1);
+@@ -55276,28 +55277,19 @@ bool NativeCodeBasicBlock::BlockSizeCopyReduction(NativeCodeProcedure* proc, int
+ 					NativeCodeInstruction	sins0 = mIns[si + 1];
+ 					NativeCodeInstruction	sins1 = mIns[si + 2];
+ 
+-					int	sz = 9;
++					int	sz = 3 + BlockCopyIndexedSize(lins) + BlockCopyIndexedSize(sins0) + BlockCopyIndexedSize(sins1);
+ 					if (lins.mMode == ASMIM_ZERO_PAGE)
+ 						lins.mMode = ASMIM_ZERO_PAGE_X;
+ 					else
+-					{
+ 						lins.mMode = ASMIM_ABSOLUTE_X;
+-						sz++;
+-					}
+ 					if (sins0.mMode == ASMIM_ZERO_PAGE)
+ 						sins0.mMode = ASMIM_ZERO_PAGE_X;
+ 					else
+-					{
+ 						sins0.mMode = ASMIM_ABSOLUTE_X;
+-						sz++;
+-					}
+ 					if (sins1.mMode == ASMIM_ZERO_PAGE)
+ 						sins1.mMode = ASMIM_ZERO_PAGE_X;
+ 					else
+-					{
+ 						sins1.mMode = ASMIM_ABSOLUTE_X;
+-						sz++;
+-					}
+ 
+ 					mIns[di++] = NativeCodeInstruction(lins.mIns, ASMIT_LDX, ASMIM_IMMEDIATE, i - 1);
+ 					mIns[di++] = lins;
+-- 
+2.43.0
+

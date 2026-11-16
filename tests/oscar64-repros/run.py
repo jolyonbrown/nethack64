@@ -13,6 +13,9 @@ Header keys read from each file's first comment:
     ENV: NAME=value ...        extra environment for the compiler itself (r38: glibc's
                                MALLOC_PERTURB_, for a bug that depends on old heap contents)
     COMPILE-ONLY               success = compiler exits 0
+    DIAGNOSTIC: N              success too: the compiler reports warning or error N, where
+                               it used to compile wrong code silently (r69: warning 2025,
+                               temporaries past the end of the zero page area)
 Otherwise success = compiles and "Emulation result 0".
 """
 import glob
@@ -39,6 +42,7 @@ def run(path):
     flags = re.search(r"FLAGS:\s*(.*)", head)
     flags = flags.group(1).split() if flags else ["-e"]
     compile_only = "COMPILE-ONLY" in head
+    diagnostic = re.search(r"DIAGNOSTIC:\s*(\d+)", head)
     env = re.search(r"ENV:\s*(.*)", head)
     env = dict(os.environ, **dict(kv.split("=", 1) for kv in env.group(1).split())) if env else None
     with tempfile.TemporaryDirectory() as tmp:
@@ -50,6 +54,9 @@ def run(path):
         except subprocess.TimeoutExpired:
             return "BROKEN", "compiler hang"
     text = r.stdout + r.stderr
+    if diagnostic and re.search(r": (warning|error) %s:" % diagnostic.group(1), text):
+        return "FIXED", "diagnosed (%s %s)" % (re.search(r": (warning|error) %s:" % diagnostic.group(1), text).group(1),
+                                               diagnostic.group(1))
     if (r.returncode < 0 or r.returncode >= 128) and ("std::bad_alloc" in text or r.returncode == -9):
         return "BROKEN", "compiler out of memory (cap %d MB)" % MEMORY_MB
     if r.returncode < 0 or r.returncode >= 128:

@@ -11,10 +11,13 @@
  * 2026-11-15, is m_move's $8D: two bytes to spare); the speed harness's main(), which
  * inlines its workloads, reached $A2-$AD (compat #72, found 2026-11-16 in its far build).
  * Expect when fixed: exit 0 (temporaries kept to $53-$8F, the rest spilled to memory), or
- * a compile error that says the function needs more.
+ * a diagnostic that says the function needs more.  The pin (commit 74, T1.50) warns:
+ * "warning 2025: Zero page temporaries up to $a2, past the end of their area at $8f, in
+ * 'main'" (#pragma warning(error: 2025) makes it an error); run.py counts that as fixed.
  * Workaround: functions that need less (__noinline on a big single-call function), and
  * tools/check_listing.py on every listing (no temporary past $8F).
  * FLAGS: -Os -e
+ * DIAGNOSTIC: 2025
  */
 volatile unsigned long src[25];
 volatile unsigned char sink;

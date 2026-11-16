@@ -1,0 +1,51 @@
+From d54543a2c612b94058a767500128ec2c724e8e79 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Mon, 16 Nov 2026 09:30:44 +0000
+Subject: [PATCH 75/76] Keep a block copy loop within a branch's reach
+
+With -Os, BlockSizeCopyReduction folds k runs of n byte copies into one
+loop, ldx #n-1 / lda a,x / sta b,x ... / dex / bpl, and writes the bpl's
+offset as minus the size of the loop without checking that it fits a
+byte: 26 copies of a long from absolute to zero page addresses make a
+loop of 133 bytes, and the offset becomes +123, a jump forward into the
+middle of other code.  Take only as many copies as fit in 128 bytes; the
+next pass folds the rest into a loop of their own.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/NativeCodeGenerator.cpp | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 1a95b10..d2b10a9 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -55196,6 +55196,25 @@ bool NativeCodeBasicBlock::BlockSizeCopyReduction(NativeCodeProcedure* proc, int
+ 						}
+ 					}
+ 
++					// The BPL at the end goes back over the whole loop, which has to be within
++					// a branch's reach of 128 bytes: take as many copies as fit, four bytes
++					// each and one more for each absolute address, and leave the rest
++					int	lsz = 3, kfit = 0;
++					while (kfit < k)
++					{
++						const NativeCodeInstruction& lins(mIns[si + 2 * i * kfit + 0]), & sins(mIns[si + 2 * i * kfit + 1]);
++						int	csz = 4;
++						if (!(lins.mMode == ASMIM_ZERO_PAGE || (lins.mLinkerObject && (lins.mLinkerObject->mFlags & LOBJF_ZEROPAGE))))
++							csz++;
++						if (!(sins.mMode == ASMIM_ZERO_PAGE || (sins.mLinkerObject && (sins.mLinkerObject->mFlags & LOBJF_ZEROPAGE))))
++							csz++;
++						if (lsz + csz > 128)
++							break;
++						lsz += csz;
++						kfit++;
++					}
++					k = kfit;
++
+ 					int	sz = 3 + 4 * k;
+ 					for (int j = 0; j < k; j++)
+ 					{
+-- 
+2.43.0
+

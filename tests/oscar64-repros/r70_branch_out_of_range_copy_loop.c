@@ -7,7 +7,9 @@
  * + 1)"), and tools/check_listing.py finds such a branch: its target is not an instruction.
  * v1.32.273 and the pin.  NetHack: none (no branch in the whole game's listing of
  * 2026-11-15, 96,428 of them, lands outside an instruction); found 2026-11-16 making r69.
- * Expect when fixed: exit 0 (a JMP back, or no fold of more than 25).
+ * Expect when fixed: exit 0 (a JMP back, or no fold of more than 25).  Fixed in the pin
+ * (commit 75, T1.51): a loop takes only the copies that fit a branch's 128 bytes, the rest
+ * get a loop of their own (here 25 and 1).
  * Workaround: none needed; tools/check_listing.py would show one.
  * -xz turns the emulator's jiffy clock off (and lowers the temporaries), so that only this
  * bug can change the result, not r69's.
