@@ -476,3 +476,13 @@ Results (`docs/data/oscar64-pin80-tempsaves-2026-11-16.txt`,
   from commands, where `dochug` itself needs 8. One node for all calls through a pointer does
   not help (it gathers everything; tried and dropped); grouping those calls by the function's
   type might, with care for casts of function pointers. Next for T1.49.
+- Tried the same day (Jolyon: "carry on with the pointer-call grouping"): calls through
+  pointers grouped by the called type (result and parameter sizes; the call's type is kept on
+  the intermediate code), the casts not yet followed, so only to measure. No change at all:
+  17 types, and every one ends up needing the whole area, as do the busiest functions. Nothing
+  escapes and nothing is opaque; the cause is the unions: the pass is context-insensitive, so a
+  function or a type reached from many call sites (dozens to 178 here) needs what any of them
+  keeps, and over that many the union is everything. Getting more would take saves that
+  depend on the call site (a caller saving around its own call) or a context-sensitive
+  analysis, both far bigger changes. Dropped; the experiment is on the compiler clone's branch
+  `scratch` (not in the pin).

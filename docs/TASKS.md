@@ -523,6 +523,8 @@ Add new tasks at the bottom of the right section.
       game's saves 12% fewer cycles a turn (277,000 -> 243,000), banked code 3.7 KB smaller.
       Most of what stays is owed to address-taken functions (command handlers, callbacks),
       which keep everything; next, group calls through pointers by type (RAM-PLAN.md).
+      — 2026-11-16: grouping by type tried, no gain: all 17 types need the whole area, from the
+      unions over their many call sites (RAM-PLAN.md). Dropped. Next: the multiply/divide items.
 
 - [x] T1.50 Zero page past $8F (compat #72, r69): Oscar64 gives a function the temporaries it
       needs past the end of its area, unchecked, where the KERNAL's IRQ changes them.
