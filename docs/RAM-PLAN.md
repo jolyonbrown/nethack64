@@ -321,13 +321,14 @@ finds the accesses from the types, macro bodies included). The pointers stay 16 
 address in the type's own space, 16 KB from the real one, so an access left untranslated reads
 the wrong bytes: with the translation switched off, the `mfndpos` checksum changes. Every page
 mapped (a warm cache); the same checksums as the host build, no faults
-(`calibrate.py --far`, `docs/data/speed-far-2026-11-16.txt`):
+(`calibrate.py --far`, `docs/data/speed-far-c72-2026-11-16.txt`; the harness as fixed for
+compat #72, below):
 
 | Far | Access sites translated | `mfndpos`, cycles a call |
 |---|---|---|
-| nothing | 0 | 12,005 |
-| `mons[]` | 17 (13 in `mondata.h`'s macros) | 12,444 (+4%) |
-| `mons[]`, monsters, objects, traps | 86 | 13,600 (+13%) |
+| nothing | 0 | 12,025 |
+| `mons[]` | 17 (13 in `mondata.h`'s macros) | 12,469 (+4%) |
+| `mons[]`, monsters, objects, traps | 86 | 13,632 (+13%) |
 
 - `mons[]` far costs little: its fields are read a few times a call.
 - With the heap far as well, monster movement's hottest function is 13% slower on a warm cache,
@@ -353,10 +354,18 @@ mapped (a warm cache); the same checksums as the host build, no faults
   nested macro's parameter). The counting build's wrong results at `-Os` were no optimiser
   bug (compat #72, r69): the harness's `main()`, with everything inlined, needed zero-page
   temporaries up to $AD, Oscar64 does not check that they fit its area ($53-$8F), and the
-  emulator's jiffy clock at $A0-$A2 ticked a loop flag. The numbers above were re-run with the
-  clock off: the same cycles and checksums.
+  emulator's jiffy clock at $A0-$A2 ticked a loop flag. The first numbers (`mfndpos` 12,005,
+  12,444 and 13,600, `docs/data/speed-far-2026-11-16.txt`) were right all the same (the same
+  cycles with the clock off), but the harness now keeps every temporary within $8F:
+  `setup()` and `touch()` out of line, and a second call of `mfndpos()` that never runs, with
+  flags known only at run time, so that it is the same function in every workload, as in the
+  game (before, workloads 0-3 inlined it into `touch()`). `calibrate.py` checks every listing.
+  The host's counts a call are unchanged; on the 6502 `isok` is 43.2 cycles a call (45.3), `dist2`
+  237.8 (237.1), `is_pool` and `is_lava` 163.0 (162.9), `mfndpos` 12,025 (12,005).
 - **Zero page is the limit to watch.** The whole game's highest temporary (listing of
   2026-11-15) is `m_move`'s $8D, two bytes short of $8F; past it, the KERNAL's IRQ changes
-  them on the real machine. Translations reused across a function (ADR-0009, point 4) keep
-  more pointers there. `tools/check_listing.py` checks a listing.
+  them on the real machine. With all four types far, `mfndpos()` itself needs $90 already,
+  without any reuse: one byte too many (the emulator does not touch $90, so the 13% stands,
+  but that code would not run on a C64 as it is). Translations reused across a function
+  (ADR-0009, point 4) keep more pointers there. `tools/check_listing.py` checks a listing.
 

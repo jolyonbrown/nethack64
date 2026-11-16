@@ -29,6 +29,7 @@ INS = re.compile(r"^(?:([0-9a-f]{2}):)?([0-9a-f]{4}) : ([0-9a-f]{2}) ([0-9a-f_]{
                  r"([A-Z]{3})\b(.*)$")
 TEMP = re.compile(r"\bT\d+ \+ \d+")
 BRANCHES = {"BPL", "BMI", "BVC", "BVS", "BCC", "BCS", "BNE", "BEQ"}
+ZP_END = 0x8F		# the last byte of Oscar64's temporaries on the C64; the KERNAL's from $90
 
 
 def check(path, zp_end):
@@ -64,7 +65,7 @@ def check(path, zp_end):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--zp-end", type=lambda s: int(s, 0), default=0x8F,
+    ap.add_argument("--zp-end", type=lambda s: int(s, 0), default=ZP_END,
                     help="the last zero-page address temporaries may use (default 0x8f)")
     ap.add_argument("listings", nargs="+")
     a = ap.parse_args()

@@ -19,6 +19,12 @@ access through a `struct TAG *` to go through that type's table of pages first (
 the pointers being far addresses NH_VOFF from the real ones; the checksums must still be the
 host's, and no page may fault.  --far-volatile makes the tables volatile: no translation is
 reused, one an access.
+
+Every 6502 listing is checked (tools/check_listing.py): no branch out of range (compat #73),
+and no zero-page temporary past $8F, the end of Oscar64's area on the C64 (compat #72); past
+it, the KERNAL's IRQ changes them on the real machine, and the emulator ticks the jiffy clock
+at $A0-$A2.  A far build is an experiment, so a temporary in $90-$9F is reported as a finding
+(the code would not run on a C64 as it is) and the run goes on; past $9F it stops too.
 """
 import argparse
 import glob
@@ -34,7 +40,9 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(ROOT, "tools"))
 import cgsummary  # noqa: E402
+import check_listing  # noqa: E402
 
 OSCAR64 = os.environ.get("OSCAR64") or shutil.which("oscar64") or "oscar64"
 WORKS = {1: "isok", 2: "dist2", 3: "is_pool + is_lava", 4: "mfndpos"}
@@ -45,6 +53,8 @@ FUNCS = ["isok", "dist2", "distmin", "online2", "strstri", "lowc", "is_pool", "i
 HOST_CFLAGS = ["-O", "-g", "-std=gnu89", "-w", "-DUNWIDENED_PROTOTYPES"]
 # as tools/bank/build_c64.py and measure_oscar64.py's c64 configuration compile it
 C64_FLAGS = ["-Os", "-dC64", "-dregister="]
+ZP_END = check_listing.ZP_END	# the last byte of Oscar64's temporaries on the C64 (oscar64.md)
+ZP_CLOCK = 0xA0		# the KERNAL's jiffy clock, $A0-$A2, which Oscar64's emulator ticks too
 
 
 def cap():
@@ -56,6 +66,16 @@ def run(cmd, **kw):
     if r.returncode:
         sys.exit("failed (%d): %s\n%s%s" % (r.returncode, " ".join(cmd), r.stdout[-3000:], r.stderr[-3000:]))
     return r.stdout
+
+
+def zp_check(listing, what, experiment=False):
+    """The listing's highest temporary, as text, and (in an experiment) the functions past $8F.
+    Stops on a branch out of range, or a temporary past $8F (past $9F in an experiment)."""
+    problems, top = check_listing.check(listing, ZP_CLOCK - 1 if experiment else ZP_END)
+    if problems:
+        sys.exit("%s: %s\n  %s" % (what, listing, "\n  ".join(problems)))
+    past = check_listing.check(listing, ZP_END)[0] if experiment else []
+    return ("$%02x %s" % top if top else "none"), past
 
 
 def prepare(out):
@@ -91,13 +111,14 @@ def c64(out, w, xs, monst):
     o = run([OSCAR64] + C64_FLAGS + ["-ep", "-dWORK=%d" % w, "-i=" + os.path.join(out, "inc"),
                                     "-o=" + os.path.join(out, "c64_%d.prg" % w), os.path.join(HERE, "cal.c")] +
             xs + [monst], cwd=out, preexec_fn=cap)
+    zp, _ = zp_check(os.path.join(out, "c64_%d.asm" % w), "workload %d" % w)
     line = next(l for l in o.splitlines() if l.startswith("work "))
     total = int(re.search(r"^Total Cycles (\d+)$", o, re.M).group(1))
     funcs = {}
     for m in re.finditer(r"^\s+\d+ : (\S+) : (\d+)$", o, re.M):
         if not re.match(r"^[0-9a-f]{4}$", m.group(1)):
             funcs[m.group(1)] = int(m.group(2))
-    return line.strip(), total, funcs
+    return line.strip(), total, funcs, zp
 
 
 NH_VOFF = 0x4000
@@ -113,11 +134,13 @@ def far_runs(a, out, res, monst):
         (["-dmons=nh_mons_real"] if "permonst" in a.far else []) + \
         (["-dNH_FAR_VOLATILE"] if a.far_volatile else []) + (["-dNH_FAR_COUNT"] if a.far_count else [])
     xs = sorted(glob.glob(os.path.join(fdir, "x", "x_*.c")))
-    rows, counts = {}, {}
+    rows, counts, zps, past = {}, {}, {}, []
     for w in [0] + sorted(WORKS):
         o = run([OSCAR64] + C64_FLAGS + ["-ep", "-dWORK=%d" % w, "-i=" + os.path.join(fdir, "inc")] + defs +
                 ["-o=" + os.path.join(fdir, "c64_%d.prg" % w), os.path.join(HERE, "cal.c")] + xs + [monst],
                 cwd=fdir, preexec_fn=cap)
+        zps[w], p = zp_check(os.path.join(fdir, "c64_%d.asm" % w), "far build, workload %d" % w, True)
+        past += ["workload %d: %s" % (w, x) for x in p]
         line = next(l for l in o.splitlines() if l.startswith("work ")).strip()
         faults = int(re.search(r"^faults (\d+)$", o, re.M).group(1))
         if line != res[w]["checksum"] or faults:
@@ -126,7 +149,11 @@ def far_runs(a, out, res, monst):
         m = re.search(r"^count (.*)$", o, re.M)
         if m:
             counts[w] = dict(zip(m.group(1).split()[0::2], map(int, m.group(1).split()[1::2])))
-    print("far %s%s, same checksums, no faults:" % ("+".join(a.far), " (volatile tables)" if a.far_volatile else ""))
+    print("far %s%s, same checksums, no faults; highest zero-page temporaries: %s" % (
+        "+".join(a.far), " (volatile tables)" if a.far_volatile else "",
+        ", ".join("%d %s" % (w, zps[w]) for w in sorted(zps))))
+    for x in past:
+        print("  past Oscar64's zero page, would not run on a C64 as it is: " + x)
     print("workload              near cycles/call   far cycles/call   slower")
     summary = {}
     for w in sorted(WORKS):
@@ -140,7 +167,8 @@ def far_runs(a, out, res, monst):
             c = {k: (v - counts[0].get(k, 0)) / res[w]["calls"] for k, v in counts[w].items()}
             summary[WORKS[w]]["translations"] = c
             print("  %-18s %s" % (WORKS[w], "  ".join("%s %.1f" % kv for kv in c.items())))
-    return dict(types=a.far, volatile=a.far_volatile, workloads=summary)
+    return dict(types=a.far, volatile=a.far_volatile, workloads=summary,
+                zp_high={str(w): v for w, v in zps.items()}, zp_past_8f=past)
 
 
 def main():
@@ -156,11 +184,12 @@ def main():
     res = {}
     for w in [0] + sorted(WORKS):
         hl, hir, hself, hcalls = host(out, w, xs)
-        cl, ccyc, cfun = c64(out, w, xs, monst)
+        cl, ccyc, cfun, zp = c64(out, w, xs, monst)
         if hl != cl:
             sys.exit("workload %d: the builds disagree\n  host: %s\n  6502: %s" % (w, hl, cl))
         n = int(re.search(r"calls (\d+)", hl).group(1))
-        res[w] = dict(checksum=hl, calls=n, host_ir=hir, host_self=dict(hself), c64_cycles=ccyc, c64_funcs=cfun)
+        res[w] = dict(checksum=hl, calls=n, host_ir=hir, host_self=dict(hself), c64_cycles=ccyc, c64_funcs=cfun,
+                      zp_high=zp)
     base = res[0]
     print("workload               calls   x86 Ir/call   6502 cycles/call   cycles per Ir")
     summary = {}
@@ -170,6 +199,8 @@ def main():
         cy = r["c64_cycles"] - base["c64_cycles"]
         summary[WORKS[w]] = dict(calls=r["calls"], ir=ir, cycles=cy, ratio=cy / ir)
         print("  %-18s %7d %12.1f %18.1f %15.1f" % (WORKS[w], r["calls"], ir / r["calls"], cy / r["calls"], cy / ir))
+    print("highest zero-page temporaries (Oscar64's area ends at $%02X): %s" % (
+        ZP_END, ", ".join("%d %s" % (w, res[w]["zp_high"]) for w in sorted(res))))
     for w in sorted(WORKS):
         r = res[w]
         cy = r["c64_cycles"] - base["c64_cycles"]

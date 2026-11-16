@@ -157,7 +157,18 @@ setlev(int x, int y, int typ)
 		levl[x][y].typ = typ;
 }
 
-static void
+/* Out of line on the 6502 side.  Inlined into main(), and mfndpos() into touch() (its only
+   call in workloads 0-3), they gave main() more zero-page temporaries than Oscar64 has room
+   for ($53-$8F), and, unchecked, some landed on the KERNAL's jiffy clock at $A0-$A2, which the
+   emulator ticks (compat #72, r69).  Both run once, in workload 0 too, so they cancel out.
+   calibrate.py checks every listing (tools/check_listing.py). */
+#ifdef __OSCAR64C__
+#define CAL_NOINLINE	__noinline
+#else
+#define CAL_NOINLINE
+#endif
+
+static CAL_NOINLINE void
 setup(void)
 {
 	int i, x, y;
@@ -252,10 +263,15 @@ setup(void)
 
 /* one more call of each extracted function, in every build.  Oscar64 inlines a function that
    has one call site (with -Os), and in the game each has many; WORK=0 makes these calls too,
-   so they cancel out.  (mm_aggression() is static in mon.c, with one caller in the game too.) */
+   so they cancel out.  (mm_aggression() is static in mon.c, with one caller in the game too.)
+   mfndpos() gets a second call that never runs, with flags known only at run time, as in the
+   game: otherwise, in workloads 0-3, Oscar64 inlines it here, or, with two calls of the same
+   constant flags, compiles it for those flags alone, and it is not the function workload 4
+   measures. */
 long touched;
+volatile char cal_never;
 
-static void
+static CAL_NOINLINE void
 touch(void)
 {
 	coord poss[9];
@@ -266,7 +282,9 @@ touch(void)
 	t += is_pool(1, 1) + is_lava(1, 1) + on_level(&u.uz, &u.uz);
 	t += (strstri("Elbereth", "bere") != 0) + lowc('A');
 	m->mx = 5; m->my = 5;
-	t += mfndpos(VMON(m), poss, info, ALLOW_U);
+	t += mfndpos(VMON(m), poss, info, subjflags[0]);	/* the jackal's: ALLOW_U */
+	if (cal_never)
+		t += mfndpos(VMON(m), poss, info, subjflags[1]);
 	t += curr_mon_load(VMON(m)) + may_passwall(1, 1) + may_dig(1, 1) + bad_rock(m->data, 1, 1);
 	t += onscary(5, 5, VMON(m)) + sengr_at("Elbereth", 5, 5) + (engr_at(5, 5) != 0);
 	t += (sobj_at(BOULDER, 40, 6) != 0) + (t_at(5, 3) != 0) + (m_carrying(VMON(m), PICK_AXE) != 0);

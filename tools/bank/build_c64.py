@@ -17,9 +17,10 @@ usage: tools/bank/build_c64.py --plan PLAN.json [--out DIR] [--check-only]
    resolved through the map in the caller's bank (the listing names such an address after
    whichever bank's object is there).  Then checks the intermediate code, which names every
    direct callee, the same way, and that no banked function writes the bank register or
-   has its address taken (so calls through pointers reach resident code only).  Reports the
-   bytes per bank, the resident code, resident code inside the bank window, and what a
-   failed link left unplaced.
+   has its address taken (so calls through pointers reach resident code only).  And
+   tools/check_listing.py's two checks: no zero-page temporary past $8F (compat #72) and no
+   branch out of range (compat #73).  Reports the bytes per bank, the resident code,
+   resident code inside the bank window, and what a failed link left unplaced.
 
 --linker-stubs: for an Oscar64 whose linker inserts the bank switches (Linker::InsertBankCalls,
 the pin from commit 72, ADR-0007): bankgen.py gives trampolines only to the functions that
@@ -43,7 +44,9 @@ import time
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "tools", "measure"))
+sys.path.insert(0, os.path.join(ROOT, "tools"))
 import measure_oscar64 as mo   # noqa: E402
+import check_listing   # noqa: E402
 
 INSN = re.compile(r"^(?:([0-9a-f]{2}):)?([0-9a-f]{4}) : (?:[0-9a-f_ ]{8}) (\w+)\s+(\S+)?(?:\s*; \(([^ .)]+))?")
 FUNC = re.compile(r"^([A-Za-z_]\w*): ; ")
@@ -302,6 +305,11 @@ def main():
                                     sum(1 for b in bank_of.values() if b is None), n, len(bad)))
     for x in bad[:20]:
         print("  %s (bank %s) -> %s (bank %s)" % x)
+    zbad, top = check_listing.check(asm, check_listing.ZP_END)
+    print("zero page and branches (check_listing.py): highest temporary %s, %d problem%s" % (
+        "$%02x (%s)" % top if top else "none", len(zbad), "" if len(zbad) == 1 else "s"))
+    for x in zbad[:20]:
+        print("  " + x)
     if os.path.exists(mp) and os.path.exists(asm[:-4] + ".int"):
         ibad, switching, icalls, ptr, taken = check_int(asm[:-4] + ".int", mp, a.linker_stubs)
         print("intermediate code: %d direct calls; %d cross a bank without a trampoline; %d banked "
@@ -330,7 +338,7 @@ def main():
         if left:
             print("left unplaced by the failed link: " + ", ".join(
                 "%s %s %d B" % ("banked" if b else "resident", k.lower(), n) for (k, b), n in sorted(left.items())))
-    return 1 if bad else 0
+    return 1 if bad or zbad else 0
 
 
 if __name__ == "__main__":
