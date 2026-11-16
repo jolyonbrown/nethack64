@@ -512,6 +512,21 @@ Add new tasks at the bottom of the right section.
       resident code; the hottest (126, 42) went to column tables in the source instead
       (T2.10). Kept for later, with the resident budget.
 
+- [ ] T1.50 Zero page past $8F (compat #72, r69): Oscar64 gives a function the temporaries it
+      needs past the end of its area, unchecked, where the KERNAL's IRQ changes them. A pin
+      fix: spill what does not fit to memory, or at least an error naming the function; and
+      `tools/check_listing.py` (2026-11-16) on every listing meanwhile: in the whole-game
+      build (`tools/bank/build_c64.py`) and the speed harness (`calibrate.py`; its `main()`
+      reaches $A2-$A4 in workloads 1-3, re-checked with the emulator's clock off: unaffected).
+      The game's highest is `m_move`'s $8D (2026-11-15 listing): re-measure on the next
+      whole-game build.
+- [ ] T1.51 A branch out of range in a folded copy loop at -Os (compat #73, r70): a pin fix
+      (a JMP back, or no fold past 25 copies). None in the game's listing (2026-11-15).
+- [ ] T1.52 Oscar64 hangs at -Os (CPU-bound, no memory growth; -O2 compiles in 3 s) on a line
+      reducer's candidate of the speed harness: `mfndpos` with `wantpool = FALSE; goto
+      nexttry;` inside the position loop. Reduce to a repro; case in
+      `build/oscar64-hang-2026-11-16/` (2026-11-16, not committed).
+
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 
 - [ ] T2.1 Banking spike A (EF execute-in-place, trampolines) with hack.c + apply.c + zap.c
@@ -631,6 +646,10 @@ Add new tasks at the bottom of the right section.
       typed 16-bit spaces keep the layouts and saves. Next: translation reuse, faults, the ADR.
       — 2026-11-16: ADR-0009 proposed (typed far spaces, identity window for near objects,
       translation at far -> `void *`/`char *`, allocators per space, reuse and pinning).
+      — 2026-11-16: compat #72 was zero page, not the optimiser (T1.50): the counting build's
+      `main()` had temporaries on the emulator's jiffy clock. Published numbers re-checked
+      with the clock off: the same. Next: the harness kept within $8F (`setup()`/`touch()`
+      out of line; `mfndpos` still inlined into `touch()` reaches $92), re-published.
 
 ## Housekeeping
 

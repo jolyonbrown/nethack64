@@ -350,6 +350,13 @@ mapped (a warm cache); the same checksums as the host build, no faults
   (`youmonst`, locals): map the pages of near RAM to themselves in every type's table, so that
   a near address is a far pointer too.
 - Two more preprocessor gaps on the way (compat #70, #71: a macro that names itself; `##` on a
-  nested macro's parameter), and a wrong-code bug at `-Os` that the counting build showed,
-  being reduced.
+  nested macro's parameter). The counting build's wrong results at `-Os` were no optimiser
+  bug (compat #72, r69): the harness's `main()`, with everything inlined, needed zero-page
+  temporaries up to $AD, Oscar64 does not check that they fit its area ($53-$8F), and the
+  emulator's jiffy clock at $A0-$A2 ticked a loop flag. The numbers above were re-run with the
+  clock off: the same cycles and checksums.
+- **Zero page is the limit to watch.** The whole game's highest temporary (listing of
+  2026-11-15) is `m_move`'s $8D, two bytes short of $8F; past it, the KERNAL's IRQ changes
+  them on the real machine. Translations reused across a function (ADR-0009, point 4) keep
+  more pointers there. `tools/check_listing.py` checks a listing.
 
