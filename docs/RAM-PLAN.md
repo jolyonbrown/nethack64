@@ -507,6 +507,15 @@ The whole of port/src with `struct permonst` and `struct attack_s` far (`-dNH_FA
 `mondata.h` macro translating on its own. Reuse would cut both the code and the cycles, so it
 comes before the inline hit path, which would add code.
 
+**`objects[]` and the squares too** (2026-11-17, `docs/data/measure-c64-far3-2026-11-17.txt`):
+`struct objclass` in space 2 and `struct rm_s` in space 3 as well (`objclass.h`, `rm.h`, under
+`NH_FAR_SPACES`). Of the 273 warnings 2026, 270 are in the generated stubs and 3 in the game:
+`save.c` 494 and 504 hand a square of `levl` to `bwrite` as `void *` (real: those need a copy
+through a near buffer), and `restore.c` 742 reads into a local `struct rm_s` (near, harmless).
+Code 1,248,332 bytes (+5.1% over near, 8.7 KB more than `mons[]` alone); this undercounts,
+since `objects[]` and `level` stay near in the measurement and a known near object is not
+translated: in the build `levl[x][y]` and `objects[i]` will be.
+
 `farify.py`'s rewrite (T2.11) cost +13% for all four: about 70 translations of some 22 cycles,
 inline. The compiler translates every access, `youmonst` and the `mondata.h` macros included,
 through a `jsr` (about 34 cycles for a page, 50 with an offset). Next: the hit path inline (a

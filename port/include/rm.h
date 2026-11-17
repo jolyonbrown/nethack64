@@ -341,6 +341,10 @@ struct rm_s {
 	Bitfield(roomno,6);	/* room # for special rooms */
 	Bitfield(edge,1);	/* marks boundaries for special rooms*/
 };
+#if defined(C64) && defined(__OSCAR64C__) && defined(NH_FAR_SPACES)
+/* T2.12, a measurement, not yet the build's: the level's squares in far space 3 (ADR-0009) */
+#pragma farspace(3, rm_s)
+#endif
 
 /*
  * Add wall angle viewing by defining "modes" for each wall type.  Each

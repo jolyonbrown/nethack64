@@ -114,6 +114,10 @@ struct objclass {
 	uchar	oc_pad_c64[6];
 #endif
 };
+#if defined(C64) && defined(__OSCAR64C__) && defined(NH_FAR_SPACES)
+/* T2.12, a measurement, not yet the build's: objects[] in far space 2 (ADR-0009) */
+#pragma farspace(2, objclass)
+#endif
 
 #if defined(C64) && defined(__OSCAR64C__)
 static_assert(sizeof (struct objclass) == 32, "struct objclass is 32 bytes (ADR-0009)");
