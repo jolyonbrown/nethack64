@@ -1,7 +1,7 @@
 From 387cd3d8656306ec5d00a94f479db02de5ec3bf4 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 17 Nov 2026 12:04:51 +0000
-Subject: [PATCH 3/3] Far spaces: one translation for a group of accesses to
+Subject: [PATCH 3/4] Far spaces: one translation for a group of accesses to
  one object
 
 The front end records the size of the far struct object an access

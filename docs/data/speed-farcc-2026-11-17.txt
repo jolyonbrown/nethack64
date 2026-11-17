@@ -1,27 +1,29 @@
-# calibrate.py --far-cc, 2026-11-17: the speed harness with an Oscar64 that has far spaces (T2.12, the
-# fork's feature/far-spaces at 39f22f6: pin of 80 commits + 2), every access to a far type translated by
-# the compiler through cal.c's farxlN/farxoN (a JSR, the hit path of the game), nothing rewritten.
-# Same checksums as the host build, no faults. -Os -xb. Near numbers: the same compiler, far off.
+# calibrate.py --far-cc, 2026-11-17, fork feature/far-spaces 4cbe292 (pin of 80 + 4 commits: translation
+# at each access, groups of accesses to one object sharing a pinned translation, within and
+# across blocks). Same checksums as the host, no faults. -Os -xb. The far builds' region starts at
+# $0860 with a 512-byte stack (they are 1.5 KB bigger); the near build's is as before.
+# history (mfndpos, cycles a call; near 11,250.7): every access through a jsr: 11,620.8 (mons[]),
+# 14,900.3 (all four); groups within a block: 11,542.3 and 14,660.4; across blocks: below.
 
 far permonst (no-rewrite), same checksums, no faults; highest zero-page temporaries: 0 $82 mfndpos, 1 $82 mfndpos, 2 $82 mfndpos, 3 $82 mfndpos, 4 $82 mfndpos
 workload              near cycles/call   far cycles/call   slower
   isok                             43.2              43.2     1.00x
-  dist2                           237.2             240.6     1.01x
-  is_pool + is_lava               164.1             163.8     1.00x
-  mfndpos                       11250.7           11620.8     1.03x
+  dist2                           237.2             237.5     1.00x
+  is_pool + is_lava               164.1             162.9     0.99x
+  mfndpos                       11250.7           11504.5     1.02x
   far cost a call, isok: none
-  far cost a call, dist2: dist2 +3.4
-  far cost a call, is_pool + is_lava: none
-  far cost a call, mfndpos: mfndpos +263.1, farxo1 +91.6, bad_rock +18.2, onscary +7.8, is_lava -2.4, is_pool -2.9
+  far cost a call, dist2: none
+  far cost a call, is_pool + is_lava: is_pool -0.6, is_lava -0.6
+  far cost a call, mfndpos: mfndpos +233.3, farxl1 +18.7, bad_rock +15.9, farxo1 +5.3, onscary +3.7, main -5.8
 
-far permonst+monst_s+obj_s+trap_s (no-rewrite), same checksums, no faults; highest zero-page temporaries: 0 $82 mfndpos, 1 $82 mfndpos, 2 $82 mfndpos, 3 $82 mfndpos, 4 $82 mfndpos
+far permonst+monst_s+obj_s+trap_s (no-rewrite), same checksums, no faults; highest zero-page temporaries: 0 $80 mfndpos, 1 $80 mfndpos, 2 $80 mfndpos, 3 $80 mfndpos, 4 $80 mfndpos
 workload              near cycles/call   far cycles/call   slower
   isok                             43.2              43.2     1.00x
-  dist2                           237.2             237.8     1.00x
-  is_pool + is_lava               164.1             163.0     0.99x
-  mfndpos                       11250.7           14900.3     1.32x
+  dist2                           237.2             237.9     1.00x
+  is_pool + is_lava               164.1             163.1     0.99x
+  mfndpos                       11250.7           13203.1     1.17x
   far cost a call, isok: none
-  far cost a call, dist2: dist2 +0.7
-  far cost a call, is_pool + is_lava: is_pool -0.6, is_lava -0.6
-  far cost a call, mfndpos: farxo4 +901.5, t_at +761.5, mfndpos +750.6, farxo2 +702.5, farxl4 +376.1, farxo1 +93.3
+  far cost a call, dist2: dist2 +0.8
+  far cost a call, is_pool + is_lava: is_pool -0.5, is_lava -0.5
+  far cost a call, mfndpos: mfndpos +687.1, t_at +444.1, farxl4 +377.0, farxo2 +249.1, farxl2 +134.6, farxl1 +18.7
 

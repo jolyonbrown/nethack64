@@ -1,7 +1,7 @@
 From 39f22f65b21655a97ef1fe89dcc8230e3526f480 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 17 Nov 2026 11:12:04 +0000
-Subject: [PATCH 2/3] Far spaces: offsets, provenance, built-ins, warning 2026,
+Subject: [PATCH 2/4] Far spaces: offsets, provenance, built-ins, warning 2026,
  bytecode error
 
 - farxoN: the address in A and X plus an offset under 256 in Y,

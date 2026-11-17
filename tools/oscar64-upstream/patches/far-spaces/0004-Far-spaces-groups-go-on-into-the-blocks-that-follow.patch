@@ -1,0 +1,538 @@
+From 4cbe292821472b9be1a8791887f645038f3ea43f Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Tue, 17 Nov 2026 12:12:22 +0000
+Subject: [PATCH 4/4] Far spaces: groups go on into the blocks that follow
+
+A procedure-level driver lowers far accesses block by block, in
+depth-first order. A group still open at the end of a block goes on
+into a later block that uses it. A block takes a group over when every
+block leading into it passes on the same translation in the same slot,
+and all of them come before it, so never over a loop's way back.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/InterCode.cpp | 421 ++++++++++++++++++++++++++++--------------
+ oscar64/InterCode.h   |  10 +-
+ 2 files changed, 292 insertions(+), 139 deletions(-)
+
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index a1b8644..f5435ad 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -27126,179 +27126,224 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& o
+ // accesses are translated one by one.
+ static const int FAR_PIN_SLOTS = 4;
+ 
+-struct FarGroup
+-{
+-	int		mSpace, mTemp, mFirst, mLast, mCount, mSlot, mXTemp;
+-	bool	mOpen;
+-};
+-
+ static bool IsFarGroupable(const InterInstruction* ins, const InterOperand& op)
+ {
+ 	return ins->mCode != IC_STRCPY && op.mMemory == IM_INDIRECT && op.mTemp >= 0 && op.mFarObject > 0 &&
+ 		op.mIntConst >= 0 && op.mIntConst + (op.mOperandSize > 0 ? op.mOperandSize : 1) <= op.mFarObject;
+ }
+ 
+-bool InterCodeBasicBlock::LowerFarAccesses(void)
++// Whether block b, which comes after the block that holds the group, reaches the group's
++// pointer through the group again before a call or a new value of the pointer
++static bool FarGroupUsedAhead(InterCodeBasicBlock* b, int space, int temp)
+ {
+-	bool	changed = false;
++	if (!b)
++		return false;
++	for (int i = 0; i < b->mInstructions.Size(); i++)
++	{
++		InterInstruction* ins = b->mInstructions[i];
++		if (ins->mCode == IC_CALL || ins->mCode == IC_CALL_NATIVE || ins->mCode == IC_ASSEMBLER || ins->mCode == IC_DISPATCH)
++			return false;
++		for (int k = 0; k < 2; k++)
++		{
++			if ((k == 0 && (ins->mCode == IC_LOAD || ins->mCode == IC_COPY)) || (k == 1 && (ins->mCode == IC_STORE || ins->mCode == IC_FILL || ins->mCode == IC_COPY)))
++			{
++				const InterOperand& op = ins->mSrc[k];
++				if (op.mTemp == temp && IsFarGroupable(ins, op) && FarSpaceOfOperand(op) == space)
++					return true;
++			}
++		}
++		if (ins->mDst.mTemp == temp)
++			return false;
++	}
++	return false;
++}
+ 
+-	if (!mVisited)
++bool InterCodeBasicBlock::LowerFarAccesses(const ExpandingArray<FarGroup>& inherited, ExpandingArray<FarGroup>& passed, InterCodeBasicBlock* trueSingle, InterCodeBasicBlock* falseSingle)
++{
++	int n = mInstructions.Size();
++	// for each instruction and operand: the group it belongs to, -1 alone, -2 near
++	ExpandingArray<int>	gof0, gof1;
++	ExpandingArray<FarGroup>	groups;
++	bool any = false;
++
++	// the groups every block that leads here leaves open for it: their translation dominates
++	// this block, and nothing runs between
++	for (int j = 0; j < inherited.Size(); j++)
+ 	{
+-		mVisited = true;
++		FarGroup	fg = inherited[j];
++		fg.mInherited = true;
++		fg.mOpen = true;
++		fg.mPass = false;
++		fg.mFirst = -1;
++		fg.mLast = -1;
++		groups.Push(fg);
++	}
+ 
+-		int n = mInstructions.Size();
+-		// for each instruction and operand: the group it belongs to, -1 alone, -2 near
+-		ExpandingArray<int>	gof0, gof1;
+-		ExpandingArray<FarGroup>	groups;
+-		bool any = false;
++	for (int i = 0; i < n; i++)
++	{
++		InterInstruction* ins = mInstructions[i];
++		int s[2] = { 0, 0 };
+ 
+-		for (int i = 0; i < n; i++)
++		switch (ins->mCode)
+ 		{
+-			InterInstruction* ins = mInstructions[i];
+-			int s[2] = { 0, 0 };
+-
+-			switch (ins->mCode)
+-			{
+-			case IC_LOAD:
+-				s[0] = FarSpaceOfOperand(ins->mSrc[0]);
+-				break;
+-			case IC_STORE:
+-			case IC_FILL:
+-				s[1] = FarSpaceOfOperand(ins->mSrc[1]);
+-				break;
+-			case IC_COPY:
+-			case IC_STRCPY:
+-				s[0] = FarSpaceOfOperand(ins->mSrc[0]);
+-				s[1] = FarSpaceOfOperand(ins->mSrc[1]);
+-				break;
+-			case IC_CALL:
+-			case IC_CALL_NATIVE:
+-			case IC_ASSEMBLER:
+-			case IC_DISPATCH:
+-				for (int j = 0; j < groups.Size(); j++)
+-					groups[j].mOpen = false;
+-				break;
+-			}
++		case IC_LOAD:
++			s[0] = FarSpaceOfOperand(ins->mSrc[0]);
++			break;
++		case IC_STORE:
++		case IC_FILL:
++			s[1] = FarSpaceOfOperand(ins->mSrc[1]);
++			break;
++		case IC_COPY:
++		case IC_STRCPY:
++			s[0] = FarSpaceOfOperand(ins->mSrc[0]);
++			s[1] = FarSpaceOfOperand(ins->mSrc[1]);
++			break;
++		case IC_CALL:
++		case IC_CALL_NATIVE:
++		case IC_ASSEMBLER:
++		case IC_DISPATCH:
++			for (int j = 0; j < groups.Size(); j++)
++				groups[j].mOpen = false;
++			break;
++		}
+ 
+-			int g[2] = { -2, -2 };
+-			for (int k = 0; k < 2; k++)
++		int g[2] = { -2, -2 };
++		for (int k = 0; k < 2; k++)
++		{
++			if (!s[k])
++				continue;
++			any = true;
++			if (ins->mVolatile)
++				mProc->mModule->mErrors->Error(ins->mLocation, EERR_INCOMPATIBLE_TYPES, "Volatile access to far data");
++			const InterOperand& op = ins->mSrc[k];
++			g[k] = -1;
++			if (IsFarGroupable(ins, op))
+ 			{
+-				if (!s[k])
+-					continue;
+-				any = true;
+-				if (ins->mVolatile)
+-					mProc->mModule->mErrors->Error(ins->mLocation, EERR_INCOMPATIBLE_TYPES, "Volatile access to far data");
+-				const InterOperand& op = ins->mSrc[k];
+-				g[k] = -1;
+-				if (IsFarGroupable(ins, op))
++				int j = 0;
++				while (j < groups.Size() && !(groups[j].mOpen && groups[j].mSpace == s[k] && groups[j].mTemp == op.mTemp))
++					j++;
++				if (j == groups.Size())
+ 				{
+-					int j = 0;
+-					while (j < groups.Size() && !(groups[j].mOpen && groups[j].mSpace == s[k] && groups[j].mTemp == op.mTemp))
+-						j++;
+-					if (j == groups.Size())
+-					{
+-						FarGroup	fg;
+-						fg.mSpace = s[k]; fg.mTemp = op.mTemp; fg.mFirst = i; fg.mLast = i; fg.mCount = 0; fg.mSlot = -1; fg.mXTemp = -1;
+-						fg.mOpen = true;
+-						groups.Push(fg);
+-					}
+-					groups[j].mLast = i;
+-					groups[j].mCount++;
+-					g[k] = j;
++					FarGroup	fg;
++					fg.mSpace = s[k]; fg.mTemp = op.mTemp; fg.mFirst = i; fg.mLast = i; fg.mCount = 0; fg.mSlot = -1; fg.mXTemp = -1;
++					fg.mOpen = true; fg.mInherited = false; fg.mPass = false;
++					groups.Push(fg);
+ 				}
++				groups[j].mLast = i;
++				groups[j].mCount++;
++				g[k] = j;
+ 			}
+-			gof0.Push(g[0]);
+-			gof1.Push(g[1]);
++		}
++		gof0.Push(g[0]);
++		gof1.Push(g[1]);
+ 
+-			// a new value of a pointer ends its groups
+-			if (ins->mDst.mTemp >= 0)
++		// a new value of a pointer ends its groups
++		if (ins->mDst.mTemp >= 0)
++		{
++			for (int j = 0; j < groups.Size(); j++)
++				if (groups[j].mOpen && groups[j].mTemp == ins->mDst.mTemp)
++					groups[j].mOpen = false;
++		}
++	}
++
++	// a group open at the end goes on into a block after this one that uses it (which takes it
++	// over if every block leading there passes it on)
++	for (int j = 0; j < groups.Size(); j++)
++	{
++		FarGroup& fg(groups[j]);
++		if (fg.mOpen && (FarGroupUsedAhead(trueSingle, fg.mSpace, fg.mTemp) || FarGroupUsedAhead(falseSingle, fg.mSpace, fg.mTemp)))
++			fg.mPass = true;
++	}
++
++	// slots: an inherited group keeps its own; a new one of two or more accesses, or one
++	// that goes on, takes one free over its span (to the end if it goes on)
++	int slotEnd[FAR_PIN_SLOTS];
++	for (int k = 0; k < FAR_PIN_SLOTS; k++)
++		slotEnd[k] = -2;
++	for (int j = 0; j < groups.Size(); j++)
++	{
++		FarGroup& fg(groups[j]);
++		if (fg.mInherited)
++			slotEnd[fg.mSlot] = fg.mPass ? n : fg.mLast;
++	}
++	for (int j = 0; j < groups.Size(); j++)
++	{
++		FarGroup& fg(groups[j]);
++		if (fg.mInherited || (fg.mCount < 2 && !fg.mPass))
++			continue;
++		for (int k = 0; k < FAR_PIN_SLOTS; k++)
++		{
++			if (slotEnd[k] < fg.mFirst)
+ 			{
+-				for (int j = 0; j < groups.Size(); j++)
+-					if (groups[j].mOpen && groups[j].mTemp == ins->mDst.mTemp)
+-						groups[j].mOpen = false;
++				fg.mSlot = k;
++				slotEnd[k] = fg.mPass ? n : fg.mLast;
++				break;
+ 			}
+ 		}
++		if (fg.mSlot < 0)
++			fg.mPass = false;
++	}
+ 
+-		if (any)
++	if (any)
++	{
++		GrowingInstructionArray	out(nullptr);
++		for (int i = 0; i < n; i++)
+ 		{
+-			// slots for the groups of two or more, by the order they start in
+-			int slotEnd[FAR_PIN_SLOTS];
+-			for (int k = 0; k < FAR_PIN_SLOTS; k++)
+-				slotEnd[k] = -1;
++			InterInstruction* ins = mInstructions[i];
++
+ 			for (int j = 0; j < groups.Size(); j++)
+ 			{
+-				if (groups[j].mCount < 2)
+-					continue;
+-				for (int k = 0; k < FAR_PIN_SLOTS; k++)
++				FarGroup& fg(groups[j]);
++				if (!fg.mInherited && fg.mSlot >= 0 && fg.mFirst == i)
+ 				{
+-					if (slotEnd[k] < groups[j].mFirst)
+-					{
+-						groups[j].mSlot = k;
+-						slotEnd[k] = groups[j].mLast;
+-						break;
+-					}
++					InterInstruction* xins = new InterInstruction(ins->mLocation, IC_UNARY_OPERATOR);
++					xins->mOperator = IA_FARXLAT;
++					xins->mSrc[0].mType = IT_POINTER;
++					xins->mSrc[0].mTemp = fg.mTemp;
++					xins->mConst.mType = IT_INT32;
++					xins->mConst.mIntConst = fg.mSpace + ((int64)(fg.mSlot + 1) << 16);
++					xins->mNumOperands = 1;
++					xins->mDst.mType = IT_POINTER;
++					xins->mDst.mTemp = mProc->AddTemporary(IT_POINTER);
++					out.Push(xins);
++					fg.mXTemp = xins->mDst.mTemp;
+ 				}
+ 			}
+ 
+-			GrowingInstructionArray	out(nullptr);
+-			for (int i = 0; i < n; i++)
++			int g[2] = { gof0[i], gof1[i] };
++			for (int k = 0; k < 2; k++)
+ 			{
+-				InterInstruction* ins = mInstructions[i];
+-
+-				for (int j = 0; j < groups.Size(); j++)
+-				{
+-					FarGroup& fg(groups[j]);
+-					if (fg.mSlot >= 0 && fg.mFirst == i)
+-					{
+-						InterInstruction* xins = new InterInstruction(ins->mLocation, IC_UNARY_OPERATOR);
+-						xins->mOperator = IA_FARXLAT;
+-						xins->mSrc[0].mType = IT_POINTER;
+-						xins->mSrc[0].mTemp = fg.mTemp;
+-						xins->mConst.mType = IT_INT32;
+-						xins->mConst.mIntConst = fg.mSpace + ((int64)(fg.mSlot + 1) << 16);
+-						xins->mNumOperands = 1;
+-						xins->mDst.mType = IT_POINTER;
+-						xins->mDst.mTemp = mProc->AddTemporary(IT_POINTER);
+-						out.Push(xins);
+-						fg.mXTemp = xins->mDst.mTemp;
+-					}
+-				}
+-
+-				int g[2] = { gof0[i], gof1[i] };
+-				for (int k = 0; k < 2; k++)
+-				{
+-					if (g[k] == -2)
+-						continue;
+-					InterOperand& op = ins->mSrc[k];
+-					if (g[k] >= 0 && groups[g[k]].mSlot >= 0)
+-					{
+-						// through the group's translation, at the field's offset
+-						op.mTemp = groups[g[k]].mXTemp;
+-						op.mMemoryBase = IM_NONE;
+-						op.mLinkerObject = nullptr;
+-						op.mVarIndex = -1;
+-						op.mFarSpace = 0;
+-						op.mFarObject = 0;
+-						op.mRestricted = 0;
+-					}
+-					else
+-						LowerFarOperand(mProc, out, ins, op, FarSpaceOfOperand(op));
++				if (g[k] == -2)
++					continue;
++				InterOperand& op = ins->mSrc[k];
++				if (g[k] >= 0 && groups[g[k]].mSlot >= 0)
++				{
++					// through the group's translation, at the field's offset
++					op.mTemp = groups[g[k]].mXTemp;
++					op.mMemoryBase = IM_NONE;
++					op.mLinkerObject = nullptr;
++					op.mVarIndex = -1;
++					op.mFarSpace = 0;
++					op.mFarObject = 0;
++					op.mRestricted = 0;
+ 				}
+-
+-				out.Push(ins);
++				else
++					LowerFarOperand(mProc, out, ins, op, FarSpaceOfOperand(op));
+ 			}
+ 
+-			mInstructions.SetSize(0);
+-			for (int i = 0; i < out.Size(); i++)
+-				mInstructions.Push(out[i]);
+-			changed = true;
++			out.Push(ins);
+ 		}
+ 
+-		if (mTrueJump && mTrueJump->LowerFarAccesses()) changed = true;
+-		if (mFalseJump && mFalseJump->LowerFarAccesses()) changed = true;
++		mInstructions.SetSize(0);
++		for (int i = 0; i < out.Size(); i++)
++			mInstructions.Push(out[i]);
+ 	}
+ 
+-	return changed;
++	for (int j = 0; j < groups.Size(); j++)
++		if (groups[j].mPass && groups[j].mSlot >= 0)
++			passed.Push(groups[j]);
++
++	return any;
+ }
+ 
+ void InterCodeBasicBlock::CheckNullptrDereference(void) 
+@@ -29450,6 +29495,107 @@ void InterCodeProcedure::BuildLocalAliasTable(void)
+ 	Disassemble("Built alias temps");
+ }
+ 
++// Far accesses (#pragma farspace), block by block in depth-first order, so that a block
++// entered from one block only comes after it and takes over the groups it leaves open
++bool InterCodeProcedure::LowerFarAccesses(void)
++{
++	ExpandingArray<InterCodeBasicBlock*>	order, stack;
++	ResetVisited();
++	stack.Push(mEntryBlock);
++	while (stack.Size())
++	{
++		InterCodeBasicBlock* b = stack.Pop();
++		if (b->mVisited)
++			continue;
++		b->mVisited = true;
++		order.Push(b);
++		if (b->mFalseJump && !b->mFalseJump->mVisited)
++			stack.Push(b->mFalseJump);
++		if (b->mTrueJump && !b->mTrueJump->mVisited)
++			stack.Push(b->mTrueJump);
++	}
++
++	// the blocks that lead into each block, by their place in the order; -1 for the entry
++	ExpandingArray<ExpandingArray<int>*>	preds;
++	for (int i = 0; i < order.Size(); i++)
++		preds.Push(new ExpandingArray<int>());
++	if (order.Size())
++		preds[0]->Push(-1);
++	for (int i = 0; i < order.Size(); i++)
++	{
++		InterCodeBasicBlock* succ[2] = { order[i]->mTrueJump, order[i]->mFalseJump };
++		for (int k = 0; k < 2; k++)
++		{
++			if (!succ[k] || (k == 1 && succ[1] == succ[0]))
++				continue;
++			int j = 0;
++			while (j < order.Size() && order[j] != succ[k])
++				j++;
++			if (j < order.Size())
++				preds[j]->Push(i);
++		}
++	}
++
++	ExpandingArray<ExpandingArray<FarGroup>*>	passed;
++	for (int i = 0; i < order.Size(); i++)
++		passed.Push(new ExpandingArray<FarGroup>());
++
++	bool changed = false;
++	for (int i = 0; i < order.Size(); i++)
++	{
++		// a group every block leading here passes on (the same translation in its slot,
++		// from a block that dominates this one, nothing between): only when all of them come
++		// before this block, so not over a loop's way back
++		ExpandingArray<FarGroup>	inherited;
++		const ExpandingArray<int>& pi(*preds[i]);
++		bool all = pi.Size() > 0;
++		for (int k = 0; k < pi.Size(); k++)
++			if (pi[k] < 0 || pi[k] >= i)
++				all = false;
++		if (all)
++		{
++			const ExpandingArray<FarGroup>& first(*passed[pi[0]]);
++			for (int g = 0; g < first.Size(); g++)
++			{
++				bool everywhere = true;
++				for (int k = 1; k < pi.Size() && everywhere; k++)
++				{
++					const ExpandingArray<FarGroup>& other(*passed[pi[k]]);
++					int h = 0;
++					while (h < other.Size() && !(other[h].mXTemp == first[g].mXTemp && other[h].mSlot == first[g].mSlot && other[h].mTemp == first[g].mTemp))
++						h++;
++					if (h == other.Size())
++						everywhere = false;
++				}
++				if (everywhere)
++					inherited.Push(first[g]);
++			}
++		}
++		// the blocks after this one it leads to, which may take its groups over
++		InterCodeBasicBlock* next[2] = { nullptr, nullptr };
++		InterCodeBasicBlock* succ[2] = { order[i]->mTrueJump, order[i]->mFalseJump };
++		for (int k = 0; k < 2; k++)
++		{
++			if (!succ[k] || (k == 1 && succ[1] == succ[0]))
++				continue;
++			int j = 0;
++			while (j < order.Size() && order[j] != succ[k])
++				j++;
++			if (j < order.Size() && j > i)
++				next[k] = succ[k];
++		}
++		if (order[i]->LowerFarAccesses(inherited, *passed[i], next[0], next[1]))
++			changed = true;
++	}
++
++	for (int i = 0; i < passed.Size(); i++)
++		delete passed[i];
++	for (int i = 0; i < preds.Size(); i++)
++		delete preds[i];
++
++	return changed;
++}
++
+ void InterCodeProcedure::Close(void)
+ {
+ 	GrowingTypeArray	tstack(IT_NONE);
+@@ -30645,8 +30791,7 @@ void InterCodeProcedure::Close(void)
+ 	mEntryBlock->ReduceTempLivetimes();
+ 	DisassembleDebug("reduce temp livetimes");
+ 
+-	ResetVisited();
+-	if (mEntryBlock->LowerFarAccesses())
++	if (LowerFarAccesses())
+ 	{
+ 		BuildDataFlowSets();
+ 		DisassembleDebug("LowerFarAccesses");
+diff --git a/oscar64/InterCode.h b/oscar64/InterCode.h
+index a7fe958..1c6bd05 100644
+--- a/oscar64/InterCode.h
++++ b/oscar64/InterCode.h
+@@ -395,6 +395,13 @@ public:
+ 	void Disassemble(FILE* file, InterCodeProcedure * proc);
+ };
+ 
++// A group of far accesses through one pointer that share a pinned translation (LowerFarAccesses)
++struct FarGroup
++{
++	int		mSpace, mTemp, mFirst, mLast, mCount, mSlot, mXTemp;
++	bool	mOpen, mInherited, mPass;
++};
++
+ class InterCodeBasicBlock
+ {
+ public:
+@@ -771,7 +778,7 @@ public:
+ 	void WarnInvalidValueRanges(void);
+ 	void CheckValueReturn(void);
+ 	void CheckNullptrDereference(void);
+-	bool LowerFarAccesses(void);
++	bool LowerFarAccesses(const ExpandingArray<struct FarGroup>& inherited, ExpandingArray<struct FarGroup>& passed, InterCodeBasicBlock* trueSingle, InterCodeBasicBlock* falseSingle);
+ 
+ 	void CollectGlobalReferences(NumberSet& referencedGlobals, NumberSet& modifiedGlobals, bool & storesIndirect, bool & loadsIndirect, bool & globalsChecked);
+ 	
+@@ -830,6 +837,7 @@ public:
+ 	int AddRestricted(void);
+ 
+ 	void Close(void);
++	bool LowerFarAccesses(void);
+ 
+ //	void Set(InterCodeIDMapper* mapper, BitVector localStructure, Scanner scanner, bool debug);
+ 
+-- 
+2.43.0
+

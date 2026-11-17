@@ -733,6 +733,9 @@ Add new tasks at the bottom of the right section.
       only): no warning 2026 in the game's files; +52 KB of code (+4.4%). Reuse first.
       — 2026-11-17: groups within a block, pinned (fork commit 3): VICE 10/10 with a check
       that fails without the pins; harness +2.6% / +30%. Next: groups across blocks.
+      — 2026-11-17: groups across blocks (fork commit 4): harness +2.3% / +17%; port/src with
+      the `mons[]` types far +49 KB (+4.2%). Next: per-function pin slots (reuse across calls),
+      a shorter call sequence; then the game.
 
 ## Housekeeping
 

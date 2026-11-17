@@ -489,6 +489,17 @@ harness: `mfndpos` +2.6% with `mons[]` far, +30% with all four types (+3% and +3
 blocks are short (each `&&` and `||` of `mondata.h`'s macros starts one), so groups across
 blocks come next (`t_at()`'s loop still translates three times a step).
 
+**Groups across blocks** (the fork's fourth commit): a group still open at the end of a block
+goes on into a later block that uses it, which takes it over when every block leading into it
+passes on the same translation in the same slot (all of them before it, so not over a loop's
+way back): every path from the translation keeps the slot, with no call and no new value of
+the pointer. `t_at()` now translates once a step. VICE 10/10; the harness: `mfndpos` +2.3%
+with `mons[]` far (11,504.5), +17% with all four types (13,203.1).
+`farify.py`'s reuse model reached 8.7%; what is left is mostly translations again after calls
+(a callee takes the slots too), which per-function pin slots would remove. Code: all of
+port/src with the `mons[]` types far is still 49 KB bigger (+4.2%): most uses of the macros
+are single accesses between calls, so the size is the translation calls themselves.
+
 The whole of port/src with `struct permonst` and `struct attack_s` far (`-dNH_FAR_SPACES`,
 `permonst.h`; `measure_oscar64.py` with `MEASURE_DEFS`/`MEASURE_EXTRA`,
 `docs/data/measure-c64-farmons-2026-11-17.txt`): no warning 2026 in the game's own files, so no
