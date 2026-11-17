@@ -290,8 +290,20 @@ replace_object(struct obj_s *obj, struct obj_s *otmp)
 	otmp->oy = obj->oy;
 	obj->nobj = otmp;
 	obj->nexthere = otmp;
+#ifdef NH_FAR_LEVEL
+	/* T2.12: the heads are in the far level; a struct obj_s ** would be near */
+	{
+	    struct obj_s *head = fobj;
+	    extract_nobj(obj, &head);
+	    fobj = head;
+	    head = level.objects[obj->ox][obj->oy];
+	    extract_nexthere(obj, &head);
+	    level.objects[obj->ox][obj->oy] = head;
+	}
+#else
 	extract_nobj(obj, &fobj);
 	extract_nexthere(obj, &level.objects[obj->ox][obj->oy]);
+#endif
 	break;
     default:
 	panic("replace_object: obj position");
@@ -1219,8 +1231,19 @@ remove_object(struct obj_s *otmp)
     if (otmp->where != OBJ_FLOOR)
 	panic("remove_object: obj not on floor");
     if (otmp->otyp == BOULDER) unblock_point(x,y); /* vision */
+#ifdef NH_FAR_LEVEL
+    {	/* T2.12: the heads are in the far level (see replace_object) */
+	struct obj_s *head = level.objects[x][y];
+	extract_nexthere(otmp, &head);
+	level.objects[x][y] = head;
+	head = fobj;
+	extract_nobj(otmp, &head);
+	fobj = head;
+    }
+#else
     extract_nexthere(otmp, &level.objects[x][y]);
     extract_nobj(otmp, &fobj);
+#endif
     if (otmp->timed) obj_timer_checks(otmp,x,y,0);
 }
 
@@ -1275,7 +1298,15 @@ obj_extract_self(struct obj_s *obj)
 	    extract_nobj(obj, &migrating_objs);
 	    break;
 	case OBJ_BURIED:
+#ifdef NH_FAR_LEVEL
+	    {	/* T2.12: the head is in the far level (see replace_object) */
+		struct obj_s *head = level.buriedobjlist;
+		extract_nobj(obj, &head);
+		level.buriedobjlist = head;
+	    }
+#else
 	    extract_nobj(obj, &level.buriedobjlist);
+#endif
 	    break;
 	case OBJ_ONBILL:
 	    extract_nobj(obj, &billobjs);

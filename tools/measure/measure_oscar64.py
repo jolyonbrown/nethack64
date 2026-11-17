@@ -165,6 +165,9 @@ def measure(f):
     code, seen, garbage = 0, set(), []
     if os.path.exists(m):
         for line in open(m):
+            # with a banked region (a far section, T2.12) each line starts with its bank:
+            # "--:" for none, else two hex digits
+            line = re.sub(r"^(?:--|[0-9a-f]{2}):", "", line)
             if not re.match(r"^\S+ - \S+ : \w+, (?:NATIVE|BYTE)_CODE:", line):
                 continue                   # other sections, e.g. "0801 (0052) : startup"
             mm = re.match(r"^([0-9a-f]{4}) - ([0-9a-f]{4}) : (\w+), (?:NATIVE|BYTE)_CODE:", line)

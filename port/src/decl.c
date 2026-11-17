@@ -142,11 +142,54 @@ NEARDATA struct mkroom_s rooms[(MAXNROFROOMS+1)*2] = {DUMMY};
 NEARDATA struct mkroom_s* subrooms = &rooms[MAXNROFROOMS+1];
 struct mkroom_s *upstairs_room, *dnstairs_room, *sstairs_room;
 
+#ifdef NH_FAR_LEVEL
+#pragma bss(farlevel)
+#endif
 dlevel_t level;		/* level map */
+#ifdef NH_FAR_LEVEL
+#pragma bss(bss)
+#endif
+#if defined(NH_FAR_LEVEL) || defined(NH_FAR_OBJS)
+/* rm.h: block moves of far data through a near buffer (T2.12) */
+static unsigned char nh_farbuf[64];
+
+#define NH_FARIO(sp) \
+void nh_farbwrite##sp(int fd, const struct nh_fb##sp *s, unsigned n) \
+{ \
+	while (n) { \
+		unsigned k = n < sizeof(nh_farbuf) ? n : sizeof(nh_farbuf), i; \
+		for (i = 0; i < k; i++) nh_farbuf[i] = s[i].b; \
+		bwrite(fd, (genericptr_t) nh_farbuf, k); \
+		s += k; n -= k; \
+	} \
+} \
+void nh_farmread##sp(int fd, struct nh_fb##sp *d, unsigned n) \
+{ \
+	while (n) { \
+		unsigned k = n < sizeof(nh_farbuf) ? n : sizeof(nh_farbuf), i; \
+		/* a short read stops early and leaves the rest as it was: so does this */ \
+		for (i = 0; i < k; i++) nh_farbuf[i] = d[i].b; \
+		mread(fd, (genericptr_t) nh_farbuf, k); \
+		for (i = 0; i < k; i++) d[i].b = nh_farbuf[i]; \
+		d += k; n -= k; \
+	} \
+}
+NH_FARIO(2)
+NH_FARIO(3)
+
+void
+nh_farfill3(struct nh_fb3 *d, int c, unsigned n)
+{
+	while (n--) (d++)->b = (unsigned char) c;
+}
+#endif
+
 #ifdef C64
 struct rm_s * const nh_levl_cols[COLNO] = NH_COLS_INIT(level.locations);	/* rm.h */
+#ifndef NH_FAR_LEVEL
 struct obj_s ** const nh_lobj_cols[COLNO] = NH_COLS_INIT(level.objects);
 struct monst_s ** const nh_lmon_cols[COLNO] = NH_COLS_INIT(level.monsters);
+#endif
 #endif
 struct trap_s *ftrap = (struct trap_s *)0;
 NEARDATA struct monst_s youmonst = DUMMY;

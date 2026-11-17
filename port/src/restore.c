@@ -758,7 +758,11 @@ getlev(int fd, int pid, xchar lev, boolean ghostly)
 	mread(fd, (genericptr_t)&sstairs, sizeof(stairway));
 	mread(fd, (genericptr_t)&updest, sizeof(dest_area));
 	mread(fd, (genericptr_t)&dndest, sizeof(dest_area));
+#ifdef NH_FAR_LEVEL
+	nh_farmread3(fd, (struct nh_fb3 *)&level.flags, sizeof(level.flags));
+#else
 	mread(fd, (genericptr_t)&level.flags, sizeof(level.flags));
+#endif
 	mread(fd, (genericptr_t)doors, sizeof(doors));
 	rest_rooms(fd);		/* No joke :-) */
 	if (nroom)

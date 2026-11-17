@@ -252,8 +252,13 @@ savenames(int fd, int mode)
 	if (perform_bwrite(mode)) {
 	    bwrite(fd, (genericptr_t)bases, sizeof(bases));
 	    bwrite(fd, (genericptr_t)disco, sizeof(disco));
+#ifdef NH_FAR_OBJS
+	    nh_farbwrite2(fd, (const struct nh_fb2 *)objects,
+		   sizeof(struct objclass) * NUM_OBJECTS);
+#else
 	    bwrite(fd, (genericptr_t)objects,
 		   sizeof(struct objclass) * NUM_OBJECTS);
+#endif
 	}
 	/* as long as we use only one version of Hack we
 	   need not save oc_name and oc_descr, but we must save
@@ -280,7 +285,11 @@ restnames(int fd)
 
 	mread(fd, (genericptr_t) bases, sizeof(bases));
 	mread(fd, (genericptr_t) disco, sizeof(disco));
+#ifdef NH_FAR_OBJS
+	nh_farmread2(fd, (struct nh_fb2 *) objects, sizeof(struct objclass) * NUM_OBJECTS);
+#else
 	mread(fd, (genericptr_t) objects, sizeof(struct objclass) * NUM_OBJECTS);
+#endif
 	for (i = 0; i < NUM_OBJECTS; i++)
 	    if (objects[i].oc_uname) {
 		mread(fd, (genericptr_t) &len, sizeof(len));

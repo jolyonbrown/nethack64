@@ -90,6 +90,9 @@ void NDECL(monst_init);
  */
 
 #ifndef SPLITMON_2
+#ifdef NH_FAR_MONS
+#pragma data(farmons)
+#endif
 NEARDATA struct permonst mons[] = {
 /*
  * ants
@@ -3463,6 +3466,9 @@ struct permonst _mons2[] = {
 	A(NO_ATTK, NO_ATTK, NO_ATTK, NO_ATTK, NO_ATTK, NO_ATTK),
 	SIZ(0, 0, 0, 0, 0), 0, 0, 0L, 0L, 0, 0)
 };
+#ifdef NH_FAR_MONS
+#pragma data(data)
+#endif
 #endif /* !SPLITMON_1 */
 
 #ifndef SPLITMON_1

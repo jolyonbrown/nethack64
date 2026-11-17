@@ -549,8 +549,13 @@ clear_level_structures(void)
 	    }
 	}
 #ifndef MICROPORT_BUG
+#ifdef NH_FAR_LEVEL
+	nh_farfill3((struct nh_fb3 *)level.objects, 0, sizeof(level.objects));
+	nh_farfill3((struct nh_fb3 *)level.monsters, 0, sizeof(level.monsters));
+#else
 	(void) memset((genericptr_t)level.objects, 0, sizeof(level.objects));
 	(void) memset((genericptr_t)level.monsters, 0, sizeof(level.monsters));
+#endif
 #endif
 	level.objlist = (struct obj_s *)0;
 	level.buriedobjlist = (struct obj_s *)0;

@@ -49,6 +49,9 @@ NEARDATA struct objdescr obj_descr[] = {
   #define HARDGEM(n) (0)
  #endif
 
+#ifdef NH_FAR_OBJS
+#pragma data(farobjs)
+#endif
 NEARDATA struct objclass objects[] = {
 #endif
 /* dummy object[0] -- description [2nd arg] *must* be NULL */
@@ -968,6 +971,9 @@ OBJECT(OBJ("acid venom", "splash of venom"),
 	OBJECT(OBJ((char *)0,(char *)0), BITS(0,0,0,0,0,0,0,0,0,0,0,P_NONE,0), 0,
 		ILLOBJ_CLASS, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 }; /* objects[] */
+#ifdef NH_FAR_OBJS
+#pragma data(data)
+#endif
 
 #ifndef OBJECTS_PASS_2_
 

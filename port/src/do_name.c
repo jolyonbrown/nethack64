@@ -500,22 +500,29 @@ docall(struct obj_s *obj)
 		return;
 
 	/* clear old name */
+#ifdef NH_FAR_OBJS
+	/* T2.12: objects[] is far, and a char ** into it would be a near pointer */
+#define NH_UNAME (objects[obj->otyp].oc_uname)
+#else
 	str1 = &(objects[obj->otyp].oc_uname);
-	if(*str1) free((genericptr_t)*str1);
+#define NH_UNAME (*str1)
+#endif
+	if(NH_UNAME) free((genericptr_t)NH_UNAME);
 
 	/* strip leading and trailing spaces; uncalls item if all spaces */
 	(void)mungspaces(buf);
 	if (!*buf) {
-	    if (*str1) {	/* had name, so possibly remove from disco[] */
+	    if (NH_UNAME) {	/* had name, so possibly remove from disco[] */
 		/* strip name first, for the update_inventory() call
 		   from undiscover_object() */
-		*str1 = (char *)0;
+		NH_UNAME = (char *)0;
 		undiscover_object(obj->otyp);
 	    }
 	} else {
-	    *str1 = strcpy((char *) alloc((unsigned)strlen(buf)+1), buf);
+	    NH_UNAME = strcpy((char *) alloc((unsigned)strlen(buf)+1), buf);
 	    discover_object(obj->otyp, FALSE, TRUE); /* possibly add to disco[] */
 	}
+#undef NH_UNAME
 }
 
 #endif /*OVLB*/

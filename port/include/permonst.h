@@ -74,13 +74,25 @@ struct permonst {
 static_assert(sizeof (struct permonst) == 64, "struct permonst is 64 bytes (ADR-0009)");
 #ifdef NH_FAR_SPACES
 /* T2.12, not yet the build's: mons[] in far space 1 (ADR-0009), with its attacks, which
- * code reaches as &ptr->mattk[i]; needs an Oscar64 with far spaces */
+ * code reaches as &ptr->mattk[i]; needs an Oscar64 with far spaces.  The space's addresses
+ * are $8000-$FFFF (no near object of these types: nothing collides with the identity
+ * pages below); bank 106 is REU 64 KB bank 10 at $8000 (T2.12 layout, crt_split.py). */
 #pragma farspace(1, permonst, attack_s)
+#pragma section(farmons, 0)
+#pragma farsection(farmons, 1)
+#pragma region(farmons, 0x8000, 0x10000, , 106, { farmons })
+#define NH_FAR_MONS
 #endif
 #endif
 
+#ifdef NH_FAR_MONS
+#pragma data(farmons)
+#endif
 extern NEARDATA struct permonst
 		mons[];		/* the master list of monster types */
+#ifdef NH_FAR_MONS
+#pragma data(data)
+#endif
 
 #define VERY_SLOW 3
 #define SLOW_SPEED 9

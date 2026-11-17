@@ -516,6 +516,34 @@ Code 1,248,332 bytes (+5.1% over near, 8.7 KB more than `mons[]` alone); this un
 since `objects[]` and `level` stay near in the measurement and a known near object is not
 translated: in the build `levl[x][y]` and `objects[i]` will be.
 
+**`mons[]`, `objects[]` and `level` in far sections** (2026-11-17,
+`docs/data/measure-c64-far6-2026-11-17.txt`): not only the types but the objects themselves,
+each at `$8000-$FFFF` of its space, in a region of bank 106, 110 or 114: bank 64 + 4n + 2 puts
+the space's address A at REU n × 64 KB + A (`crt_split.py`, which now takes a far bank's `$C000`
+and `$E000` halves and refuses overlaps). The externs in `permonst.h`, `objclass.h` and `rm.h`
+sit under `#pragma data/bss` of the section, so a file compiled alone still knows the object is
+far; the definitions in `monst.c`, `objects.c` and `decl.c` sit in the same section. No near
+object of the three types is reached through a pointer (`mklev.c`'s `zerorm` and `restore.c`'s
+local are used by name), so every page outside `$8000-$FFFF` can be an identity page.
+
+- `struct rm_s` is 8 bytes in this build (6 before): with 6, a square could cross a page, and
+  the compiler translates a whole access or group once (ADR-0009 point 5; found by Codex's
+  review). 3.4 KB more in the REU, none near.
+- `NH_OBJS`/`NH_MONS` index `level.objects`/`level.monsters` directly: the column tables hold
+  `struct obj_s **` and `struct monst_s **`, near pointers that would reach the far grids
+  untranslated. (A far-typed column struct would give the speed back; later.)
+- The 15 sites warning 2026 found in the game are rewritten under `NH_FAR_LEVEL`/`NH_FAR_OBJS`,
+  each the same behaviour: list heads (`fobj`, `fmon`, a square's objects, the buried list) go
+  through a near copy of the head in `replace_object`, `remove_object`, `obj_extract_self` and
+  `dmonsfree`; block moves go through `nh_farfill3`, `nh_farbwrite2/3` and `nh_farmread2/3`
+  (`decl.c`, a byte at a time through a 64-byte buffer; a short read leaves the rest as it was,
+  as a direct one does); `docall` uses `objects[otyp].oc_uname` instead of a `char **` into it.
+  The far level needs `RLECOMP` (an `#error` says so): the other save path passes the squares
+  as one near pointer. Left: `restore.c` 742, a read into a near local, harmless.
+- Code 1,263,772 bytes, +6.4% over near; 36 files now fit on their own in the measurement
+  (none before), with 55 KB of data out of near RAM. The host build: Codex compared gcc's
+  assembly before and after for the ten changed files, identical; `host_smoke.py` passes.
+
 `farify.py`'s rewrite (T2.11) cost +13% for all four: about 70 translations of some 22 cycles,
 inline. The compiler translates every access, `youmonst` and the `mondata.h` macros included,
 through a `jsr` (about 34 cycles for a page, 50 with an offset). Next: the hit path inline (a

@@ -736,6 +736,9 @@ Add new tasks at the bottom of the right section.
       — 2026-11-17: groups across blocks (fork commit 4): harness +2.3% / +17%; port/src with
       the `mons[]` types far +49 KB (+4.2%). Next: per-function pin slots (reuse across calls),
       a shorter call sequence; then the game.
+      — 2026-11-17: `mons[]`, `objects[]` and `level` in far sections (measurement only,
+      `NH_FAR_SPACES`); the 15 game sites warning 2026 found rewritten, `struct rm_s` 8 bytes in
+      that build; one harmless warning left; code +6.4%. Next: the whole-game link with them.
 
 ## Housekeeping
 

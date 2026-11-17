@@ -340,10 +340,21 @@ struct rm_s {
 	Bitfield(waslit,1);	/* remember if a location was lit */
 	Bitfield(roomno,6);	/* room # for special rooms */
 	Bitfield(edge,1);	/* marks boundaries for special rooms*/
+#if defined(C64) && defined(__OSCAR64C__) && defined(NH_FAR_SPACES)
+	/* T2.12: 8 bytes, so that no square crosses a page of the far space (ADR-0009
+	 * point 5: the compiler translates a whole access or group once) */
+	uchar	rm_pad_c64[2];
+#endif
 };
 #if defined(C64) && defined(__OSCAR64C__) && defined(NH_FAR_SPACES)
-/* T2.12, a measurement, not yet the build's: the level's squares in far space 3 (ADR-0009) */
+static_assert(sizeof (struct rm_s) == 8, "struct rm_s is 8 bytes in the far build (ADR-0009)");
+/* T2.12, a measurement, not yet the build's: the level in far space 3 (ADR-0009), at
+ * $8000-$FFFF of the space, bank 114 (REU 64 KB bank 12 at $8000); see permonst.h */
 #pragma farspace(3, rm_s)
+#pragma section(farlevel, 0)
+#pragma farsection(farlevel, 3)
+#pragma region(farlevel, 0x8000, 0x10000, , 114, { farlevel })
+#define NH_FAR_LEVEL
 #endif
 
 /*
@@ -491,7 +502,33 @@ typedef struct
 }
 dlevel_t;
 
+#ifdef NH_FAR_LEVEL
+#pragma bss(farlevel)
+#endif
 extern dlevel_t level;	/* structure describing the current level */
+#ifdef NH_FAR_LEVEL
+#pragma bss(bss)
+#endif
+
+#if defined(NH_FAR_LEVEL) && !defined(RLECOMP)
+ #error "the far level is saved square by square (save.c, RLECOMP); the other way passes level.locations as a near pointer"
+#endif
+#if defined(NH_FAR_LEVEL) || defined(NH_FAR_OBJS)
+/*
+ * T2.12: block moves of far data.  memset(), bwrite() and mread() reach memory through a
+ * near void *, which would miss the far space (Oscar64's warning 2026); these move it a
+ * byte at a time through a one-byte type in the space (decl.c).
+ */
+struct nh_fb2 { unsigned char b; };
+struct nh_fb3 { unsigned char b; };
+#pragma farspace(2, nh_fb2)
+#pragma farspace(3, nh_fb3)
+extern void nh_farfill3(struct nh_fb3 *, int, unsigned);
+extern void nh_farbwrite2(int, const struct nh_fb2 *, unsigned);
+extern void nh_farmread2(int, struct nh_fb2 *, unsigned);
+extern void nh_farbwrite3(int, const struct nh_fb3 *, unsigned);
+extern void nh_farmread3(int, struct nh_fb3 *, unsigned);
+#endif
 
 /*
  * Macros for compatibility with old code. Someday these will go away.
@@ -513,11 +550,18 @@ extern dlevel_t level;	/* structure describing the current level */
 	NH_COL10(a,30), NH_COL10(a,40), NH_COL10(a,50), NH_COL10(a,60), \
 	NH_COL10(a,70) }
 extern struct rm_s * const nh_levl_cols[COLNO];
+#define levl		nh_levl_cols
+#ifdef NH_FAR_LEVEL
+/* the tables' struct obj_s ** and struct monst_s ** are near pointers, which would reach
+ * the far grids untranslated: index the grids themselves (T2.12) */
+#define NH_OBJS		level.objects
+#define NH_MONS		level.monsters
+#else
 extern struct obj_s ** const nh_lobj_cols[COLNO];
 extern struct monst_s ** const nh_lmon_cols[COLNO];
-#define levl		nh_levl_cols
 #define NH_OBJS		nh_lobj_cols
 #define NH_MONS		nh_lmon_cols
+#endif
 #else
 #define levl		level.locations
 #define NH_OBJS		level.objects

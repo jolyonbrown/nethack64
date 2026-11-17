@@ -1,0 +1,123 @@
+# measure_oscar64.py --config c64, 2026-11-17, Oscar64 feature/far-spaces 4cbe292 (pin of 80 + 4 commits).
+# MEASURE_DEFS=-dNH_FAR_SPACES, MEASURE_EXTRA=tools/measure/far_meas.c (identity, spaces 1-3).
+# Far sections: mons[] space 1 (bank 106), objects[] space 2 (bank 110), level space 3 (bank 114),
+# each at $8000-$FFFF of its space; struct rm_s padded to 8 bytes in this build (no square
+# crosses a page); the 15 flagged sites rewritten (list heads through a near copy, block moves
+# through nh_farfill3/nh_farbwrite2,3/nh_farmread2,3 in decl.c, docall's char ** dropped).
+# Code: 1263772 bytes (+6.4% over near 1187381; 1266980 before the rewrites and the padding).
+# Fit: 36 ok, 72 fits-not. (The struct sizes line below is the near build's: struct_sizes.c
+# does not take MEASURE_DEFS.)
+# Warnings 2026: 279 in the generated stubs; 1 in the game, restore.c 742 (mread into the
+# near local struct rm_s r: near, harmless).
+allmain.c    ok               4922  5/5 
+alloc.c      ok                104  2/2 
+apply.c      fits-not        35875  35/47 
+artifact.c   fits-not        14586  34/34 
+attrib.c     ok               4744  17/19 
+ball.c       fits-not         6879  9/10 
+bones.c      ok               2931  6/7 
+botl.c       ok               2977  8/9 
+cmd.c        fits-not        27098  52/55 
+dbridge.c    fits-not        10672  21/23 
+decl.c       ok                  1  1/1 
+detect.c     fits-not        17490  24/25 
+dig.c        fits-not        13356  18/22 
+display.c    fits-not        20434  38/41 
+dlb.c        ok                  0  0/0 
+do.c         fits-not        16019  25/28 
+do_name.c    fits-not        11392  27/27 
+do_wear.c    fits-not        13976  46/51 
+dog.c        fits-not         9863  14/14 
+dogmove.c    fits-not        10710  8/11 
+dokick.c     fits-not        19870  10/13 
+dothrow.c    fits-not        16660  22/25 
+drawing.c    ok                723  5/5 
+dungeon.c    fits-not        13459  53/60 
+eat.c        fits-not        24410  40/48 
+end.c        fits-not        11564  15/16 
+engrave.c    fits-not        10235  19/19 
+exper.c      ok               2834  8/8 
+explode.c    fits-not         6726  3/3 
+extralev.c   fits-not         4534  6/6 
+files.c      fits-not         5684  36/39 
+fountain.c   fits-not         7457  12/12 
+hack.c       fits-not        32439  30/33 
+hacklib.c    ok               3188  33/33 
+invent.c     fits-not        25841  76/77 
+light.c      ok               3875  17/18 
+lock.c       fits-not         8778  12/14 
+mail.c       ok               3011  3/6 
+makemon.c    fits-not        19421  20/24 
+mapglyph.c   ok               1163  1/1 
+mcastu.c     fits-not        10561  5/9 
+mhitm.c      fits-not        26695  15/17 
+mhitu.c      fits-not        32131  18/24 
+minion.c     ok               3522  9/9 
+mklev.c      fits-not        14642  23/36 
+mkmap.c      fits-not         5344  4/13 
+mkmaze.c     fits-not        12508  22/27 
+mkobj.c      fits-not        14529  44/45 
+mkroom.c     fits-not         7532  21/26 
+mon.c        fits-not        34732  58/61 
+mondata.c    fits-not         6174  30/30 
+monmove.c    fits-not        19537  13/16 
+monst.c      ok                  1  1/1 
+monstr.c     ok                  1  1/1 
+mplayer.c    ok               3181  4/6 
+mthrowu.c    fits-not        13478  12/12 
+muse.c       fits-not        33615  21/22 
+music.c      fits-not         6965  4/9 
+o_init.c     fits-not         5320  10/12 
+objects.c    ok                  1  1/1 
+objnam.c     fits-not        27366  38/38 
+options.c    fits-not        25148  37/39 
+pager.c      fits-not        11255  11/13 
+pickup.c     fits-not        24650  28/35 
+pline.c      ok               4214  20/20 
+polyself.c   fits-not        13880  23/24 
+potion.c     fits-not        27825  23/24 
+pray.c       fits-not        11123  20/27 
+priest.c     fits-not         7722  18/18 
+quest.c      ok               2184  13/20 
+questpgr.c   ok               3645  14/19 
+read.c       fits-not        20915  22/24 
+rect.c       ok               1559  7/8 
+region.c     fits-not         9296  23/24 
+restore.c    fits-not         7438  16/22 
+rip.c        ok                886  2/2 
+rnd.c        ok                820  6/6 
+role.c       ok               7543  28/30 
+rumors.c     ok               3317  8/8 
+save.c       fits-not         5799  16/19 
+shk.c        fits-not        47366  84/90 
+shknam.c     fits-not         3153  3/6 
+sit.c        ok               4105  4/4 
+sounds.c     fits-not        10724  9/10 
+sp_lev.c     fits-not        25013  29/38 
+spell.c      fits-not         9323  16/23 
+steal.c      ok               2346  9/11 
+steed.c      fits-not         7436  11/11 
+teleport.c   fits-not        12714  23/25 
+timeout.c    fits-not        14219  32/40 
+topten.c     fits-not         8384  11/13 
+track.c      ok                398  3/3 
+trap.c       fits-not        47878  44/51 
+u_init.c     fits-not         4109  4/5 
+uhitm.c      fits-not        36645  18/26 
+vault.c      fits-not        10283  12/13 
+version.c    ok                875  9/9 
+vis_tab.c    ok                  0  0/0 
+vision.c     fits-not        14322  11/16 
+weapon.c     fits-not        12008  25/27 
+were.c       ok               2817  5/6 
+wield.c      ok               5356  19/19 
+windows.c    ok                290  4/4 
+wizard.c     ok               4098  16/19 
+worm.c       ok               3808  18/20 
+worn.c       fits-not        10708  15/15 
+write.c      fits-not         2445  1/2 
+zap.c        fits-not        49994  43/49 
+
+files measured: 106 of 108, native code in those: 1263772 bytes
+status (c64 config): 72 fits-not, 36 ok
+struct sizes (Oscar64): rm 6; dlevel_t 16813; obj 48; monst 80; permonst 64 x 382; objclass 32 x 433; you 1381; trap 11; flag 127; int 2 long 4 ptr 2

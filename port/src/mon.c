@@ -1226,8 +1226,14 @@ dmonsfree(void)
 {
     struct monst_s **mtmp;
     int count = 0;
+#ifdef NH_FAR_LEVEL
+    /* T2.12: fmon is in the far level; walk from a near copy of the head */
+    struct monst_s *head = fmon;
 
+    for (mtmp = &head; *mtmp;) {
+#else
     for (mtmp = &fmon; *mtmp;) {
+#endif
 	if ((*mtmp)->mhp <= 0) {
 	    struct monst_s *freetmp = *mtmp;
 	    *mtmp = (*mtmp)->nmon;
@@ -1236,6 +1242,9 @@ dmonsfree(void)
 	} else
 	    mtmp = &(*mtmp)->nmon;
     }
+#ifdef NH_FAR_LEVEL
+    fmon = head;
+#endif
 
     if (count != iflags.purge_monsters)
 	impossible("dmonsfree: %d removed doesn't match %d pending",

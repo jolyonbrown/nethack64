@@ -115,8 +115,13 @@ struct objclass {
 #endif
 };
 #if defined(C64) && defined(__OSCAR64C__) && defined(NH_FAR_SPACES)
-/* T2.12, a measurement, not yet the build's: objects[] in far space 2 (ADR-0009) */
+/* T2.12, a measurement, not yet the build's: objects[] in far space 2 (ADR-0009), at
+ * $8000-$FFFF of the space, bank 110 (REU 64 KB bank 11 at $8000); see permonst.h */
 #pragma farspace(2, objclass)
+#pragma section(farobjs, 0)
+#pragma farsection(farobjs, 2)
+#pragma region(farobjs, 0x8000, 0x10000, , 110, { farobjs })
+#define NH_FAR_OBJS
 #endif
 
 #if defined(C64) && defined(__OSCAR64C__)
@@ -128,7 +133,13 @@ struct objdescr {
 	const char *oc_descr;		/* description when name unknown */
 };
 
+#ifdef NH_FAR_OBJS
+#pragma data(farobjs)
+#endif
 extern NEARDATA struct objclass objects[];
+#ifdef NH_FAR_OBJS
+#pragma data(data)
+#endif
 extern NEARDATA struct objdescr obj_descr[];
 
 /*

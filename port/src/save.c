@@ -491,7 +491,11 @@ savelev(int fd, xchar lev, int mode)
 			 * write out run-length encoding */
 		    writeout:
 			bwrite(fd, (genericptr_t)&match, sizeof(uchar));
+#ifdef NH_FAR_LEVEL
+			nh_farbwrite3(fd, (const struct nh_fb3 *)rgrm, sizeof(struct rm_s));
+#else
 			bwrite(fd, (genericptr_t)rgrm, sizeof(struct rm_s));
+#endif
 			/* start encoding again. we have at least 1 rm
 			 * in the next run, viz. this one. */
 			match = 1;
@@ -501,7 +505,11 @@ savelev(int fd, xchar lev, int mode)
 	    }
 	    if (match > 0) {
 		bwrite(fd, (genericptr_t)&match, sizeof(uchar));
+#ifdef NH_FAR_LEVEL
+		nh_farbwrite3(fd, (const struct nh_fb3 *)rgrm, sizeof(struct rm_s));
+#else
 		bwrite(fd, (genericptr_t)rgrm, sizeof(struct rm_s));
+#endif
 	    }
 	}
 #else
@@ -516,7 +524,11 @@ savelev(int fd, xchar lev, int mode)
 	bwrite(fd,(genericptr_t) &sstairs,sizeof(stairway));
 	bwrite(fd,(genericptr_t) &updest,sizeof(dest_area));
 	bwrite(fd,(genericptr_t) &dndest,sizeof(dest_area));
+#ifdef NH_FAR_LEVEL
+	nh_farbwrite3(fd, (const struct nh_fb3 *) &level.flags, sizeof(level.flags));
+#else
 	bwrite(fd,(genericptr_t) &level.flags,sizeof(level.flags));
+#endif
 	bwrite(fd, (genericptr_t) doors, sizeof(doors));
 	save_rooms(fd);	/* no dynamic memory to reclaim */
 
