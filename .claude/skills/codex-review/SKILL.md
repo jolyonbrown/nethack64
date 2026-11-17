@@ -17,8 +17,8 @@ disable-model-invocation: true
    > with file:line, ranked by severity; say explicitly if you found none. Say which
    > claims you could not check from the packet. Focus: $ARGUMENTS
 
-3. Run `codex exec -s read-only -C "$(git rev-parse --show-toplevel)" - < packet.md`
-   (add `-m <model>` to choose one). Never put the prompt on the command line: the
+3. Run `codex exec -s read-only -m gpt-6.2-astra -C "$(git rev-parse --show-toplevel)" - < packet.md`
+   (`~/.codex/config.toml` may still default to an older model, so name it). Never put the prompt on the command line: the
    shell mangles quotes and flag-like text.
 4. Verify each finding yourself (read the code, run the command). Fix the real ones;
    for ones you reject, write one line why in the session note.
