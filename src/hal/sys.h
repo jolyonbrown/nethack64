@@ -24,7 +24,8 @@ char sys_getkey(void);
 char sys_waitkey(void);
 
 /* REU: returns number of 64KB banks found (0 = no REU).  Uses a real DMA
- * round trip, so a cartridge with RAM at $DF00 cannot fool it. */
+ * round trip, so a cartridge with RAM at $DF00 cannot fool it, and puts back
+ * every byte it changes (the REU holds code from power-on, ADR-0008). */
 unsigned sys_reu_banks(void);
 
 /* Running from an EasyFlash cartridge image? (compile-time for now). */

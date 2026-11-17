@@ -580,12 +580,18 @@ Add new tasks at the bottom of the right section.
       function checking its bank on entry. Oscar64 past 64 banks: Codex's patch, in the
       pin as commit 62 (2026-11-15). Next: the
       Oscar64 build of the rewritten source, literals kept by callees (`killer`).
-      — 2026-11-16: ADR-0008 proposed: the 62 banks entered most in place on the EasyFlash, the
-      rest (about 42, 670 KB) from a REU of 1 MB or more through a 16 KB window at $8000 with
+      — 2026-11-16: ADR-0008 proposed: the 63 banks entered most in place on the EasyFlash, the
+      rest (40, about 600 KB; first counted as 62 and 42) from a REU of 1 MB or more through a 16 KB window at $8000 with
       the cartridge off; about one window load a turn in a wide profile (`profile_play.py
       --wide`, 13 roles; `tools/measure/bankplace.py`).
       — 2026-11-17: ADR-0008 accepted (Jolyon), with an REU of 1 MB as the minimum. Next: the
       REU window in the bank call routine, and the bank plan re-made from the wide profile.
+      — 2026-11-17: the bank call routine fetches REU banks (64 up) into the window, checked in
+      VICE (`tests/spikes/bankreu.c`, 14 checks; 361 cycles a call with the bank in the window,
+      17.1 ms with a fetch); `bankgen.py` writes it; `tools/bank/crt_split.py` makes the REU
+      image; the plan renumbered by the wide profile (`bankplan-2026-11-17-reu.json`); the REU
+      size probe no longer overwrites the REU (self-test 7). Next: the whole game from the
+      renumbered plan (desktop), then the .crt + REU image once the data fits (T2.12).
 - [ ] T2.2 Banking spike B (REU overlays) with the same files (BANKING-SPIKE.md)
 - [ ] T2.3 RAM map for dynamic state; BUFSZ policy ADR
       — 2026-11-15: measured (docs/RAM-PLAN.md): what NetHack reaches through plain

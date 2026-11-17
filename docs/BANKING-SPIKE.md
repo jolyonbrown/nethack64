@@ -415,7 +415,40 @@ Then ADR-0008.
 mode (inventory, spells, all 13 roles) only 4 banks go unentered, and keeping the 62 entered
 most on the EasyFlash leaves about one entry a turn into the rest, which would run from the REU
 through a RAM window under the cartridge (`tools/measure/bankplace.py`,
-`docs/data/bankplace-2026-11-16.txt`). Packing the overflow on the cartridge instead (about 2:1)
+`docs/data/bankplace-2026-11-17.txt`; the 2026-11-16 count of 104 banks and 62 kept took the
+plan's empty bank 0 for a bank: 103 banks, 63 kept, 40 off, 0.9 entries a turn). Packing the overflow on the cartridge instead (about 2:1)
 leaves too few banks unpacked: about 20 unpackings a turn.
 
 **2026-11-17: ADR-0008 accepted** (Jolyon), with an REU of at least 1 MB.
+
+**2026-11-17: REU banks through the bank call routine** (`tests/spikes/bankreu.c`,
+`run_bankreu.py`; VICE 3.7.1, EasyFlash + 1 MB REU, pin of 80 commits). Banks 64 and up
+are the REU's: Oscar64 writes them into the .crt "for post-processing", and
+`tools/bank/crt_split.py` moves them into an REU image (bank b at REU offset (b - 64) x 16
+KB, padded to the REU's size, since VICE ignores a shorter image), which `tools/vice.py
+launch --reuimage` hands to VICE. The routine's `nh_map` maps a bank: below 64 the
+EasyFlash bank, switching the cartridge on (`$DE02 = $87`, `$01 = $37`) if a call had
+switched it off; from 64 on, a fetch of the bank into `$8000-$BFFF` by DMA if the window
+holds another one, with the cartridge off (`$DE02 = $04`) and BASIC off (`$01 = $36`, for
+`$A000`). It changes only A, so the routine's index in Y survives, and the way back maps
+the caller's bank the same way, so a caller in an REU bank whose window a call replaced
+gets its bank back. 14 checks pass: recursion through banks 64 and 65 (a fetch at every
+call and return) and through bank 64 and EasyFlash bank 1; a byte in A, an int in A/X and
+a loop counter kept across calls from an REU bank into an EasyFlash bank; function
+pointers of REU functions given to resident code and kept in a const table; tail calls;
+`long` results; the cartridge on again afterwards; fetches counted.
+
+| int (int, int) call from resident code (32 calls, CIA timer) | cycles a call |
+|---|---|
+| into EasyFlash bank 1 | 299.7 |
+| into REU bank 64, already in the window | 361.4 |
+| into an REU bank, with a 16 KB fetch | 16,832 (17.1 ms) |
+
+The EasyFlash path costs a `JSR`/`RTS` and a test more each way than the routine of
+2026-11-15 (`run_bankstub.py` still: 142 cycles for the switch). Found on the way: compat
+#76 (r73), an initialised `volatile` that only assembler writes is read as its initial
+value, so `nh_window` uses 0 for "no REU bank". `bankgen.py --linker-stubs` now writes this
+routine, and `NH_BANK()` in the string trampolines goes through it (`nh_setbank`). The plan
+renumbered by the wide profile, `docs/data/bankplan-2026-11-17-reu.json` (`bankplace.py
+--write`), gives the 63 banks entered most 1-63 and the other 40 64-103; its whole-game
+build is still to run.

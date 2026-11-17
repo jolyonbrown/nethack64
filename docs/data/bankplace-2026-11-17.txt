@@ -1,0 +1,28 @@
+# tools/measure/bankplace.py, 2026-11-17 (corrected count: the plan's 103 banks, 1-103; 63 EasyFlash banks for code,
+# bank 0 boots). The bank plan of 2026-11-15 (stubs) against two host profiles.
+# Narrow: tools/profile_play.py --keys 6000 --seed 64 (run, walk, stairs; 9,273 turns).
+# Wide: --wide --keys 1500 --seed 7 for each of the 13 roles, merged (--merge; 4,222 turns; several games stopped
+# early at a prompt the bot does not answer, their counts kept). The 2026-11-16 file counted an empty bank 0.
+
+plan bankplan-2026-11-15-stubs.json: 103 banks; profile profile-arcs.json: 1 game(s), 9273 turns, levels [1, 2]
+banks never entered: 39
+   63 banks on the cartridge,  40 off it:    0.000 entries a turn into those (1 banks entered at all)
+   56 banks on the cartridge,  47 off it:    0.003 entries a turn into those (8 banks entered at all)
+   48 banks on the cartridge,  55 off it:    0.009 entries a turn into those (16 banks entered at all)
+   40 banks on the cartridge,  63 off it:    0.032 entries a turn into those (24 banks entered at all)
+   32 banks on the cartridge,  71 off it:    0.134 entries a turn into those (32 banks entered at all)
+   24 banks on the cartridge,  79 off it:    1.106 entries a turn into those (40 banks entered at all)
+   16 banks on the cartridge,  87 off it:    4.404 entries a turn into those (48 banks entered at all)
+entries a turn, banks entered most: 9: 40.8, 17: 33.8, 18: 31.4, 23: 19.7, 20: 18.4, 8: 9.4, 12: 7.2, 6: 7.0, 11: 3.5, 46: 2.2, 15: 1.1, 99: 1.1
+
+plan bankplan-2026-11-15-stubs.json: 103 banks; profile profile-arcs-wide.json: 13 game(s), 4222 turns, levels [1, 2]
+banks never entered: 3
+   63 banks on the cartridge,  40 off it:    0.899 entries a turn into those (37 banks entered at all)
+   56 banks on the cartridge,  47 off it:    1.594 entries a turn into those (44 banks entered at all)
+   48 banks on the cartridge,  55 off it:    2.768 entries a turn into those (52 banks entered at all)
+   40 banks on the cartridge,  63 off it:    4.708 entries a turn into those (60 banks entered at all)
+   32 banks on the cartridge,  71 off it:    9.454 entries a turn into those (68 banks entered at all)
+   24 banks on the cartridge,  79 off it:   20.815 entries a turn into those (76 banks entered at all)
+   16 banks on the cartridge,  87 off it:   40.975 entries a turn into those (84 banks entered at all)
+entries a turn, banks entered most: 8: 34.4, 9: 28.1, 17: 13.4, 11: 11.2, 102: 10.6, 14: 9.1, 6: 9.0, 18: 8.8, 46: 7.5, 20: 7.5, 99: 6.5, 23: 5.9
+wrote docs/data/bankplan-2026-11-17-reu.json: banks 1-63 on the EasyFlash, 64-103 in the REU

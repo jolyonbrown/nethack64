@@ -61,12 +61,17 @@ char sys_waitkey(void)
 /* volatile: the DMA changes these behind the optimiser's back */
 static volatile char reu_probe[8];
 static volatile char reu_check[8];
+static volatile char reu_saved[8];
 
+/* Leaves the REU as it found it: the code banks the EasyFlash cannot hold live there from
+ * power-on (ADR-0008), REU offset 0 up. */
 unsigned sys_reu_banks(void)
 {
-	unsigned char i, b;
+	unsigned char i, k;
+	unsigned n;
 
 	/* Write a pattern to bank 0 via DMA, read it back elsewhere. */
+	reu_load(0x000000ul, reu_saved, 8);
 	for (i = 0; i < 8; i++)
 	{
 		reu_probe[i] = 0xa5 ^ (i * 37);
@@ -74,26 +79,29 @@ unsigned sys_reu_banks(void)
 	}
 	reu_store(0x000000ul, reu_probe, 8);
 	reu_load(0x000000ul, reu_check, 8);
+	reu_store(0x000000ul, reu_saved, 8);
 	for (i = 0; i < 8; i++)
 		if (reu_check[i] != reu_probe[i])
 			return 0;
 
-	/* Size: tag the first byte of each 64KB bank from the top down, then
-	 * find where the tags stop being distinct (banks wrap on smaller REUs). */
-	for (b = 255; ; b--)
+	/* Size: REUs come in powers of two (128 KB to 16 MB), and a smaller one ignores the
+	 * high address bits, so the first 64 KB bank n that reads back as bank 0 is the size.
+	 * Bank 0's first byte and bank n's are put back, bank 0's last (they may be one). */
+	for (n = 1; n < 256; n <<= 1)
 	{
-		reu_probe[0] = b;
-		reu_store((unsigned long)b << 16, reu_probe, 1);
-		if (b == 0)
-			break;
-	}
-	for (b = 0; ; b++)
-	{
-		reu_load((unsigned long)b << 16, reu_check, 1);
-		if (reu_check[0] != b)
-			return b;
-		if (b == 255)
-			break;
+		unsigned long at = (unsigned long)n << 16;
+		reu_load(0x000000ul, reu_saved, 1);
+		reu_load(at, reu_saved + 1, 1);
+		reu_probe[0] = 0x5a;
+		reu_store(0x000000ul, reu_probe, 1);
+		reu_probe[0] = 0xc3;
+		reu_store(at, reu_probe, 1);
+		reu_load(0x000000ul, reu_check, 1);
+		k = reu_check[0];
+		reu_store(at, reu_saved + 1, 1);
+		reu_store(0x000000ul, reu_saved, 1);
+		if (k == 0xc3)
+			return n;
 	}
 	return 256;
 }

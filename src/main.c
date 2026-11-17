@@ -165,7 +165,8 @@ static bool handle_key(char k)
 
 #ifdef AUTOTEST
 /* Failure codes are visible as the VICE process exit status. */
-enum { T_PASS = 0, T_WALK = 2, T_BLOCK = 3, T_REU_DMA = 4, T_REU_RESTORE = 5, T_RNG = 6 };
+enum { T_PASS = 0, T_WALK = 2, T_BLOCK = 3, T_REU_DMA = 4, T_REU_RESTORE = 5, T_RNG = 6,
+       T_REU_PROBE = 7 };
 
 static char autotest(void)
 {
@@ -207,6 +208,23 @@ static char autotest(void)
 		restore_level();
 		if (memcmp(copy, s80_text + MAP_Y0 * S80_COLS, MAP_BYTES))
 			return T_REU_RESTORE;
+
+		/* the size probe again: the same size, and the bytes it uses unchanged (at
+		 * offset 0 and at 128 KB, both of which it writes) */
+		static volatile char tag[8], back[8];
+		for (int i = 0; i < 8; i++)
+			tag[i] = 0x3c + i * 11;
+		reu_store(0x000000ul, tag, 8);
+		reu_store(0x020000ul, tag, 1);
+		if (sys_reu_banks() != reu_banks)
+			return T_REU_PROBE;
+		reu_load(0x000000ul, back, 8);
+		for (int i = 0; i < 8; i++)
+			if (back[i] != tag[i])
+				return T_REU_PROBE;
+		reu_load(0x020000ul, back, 1);
+		if (back[0] != tag[0])
+			return T_REU_PROBE;
 	}
 	return T_PASS;
 }

@@ -312,6 +312,9 @@ def cmd_launch(a):
         args.append("-warp")
     if a.reu:
         args += ["-reu", "-reusize", str(a.reu)]
+    if a.reuimage:
+        # the banks the EasyFlash cannot hold (ADR-0008); never written back
+        args += ["-reuimage", os.path.abspath(a.reuimage), "+reuimagerw"]
     if a.debugcart:
         args.append("-debugcart")
     if a.crt:
@@ -367,6 +370,7 @@ def main():
     p = sub.add_parser("launch")
     p.add_argument("--crt"); p.add_argument("--prg")
     p.add_argument("--reu", type=int, default=0, help="REU size in KB (0 = none)")
+    p.add_argument("--reuimage", help="REU contents at power-on (tools/bank/crt_split.py)")
     p.add_argument("--headless", action="store_true")
     p.add_argument("--warp", action="store_true")
     p.add_argument("--debugcart", action="store_true")

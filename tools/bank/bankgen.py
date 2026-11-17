@@ -604,8 +604,82 @@ BANKCALL = r"""
  * caller's bank again and returns with A, X and Y as the function left them (results
  * may be in A and X, and the caller may keep values in X or Y).  The old bank and
  * bret's address wait on the hardware stack; no zero page is touched.  Not
- * re-entrant: an interrupt handler must not call banked code. */
-unsigned char nh_bc_a, nh_bc_x, nh_bc_y;
+ * re-entrant: an interrupt handler must not call banked code.
+ *
+ * Banks 1-63 are the EasyFlash's, executed in place; banks from 64 on live in the REU
+ * (ADR-0008; tools/bank/crt_split.py puts bank b at REU offset (b - 64) * 16 KB) and run
+ * in the RAM under the cartridge, $8000-$BFFF, with the cartridge and BASIC switched off.
+ * nh_map fetches such a bank by DMA only when the window holds another one, on the way
+ * in and on the way back (a caller in an REU bank whose window a call replaced).
+ * nh_window 0 means no REU bank in the window, so it needs no initialiser (compat #76:
+ * an initialised volatile that only assembler writes is folded to its first value).
+ * The REU's registers are written, never read ($DF00-$DFFF, docs/HARDWARE.md). */
+unsigned char nh_bc_a, nh_bc_x, nh_bc_y, nh_bc_t;
+volatile unsigned char nh_window, nh_cartoff;
+volatile unsigned nh_fetches;
+
+/* maps bank A; changes only A and the flags (the bank call routine keeps Y) */
+__asm nh_map
+{
+		sta nh_bank
+		cmp #64
+		bcs reu
+		sta $de00
+		lda nh_cartoff
+		beq on
+		lda #0
+		sta nh_cartoff
+		lda #$87
+		sta $de02
+		lda #$37
+		sta $01
+on:		rts
+reu:	cmp nh_window
+		beq off
+		sta nh_window
+		lda #$04
+		sta $de02
+		lda #$36
+		sta $01
+		inc nh_fetches
+		bne cnt
+		inc nh_fetches + 1
+cnt:	lda nh_window
+		sec
+		sbc #64
+		sta nh_bc_t
+		asl
+		asl
+		asl
+		asl
+		asl
+		asl
+		sta $df05
+		lda nh_bc_t
+		lsr
+		lsr
+		sta $df06
+		lda #0
+		sta $df04
+		sta $df02
+		sta $df07
+		sta $df0a
+		lda #$80
+		sta $df03
+		lda #$40
+		sta $df08
+		lda #$91
+		sta $df01
+off:	lda nh_cartoff
+		bne on
+		lda #1
+		sta nh_cartoff
+		lda #$04
+		sta $de02
+		lda #$36
+		sta $01
+		rts
+}
 
 __asm nh_bankcall
 {
@@ -628,8 +702,7 @@ __asm nh_bankcall
 		pha
 		ldy #1
 l1:		lda $ffff, y
-		sta nh_bank
-		sta $de00
+		jsr nh_map
 		iny
 l2:		lda $ffff, y
 		sta bjmp + 1
@@ -643,10 +716,19 @@ bjmp:	jmp $ffff
 bret:	nop
 		sta nh_bc_a
 		pla
-		sta nh_bank
-		sta $de00
+		jsr nh_map
 		lda nh_bc_a
 		rts
+}
+
+/* NH_BANK for the string trampolines: an REU bank, or the cartridge back on */
+__noinline void
+nh_setbank(unsigned char b)
+{
+	__asm {
+		lda b
+		jsr nh_map
+	}
 }
 
 #pragma runtime(bankcall, nh_bankcall)
@@ -658,6 +740,9 @@ def header(banks, keep_extern=(), linker_stubs=False):
     bufs_def = "\n".join("char nh_keep_%s[%d];" % (n, KEEP_SIZE) for n in sorted(keep_extern))
     if linker_stubs:
         bufs_def += "\n" + BANKCALL          # substituted, so no % escaping
+    setbank = ("/* through the bank call routine: an REU bank needs fetching (ADR-0008) */\n"
+               "extern void nh_setbank(unsigned char b);\n#define NH_BANK(n) nh_setbank(n)"
+               if linker_stubs else "#define NH_BANK(n) (nh_bank = (n), eflash.bank = (n))")
     regions = "\n".join("#pragma section( nhbank_%d, 0 )\n#pragma region( nhbank_%d_r, 0x8000, 0xc000, , %d, "
                         "{ nhbank_%d } )" % (b, b, b, b) for b in banks)
     return """/* nhbank.h - written by tools/bank/bankgen.py: the banks, the bank switch and the
@@ -668,11 +753,12 @@ def header(banks, keep_extern=(), linker_stubs=False):
 #ifdef __OSCAR64C__
 #include <c64/easyflash.h>
 %s
-/* the cartridge's bank register is write-only, so the bank selected is kept here */
-extern unsigned char nh_bank;
+/* the cartridge's bank register is write-only, so the bank selected is kept here;
+ * volatile, since the bank call routine (assembler) changes it */
+extern volatile unsigned char nh_bank;
 extern char *nh_stash(const char *s);
 #define NH_SAVE() nh_bank
-#define NH_BANK(n) (nh_bank = (n), eflash.bank = (n))
+%s
 #define NH_IN_WINDOW(p) ((unsigned)(p) >= 0x8000u && (unsigned)(p) < 0xc000u)
 #define NH_STASH(p) (NH_IN_WINDOW(p) ? nh_stash(p) : (p))
 #define NH_ENTER(n)
@@ -684,7 +770,7 @@ extern char *nh_keep(char *buf, unsigned size, const char *p);
 %s
 
 #ifdef NHBANK_DEFINE
-unsigned char nh_bank;
+volatile unsigned char nh_bank;
 /* a string from a bank that is about to be unmapped: copied into one of a few
  * resident buffers, which callers reuse in turn */
 static char nh_stash_buf[4][256];
@@ -746,7 +832,7 @@ nh_enter(int n, const char *f)
 #endif
 
 #endif
-""" % (regions, bufs_decl, bufs_def)
+""" % (regions, setbank, bufs_decl, bufs_def)
 
 
 if __name__ == "__main__":

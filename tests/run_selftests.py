@@ -35,7 +35,8 @@ CASES = [
 ]
 
 FAILS = {1: "timeout (limitcycles reached)", 2: "walk", 3: "wall blocking",
-         4: "REU DMA", 5: "REU restore mismatch", 6: "lrand48 differs from glibc"}
+         4: "REU DMA", 5: "REU restore mismatch", 6: "lrand48 differs from glibc",
+         7: "REU size probe changed the REU or its answer"}
 
 
 def run_case(name, image, kind, reu):
