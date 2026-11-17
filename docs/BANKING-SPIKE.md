@@ -450,5 +450,14 @@ The EasyFlash path costs a `JSR`/`RTS` and a test more each way than the routine
 value, so `nh_window` uses 0 for "no REU bank". `bankgen.py --linker-stubs` now writes this
 routine, and `NH_BANK()` in the string trampolines goes through it (`nh_setbank`). The plan
 renumbered by the wide profile, `docs/data/bankplan-2026-11-17-reu.json` (`bankplace.py
---write`), gives the 63 banks entered most 1-63 and the other 40 64-103; its whole-game
-build is still to run.
+--write`), gives the 63 banks entered most 1-63 and the other 40 64-103.
+
+**The whole game from the renumbered plan** (desktop, pin of 80 commits, 621 s, 12.8 GB;
+`docs/data/wholegame-reu-2026-11-17.txt`): every check of `build_c64.py --check-only` passes
+(no call crosses a bank without its stub, highest temporary $8B, no branch out of range), and
+no warning 2025. A first build had the string trampolines switch banks through a call of
+`nh_setbank()` after copying their result, and the compiler, which cannot see that the call
+leaves ACCU alone, kept the result across it in every trampoline: 3.7 KB more resident code.
+Now one call, `nh_unstash(p, bank)`, copies the string and maps the caller's bank, and the
+trampoline ends in it: the resident code the failed link leaves unplaced is 46,671 B, 828 B
+less than with the 2026-11-15 plan and routine (47,499 B).

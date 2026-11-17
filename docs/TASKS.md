@@ -590,8 +590,9 @@ Add new tasks at the bottom of the right section.
       VICE (`tests/spikes/bankreu.c`, 14 checks; 361 cycles a call with the bank in the window,
       17.1 ms with a fetch); `bankgen.py` writes it; `tools/bank/crt_split.py` makes the REU
       image; the plan renumbered by the wide profile (`bankplan-2026-11-17-reu.json`); the REU
-      size probe no longer overwrites the REU (self-test 7). Next: the whole game from the
-      renumbered plan (desktop), then the .crt + REU image once the data fits (T2.12).
+      size probe no longer overwrites the REU (self-test 7). The whole game from the renumbered
+      plan passes every check (desktop, 621 s), 828 B less resident code than before
+      (`nh_unstash`). Next: the .crt + REU image once the data fits (T2.12).
 - [ ] T2.2 Banking spike B (REU overlays) with the same files (BANKING-SPIKE.md)
 - [ ] T2.3 RAM map for dynamic state; BUFSZ policy ADR
       — 2026-11-15: measured (docs/RAM-PLAN.md): what NetHack reaches through plain

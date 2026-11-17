@@ -588,7 +588,11 @@ def trampoline(d, sig, bank):
     call = "%s__b%d(%s)" % (d["name"], bank, ", ".join(p[1] for p in params))
     body.append("\t%s%s;" % ("" if void else "nh_r = ", call))
     if not void and CHAR_PTR.match(ret):
-        body.append("\tnh_r = NH_STASH(nh_r);")
+        # one call copies the string out of the window and maps the caller's bank again,
+        # so its result is already in place: a bank switch that is itself a call would
+        # make every trampoline keep the pointer across it (about 26 bytes each)
+        body.append("\treturn NH_UNSTASH(nh_r, nh_ob);")
+        return "__noinline %s\n{\n%s\n}" % (head, "\n".join(body))
     body.append("\tNH_BANK(nh_ob);")
     if not void:
         body.append("\treturn nh_r;")
@@ -757,6 +761,9 @@ def header(banks, keep_extern=(), linker_stubs=False):
  * volatile, since the bank call routine (assembler) changes it */
 extern volatile unsigned char nh_bank;
 extern char *nh_stash(const char *s);
+/* a string result: copied out if it is in the window, then bank b mapped again */
+extern __noinline char *nh_unstash(const char *s, unsigned char b);
+#define NH_UNSTASH(p, b) nh_unstash((p), (b))
 #define NH_SAVE() nh_bank
 %s
 #define NH_IN_WINDOW(p) ((unsigned)(p) >= 0x8000u && (unsigned)(p) < 0xc000u)
@@ -786,6 +793,14 @@ nh_stash(const char *s)
 		d[i] = s[i];
 	d[i] = 0;
 	return d;
+}
+
+__noinline char *
+nh_unstash(const char *s, unsigned char b)
+{
+	char *p = NH_STASH(s);
+	NH_BANK(b);
+	return p;
 }
 
 char *
@@ -826,6 +841,7 @@ nh_enter(int n, const char *f)
 #define NH_SAVE() nh_bank
 #define NH_BANK(n) (nh_bank = (n))
 #define NH_STASH(p) (p)
+#define NH_UNSTASH(p, b) (NH_BANK(b), (p))
 #define NH_ENTER(n) int nh_entered = nh_enter((n), __FUNCTION__);
 #define NH_KEEP(buf, p) (p)
 #define NH_KEEPBUF(decl)

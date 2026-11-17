@@ -85,6 +85,9 @@ banking", options A-C). Measured since (BANKING-SPIKE.md):
   .crt into the REU image; `bankgen.py --linker-stubs` writes the routine; the renumbered
   plan is `docs/data/bankplan-2026-11-17-reu.json` (`bankplace.py --write`). The REU size
   probe (`sys_reu_banks()`) now leaves the REU as it found it.
+- 2026-11-17: the whole game from the renumbered plan passes every listing check
+  (`docs/data/wholegame-reu-2026-11-17.txt`); its resident code is 828 B smaller than before,
+  the string trampolines now ending in one call that copies and switches back.
 
 ## Evidence / how to re-check
 `python3 tools/profile_play.py --wide --role R --merge -o build/profile-arcs-wide.json` for each

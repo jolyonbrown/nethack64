@@ -1,0 +1,23 @@
+# The whole game from docs/data/bankplan-2026-11-17-reu.json (ADR-0008: banks 1-63 EasyFlash, 64-103 REU),
+# pin of 80 commits, -Os -xb, stub mode, the game's own main(); desktop, 621 s, peak 12.8 GB, no warning 2025.
+# tools/bank/build_c64.py --plan docs/data/bankplan-2026-11-17-reu.json --linker-stubs --main real --check-only
+# Exit 20: the data cannot be placed yet (T2.12), as before; the code is placed.
+
+## string trampolines ending in nh_unstash() (bankgen.py as committed)
+listing nethack.error.asm: 2305 functions, 1884 in 103 banks, 421 resident; 31482 calls; 0 cross a bank without a trampoline
+zero page and branches (check_listing.py): highest temporary $8b (m_move), 0 problems
+intermediate code: 24122 direct calls; 254 cross a bank without a trampoline; 0 banked functions store to the bank register; 707 calls through pointers from banked code; 0 uses of a banked function's address
+banks: 103 used, 1569172 B in all; per bank min 9109, median 15370, max 16313 B
+resident code: 16712 B, of which 69 trampolines, 5305 B (76.9 B each), and 0 bank call stubs, 0 B
+resident code inside the bank window $8000-$bfff: 73 functions, e.g. is_pool@proxy, is_pool@proxy, is_pool, is_lava@proxy, is_lava
+left unplaced by the failed link: resident data 128573 B, resident native_code 46671 B
+
+## first try: NH_BANK as a call of nh_setbank() after the copy (+3.7 KB resident code)
+resident code: 17352 B, of which 55 trampolines, 6036 B (109.7 B each), and 0 bank call stubs, 0 B
+resident code inside the bank window $8000-$bfff: 55 functions, e.g. Monnam, the, The, pline_The, flooreffects
+left unplaced by the failed link: resident data 129213 B, resident native_code 51231 B
+
+## before: the 2026-11-15 plan and bank call routine, the same pin (T1.49's final build)
+resident code: 17078 B, of which 64 trampolines, 5820 B (90.9 B each), and 0 bank call stubs, 0 B
+resident code inside the bank window $8000-$bfff: 67 functions, e.g. The, pline_The, flooreffects, is_pool@proxy, is_pool@proxy
+left unplaced by the failed link: resident data 128934 B, resident native_code 47499 B
