@@ -12,6 +12,24 @@
 #ifndef FAR_PRE_H
 #define FAR_PRE_H
 
+#ifdef NH_FAR_CC
+/* calibrate.py --far-cc: an Oscar64 with far spaces (T2.12) translates by itself, through
+ * each space's farxlN (cal.c), from the same tables; nothing is rewritten */
+#ifdef NH_FAR_PERMONST
+#pragma farspace(1, permonst, attack)
+#endif
+#ifdef NH_FAR_MONST_S
+#pragma farspace(2, monst_s, epri, emin, eshk, egd, edog)
+#endif
+#ifdef NH_FAR_OBJ_S
+#pragma farspace(3, obj_s)
+#endif
+#ifdef NH_FAR_TRAP_S
+#pragma farspace(4, trap_s)
+#endif
+#define NH_TLB_QUAL
+#else
+
 #ifdef NH_FAR_VOLATILE
 #define NH_TLB_QUAL	volatile
 #else
@@ -45,5 +63,6 @@ NH_FAR_SPACE(permonst)
 NH_FAR_SPACE(monst_s)
 NH_FAR_SPACE(obj_s)
 NH_FAR_SPACE(trap_s)
+#endif
 
 #endif

@@ -1,0 +1,622 @@
+From 06e504a2874b88245893ae4eedd0124c5d73ecef Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Tue, 17 Nov 2026 10:49:38 +0000
+Subject: [PATCH 1/2] Far spaces: typed far data, translated at each access
+ (WIP)
+
+#pragma farspace(n, tag, ...) puts struct types in far space n, and
+#pragma farsection(section, n) puts a section's objects there. The
+front end tags each load, store and copy with the space of the memory
+it reaches. A late pass, after every pass that moves instructions,
+puts t = FARXLAT(address) right before each far access and makes the
+access go through t. Native code calls the program's farxlN routine
+with the page in X, which returns the RAM page in A.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/Compiler.cpp            |  10 ++
+ oscar64/Declaration.cpp         |  32 +++++++
+ oscar64/Declaration.h           |   6 ++
+ oscar64/InterCode.cpp           | 164 +++++++++++++++++++++++++++++++-
+ oscar64/InterCode.h             |   6 +-
+ oscar64/InterCodeGenerator.cpp  |  31 ++++--
+ oscar64/InterCodeGenerator.h    |   5 +-
+ oscar64/Linker.cpp              |   2 +-
+ oscar64/Linker.h                |   1 +
+ oscar64/NativeCodeGenerator.cpp |  21 ++++
+ oscar64/Parser.cpp              |  50 ++++++++++
+ 11 files changed, 317 insertions(+), 11 deletions(-)
+
+diff --git a/oscar64/Compiler.cpp b/oscar64/Compiler.cpp
+index 939b52f..3b2fbee 100644
+--- a/oscar64/Compiler.cpp
++++ b/oscar64/Compiler.cpp
+@@ -1113,6 +1113,16 @@ bool Compiler::GenerateCode(void)
+ 		RegisterRuntime(loc, Ident::Unique("free"));
+ 		RegisterRuntime(loc, Ident::Unique("breakpoint"));
+ 
++		// Optional: the translation routines of far spaces 1-8 (#pragma farspace), which a
++		// program with far data names (#pragma runtime(farxl1, ...))
++		for (int i = 1; i <= 8; i++)
++		{
++			char	rname[16];
++			snprintf(rname, sizeof(rname), "farxl%d", i);
++			if (mCompilationUnits->mRuntimeScope->Lookup(Ident::Unique(rname)))
++				RegisterRuntime(loc, Ident::Unique(rname));
++		}
++
+ 		// Optional: a program that names a bank call routine has its calls between
+ 		// cartridge banks go through it (Linker::InsertBankCalls)
+ 		Declaration* bkdec = mCompilationUnits->mRuntimeScope->Lookup(Ident::Unique("bankcall"));
+diff --git a/oscar64/Declaration.cpp b/oscar64/Declaration.cpp
+index 2827ca0..3cc7611 100644
+--- a/oscar64/Declaration.cpp
++++ b/oscar64/Declaration.cpp
+@@ -1510,6 +1510,38 @@ Declaration::~Declaration(void)
+ 	delete[] mData;
+ }
+ 
++// #pragma farspace(n, tag, ...): the struct and union tags of far spaces
++static ExpandingArray<const Ident*>	FarSpaceTags;
++static ExpandingArray<int>			FarSpaceIds;
++
++void SetFarSpace(const Ident* tag, int space)
++{
++	for (int i = 0; i < FarSpaceTags.Size(); i++)
++	{
++		if (FarSpaceTags[i] == tag)
++		{
++			FarSpaceIds[i] = space;
++			return;
++		}
++	}
++	FarSpaceTags.Push(tag);
++	FarSpaceIds.Push(space);
++}
++
++int Declaration::FarSpace(void) const
++{
++	const Declaration* dec = this;
++	while (dec && dec->mType == DT_TYPE_ARRAY)
++		dec = dec->mBase;
++	if (dec && (dec->mType == DT_TYPE_STRUCT || dec->mType == DT_TYPE_UNION) && dec->mIdent)
++	{
++		for (int i = 0; i < FarSpaceTags.Size(); i++)
++			if (FarSpaceTags[i] == dec->mIdent)
++				return FarSpaceIds[i];
++	}
++	return 0;
++}
++
+ int Declaration::Stride(void) const
+ {
+ 	if (mStride > 0)
+diff --git a/oscar64/Declaration.h b/oscar64/Declaration.h
+index 2dbc06a..53cd6a7 100644
+--- a/oscar64/Declaration.h
++++ b/oscar64/Declaration.h
+@@ -308,6 +308,8 @@ public:
+ 	void Dump(int ident) const;
+ };
+ 
++void SetFarSpace(const Ident* tag, int space);
++
+ class Declaration
+ {
+ public:
+@@ -419,6 +421,10 @@ public:
+ 	const Ident* FullIdent(void);
+ 
+ 	int Stride(void) const;
++
++	// The far space a struct or union type is in (#pragma farspace), 0 if it is near;
++	// an array type is in its element's space
++	int FarSpace(void) const;
+ 	int Alignment(void) const;
+ };
+ 
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index 0bd1e8b..6b71dd1 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -4346,7 +4346,7 @@ void ValueSet::UpdateValue(InterCodeBasicBlock * block, InterInstruction * ins,
+ 
+ 
+ InterOperand::InterOperand(void)
+-	: mTemp(INVALID_TEMPORARY), mType(IT_NONE), mFinal(false), mIntConst(0), mFloatConst(0), mVarIndex(-1), mOperandSize(0), mLinkerObject(nullptr), mMemory(IM_NONE), mStride(1), mRestricted(0), mMemoryBase(IM_NONE)
++	: mTemp(INVALID_TEMPORARY), mType(IT_NONE), mFinal(false), mIntConst(0), mFloatConst(0), mVarIndex(-1), mOperandSize(0), mLinkerObject(nullptr), mMemory(IM_NONE), mStride(1), mRestricted(0), mMemoryBase(IM_NONE), mFarSpace(0)
+ {}
+ 
+ bool InterOperand::IsValid(void) const
+@@ -4460,6 +4460,9 @@ bool InterOperand::IsEqual(const InterOperand& op) const
+ 	if (mStride != op.mStride)
+ 		return false;
+ 
++	if (mFarSpace != op.mFarSpace)
++		return false;
++
+ 	if (mMemory != IM_NONE && mMemory != IM_INDIRECT)
+ 	{
+ 		if (mVarIndex != op.mVarIndex || mLinkerObject != op.mLinkerObject)
+@@ -27004,6 +27007,158 @@ void InterCodeBasicBlock::PeepholeOptimization(const GrowingVariableArray& stati
+ 	}
+ }
+ 
++// The far space a memory operand reaches, 0 if near.  An object in a far section is far
++// whatever the type said; an object known to be near (a global elsewhere, a local) needs
++// no translation even if its type is far (#pragma farspace's identity window: a near
++// object of a far type is at its own address); an address not known is far by its type.
++static int FarSpaceOfOperand(const InterOperand& op)
++{
++	if (op.mMemory == IM_GLOBAL)
++		return (op.mLinkerObject && op.mLinkerObject->mSection) ? op.mLinkerObject->mSection->mFarSpace : 0;
++	else if (op.mMemory == IM_INDIRECT)
++	{
++		if (op.mMemoryBase == IM_GLOBAL && op.mLinkerObject && op.mLinkerObject->mSection)
++			return op.mLinkerObject->mSection->mFarSpace;
++		if (op.mMemoryBase == IM_LOCAL || op.mMemoryBase == IM_PARAM || op.mMemoryBase == IM_FPARAM || op.mMemoryBase == IM_FRAME || op.mMemoryBase == IM_FFRAME)
++			return 0;
++		return op.mFarSpace;
++	}
++	return 0;
++}
++
++// Before an access to far data: t = FARXLAT(address), the access then through t.  Placed
++// right before the access, after every pass that moves instructions, so that nothing comes
++// between the two that could translate (and so fault and evict) another page, except in a
++// copy between two far objects, whose two translations follow each other: the runtime's
++// fault handler keeps the page it translated last.
++static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& instructions, int& i, InterOperand& op, int space)
++{
++	InterInstruction* ins = instructions[i];
++	int atemp;
++
++	if (op.mMemory == IM_GLOBAL)
++	{
++		if (op.mTemp >= 0)
++		{
++			InterInstruction* lins = new InterInstruction(ins->mLocation, IC_LEA);
++			lins->mSrc[1].mMemory = IM_GLOBAL;
++			lins->mSrc[1].mType = IT_POINTER;
++			lins->mSrc[1].mLinkerObject = op.mLinkerObject;
++			lins->mSrc[1].mVarIndex = op.mVarIndex;
++			lins->mSrc[1].mIntConst = op.mIntConst;
++			lins->mSrc[1].mOperandSize = op.mOperandSize;
++			lins->mSrc[0].mType = IT_INT16;
++			lins->mSrc[0].mTemp = op.mTemp;
++			lins->mNumOperands = 2;
++			lins->mDst.mType = IT_POINTER;
++			lins->mDst.mTemp = proc->AddTemporary(IT_POINTER);
++			instructions.Insert(i++, lins);
++			atemp = lins->mDst.mTemp;
++		}
++		else
++		{
++			InterInstruction* cins = new InterInstruction(ins->mLocation, IC_CONSTANT);
++			cins->mConst.mType = IT_POINTER;
++			cins->mConst.mMemory = IM_GLOBAL;
++			cins->mConst.mLinkerObject = op.mLinkerObject;
++			cins->mConst.mVarIndex = op.mVarIndex;
++			cins->mConst.mIntConst = op.mIntConst;
++			cins->mConst.mOperandSize = op.mOperandSize;
++			cins->mNumOperands = 0;
++			cins->mDst.mType = IT_POINTER;
++			cins->mDst.mTemp = proc->AddTemporary(IT_POINTER);
++			instructions.Insert(i++, cins);
++			atemp = cins->mDst.mTemp;
++		}
++	}
++	else if (op.mIntConst != 0)
++	{
++		// the exact address: a pointer to one object may carry the offset of the next
++		InterInstruction* lins = new InterInstruction(ins->mLocation, IC_LEA);
++		lins->mSrc[1].mMemory = IM_INDIRECT;
++		lins->mSrc[1].mType = IT_POINTER;
++		lins->mSrc[1].mTemp = op.mTemp;
++		lins->mSrc[0].mType = IT_INT16;
++		lins->mSrc[0].mTemp = -1;
++		lins->mSrc[0].mIntConst = op.mIntConst;
++		lins->mNumOperands = 2;
++		lins->mDst.mType = IT_POINTER;
++		lins->mDst.mTemp = proc->AddTemporary(IT_POINTER);
++		instructions.Insert(i++, lins);
++		atemp = lins->mDst.mTemp;
++	}
++	else
++		atemp = op.mTemp;
++
++	InterInstruction* xins = new InterInstruction(ins->mLocation, IC_UNARY_OPERATOR);
++	xins->mOperator = IA_FARXLAT;
++	xins->mSrc[0].mType = IT_POINTER;
++	xins->mSrc[0].mTemp = atemp;
++	xins->mConst.mType = IT_INT8;
++	xins->mConst.mIntConst = space;
++	xins->mNumOperands = 1;
++	xins->mDst.mType = IT_POINTER;
++	xins->mDst.mTemp = proc->AddTemporary(IT_POINTER);
++	instructions.Insert(i++, xins);
++
++	op.mMemory = IM_INDIRECT;
++	op.mMemoryBase = IM_NONE;
++	op.mTemp = xins->mDst.mTemp;
++	op.mIntConst = 0;
++	op.mLinkerObject = nullptr;
++	op.mVarIndex = -1;
++	op.mFarSpace = 0;
++	op.mRestricted = 0;
++}
++
++bool InterCodeBasicBlock::LowerFarAccesses(void)
++{
++	bool	changed = false;
++
++	if (!mVisited)
++	{
++		mVisited = true;
++
++		for (int i = 0; i < mInstructions.Size(); i++)
++		{
++			InterInstruction* ins = mInstructions[i];
++			int s0 = 0, s1 = 0;
++
++			switch (ins->mCode)
++			{
++			case IC_LOAD:
++				s0 = FarSpaceOfOperand(ins->mSrc[0]);
++				break;
++			case IC_STORE:
++			case IC_FILL:
++				s1 = FarSpaceOfOperand(ins->mSrc[1]);
++				break;
++			case IC_COPY:
++			case IC_STRCPY:
++				s0 = FarSpaceOfOperand(ins->mSrc[0]);
++				s1 = FarSpaceOfOperand(ins->mSrc[1]);
++				break;
++			}
++
++			if (s0 || s1)
++			{
++				if (ins->mVolatile)
++					mProc->mModule->mErrors->Error(ins->mLocation, EERR_INCOMPATIBLE_TYPES, "Volatile access to far data");
++				if (s0)
++					LowerFarOperand(mProc, mInstructions, i, ins->mSrc[0], s0);
++				if (s1)
++					LowerFarOperand(mProc, mInstructions, i, ins->mSrc[1], s1);
++				changed = true;
++			}
++		}
++
++		if (mTrueJump && mTrueJump->LowerFarAccesses()) changed = true;
++		if (mFalseJump && mFalseJump->LowerFarAccesses()) changed = true;
++	}
++
++	return changed;
++}
++
+ void InterCodeBasicBlock::CheckNullptrDereference(void) 
+ {
+ 	if (!mVisited)
+@@ -30348,6 +30503,13 @@ void InterCodeProcedure::Close(void)
+ 	mEntryBlock->ReduceTempLivetimes();
+ 	DisassembleDebug("reduce temp livetimes");
+ 
++	ResetVisited();
++	if (mEntryBlock->LowerFarAccesses())
++	{
++		BuildDataFlowSets();
++		DisassembleDebug("LowerFarAccesses");
++	}
++
+ 	MapVariables();
+ 
+ 	DisassembleDebug("mapped variabled");
+diff --git a/oscar64/InterCode.h b/oscar64/InterCode.h
+index d0ae095..6ae4cbb 100644
+--- a/oscar64/InterCode.h
++++ b/oscar64/InterCode.h
+@@ -120,7 +120,9 @@ enum InterOperator : uint8
+ 	IA_EXT16TO32U,
+ 	IA_EXT8TO16S,
+ 	IA_EXT8TO32S,
+-	IA_EXT16TO32S
++	IA_EXT16TO32S,
++
++	IA_FARXLAT		// unary, pointer: the address of far space mConst.mIntConst translated to a RAM address
+ };
+ 
+ class InterInstruction;
+@@ -294,6 +296,7 @@ public:
+ 	bool				mFinal;
+ 	InterType			mType;
+ 	InterMemory			mMemory, mMemoryBase;
++	uint8				mFarSpace;		// a memory operand in a far space (#pragma farspace), 0 near
+ 
+ 	void Forward(const InterOperand& op);
+ 	void ForwardTemp(const InterOperand& op);
+@@ -766,6 +769,7 @@ public:
+ 	void WarnInvalidValueRanges(void);
+ 	void CheckValueReturn(void);
+ 	void CheckNullptrDereference(void);
++	bool LowerFarAccesses(void);
+ 
+ 	void CollectGlobalReferences(NumberSet& referencedGlobals, NumberSet& modifiedGlobals, bool & storesIndirect, bool & loadsIndirect, bool & globalsChecked);
+ 	
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index 084912e..fdb3804 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -69,6 +69,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::Dereference(InterCodeProcedure*
+ 		ins->mSrc[0].mMemory = IM_INDIRECT;
+ 		ins->mSrc[0].mType = IT_POINTER;
+ 		ins->mSrc[0].mTemp = v.mTemp;
++		ins->mSrc[0].mFarSpace = v.mFarSpace;
+ 		ins->mDst.mType = v.mReference == 1 ? InterTypeOf(v.mType) : IT_POINTER;
+ 
+ 		if (ins->mDst.mType == IT_NONE)
+@@ -187,7 +188,8 @@ InterCodeGenerator::ExValue InterCodeGenerator::Dereference(InterCodeProcedure*
+ 				v = ExValue(vtype, srins->mDst.mTemp, v.mReference - 1);
+ 		}
+ 		else
+-			v = ExValue(v.mType, ins->mDst.mTemp, v.mReference - 1, v.mBits, v.mShift);
++			// a pointer just loaded points into its object type's space
++			v = ExValue(v.mType, ins->mDst.mTemp, v.mReference - 1, v.mBits, v.mShift, v.mReference == 2 ? v.mType->FarSpace() : 0);
+ 	}
+ 
+ 	return v;
+@@ -215,6 +217,7 @@ void InterCodeGenerator::StoreValue(InterCodeProcedure* proc, Expression* exp, I
+ 		lins->mSrc[0].mMemory = IM_INDIRECT;
+ 		lins->mSrc[0].mType = IT_POINTER;
+ 		lins->mSrc[0].mTemp = vl.mTemp;
++		lins->mSrc[0].mFarSpace = vl.mFarSpace;
+ 		lins->mSrc[0].mOperandSize = InterTypeSize[itype];
+ 		lins->mVolatile = vl.mType->mFlags & DTF_VOLATILE;
+ 		lins->mNumOperands = 1;
+@@ -308,6 +311,7 @@ void InterCodeGenerator::StoreValue(InterCodeProcedure* proc, Expression* exp, I
+ 		ins->mSrc[0] = oins->mDst;
+ 		ins->mSrc[1].mType = IT_POINTER;
+ 		ins->mSrc[1].mTemp = vl.mTemp;
++		ins->mSrc[1].mFarSpace = vl.mFarSpace;
+ 		ins->mSrc[1].mOperandSize = InterTypeSize[itype];
+ 		ins->mVolatile = vl.mType->mFlags & DTF_VOLATILE;
+ 		ins->mMemmap = vl.mType->mFlags & DTF_MEMMAP;
+@@ -323,6 +327,7 @@ void InterCodeGenerator::StoreValue(InterCodeProcedure* proc, Expression* exp, I
+ 		ins->mSrc[0].mTemp = vr.mTemp;
+ 		ins->mSrc[1].mType = IT_POINTER;
+ 		ins->mSrc[1].mTemp = vl.mTemp;
++		ins->mSrc[1].mFarSpace = vl.mFarSpace;
+ 		ins->mSrc[1].mOperandSize = vl.mType->mSize;
+ 		ins->mSrc[1].mStride = vl.mType->mStripe;
+ 		ins->mVolatile = vl.mType->mFlags & DTF_VOLATILE;
+@@ -1901,6 +1906,7 @@ InterInstruction* InterCodeGenerator::CopyStructSimple(InterCodeProcedure* proc,
+ 		lins->mSrc[0].mType = IT_POINTER;
+ 		lins->mSrc[0].mTemp = vr.mTemp;
+ 		lins->mSrc[0].mMemory = IM_INDIRECT;
++		lins->mSrc[0].mFarSpace = vr.mFarSpace;
+ 		lins->mSrc[0].mOperandSize = mdec->mSize;
+ 		lins->mSrc[0].mStride = mdec->mStripe;
+ 
+@@ -1914,6 +1920,7 @@ InterInstruction* InterCodeGenerator::CopyStructSimple(InterCodeProcedure* proc,
+ 		sins->mSrc[1].mType = IT_POINTER;
+ 		sins->mSrc[1].mTemp = vl.mTemp;
+ 		sins->mSrc[1].mMemory = IM_INDIRECT;
++		sins->mSrc[1].mFarSpace = vl.mFarSpace;
+ 		sins->mSrc[1].mOperandSize = mdec->mSize;
+ 		sins->mSrc[1].mStride = mdec->mStripe;
+ 
+@@ -1929,6 +1936,7 @@ InterInstruction* InterCodeGenerator::CopyStructSimple(InterCodeProcedure* proc,
+ 		cins->mSrc[0].mType = IT_POINTER;
+ 		cins->mSrc[0].mTemp = vr.mTemp;
+ 		cins->mSrc[0].mMemory = IM_INDIRECT;
++		cins->mSrc[0].mFarSpace = vr.mFarSpace;
+ 		cins->mSrc[0].mOperandSize = vr.mType->mSize;
+ 		cins->mSrc[0].mStride = vr.mType->mStripe;
+ 
+@@ -1936,6 +1944,7 @@ InterInstruction* InterCodeGenerator::CopyStructSimple(InterCodeProcedure* proc,
+ 		cins->mSrc[1].mType = IT_POINTER;
+ 		cins->mSrc[1].mTemp = vl.mTemp;
+ 		cins->mSrc[1].mMemory = IM_INDIRECT;
++		cins->mSrc[1].mFarSpace = vl.mFarSpace;
+ 		cins->mSrc[1].mStride = vl.mType->mStripe;
+ 
+ 		cins->mConst.mOperandSize = vl.mType->mSize;
+@@ -2559,6 +2568,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 			ins->mConst.mVarIndex = dec->mVarIndex;
+ 
+ 			int ref = 1;
++			int farSpace = 0;
+ 			if (dec->mType == DT_ARGUMENT)
+ 			{
+ 				if (dec->mFlags & DTF_FPARAM_UNUSED)
+@@ -2600,6 +2610,8 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 				ins->mConst.mLinkerObject = dec->mLinkerObject;
+ 				ins->mConst.mVarIndex = dec->mVarIndex;
+ 				assert(dec->mVarIndex >= 0);
++				if (dec->mLinkerObject && dec->mLinkerObject->mSection)
++					farSpace = dec->mLinkerObject->mSection->mFarSpace;
+ 			}
+ 			else
+ 			{
+@@ -2619,7 +2631,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 			if (exp->mDecType->IsReference())
+ 				return ExValue(exp->mDecType->mBase, ins->mDst.mTemp, ref + 1);
+ 			else
+-				return ExValue(exp->mDecType, ins->mDst.mTemp, ref, lbits, lshift);
++				return ExValue(exp->mDecType, ins->mDst.mTemp, ref, lbits, lshift, farSpace);
+ 		}
+ 
+ 
+@@ -2969,7 +2981,10 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 			ains->mDst.mTemp = proc->AddTemporary(ains->mDst.mType);
+ 			block->Append(ains);
+ 
+-			return ExValue(vl.mType->mBase, ains->mDst.mTemp, 1);
++			// an element through a pointer is in the space of the pointer's type; an element
++			// of an array is where the array is
++			return ExValue(vl.mType->mBase, ains->mDst.mTemp, 1, 0, 0,
++				vl.mType->mType == DT_TYPE_POINTER ? vl.mType->mBase->FarSpace() : vl.mFarSpace);
+ 		}
+ 
+ 		case EX_QUALIFY:
+@@ -3003,7 +3018,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 			if (exp->mDecType->IsReference())
+ 				return ExValue(exp->mDecType->mBase, ains->mDst.mTemp, 2);
+ 			else
+-				return ExValue(exp->mDecType, ains->mDst.mTemp, 1, exp->mDecValue->mBits, exp->mDecValue->mShift);
++				return ExValue(exp->mDecType, ains->mDst.mTemp, 1, exp->mDecValue->mBits, exp->mDecValue->mShift, vl.mFarSpace);
+ 		}
+ 
+ 		case EX_BINARY:
+@@ -3523,8 +3538,12 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 				else if (vl.mType->mStride != 1)
+ 					vl = Dereference(proc, exp, block, inlineMapper, vl, 0);
+ 				else
+-					return ExValue(vl.mType->mBase, vl.mTemp, vl.mReference + 1);
+-				return ExValue(vl.mType->mBase, vl.mTemp, 1);
++					// a pointer value points into its type's space; a pointer still in memory
++					// is loaded from where that memory is (Dereference then takes the type's)
++					return ExValue(vl.mType->mBase, vl.mTemp, vl.mReference + 1, 0, 0,
++						vl.mReference == 0 ? vl.mType->mBase->FarSpace() : vl.mFarSpace);
++				return ExValue(vl.mType->mBase, vl.mTemp, 1, 0, 0,
++					vl.mType->mType == DT_TYPE_ARRAY ? vl.mFarSpace : vl.mType->mBase->FarSpace());
+ 			case TK_BINARY_AND:
+ 			{
+ 				if (vl.mReference < 1 || vl.mBits)
+diff --git a/oscar64/InterCodeGenerator.h b/oscar64/InterCodeGenerator.h
+index 1207b8c..5fe4a7e 100644
+--- a/oscar64/InterCodeGenerator.h
++++ b/oscar64/InterCodeGenerator.h
+@@ -22,9 +22,10 @@ public:
+ 		Declaration* mType;
+ 		int		mTemp, mReference;
+ 		int		mBits, mShift;
++		int		mFarSpace;		// with mReference > 0: the far space the address points into, 0 near
+ 
+-		ExValue(Declaration* type = nullptr, int temp = -1, int reference = 0, int bits = 0, int shift = 0)
+-			: mType(type), mTemp(temp), mReference(reference), mBits(bits), mShift(shift)
++		ExValue(Declaration* type = nullptr, int temp = -1, int reference = 0, int bits = 0, int shift = 0, int farSpace = 0)
++			: mType(type), mTemp(temp), mReference(reference), mBits(bits), mShift(shift), mFarSpace(farSpace)
+ 		{}
+ 	};
+ 
+diff --git a/oscar64/Linker.cpp b/oscar64/Linker.cpp
+index d25fcac..4c5d2e1 100644
+--- a/oscar64/Linker.cpp
++++ b/oscar64/Linker.cpp
+@@ -10,7 +10,7 @@ LinkerRegion::LinkerRegion(void)
+ {}
+ 
+ LinkerSection::LinkerSection(void)
+-	: mIdent(nullptr), mObjects(nullptr), mSections(nullptr), mStart(0), mEnd(0), mSize(0), mType(LST_NONE), mFlags(0)
++	: mIdent(nullptr), mObjects(nullptr), mSections(nullptr), mStart(0), mEnd(0), mSize(0), mType(LST_NONE), mFlags(0), mFarSpace(0)
+ {}
+ 
+ 
+diff --git a/oscar64/Linker.h b/oscar64/Linker.h
+index ce7cf0d..7945f2a 100644
+--- a/oscar64/Linker.h
++++ b/oscar64/Linker.h
+@@ -205,6 +205,7 @@ public:
+ 	int								mStart, mEnd, mSize;
+ 	LinkerSectionType				mType;
+ 	uint32							mFlags;
++	int								mFarSpace;	// #pragma farsection: its objects are in this far space
+ 
+ 	LinkerSection(void);
+ 
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 4e42bfc..c27691d 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -13558,6 +13558,27 @@ void NativeCodeBasicBlock::UnaryOperator(InterCodeProcedure* proc, NativeCodePro
+ {
+ 	int	treg = BC_REG_TMP + proc->mTempOffset[ins->mDst.mTemp];
+ 
++	if (ins->mOperator == IA_FARXLAT)
++	{
++		// A far address to a RAM address: the runtime's farxlN takes the page in X and
++		// returns the RAM page in A (faulting the page in if it has to), keeping Y; the
++		// offset in the page stays.
++		int	sreg = BC_REG_TMP + proc->mTempOffset[ins->mSrc[0].mTemp];
++		char	rname[16];
++		snprintf(rname, sizeof(rname), "farxl%d", int(ins->mConst.mIntConst));
++		NativeCodeGenerator::Runtime& frt(nproc->mGenerator->ResolveRuntime(Ident::Unique(rname)));
++
++		mIns.Push(NativeCodeInstruction(ins, ASMIT_LDX, ASMIM_ZERO_PAGE, sreg + 1));
++		mIns.Push(NativeCodeInstruction(ins, ASMIT_JSR, ASMIM_ABSOLUTE, frt.mOffset, frt.mLinkerObject, NCIF_RUNTIME | NCIF_LOWER | NCIF_UPPER | NCIF_USE_CPU_REG_X | NCIF_PRESERVE_CPU_REG_Y));
++		mIns.Push(NativeCodeInstruction(ins, ASMIT_STA, ASMIM_ZERO_PAGE, treg + 1));
++		if (sreg != treg)
++		{
++			mIns.Push(NativeCodeInstruction(ins, ASMIT_LDA, ASMIM_ZERO_PAGE, sreg));
++			mIns.Push(NativeCodeInstruction(ins, ASMIT_STA, ASMIM_ZERO_PAGE, treg));
++		}
++		return;
++	}
++
+ 	if (ins->mDst.mType == IT_FLOAT)
+ 	{
+ 		switch (ins->mOperator)
+diff --git a/oscar64/Parser.cpp b/oscar64/Parser.cpp
+index 28413dd..68559cf 100644
+--- a/oscar64/Parser.cpp
++++ b/oscar64/Parser.cpp
+@@ -15405,6 +15405,56 @@ void Parser::ParsePragma(void)
+ 
+ 			ConsumeToken(TK_CLOSE_PARENTHESIS);
+ 		}
++		else if (!strcmp(mScanner->mTokenIdent->mString, "farspace"))
++		{
++			// #pragma farspace(n, tag, ...): pointers to these struct types are addresses in
++			// far space n, translated through its page table at each access
++			mScanner->NextToken();
++			ConsumeToken(TK_OPEN_PARENTHESIS);
++			Expression* exp = ParseRExpression();
++			int space = 0;
++			if (exp->mType == EX_CONSTANT && exp->mDecValue->mType == DT_CONST_INTEGER && exp->mDecValue->mInteger >= 1 && exp->mDecValue->mInteger <= 8)
++				space = int(exp->mDecValue->mInteger);
++			else
++				mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Far space number 1 to 8 expected");
++			while (ConsumeTokenIf(TK_COMMA))
++			{
++				if (mScanner->mToken == TK_IDENT)
++				{
++					SetFarSpace(mScanner->mTokenIdent, space);
++					mScanner->NextToken();
++				}
++				else
++					mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Struct tag expected");
++			}
++			ConsumeToken(TK_CLOSE_PARENTHESIS);
++		}
++		else if (!strcmp(mScanner->mTokenIdent->mString, "farsection"))
++		{
++			// #pragma farsection(section, n): the section's objects are in far space n, so
++			// accessing them translates their addresses
++			mScanner->NextToken();
++			ConsumeToken(TK_OPEN_PARENTHESIS);
++			if (mScanner->mToken == TK_IDENT)
++			{
++				const Ident* sectionIdent = mScanner->mTokenIdent;
++				mScanner->NextToken();
++				ConsumeToken(TK_COMMA);
++				Expression* exp = ParseRExpression();
++				if (exp->mType == EX_CONSTANT && exp->mDecValue->mType == DT_CONST_INTEGER && exp->mDecValue->mInteger >= 1 && exp->mDecValue->mInteger <= 8)
++				{
++					LinkerSection* lsec = mCompilationUnits->mLinker->FindSection(sectionIdent);
++					if (!lsec)
++						lsec = mCompilationUnits->mLinker->AddSection(sectionIdent, LST_DATA);
++					lsec->mFarSpace = int(exp->mDecValue->mInteger);
++				}
++				else
++					mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Far space number 1 to 8 expected");
++			}
++			else
++				mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Section name expected");
++			ConsumeToken(TK_CLOSE_PARENTHESIS);
++		}
+ 		else if (!strcmp(mScanner->mTokenIdent->mString, "place"))
+ 		{
+ 			mScanner->NextToken();
+-- 
+2.43.0
+

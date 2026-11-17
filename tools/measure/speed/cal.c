@@ -30,8 +30,14 @@
 
 #ifdef __OSCAR64C__
 /* Oscar64's emulator has 64 KB of RAM and no ROM: room for level, mons[] and objects[] */
+#ifdef NH_FAR_CC
+/* the compiler's far build (calibrate.py --far-cc) is 1.5 KB bigger with all four types far */
+#pragma region(main, 0x0860, 0xff00, , , {code, data, bss, heap, stack})
+#pragma stacksize(512)
+#else
 #pragma region(main, 0x0a00, 0xff00, , , {code, data, bss, heap, stack})
 #pragma stacksize(1024)
+#endif
 #pragma heapsize(0)
 #endif
 
@@ -75,6 +81,127 @@ far_map(NH_TLB_QUAL unsigned char *tlb, const char *real, unsigned size)
 }
 /* from an integer, not by pointer arithmetic outside the arrays (undefined) */
 #define NH_V(type, p)	((type *) ((unsigned) (p) + NH_VOFF))
+
+#ifdef NH_FAR_CC
+/* the compiler's translations (T2.12): page X to RAM page A, Y kept; the game's hit path,
+   with the page translated last kept for the fault handler; a fault only counts here */
+unsigned char nh_farlast;
+
+__asm farxl1
+{
+		lda nh_tlb_permonst, x
+		beq xmiss1
+		sta nh_farlast
+		rts
+xmiss1:	inc nh_far_faults
+		rts
+}
+__asm farxl2
+{
+		lda nh_tlb_monst_s, x
+		beq xmiss2
+		sta nh_farlast
+		rts
+xmiss2:	inc nh_far_faults
+		rts
+}
+__asm farxl3
+{
+		lda nh_tlb_obj_s, x
+		beq xmiss3
+		sta nh_farlast
+		rts
+xmiss3:	inc nh_far_faults
+		rts
+}
+__asm farxl4
+{
+		lda nh_tlb_trap_s, x
+		beq xmiss4
+		sta nh_farlast
+		rts
+xmiss4:	inc nh_far_faults
+		rts
+}
+unsigned char nh_xoff, nh_xlo;
+
+__asm farxo1
+{
+		sty nh_xoff
+		clc
+		adc nh_xoff
+		bcc xnc1
+		inx
+xnc1:	sta nh_xlo
+		lda nh_tlb_permonst, x
+		beq xomiss1
+		sta nh_farlast
+		tax
+		lda nh_xlo
+		rts
+xomiss1:	inc nh_far_faults
+		rts
+}
+__asm farxo2
+{
+		sty nh_xoff
+		clc
+		adc nh_xoff
+		bcc xnc2
+		inx
+xnc2:	sta nh_xlo
+		lda nh_tlb_monst_s, x
+		beq xomiss2
+		sta nh_farlast
+		tax
+		lda nh_xlo
+		rts
+xomiss2:	inc nh_far_faults
+		rts
+}
+__asm farxo3
+{
+		sty nh_xoff
+		clc
+		adc nh_xoff
+		bcc xnc3
+		inx
+xnc3:	sta nh_xlo
+		lda nh_tlb_obj_s, x
+		beq xomiss3
+		sta nh_farlast
+		tax
+		lda nh_xlo
+		rts
+xomiss3:	inc nh_far_faults
+		rts
+}
+__asm farxo4
+{
+		sty nh_xoff
+		clc
+		adc nh_xoff
+		bcc xnc4
+		inx
+xnc4:	sta nh_xlo
+		lda nh_tlb_trap_s, x
+		beq xomiss4
+		sta nh_farlast
+		tax
+		lda nh_xlo
+		rts
+xomiss4:	inc nh_far_faults
+		rts
+}
+#pragma runtime(farxl1, farxl1)
+#pragma runtime(farxl2, farxl2)
+#pragma runtime(farxl3, farxl3)
+#pragma runtime(farxl4, farxl4)
+#pragma runtime(farxo1, farxo1)
+#pragma runtime(farxo2, farxo2)
+#pragma runtime(farxo3, farxo3)
+#pragma runtime(farxo4, farxo4)
+#endif
 #endif
 /* the harness's own pointers are real; what it hands the code under test is far */
 #ifdef NH_FAR_MONST_S
@@ -186,6 +313,17 @@ setup(void)
 #endif
 #ifdef NH_FAR_TRAP_S
 	far_map(nh_tlb_trap_s, (char *) trapv, sizeof(trapv));
+#endif
+#ifdef NH_FAR_CC
+	/* the compiler translates near objects of a far type too (youmonst): the pages no far
+	   address uses map to themselves (ADR-0009 point 2) */
+	for (i = 0; i < 256; i++)
+	{
+		if (!nh_tlb_permonst[i]) nh_tlb_permonst[i] = (unsigned char) i;
+		if (!nh_tlb_monst_s[i]) nh_tlb_monst_s[i] = (unsigned char) i;
+		if (!nh_tlb_obj_s[i]) nh_tlb_obj_s[i] = (unsigned char) i;
+		if (!nh_tlb_trap_s[i]) nh_tlb_trap_s[i] = (unsigned char) i;
+	}
 #endif
 	youmonst.data = &mons[PM_HUMAN];
 	u.uz.dnum = 0; u.uz.dlevel = 1;

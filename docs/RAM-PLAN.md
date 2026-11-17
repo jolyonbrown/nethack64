@@ -437,6 +437,54 @@ Where the far cost goes (all four types, cycles a call, `calibrate.py` prints it
   deeper game keeps more monsters and objects on the heap (run B), so 64 pages is where to
   start, not a bound.
 
+## Built: far spaces in the compiler (2026-11-17, T2.12, first version)
+
+The fork's `feature/far-spaces` (`tools/oscar64-upstream/patches/far-spaces/`, on the pin of 80
+commits; not in the pin yet):
+
+- `#pragma farspace(n, tag, ...)` puts struct types in far space n (1-8): a pointer to one is a
+  16-bit address in the space. `#pragma farsection(section, n)` puts a section's objects there.
+  The source stays C for gcc (the pragmas go under `#ifdef __OSCAR64C__`).
+- The front end tags every load, store, struct copy and built-in `memcpy`/`memset`/`strcpy`
+  with the space of the memory it reaches: a dereference of a pointer to a far type, a member
+  or element of far data, an object in a far section. A pointer value keeps the space it points
+  into, so `EPRI(mon)`, `(struct epri *) &mon->mextra[0]`, stays in the monsters' space.
+- A late pass, after every pass that moves instructions, puts `t = FARXLAT(address)` right
+  before each far access, so nothing that could fault and evict a page comes between the
+  translation and its use, except in a copy between two far objects, whose two translations
+  follow each other; the fault handler keeps the page translated last. Known near objects (a
+  global elsewhere, a local) are not translated even when their type is far; a near object
+  reached through a pointer is, through the identity entries of the space's table.
+- Native code calls the program's `farxlN` (page in X, RAM page back in A, Y kept) or `farxoN`
+  (address in A and X plus an offset under 256 in Y, the RAM address back in A and X): the
+  exact address is translated, since a pointer to one object may carry the offset of the next.
+- Warning 2026 where a far pointer leaves its space (converted to `void *`, `char *` or
+  another type, the address of a far member taken as a near pointer) and where a built-in copy
+  or fill of far data may span pages: the places to look at by hand. Far data in byte code is
+  an error.
+
+Checked: `autotest/farspacetest.c` (the far section linked at $8000, its pages mapped to a copy
+at $9000 and $8000 filled with garbage, so a missed translation fails; -O0 to -O3; without the
+type pragma the pointer checks fail), the fork's autotest 1,626/1,626, the corpus byte-identical
+to the pin's (1,084 of 1,085; the other is compat #67, which `MALLOC_PERTURB_` shows);
+`tests/spikes/run_farspace.py` in VICE with a 1 MB REU (512 far nodes over 64 pages through a
+16-page cache: a list built, walked, changed and copied far to far under eviction, 1,393 faults
+and 1,377 write-backs, 9 of 9 checks); and NetHack's own code in the speed harness
+(`calibrate.py --far-cc`, `docs/data/speed-farcc-2026-11-17.txt`): the same checksums as the
+host, no faults, zero page up to $82.
+
+| Far (compiler, every access translated) | `mfndpos`, cycles a call |
+|---|---|
+| nothing | 11,250.7 |
+| `mons[]` | 11,620.8 (+3%) |
+| `mons[]`, monsters, objects, traps | 14,900.3 (+32%) |
+
+`farify.py`'s rewrite (T2.11) cost +13% for all four: about 70 translations of some 22 cycles,
+inline. The compiler translates every access, `youmonst` and the `mondata.h` macros included,
+through a `jsr` (about 34 cycles for a page, 50 with an offset). Next: the hit path inline (a
+`jsr` only on a miss), then reuse with pinning (ADR-0009 point 4), which took `farify.py`'s
+13.4% to 8.7%.
+
 ## Measured: zero page saves (2026-11-16, T1.49)
 
 After the padding (ADR-0009 point 5), what is left of Oscar64's multiply routine is small: 0.2%

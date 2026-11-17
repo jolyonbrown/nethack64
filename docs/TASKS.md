@@ -721,6 +721,14 @@ Add new tasks at the bottom of the right section.
       pinning, conversions to `void *`/`char *`, allocators per space, the REU page cache and
       its fault handler; `mons[]`, `objects[]` and the heap first. Checked by `farify.py`'s
       checksums, then the game.
+      — 2026-11-17: first version on the fork's `feature/far-spaces` (2 commits on the pin,
+      `tools/oscar64-upstream/patches/far-spaces/`; RAM-PLAN.md "Built: far spaces"): the
+      pragmas, the front end's tags, the late translation pass, `farxlN`/`farxoN`, warning
+      2026, built-ins. Autotest 1,626/1,626 with `farspacetest.c`; corpus identical; VICE
+      spike with REU faults 9/9 (`run_farspace.py`); the speed harness with the compiler
+      translating (`calibrate.py --far-cc`): same checksums, `mfndpos` +3% with `mons[]` far,
+      +32% with all four types (every access through a `jsr`). Next: inline hit path, reuse
+      with pinning, then the game (`mons[]` first, allocators, the REU image).
 
 ## Housekeeping
 

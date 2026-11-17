@@ -318,6 +318,9 @@ def main():
                     help="translate a variable with one definition once, there (implies --expand)")
     ap.add_argument("--reuse-all", action="store_true",
                     help="every shadowable variable, at each of its definitions (implies --reuse)")
+    ap.add_argument("--no-rewrite", action="store_true",
+                    help="only the copies with far_pre.h and far_post.h: for a compiler with far "
+                         "spaces, which translates by itself (calibrate.py --far-cc)")
     a = ap.parse_args()
     a.reuse = a.reuse or a.reuse_all
     a.expand = a.expand or a.reuse
@@ -335,7 +338,7 @@ def main():
     tags = set(a.types)
     edits, problems = collections.defaultdict(set), []
     reuse = collections.defaultdict(list) if a.reuse else None
-    for s in sorted(glob.glob(os.path.join(out_x, "x_*.c"))):
+    for s in ([] if a.no_rewrite else sorted(glob.glob(os.path.join(out_x, "x_*.c")))):
         r = subprocess.run(["clang", "-fsyntax-only", "-std=gnu89", "-w", "-I" + out_inc] + a.cflags +
                            ["-Xclang", "-ast-dump=json", s], capture_output=True, text=True)
         if not r.stdout:

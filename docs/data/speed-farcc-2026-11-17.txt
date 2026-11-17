@@ -1,0 +1,27 @@
+# calibrate.py --far-cc, 2026-11-17: the speed harness with an Oscar64 that has far spaces (T2.12, the
+# fork's feature/far-spaces at 39f22f6: pin of 80 commits + 2), every access to a far type translated by
+# the compiler through cal.c's farxlN/farxoN (a JSR, the hit path of the game), nothing rewritten.
+# Same checksums as the host build, no faults. -Os -xb. Near numbers: the same compiler, far off.
+
+far permonst (no-rewrite), same checksums, no faults; highest zero-page temporaries: 0 $82 mfndpos, 1 $82 mfndpos, 2 $82 mfndpos, 3 $82 mfndpos, 4 $82 mfndpos
+workload              near cycles/call   far cycles/call   slower
+  isok                             43.2              43.2     1.00x
+  dist2                           237.2             240.6     1.01x
+  is_pool + is_lava               164.1             163.8     1.00x
+  mfndpos                       11250.7           11620.8     1.03x
+  far cost a call, isok: none
+  far cost a call, dist2: dist2 +3.4
+  far cost a call, is_pool + is_lava: none
+  far cost a call, mfndpos: mfndpos +263.1, farxo1 +91.6, bad_rock +18.2, onscary +7.8, is_lava -2.4, is_pool -2.9
+
+far permonst+monst_s+obj_s+trap_s (no-rewrite), same checksums, no faults; highest zero-page temporaries: 0 $82 mfndpos, 1 $82 mfndpos, 2 $82 mfndpos, 3 $82 mfndpos, 4 $82 mfndpos
+workload              near cycles/call   far cycles/call   slower
+  isok                             43.2              43.2     1.00x
+  dist2                           237.2             237.8     1.00x
+  is_pool + is_lava               164.1             163.0     0.99x
+  mfndpos                       11250.7           14900.3     1.32x
+  far cost a call, isok: none
+  far cost a call, dist2: dist2 +0.7
+  far cost a call, is_pool + is_lava: is_pool -0.6, is_lava -0.6
+  far cost a call, mfndpos: farxo4 +901.5, t_at +761.5, mfndpos +750.6, farxo2 +702.5, farxl4 +376.1, farxo1 +93.3
+

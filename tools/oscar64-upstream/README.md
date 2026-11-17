@@ -51,6 +51,11 @@ Jolyon has read its explanation and said yes. Until then, branches stay local.
   there is a fork. **`patches/pin/`** holds the same fixes backported to
   v1.32.273 for the patched compiler accepted in ADR-0007. Both are Oscar64
   changes and so GPL-3.0, like Oscar64.
+- **`patches/far-spaces/`** is T2.12's work in progress, far data in the compiler as
+  ADR-0009 decides (`#pragma farspace`, `#pragma farsection`, warning 2026), on top of
+  the pin (`git am` after `patches/pin/`; the fork's `feature/far-spaces`). Not in the
+  pin: Jolyon decides that. `autotest/farspacetest.c` and
+  `tests/spikes/run_farspace.py --oscar64 PATH` check it.
 - **Reproducible output.** v1.32.273 and the eight-commit pin read several
   members of their own data structures before anything has written them, so what
   they emit can depend on what the compiler's heap held: the install path, the

@@ -20,7 +20,9 @@ the pointers being far addresses NH_VOFF from the real ones; the checksums must 
 host's, and no page may fault.  --far-volatile makes the tables volatile: no translation is
 reused, one an access.  --far-reuse models a compiler that translates a pointer once a value
 (farify.py --reuse: variables with one definition; --far-reuse-all: all of them, at each
-definition); --far-expand only macro-expands the functions first (the control for both).
+definition); --far-expand only macro-expands the functions first (the control for both). --far-cc rewrites
+nothing: OSCAR64 is a compiler with far spaces (T2.12), which far_pre.h's pragmas name the types
+for, and which translates every access itself through cal.c's farxlN, from the same tables.
 Each far run also prints, for each workload, where the far cost goes, function by function.
 
 Every 6502 listing is checked (tools/check_listing.py): no branch out of range (compat #73),
@@ -129,12 +131,13 @@ NH_VOFF = 0x4000
 
 def far_runs(a, out, res, monst):
     fdir = os.path.join(out, "far")
-    mode = ["--reuse-all"] if a.far_reuse_all else ["--reuse"] if a.far_reuse else ["--expand"] if a.far_expand else []
+    mode = ["--no-rewrite"] if a.far_cc else ["--reuse-all"] if a.far_reuse_all else ["--reuse"] if a.far_reuse else \
+        ["--expand"] if a.far_expand else []
     print("\nfar build: " + run([sys.executable, os.path.join(HERE, "farify.py"), "--src", os.path.join(out, "x"),
                                  "--inc", os.path.join(out, "inc"), "--out", fdir] +
                                 ["--type=" + t for t in a.far] + ["--cflag=-DC64", "--cflag=-Dregister="] + mode)
           .strip().replace("\n", "\n  "))
-    defs = ["-dNH_FAR", "-dNH_VOFF=%d" % NH_VOFF] + ["-dNH_FAR_%s" % t.upper() for t in a.far] + \
+    defs = ["-dNH_FAR", "-dNH_VOFF=%d" % NH_VOFF] + (["-dNH_FAR_CC"] if a.far_cc else []) + ["-dNH_FAR_%s" % t.upper() for t in a.far] + \
         (["-dmons=nh_mons_real"] if "permonst" in a.far else []) + \
         (["-dNH_FAR_VOLATILE"] if a.far_volatile else []) + (["-dNH_FAR_COUNT"] if a.far_count else [])
     xs = sorted(glob.glob(os.path.join(fdir, "x", "x_*.c")))
@@ -200,6 +203,8 @@ def main():
     ap.add_argument("--far-expand", action="store_true", help="farify.py --expand (the control for --far-reuse)")
     ap.add_argument("--far-reuse", action="store_true", help="farify.py --reuse")
     ap.add_argument("--far-reuse-all", action="store_true", help="farify.py --reuse-all")
+    ap.add_argument("--far-cc", action="store_true",
+                    help="no rewrite: OSCAR64 has far spaces (T2.12) and translates by itself")
     a = ap.parse_args()
     out = os.path.abspath(a.out)
     xs, monst = prepare(out)
