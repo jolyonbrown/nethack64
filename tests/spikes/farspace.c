@@ -6,7 +6,8 @@
  * access through farxl1 (page X to the RAM page in A) or farxo1 (the address in A and X
  * plus the offset in Y to its RAM address), through tlb1[] (0: not in RAM).  On
  * a miss far_fault takes a page of the cache, 16 RAM pages at $6000-$6FFF, by a clock
- * that skips the page translated last (a copy between two far objects translates its
+ * that skips the pages pinned for the compiler's groups of accesses (farpins) and the page
+ * translated last (a copy between two far objects translates its
  * source and then its destination), writes the page it evicts back to the REU, and
  * fetches the one asked for.  Space 1's page p lives at REU $01:pp00; the REU starts as
  * zeroes, and the program builds its data through far pointers, so every store and every
@@ -55,6 +56,10 @@ unsigned char tlb1[256];
 #pragma align(tlb1, 256)
 unsigned char slot_page[NPOOL];
 unsigned char clock_hand, farlast, fsave_y, fpage;
+/* the pages of the compiler's groups of accesses (one translation for several fields):
+   not evicted while they are pinned here */
+unsigned char farpins[4];
+#pragma runtime(farpins, farpins)
 unsigned faults, writebacks;
 
 __asm far_fault;
@@ -130,6 +135,14 @@ wrap:	stx clock_hand
 		clc
 		adc #POOL
 		cmp farlast
+		beq next
+		cmp farpins
+		beq next
+		cmp farpins + 1
+		beq next
+		cmp farpins + 2
+		beq next
+		cmp farpins + 3
 		beq next
 		lda slot_page, x
 		beq free
@@ -211,6 +224,15 @@ __noinline long walk(struct node * n)
 		n = n->next;
 	}
 	return s;
+}
+
+/* three objects' fields interleaved: each object's group translated once and pinned, while
+   the others' translations fault and evict (the page translated last alone would not keep a's
+   page when c faults) */
+__noinline void mix(struct node * a, struct node * b, struct node * c)
+{
+	a->sum = (long)a->v + b->v + c->v + a->w[9];
+	b->w[0] = a->tag + b->tag + c->tag + a->w[8];
 }
 
 __noinline unsigned order(unsigned i)
@@ -315,6 +337,18 @@ int main(void)
 	nearnodes[7].next = &nodes[order(NNODES - 1)];
 	check(0x0020, walk(nearnodes) == 28 + (long)order(NNODES - 1) * 3 + 1);
 	nearnodes[7].next = nullptr;
+
+	/* groups under eviction: a node and one far away, for every node */
+	for (unsigned i = 0; i < NNODES; i++)
+		mix(&nodes[i], &nodes[(i + 200) & (NNODES - 1)], &nodes[(i + 333) & (NNODES - 1)]);
+	ok = 1;
+	for (unsigned i = 0; i < NNODES; i++)
+	{
+		unsigned j = (i + 200) & (NNODES - 1), k = (i + 333) & (NNODES - 1);
+		if (nodes[i].sum != (long)nodes[i].v + nodes[j].v + nodes[k].v + nodes[i].w[9])
+			ok = 0;
+	}
+	check(0x0200, ok);
 
 	check(0x0040, faults > NNODES / 8 && writebacks > 0);
 	/* the far region's own RAM was never written */

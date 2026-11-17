@@ -24,3 +24,7 @@ done:	rts
 
 #pragma runtime(farxl1, farxl1)
 #pragma runtime(farxo1, farxo1)
+
+/* the pin slots of the compiler's groups of accesses */
+unsigned char farpins[4];
+#pragma runtime(farpins, farpins)

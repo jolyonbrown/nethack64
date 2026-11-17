@@ -731,6 +731,8 @@ Add new tasks at the bottom of the right section.
       with pinning, then the game (`mons[]` first, allocators, the REU image).
       — 2026-11-17: all of port/src with the `mons[]` types far (`NH_FAR_SPACES`, measurement
       only): no warning 2026 in the game's files; +52 KB of code (+4.4%). Reuse first.
+      — 2026-11-17: groups within a block, pinned (fork commit 3): VICE 10/10 with a check
+      that fails without the pins; harness +2.6% / +30%. Next: groups across blocks.
 
 ## Housekeeping
 

@@ -28,6 +28,7 @@ CHECKS = [
     "faults and write-backs happened",
     "the far region's own RAM never written (all went through translation)",
     "the timing walk without faults",
+    "three objects' groups interleaved under eviction (pinned pages)",
 ]
 
 
@@ -53,6 +54,8 @@ def main():
         else:
             sys.exit("%s never set spike_done" % prg)
         b = rb.mem(result, 12)
+        if len(b) < 12:
+            sys.exit("could not read the results: the program ran away (VICE's monitor did not answer)")
         passed, ran, faults, writebacks, tnear, tfar = [b[i] | b[i + 1] << 8 for i in range(0, 12, 2)]
     finally:
         subprocess.run(rb.VICE + ["quit"], capture_output=True)

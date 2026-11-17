@@ -479,6 +479,16 @@ host, no faults, zero page up to $82.
 | `mons[]` | 11,620.8 (+3%) |
 | `mons[]`, monsters, objects, traps | 14,900.3 (+32%) |
 
+**Groups** (2026-11-17, the fork's third commit): accesses in a block through one pointer to a
+far struct object, inside the object, share one translation of the pointer's page, which
+pins it in one of four slots (`farpins`) that the fault handler does not evict; a call or a
+new value of the pointer ends the group. In VICE (`run_farspace.py`, 10 checks): three
+objects' fields interleaved under eviction pass with the pins and run away without them; the
+list walk costs 31 cycles a node more than near (102 translating every access). The
+harness: `mfndpos` +2.6% with `mons[]` far, +30% with all four types (+3% and +32% before):
+blocks are short (each `&&` and `||` of `mondata.h`'s macros starts one), so groups across
+blocks come next (`t_at()`'s loop still translates three times a step).
+
 The whole of port/src with `struct permonst` and `struct attack_s` far (`-dNH_FAR_SPACES`,
 `permonst.h`; `measure_oscar64.py` with `MEASURE_DEFS`/`MEASURE_EXTRA`,
 `docs/data/measure-c64-farmons-2026-11-17.txt`): no warning 2026 in the game's own files, so no

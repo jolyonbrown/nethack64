@@ -86,6 +86,9 @@ far_map(NH_TLB_QUAL unsigned char *tlb, const char *real, unsigned size)
 /* the compiler's translations (T2.12): page X to RAM page A, Y kept; the game's hit path,
    with the page translated last kept for the fault handler; a fault only counts here */
 unsigned char nh_farlast;
+/* the pin slots of the compiler's groups (no faults here, so nothing reads them) */
+unsigned char farpins[4];
+#pragma runtime(farpins, farpins)
 
 __asm farxl1
 {
