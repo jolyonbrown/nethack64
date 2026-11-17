@@ -583,7 +583,9 @@ Add new tasks at the bottom of the right section.
       — 2026-11-16: ADR-0008 proposed: the 62 banks entered most in place on the EasyFlash, the
       rest (about 42, 670 KB) from a REU of 1 MB or more through a 16 KB window at $8000 with
       the cartridge off; about one window load a turn in a wide profile (`profile_play.py
-      --wide`, 13 roles; `tools/measure/bankplace.py`). Waiting for Jolyon's decision.
+      --wide`, 13 roles; `tools/measure/bankplace.py`).
+      — 2026-11-17: ADR-0008 accepted (Jolyon), with an REU of 1 MB as the minimum. Next: the
+      REU window in the bank call routine, and the bank plan re-made from the wide profile.
 - [ ] T2.2 Banking spike B (REU overlays) with the same files (BANKING-SPIKE.md)
 - [ ] T2.3 RAM map for dynamic state; BUFSZ policy ADR
       — 2026-11-15: measured (docs/RAM-PLAN.md): what NetHack reaches through plain

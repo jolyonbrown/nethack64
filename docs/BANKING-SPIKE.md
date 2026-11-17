@@ -417,3 +417,5 @@ most on the EasyFlash leaves about one entry a turn into the rest, which would r
 through a RAM window under the cartridge (`tools/measure/bankplace.py`,
 `docs/data/bankplace-2026-11-16.txt`). Packing the overflow on the cartridge instead (about 2:1)
 leaves too few banks unpacked: about 20 unpackings a turn.
+
+**2026-11-17: ADR-0008 accepted** (Jolyon), with an REU of at least 1 MB.

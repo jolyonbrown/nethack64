@@ -1,6 +1,6 @@
 # ADR-0008: Code placement: the busiest banks on the EasyFlash, the rest from the REU
 
-- Status: proposed (for Jolyon)
+- Status: accepted (Jolyon, 2026-11-17: "accept ADR-0008, 1 MB REU minimum is fine")
 - Date: 2026-11-16
 - Deciders: Jolyon (+ Claude, who proposes it)
 
@@ -40,7 +40,7 @@ banking", options A-C). Measured since (BANKING-SPIKE.md):
 - RAM: with the cartridge switched off, `$8000-$BFFF` is RAM. While banked code runs from the
   EasyFlash, data cannot live there anyway, so a 16 KB window there costs no data RAM.
 
-## Decision (proposed)
+## Decision
 1. **The 62 banks entered most execute in place from the EasyFlash; the other banks (about 42
    today) live in the REU** and run in a 16 KB RAM window at `$8000-$BFFF`, with the cartridge
    switched off while they run. A call into such a bank goes through the same resident bank call

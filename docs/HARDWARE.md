@@ -4,7 +4,7 @@
 
 | Tier | Machine | Storage for code/data | Work RAM | 80 columns | Status |
 |---|---|---|---|---|---|
-| **Primary** | C64 + EasyFlash + REU | 1 MB flash (64 x 16 KB banks) + REU | 64 KB + REU (512 KB-16 MB) | software, VIC-II bitmap | Phase 0 boots in VICE, all REU sizes |
+| **Primary** | C64 + EasyFlash + REU | 1 MB flash (64 x 16 KB banks) + REU | 64 KB + REU (1 MB-16 MB for the whole game, ADR-0008) | software, VIC-II bitmap | Phase 0 boots in VICE, all REU sizes |
 | Alt. primary | C64 + REU only (>= 2 MB) | everything in REU, DMA'd into RAM | 64 KB + REU | software | not started; see ARCHITECTURE option B |
 | Fallback | C128 (+ REU) | disk/REU | 128 KB | VDC hardware 80 columns | not started; Oscar64 has `-tm=c128` and `<c128/vdc.h>` |
 | Stretch | stock C64 + 1541 | disk overlays | 64 KB | software | probably needs feature cuts; documented, not planned |
