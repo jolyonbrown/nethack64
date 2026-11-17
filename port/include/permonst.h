@@ -72,6 +72,11 @@ struct permonst {
 
 #if defined(C64) && defined(__OSCAR64C__)
 static_assert(sizeof (struct permonst) == 64, "struct permonst is 64 bytes (ADR-0009)");
+#ifdef NH_FAR_SPACES
+/* T2.12, not yet the build's: mons[] in far space 1 (ADR-0009), with its attacks, which
+ * code reaches as &ptr->mattk[i]; needs an Oscar64 with far spaces */
+#pragma farspace(1, permonst, attack_s)
+#endif
 #endif
 
 extern NEARDATA struct permonst

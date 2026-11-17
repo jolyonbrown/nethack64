@@ -28,7 +28,9 @@ environment: OSCAR64 (the compiler), MEASURE_TIMEOUT (seconds per file, default 
   MEASURE_BC=1 (compile to Oscar64 bytecode, -bc; sizes then count BYTE_CODE functions),
   MEASURE_KEEP=1 (keep each file's map, listings and generated stub file in the output
   directory, e.g. to size what the runtime links in),
-  MEASURE_OUT (the output directory; default build/measure or build/measure-c64)
+  MEASURE_OUT (the output directory; default build/measure or build/measure-c64),
+  MEASURE_DEFS (more -d options), MEASURE_EXTRA (more source files, e.g. a far space's
+  translation routines; the report then lists each file's warnings 2026, T2.12)
 """
 import argparse
 import collections
@@ -136,8 +138,9 @@ def measure(f):
     # MEASURE_BC=1: the same compile in Oscar64 bytecode (FITTING-TOOLBOX.md #15)
     bc = ["-bc"] if os.environ.get("MEASURE_BC") == "1" else []
     cmd = [OSCAR64, "-rmp", "-Os"] + bc + ["-i=" + os.path.join(OUT, "inc"), "-i=" + os.path.join(OUT, "stub"),
-           "-o=" + out, os.path.join(OUT, "src", f)] + DEFS + \
-          [os.path.join(OUT, "src", x) for x in base] + [h]
+           "-o=" + out, os.path.join(OUT, "src", f)] + DEFS + os.environ.get("MEASURE_DEFS", "").split() + \
+          [os.path.join(OUT, "src", x) for x in base] + [h] + \
+          [os.path.abspath(x) for x in os.environ.get("MEASURE_EXTRA", "").split()]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, cwd=OUT, timeout=TIMEOUT,
                            preexec_fn=cap_memory)
@@ -148,6 +151,9 @@ def measure(f):
     if crashed and ("std::bad_alloc" in r.stderr or r.returncode == -9):
         return {"status": "compiler-oom"}
     errs = [l for l in (r.stdout + r.stderr).splitlines() if "error" in l]
+    # far spaces (T2.12): where a far pointer leaves its space
+    far = sorted({re.sub(r"^.*?(\w+\.[ch]\(\d+, \d+\)).*$", r"\1", l)
+                  for l in (r.stdout + r.stderr).splitlines() if "warning 2026" in l})
     if crashed and not errs:
         # the signal tells a segfault (11) from an abort (6); a crash that does not
         # repeat needs it (vault.c crashed once in 77 runs on 2026-11-12)
@@ -179,9 +185,12 @@ def measure(f):
     if os.environ.get("MEASURE_KEEP") != "1":
         for p in glob.glob(os.path.join(OUT, "m_%s*" % b)) + [h, h[:-2] + ".defs"]:
             os.remove(p)
-    return {"status": status, "code": code, "funcs": "%d/%d" % (len(seen), len(names)),
-            "error": (garbage[0] if status == "map-error" else
-                      re.sub(r".*/", "", errs[0]) if status == "compile-error" else "")}
+    res = {"status": status, "code": code, "funcs": "%d/%d" % (len(seen), len(names)),
+           "error": (garbage[0] if status == "map-error" else
+                     re.sub(r".*/", "", errs[0]) if status == "compile-error" else "")}
+    if far:
+        res["far_warnings"] = far
+    return res
 
 
 def struct_sizes():

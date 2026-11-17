@@ -479,6 +479,13 @@ host, no faults, zero page up to $82.
 | `mons[]` | 11,620.8 (+3%) |
 | `mons[]`, monsters, objects, traps | 14,900.3 (+32%) |
 
+The whole of port/src with `struct permonst` and `struct attack_s` far (`-dNH_FAR_SPACES`,
+`permonst.h`; `measure_oscar64.py` with `MEASURE_DEFS`/`MEASURE_EXTRA`,
+`docs/data/measure-c64-farmons-2026-11-17.txt`): no warning 2026 in the game's own files, so no
+`mons[]` pointer leaves its space; 52 KB more code (+4.4%, 1,187,381 to 1,239,676 bytes), every
+`mondata.h` macro translating on its own. Reuse would cut both the code and the cycles, so it
+comes before the inline hit path, which would add code.
+
 `farify.py`'s rewrite (T2.11) cost +13% for all four: about 70 translations of some 22 cycles,
 inline. The compiler translates every access, `youmonst` and the `mondata.h` macros included,
 through a `jsr` (about 34 cycles for a page, 50 with an offset). Next: the hit path inline (a

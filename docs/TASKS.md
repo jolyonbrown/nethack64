@@ -729,6 +729,8 @@ Add new tasks at the bottom of the right section.
       translating (`calibrate.py --far-cc`): same checksums, `mfndpos` +3% with `mons[]` far,
       +32% with all four types (every access through a `jsr`). Next: inline hit path, reuse
       with pinning, then the game (`mons[]` first, allocators, the REU image).
+      — 2026-11-17: all of port/src with the `mons[]` types far (`NH_FAR_SPACES`, measurement
+      only): no warning 2026 in the game's files; +52 KB of code (+4.4%). Reuse first.
 
 ## Housekeeping
 
