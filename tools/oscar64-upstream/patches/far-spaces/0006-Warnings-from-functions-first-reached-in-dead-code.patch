@@ -1,0 +1,45 @@
+From 05af5b1eca1b60dc53356c92f3ae026ab2e2c40a Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Wed, 18 Nov 2026 11:03:28 +0000
+Subject: [PATCH] Warnings from functions first reached in dead code
+
+A function is translated where it is first reached, and a branch known to be dead
+(if (0)) is translated with warnings held back, so a function first called from such
+a branch, and every function first reached from it, printed no warning; when live
+code called them later they were translated already.  In a large program most
+functions can be reached that way first: NetHack's whole-game build printed no
+warning from code generation at all.  Each function is now translated at the default
+warning level, and the caller's is restored after.  Errors were always reported, and
+the generated code is the same.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/InterCodeGenerator.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index 505d551..46919cc 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -6492,6 +6492,10 @@ InterCodeProcedure* InterCodeGenerator::TranslateProcedure(InterCodeModule * mod
+ 	InterCodeProcedure* proc = new InterCodeProcedure(mod, dec->mLocation, dec->mQualIdent, mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection, LOT_BYTE_CODE, dec->mAlignment));
+ 	proc->mLinkerObject->mFullIdent = dec->FullIdent();
+ 
++	// A function is translated where it is first reached, which can be inside a branch known
++	// to be dead, whose warnings are held back: its own (and its callees') are not
++	ErrorID	outerMinLevel = mErrors->SetMinLevel(EINFO_GENERIC);
++
+ #if 0
+ 	if (proc->mIdent && !strcmp(proc->mIdent->mString, "test"))
+ 		exp->Dump(0);
+@@ -6713,6 +6717,7 @@ InterCodeProcedure* InterCodeGenerator::TranslateProcedure(InterCodeModule * mod
+ 	}
+ 
+ 	mCompilerOptions = outerCompilerOptions;
++	mErrors->SetMinLevel(outerMinLevel);
+ 
+ 	return proc;
+ }
+-- 
+2.43.0
+
