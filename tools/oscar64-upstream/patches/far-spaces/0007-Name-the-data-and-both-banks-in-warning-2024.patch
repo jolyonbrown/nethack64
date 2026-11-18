@@ -1,0 +1,34 @@
+From 30743032df8ea50c7be5423c6026e4294944922c Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Wed, 18 Nov 2026 22:18:37 +0000
+Subject: [PATCH 7/8] Name the data and both banks in warning 2024
+
+"Reference to data in another bank" named only the object that refers to the data.
+Whether the reference is safe depends on which bank is mapped when it is followed, so
+an info line now gives the data's own location and name (a string literal shows as
+'*'), its bank and the bank it is referred to from (-1 for resident).
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/Linker.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/oscar64/Linker.cpp b/oscar64/Linker.cpp
+index 81b70c2..2c54852 100644
+--- a/oscar64/Linker.cpp
++++ b/oscar64/Linker.cpp
+@@ -629,6 +629,11 @@ void Linker::InsertBankCalls(LinkerObject* bankcall, int bankcallOffset, LinkerS
+ 				if (obank != fbank && fobj->mType == LOT_DATA && !warned)
+ 				{
+ 					mErrors->Error(obj->mLocation, EWARN_CROSS_BANK_DATA, "Reference to data in another bank", obj->mIdent);
++					// name the data and both banks: whether the reference is safe depends on
++					// which bank is mapped when it is followed
++					char	buffer[100];
++					snprintf(buffer, sizeof(buffer), "Data in bank %d, referred to from bank %d", fbank, obank);
++					mErrors->Error(fobj->mLocation, EINFO_GENERIC, buffer, fobj->mIdent ? fobj->mIdent->mString : "*");
+ 					warned = true;
+ 				}
+ 				continue;
+-- 
+2.43.0
+

@@ -1,4 +1,4 @@
-From 05af5b1eca1b60dc53356c92f3ae026ab2e2c40a Mon Sep 17 00:00:00 2001
+From 4d29f81099fb5a17bc44f68bc78851e858b11a2c Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Wed, 18 Nov 2026 11:03:28 +0000
 Subject: [PATCH] Warnings from functions first reached in dead code
@@ -6,11 +6,9 @@ Subject: [PATCH] Warnings from functions first reached in dead code
 A function is translated where it is first reached, and a branch known to be dead
 (if (0)) is translated with warnings held back, so a function first called from such
 a branch, and every function first reached from it, printed no warning; when live
-code called them later they were translated already.  In a large program most
-functions can be reached that way first: NetHack's whole-game build printed no
-warning from code generation at all.  Each function is now translated at the default
-warning level, and the caller's is restored after.  Errors were always reported, and
-the generated code is the same.
+code called them later they were translated already.  Each function is now
+translated at the default warning level, and the caller's is restored after.  Errors
+were always reported, and the generated code is the same.
 
 Co-Authored-By: Claude <noreply@anthropic.com>
 ---

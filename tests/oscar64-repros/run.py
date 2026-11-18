@@ -18,6 +18,8 @@ Header keys read from each file's first comment:
                                temporaries past the end of the zero page area)
     REJECT                     success = the compiler reports an error: the file is invalid
                                C that it used to accept silently (r72: a negative array size)
+    UNDIAGNOSED: N             failure whatever else: the compiler reports warning N, the
+                               sign of the bug (r75: warning 2024, data read from another bank)
 Otherwise success = compiles and "Emulation result 0".
 """
 import glob
@@ -45,7 +47,8 @@ def run(path):
     flags = flags.group(1).split() if flags else ["-e"]
     compile_only = "COMPILE-ONLY" in head
     reject = re.search(r"^\s*\*\s*REJECT\s*$", head, re.M)
-    diagnostic = re.search(r"DIAGNOSTIC:\s*(\d+)", head)
+    diagnostic = re.search(r"(?<!UN)DIAGNOSTIC:\s*(\d+)", head)
+    undiagnosed = re.search(r"UNDIAGNOSED:\s*(\d+)", head)
     env = re.search(r"ENV:\s*(.*)", head)
     env = dict(os.environ, **dict(kv.split("=", 1) for kv in env.group(1).split())) if env else None
     with tempfile.TemporaryDirectory() as tmp:
@@ -64,6 +67,8 @@ def run(path):
         return "BROKEN", "compiler out of memory (cap %d MB)" % MEMORY_MB
     if r.returncode < 0 or r.returncode >= 128:
         return "BROKEN", "compiler crashed (signal %d)" % (-r.returncode if r.returncode < 0 else r.returncode - 128)
+    if undiagnosed and re.search(r": warning %s:" % undiagnosed.group(1), text):
+        return "BROKEN", "warning %s" % undiagnosed.group(1)
     err = [l for l in text.splitlines() if "error" in l]
     if reject:
         return ("FIXED", "rejected: " + re.sub(r".*?: error", "error", err[0])[:60]) if err and r.returncode \

@@ -1,0 +1,161 @@
+From a18a530c7c11e27cb0aa148bdea2116df1fa623a Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Wed, 18 Nov 2026 22:18:37 +0000
+Subject: [PATCH] No inlining or constant folding into another section's code
+
+A function's string literals and static data stay in the section in force where they
+are written.  When the function's code, or a constant it returns, was taken into a
+caller in another section, the caller referred to data in a section that need not be
+mapped while it runs: with cartridge banks, a function in one bank inlined into one in
+another read its messages from the wrong bank.  Five places did it:
+
+- the analyzer's automatic inlining (a single caller in the same section was already
+  required, but not for a function whose cost is below zero, nor with -Oii or -O3),
+- the intermediate code's cheap inlining,
+- the native code's simple inlining,
+- the extraction of a constant return value, for a literal or other data,
+- the evaluation of a constant function call, whose result went into the callee's
+  section; it now goes into the caller's.
+
+Each is now kept to callers in the callee's section.  Programs in one code section are
+not affected.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/GlobalAnalyzer.cpp      | 11 ++++++++++-
+ oscar64/GlobalOptimizer.cpp     | 16 +++++++++++++---
+ oscar64/GlobalOptimizer.h       |  1 +
+ oscar64/InterCode.cpp           |  5 ++++-
+ oscar64/NativeCodeGenerator.cpp |  4 +++-
+ 5 files changed, 31 insertions(+), 6 deletions(-)
+
+diff --git a/oscar64/GlobalAnalyzer.cpp b/oscar64/GlobalAnalyzer.cpp
+index b381c4a..b4a10e9 100644
+--- a/oscar64/GlobalAnalyzer.cpp
++++ b/oscar64/GlobalAnalyzer.cpp
+@@ -216,10 +216,19 @@ void GlobalAnalyzer::AutoInline(void)
+ 
+ //				printf("CHECK INLINING %s (%d) %d * (%d - 1)\n", f->mIdent->mString, f->mComplexity, cost, invokes);
+ 
++				// The function's string literals and static data stay in its own section: inlined
++				// into a caller in another section (another cartridge bank, an overlay), the copy
++				// would read them where they may not be mapped.  A caller that is a variable (a
++				// global object's constructor) is in the data section, its code is not
++				bool	samesection = true;
++				for (int j = 0; j < f->mCallers.Size(); j++)
++					if (f->mCallers[j]->mType == DT_CONST_FUNCTION && f->mCallers[j]->mSection != f->mSection)
++						samesection = false;
++
+ 				bool	doinline = false;
+ 				if ((f->mCompilerOptions & COPT_OPTIMIZE_INLINE) && (f->mFlags & DTF_REQUEST_INLINE) || (f->mFlags & DTF_FORCE_INLINE))
+ 					doinline = true;
+-				if (f->mLocalSize < 100)
++				if (f->mLocalSize < 100 && samesection)
+ 				{
+ 					if ((f->mCompilerOptions & COPT_OPTIMIZE_AUTO_INLINE) && ((cost - 20) * (invokes - 1) <= 20))
+ 					{
+diff --git a/oscar64/GlobalOptimizer.cpp b/oscar64/GlobalOptimizer.cpp
+index 566985a..9782b61 100644
+--- a/oscar64/GlobalOptimizer.cpp
++++ b/oscar64/GlobalOptimizer.cpp
+@@ -27,7 +27,7 @@ static const uint64 OPTF_VAR_COPY = (1ULL << 18);
+ static const uint64 OPTF_VAR_INDEXED = (1ULL << 19);
+ 
+ GlobalOptimizer::GlobalOptimizer(Errors* errors, Linker* linker)
+-	: mErrors(errors), mLinker(linker)
++	: mErrors(errors), mLinker(linker), mCheckFunction(nullptr)
+ {
+ 
+ }
+@@ -316,7 +316,9 @@ bool GlobalOptimizer::ReplaceConstCalls(Expression*& exp)
+ 
+ 				if (constargs)
+ 				{
+-					ConstexprInterpreter	cinter(exp->mLocation, mErrors, pcall->mSection);
++					// the result's data goes where the caller is: in the callee's section (another
++					// cartridge bank) the caller could not read it
++					ConstexprInterpreter	cinter(exp->mLocation, mErrors, mCheckFunction ? mCheckFunction->mSection : pcall->mSection);
+ 					Expression * nexp = cinter.EvalCall(exp);
+ 
+ 					if (nexp && nexp != exp)
+@@ -727,7 +729,11 @@ bool GlobalOptimizer::CheckConstReturns(Expression*& exp)
+ 			if ((pcall->mOptFlags & OPTF_SINGLE_RETURN) && pcall->mReturn->mLeft)
+ 			{
+ 				Expression	* rexp = pcall->mReturn->mLeft;
+-				if (rexp->mType == EX_CONSTANT)
++				// a string literal or other data stays in the callee's section: a caller in
++				// another (another cartridge bank) could not read it there
++				bool	data = rexp->mType == EX_CONSTANT && rexp->mDecValue && (rexp->mDecValue->mType == DT_CONST_POINTER || rexp->mDecValue->mType == DT_CONST_DATA ||
++								rexp->mDecValue->mType == DT_CONST_STRUCT || rexp->mDecValue->mType == DT_CONST_REFERENCE);
++				if (rexp->mType == EX_CONSTANT && !(data && mCheckFunction && mCheckFunction->mSection != pcall->mSection))
+ 				{
+ #if DUMP_OPTS
+ 					printf("Extract const return\n");
+@@ -945,8 +951,10 @@ bool GlobalOptimizer::Optimize(void)
+ 			if (CheckUnusedLocals(func->mValue))
+ 				changed = true;
+ 
++			mCheckFunction = func;
+ 			if (CheckConstReturns(func->mValue))
+ 				changed = true;
++			mCheckFunction = nullptr;
+ 
+ 			if (CheckUnusedReturns(func->mValue))
+ 				changed = true;
+@@ -954,8 +962,10 @@ bool GlobalOptimizer::Optimize(void)
+ 			if (ReplaceGlobalConst(func->mValue))
+ 				changed = true;
+ #if 1
++			mCheckFunction = func;
+ 			if (ReplaceConstCalls(func->mValue))
+ 				changed = true;
++			mCheckFunction = nullptr;
+ 
+ 			if (CheckSplitAggregates(func, func->mValue))
+ 				changed = true;
+diff --git a/oscar64/GlobalOptimizer.h b/oscar64/GlobalOptimizer.h
+index 77a9e26..aae3054 100644
+--- a/oscar64/GlobalOptimizer.h
++++ b/oscar64/GlobalOptimizer.h
+@@ -25,6 +25,7 @@ protected:
+ 
+ 	ExpandingArray<Declaration*>		mCalledFunctions, mCallingFunctions, mVariableFunctions, mFunctions;
+ 	ExpandingArray<Declaration*>		mGlobalVariables;
++	Declaration						*	mCheckFunction;
+ 
+ 	void AnalyzeInit(Declaration* mdec);
+ 	Declaration* Analyze(Expression* exp, Declaration* procDec, uint32 flags);
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index 7d98c44..3d3d8b2 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -21107,7 +21107,10 @@ bool InterCodeBasicBlock::CheapInlining(int & numTemps)
+ 		{
+ 			InterInstruction* ins(mInstructions[i]);
+ 
+-			if (ins->mCode == IC_CALL_NATIVE && ins->mSrc[0].mTemp < 0 && ins->mSrc[0].mLinkerObject && ins->mSrc[0].mLinkerObject->mProc && ins->mSrc[0].mLinkerObject->mProc->mCheapInline)
++			// not into a caller in another section (another cartridge bank): the callee's
++			// literals stay in its own, which may not be mapped there
++			if (ins->mCode == IC_CALL_NATIVE && ins->mSrc[0].mTemp < 0 && ins->mSrc[0].mLinkerObject && ins->mSrc[0].mLinkerObject->mProc && ins->mSrc[0].mLinkerObject->mProc->mCheapInline &&
++				ins->mSrc[0].mLinkerObject->mSection == mProc->mLinkerObject->mSection)
+ 			{
+ 				InterCodeProcedure* proc = ins->mSrc[0].mLinkerObject->mProc;
+ 				InterCodeBasicBlock* block = proc->mEntryBlock;
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index d642583..001735c 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -23008,7 +23008,9 @@ bool NativeCodeBasicBlock::SimpleInlineCalls(void)
+ 				if (mIns[i].mLinkerObject && mIns[i].mLinkerObject->mNativeProc)
+ 				{
+ 					NativeCodeProcedure* proc = mIns[i].mLinkerObject->mNativeProc;
+-					if (proc->mSimpleInline)
++					// the callee's literals stay in its section: copied into code in another
++					// section (another cartridge bank), they would be read where they may not be mapped
++					if (proc->mSimpleInline && proc->mLinkerObject->mSection == mProc->mLinkerObject->mSection)
+ 					{
+ 						NativeCodeBasicBlock* sins = proc->mEntryBlock->mTrueJump;
+ 						mIns.Remove(i);
+-- 
+2.43.0
+

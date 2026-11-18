@@ -21,8 +21,9 @@ Far sections, all placed:
   objects   bank 110 (6e) $8000-$b640  13,888 B
   level     bank 114 (72) $8000-$cecd  20,173 B
 
-Warnings: 7, all 2019 (deltrap's bank call objects not placed); no warning 2026 (the per-file
-measurement's restore.c 742 does not appear in this build).
+Warnings as logged: 7, all 2019; but the desktop's log wrapper (memlog-w.py) dropped every
+warning line without "2025" in it, these 2019s pass only for extern.h(2025, 1).  All of them,
+kept: the end of this file.
 
 Resident data still unplaced, the biggest (73,214 B in 1,968 objects; data 28,945, bss
 28,599, constants in the code section 15,670):
@@ -67,7 +68,7 @@ planfix.py on these sizes (--oversized, dokick's kick_monster and kickstr out of
     bank 105 use_offensive, priest_talk, edibility_prompts, mon_wield_item and three small ones.
 
 # Relinked with that plan (build/bankplan-far5fix.json), same compiler: 636 s, peak 12,826 MB,
-# exit 20 (only the resident heap, stack and spentry; warnings: 6, all 2019).
+# exit 20 (only the resident heap, stack and spentry; warnings as logged, filtered: 6, all 2019).
   listing: 0 of 31,915 calls cross a bank; highest temporary $8e (m_move); 105 banks used
   banked code + literals 1,650,552 B; banks placed 1,635,513 B
   banked objects left unplaced 495 B (code 92, literals 403) in 4 banks: bank 40 173 B,
@@ -81,8 +82,41 @@ from this relink's sizes it needs 8 moves and no new bank (build/bankplan-far6fi
 # Relinked with build/bankplan-far6fix.json (kept as docs/data/bankplan-2026-11-18-far.json:
 # 58 of 1,940 functions in a different bank from bankplan-2026-11-17-reu.json, banks 104 and
 # 105 new, kick_monster and kickstr not inlined): 636 s, peak 12,826 MB, exit 20 (only the
-# resident heap, stack and spentry; warnings: 6, all 2019).
+# resident heap, stack and spentry; warnings as logged, filtered: 6, all 2019).
   listing: 0 of 31,921 calls cross a bank; highest temporary $8e (m_move); 105 banks used
   banks placed 1,636,008 B (per bank min 8,396, median 16,018, max 16,384)
   banked objects left unplaced: none.  The banked side of the far game fits.
   resident code / data left unplaced 47,672 / 73,187 B (near, 2026-11-17: 46,671 / 128,573)
+
+# Every diagnostic, 2026-11-18 (desktop, memlog-a.py: memlog-w.py without its filter).
+# Same sources and plan (bankplan-2026-11-18-far.json); one link each, 605-624 s, 12.6-12.8 GB.
+                       far, fork 4d29f81   far, fork dac0840   near, pin 80    far, fork a18a530*
+                       (#77 fixed)         (#77 not fixed)     (plan 11-17)    (#78 fixed)
+  error 3034           3                   3                   3               3
+  warning 2001/2003    3 / 3               3 / 3               3 / 3           3 / 3
+  warning 2007         40                  40                  40              40
+  warning 2009         148                 148                 148             148
+  warning 2011/2012    2 / 2               2 / 2               2 / 2           4 / 2
+  warning 2014         162                 162                 162             162
+  warning 2017         1                   1                   1               1
+  warning 2019         4,909               4,909               4,888           5,039
+  warning 2024         84                  84                  84              79
+  warning 2026         1                   1                   0               1
+  * linked by b372ebc, the same as a18a530 for C (a18a530 also skips callers that are
+    variables, C++ global constructors).
+#77's fix changes nothing here: the two far lists are identical, 5,358 lines.  Near and far
+differ only by line shifts, 2019s and the 2026: restore.c 742 (banked 788), `&r` of a near
+local of a far type passed to mread() as genericptr_t; correct, the check cannot tell.
+
+Warning 2024 ("Reference to data in another bank"), with fork commit 7 naming the data and
+both banks: 2 from banked code, compat #78, real (inlined code reads a literal left behind):
+  punish (bank 60)        <- ball.c 107 in placebc (bank 5): "Where are your ball and chain?"
+  domonability (bank 28)  <- polyself.c 834 in doremove (bank 5): "You are not chained to anything!"
+82 from resident objects, read while the literal's bank is mapped: 46 static string tables
+in a banked function (sounds.c's messages, polyself.c's body parts, ...), 30 proxies (a
+constant argument in a resident call: strncmpi, strstri, locomotion, ...), 3 trampolines of
+the function that wrote the literal, 3 trampolines given a caller's literal as a constant
+argument (stashed before the bank switch).
+With commit 8: 79, all resident; none from banked code.  Banks placed 1,629,420 B (-6,588: the
+inlined copies were bigger than the calls); bank 5, where placebc, doremove and the like now
+stay, is 519 B over; resident code unplaced +603 B (bank call stubs).  The plan needs a repair.

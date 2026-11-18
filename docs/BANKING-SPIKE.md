@@ -372,7 +372,9 @@ new compiler's heap exposes.
 - **The whole game with stubs** (one compile on the desktop: 624 s, peak 12.8 GB): every
   check passes. No call of 30,912 in the listing reaches another bank's code directly, no
   direct call of 23,581 reaches a renamed twin from outside its bank, no banked function
-  writes the bank register, and nothing refers to data in another bank. The 103 banks hold
+  writes the bank register, and nothing refers to data in another bank (wrong, found
+  2026-11-18: the log wrapper dropped every warning line; relinked with every line kept,
+  the near game of 2026-11-17's plan has 84 warnings 2024, two of them real, compat #78). The 103 banks hold
   1.58 MB as before: bank 4 overflowed by a few hundred bytes, `planfix.py` moved 8
   functions out over two rounds, and the third build places every banked object
   (`docs/data/bankplan-2026-11-15-stubs.json`). **Resident code: 65.1 KB instead of
