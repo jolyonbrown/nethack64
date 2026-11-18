@@ -1,0 +1,287 @@
+From dac0840b6f26a9862ed5e909107128f5d94ca3bb Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Wed, 18 Nov 2026 03:45:00 +0000
+Subject: [PATCH] Far spaces: a page translation in five bytes (farxzN), single
+ accesses by page
+
+An access alone within its far object now translates only the page, as a
+group does (an object keeps to a page), and keeps the field's offset in
+the access instead of translating the address plus offset.  When the
+program defines farxzN, a page translation is LDX #reg (written by the
+assembler, as for the 32-bit runtime calls) and JSR farxzN, which leaves
+the RAM address in ADDR, where the optimizer can use it directly.
+NCIF_ZP_16 marks such a zero page operand as two bytes, not four, so the
+call does not keep the next two alive.  farspacetest also runs with
+farxz1 (-dFARXZ).
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/farspacetest.c         | 16 ++++++++++
+ autotest/makefile               |  5 +++
+ oscar64/Compiler.cpp            |  3 ++
+ oscar64/InterCode.cpp           | 25 ++++++++++++++-
+ oscar64/NativeCodeGenerator.cpp | 54 +++++++++++++++++++++++++--------
+ oscar64/NativeCodeGenerator.h   |  4 +++
+ 6 files changed, 93 insertions(+), 14 deletions(-)
+
+diff --git a/autotest/farspacetest.c b/autotest/farspacetest.c
+index a6236ee..43a81b4 100644
+--- a/autotest/farspacetest.c
++++ b/autotest/farspacetest.c
+@@ -37,6 +37,22 @@ __asm farxl1
+ }
+ #pragma runtime(farxl1, farxl1)
+ 
++#ifdef FARXZ
++/* the far pointer at the zero page address in X, translated into ADDR (page in A too),
++   Y kept: with it the compiler calls this for a page instead of farxl1 */
++__asm farxz1
++{
++		lda $00, x
++		sta __addr + 0
++		lda $01, x
++		tax
++		lda tlb1, x
++		sta __addr + 1
++		rts
++}
++#pragma runtime(farxz1, farxz1)
++#endif
++
+ /* the address in A and X plus the offset in Y, translated: A and X */
+ unsigned char xoff, xlo;
+ 
+diff --git a/autotest/makefile b/autotest/makefile
+index 73d3310..f6f9db6 100644
+--- a/autotest/makefile
++++ b/autotest/makefile
+@@ -57,6 +57,11 @@ farspacetest: farspacetest.c
+ 	$(OSCAR64_CC) -ea -g -O0 -n $<
+ 	$(OSCAR64_CC) -ea -g -Os -n $<
+ 	$(OSCAR64_CC) -ea -g -O3 -n $<
++	$(OSCAR64_CC) -ea -g -n -dFARXZ $<
++	$(OSCAR64_CC) -ea -g -O2 -n -dFARXZ $<
++	$(OSCAR64_CC) -ea -g -O0 -n -dFARXZ $<
++	$(OSCAR64_CC) -ea -g -Os -n -dFARXZ $<
++	$(OSCAR64_CC) -ea -g -O3 -n -dFARXZ $<
+ 
+ stripedarraytest: stripedarraytest.c
+ 	$(OSCAR64_CC) -ea -g -n $<
+diff --git a/oscar64/Compiler.cpp b/oscar64/Compiler.cpp
+index 1642561..a0bee7e 100644
+--- a/oscar64/Compiler.cpp
++++ b/oscar64/Compiler.cpp
+@@ -1124,6 +1124,9 @@ bool Compiler::GenerateCode(void)
+ 			snprintf(rname, sizeof(rname), "farxo%d", i);
+ 			if (mCompilationUnits->mRuntimeScope->Lookup(Ident::Unique(rname)))
+ 				RegisterRuntime(loc, Ident::Unique(rname));
++			snprintf(rname, sizeof(rname), "farxz%d", i);
++			if (mCompilationUnits->mRuntimeScope->Lookup(Ident::Unique(rname)))
++				RegisterRuntime(loc, Ident::Unique(rname));
+ 		}
+ 		if (mCompilationUnits->mRuntimeScope->Lookup(Ident::Unique("farpins")))
+ 			RegisterRuntime(loc, Ident::Unique("farpins"));
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index f5435ad..7d98c44 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -27316,7 +27316,30 @@ bool InterCodeBasicBlock::LowerFarAccesses(const ExpandingArray<FarGroup>& inher
+ 				if (g[k] == -2)
+ 					continue;
+ 				InterOperand& op = ins->mSrc[k];
+-				if (g[k] >= 0 && groups[g[k]].mSlot >= 0)
++				if (g[k] >= 0 && groups[g[k]].mSlot < 0)
++				{
++					// an access within its object alone: its page is the pointer's (an object
++					// keeps to a page), so only the page is translated, the offset staying in
++					// the access, which is shorter than translating the address plus offset
++					InterInstruction* xins = new InterInstruction(ins->mLocation, IC_UNARY_OPERATOR);
++					xins->mOperator = IA_FARXLAT;
++					xins->mSrc[0].mType = IT_POINTER;
++					xins->mSrc[0].mTemp = op.mTemp;
++					xins->mConst.mType = IT_INT32;
++					xins->mConst.mIntConst = FarSpaceOfOperand(op);
++					xins->mNumOperands = 1;
++					xins->mDst.mType = IT_POINTER;
++					xins->mDst.mTemp = mProc->AddTemporary(IT_POINTER);
++					out.Push(xins);
++					op.mTemp = xins->mDst.mTemp;
++					op.mMemoryBase = IM_NONE;
++					op.mLinkerObject = nullptr;
++					op.mVarIndex = -1;
++					op.mFarSpace = 0;
++					op.mFarObject = 0;
++					op.mRestricted = 0;
++				}
++				else if (g[k] >= 0)
+ 				{
+ 					// through the group's translation, at the field's offset
+ 					op.mTemp = groups[g[k]].mXTemp;
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 8fcada0..d642583 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -895,7 +895,7 @@ bool NativeCodeInstruction::IsUsedResultInstructions(NumberSet& requiredTemps)
+ 
+ 			if (mFlags & NCIF_USE_ZP_32_X)
+ 			{
+-				for (int i = 0; i < 4; i++)
++				for (int i = 0; i < ZpParamSize(); i++)
+ 					requiredTemps += mParam + i;
+ 			}
+ 
+@@ -1614,7 +1614,7 @@ void NativeCodeInstruction::BuildCollisionTable(NumberSet& liveTemps, NumberSet*
+ 
+ 			if (mFlags & NCIF_USE_ZP_32_X)
+ 			{
+-				for (int i = mParam; i < mParam + 4; i++)
++				for (int i = mParam; i < mParam + ZpParamSize(); i++)
+ 					UpdateCollisionSet(liveTemps, collisionSets, i);
+ 			}
+ 
+@@ -1822,7 +1822,7 @@ bool NativeCodeInstruction::UsesZeroPage(int address) const
+ 
+ 			if (mFlags & NCIF_USE_ZP_32_X)
+ 			{
+-				if (address >= mParam && address < mParam + 4)
++				if (address >= mParam && address < mParam + ZpParamSize())
+ 					return true;
+ 			}
+ 
+@@ -1897,7 +1897,7 @@ bool NativeCodeInstruction::LoadsZeroPage(int address) const
+ 
+ 			if (mFlags & NCIF_USE_ZP_32_X)
+ 			{
+-				if (address >= mParam && address < mParam + 4)
++				if (address >= mParam && address < mParam + ZpParamSize())
+ 					return true;
+ 			}
+ 
+@@ -5150,7 +5150,7 @@ void NativeCodeInstruction::FilterRegUsage(NumberSet& requiredTemps, NumberSet&
+ 			}
+ 			if (mFlags & NCIF_USE_ZP_32_X)
+ 			{
+-				for (int i = 0; i < 4; i++)
++				for (int i = 0; i < ZpParamSize(); i++)
+ 				{
+ 					if (!providedTemps[mParam + i])
+ 						requiredTemps += mParam + i;
+@@ -13568,9 +13568,11 @@ void NativeCodeBasicBlock::UnaryOperator(InterCodeProcedure* proc, NativeCodePro
+ 		int	sreg = BC_REG_TMP + proc->mTempOffset[ins->mSrc[0].mTemp];
+ 		int	space = int(ins->mConst.mIntConst & 0xff), offset = int((ins->mConst.mIntConst >> 8) & 0xff);
+ 		int	slot = int((ins->mConst.mIntConst >> 16) & 0xff);	// a group's pin slot + 1, 0 none
+-		char	rname[16];
++		char	rname[16], zname[16];
+ 		snprintf(rname, sizeof(rname), offset ? "farxo%d" : "farxl%d", space);
+-		NativeCodeGenerator::Runtime& frt(nproc->mGenerator->ResolveRuntime(Ident::Unique(rname)));
++		snprintf(zname, sizeof(zname), "farxz%d", space);
++		bool	zform = !offset && nproc->mGenerator->HasRuntime(Ident::Unique(zname));
++		NativeCodeGenerator::Runtime& frt(nproc->mGenerator->ResolveRuntime(Ident::Unique(zform ? zname : rname)));
+ 
+ 		if (offset)
+ 		{
+@@ -13581,6 +13583,24 @@ void NativeCodeBasicBlock::UnaryOperator(InterCodeProcedure* proc, NativeCodePro
+ 			mIns.Push(NativeCodeInstruction(ins, ASMIT_STA, ASMIM_ZERO_PAGE, treg));
+ 			mIns.Push(NativeCodeInstruction(ins, ASMIT_STX, ASMIM_ZERO_PAGE, treg + 1));
+ 		}
++		else if (zform)
++		{
++			// farxzN takes the zero page address of the pointer in X (the assembler writes
++			// the LDX #, as for the other runtime calls with a zero page operand) and
++			// leaves the RAM address in ADDR, its page in A too, keeping Y: two bytes for
++			// the X, three for the JSR, and the access can often go through ADDR itself
++			NativeCodeGenerator::Runtime& zrt(nproc->mGenerator->ResolveRuntime(Ident::Unique(zname)));
++			mIns.Push(NativeCodeInstruction(ins, ASMIT_JSR, ASMIM_ABSOLUTE, zrt.mOffset, zrt.mLinkerObject, NCIF_RUNTIME | NCIF_LOWER | NCIF_UPPER | NCIF_USE_ZP_32_X | NCIF_ZP_16 | NCIF_PRESERVE_CPU_REG_Y, sreg));
++			if (slot)
++			{
++				NativeCodeGenerator::Runtime& prt(nproc->mGenerator->ResolveRuntime(Ident::Unique("farpins")));
++				mIns.Push(NativeCodeInstruction(ins, ASMIT_STA, ASMIM_ABSOLUTE, prt.mOffset + slot - 1, prt.mLinkerObject, NCIF_LOWER | NCIF_UPPER | NCIF_VOLATILE));
++			}
++			mIns.Push(NativeCodeInstruction(ins, ASMIT_LDA, ASMIM_ZERO_PAGE, BC_REG_ADDR));
++			mIns.Push(NativeCodeInstruction(ins, ASMIT_STA, ASMIM_ZERO_PAGE, treg));
++			mIns.Push(NativeCodeInstruction(ins, ASMIT_LDA, ASMIM_ZERO_PAGE, BC_REG_ADDR + 1));
++			mIns.Push(NativeCodeInstruction(ins, ASMIT_STA, ASMIM_ZERO_PAGE, treg + 1));
++		}
+ 		else
+ 		{
+ 			mIns.Push(NativeCodeInstruction(ins, ASMIT_LDX, ASMIM_ZERO_PAGE, sreg + 1));
+@@ -17400,9 +17420,9 @@ void NativeCodeBasicBlock::CollectZeroPageUsage(NumberSet& used, NumberSet &modi
+ 
+ 						if (mIns[i].mFlags & NCIF_USE_ZP_32_X)
+ 						{
+-							for (int j = 0; j < 4; j++)
++							for (int j = 0; j < mIns[i].ZpParamSize(); j++)
+ 								used += mIns[i].mParam + j;
+-							for (int j = 0; j < 3; j++)
++							for (int j = 0; j < mIns[i].ZpParamSize() - 1; j++)
+ 								pairs += mIns[i].mParam + j;
+ 						}
+ 					}
+@@ -41658,8 +41678,8 @@ bool NativeCodeBasicBlock::IsFinalZeroPageUseTail(const NativeCodeBasicBlock* bl
+ 			{
+ 				if (mIns[i].mFlags & NCIF_USE_ZP_32_X)
+ 				{
+-					if (to >= mIns[i].mParam && to < mIns[i].mParam + 4 ||
+-						from >= mIns[i].mParam && from < mIns[i].mParam + 4)
++					if (to >= mIns[i].mParam && to < mIns[i].mParam + mIns[i].ZpParamSize() ||
++						from >= mIns[i].mParam && from < mIns[i].mParam + mIns[i].ZpParamSize())
+ 						return false;
+ 				}
+ 			}
+@@ -41773,8 +41793,8 @@ bool NativeCodeBasicBlock::IsFinalZeroPageUse(const NativeCodeBasicBlock* block,
+ 
+ 					if (mIns[at].mFlags & NCIF_USE_ZP_32_X)
+ 					{
+-						if (to >= mIns[at].mParam && to < mIns[at].mParam + 4 ||
+-							from >= mIns[at].mParam && from < mIns[at].mParam + 4)
++						if (to >= mIns[at].mParam && to < mIns[at].mParam + mIns[at].ZpParamSize() ||
++							from >= mIns[at].mParam && from < mIns[at].mParam + mIns[at].ZpParamSize())
+ 							return false;
+ 					}
+ 				}
+@@ -72854,6 +72874,14 @@ LinkerObject* NativeCodeGenerator::AllocateShortMulTable(InterOperator op, int f
+ 	}
+ }
+ 
++bool NativeCodeGenerator::HasRuntime(const Ident* ident) const
++{
++	for (int i = 0; i < mRuntime.Size(); i++)
++		if (mRuntime[i].mIdent == ident)
++			return mRuntime[i].mLinkerObject != nullptr;
++	return false;
++}
++
+ NativeCodeGenerator::Runtime& NativeCodeGenerator::ResolveRuntime(const Ident* ident)
+ {
+ 	int	i = 0;
+diff --git a/oscar64/NativeCodeGenerator.h b/oscar64/NativeCodeGenerator.h
+index e003f0d..71dc726 100644
+--- a/oscar64/NativeCodeGenerator.h
++++ b/oscar64/NativeCodeGenerator.h
+@@ -197,12 +197,15 @@ static const uint32 NICF_USE_WORKREGS = 0x04000000;
+ 
+ static const uint32 NCIF_MEMMAP = 0x08000000;
+ static const uint32 NCIF_SELFMOD = 0x10000000;
++// with NCIF_USE_ZP_32_X: the register is 16 bits (a far pointer, farxzN), not 32
++static const uint32 NCIF_ZP_16 = 0x20000000;
+ 
+ static const uint32 NCIF_IMMADDR_FLAGS = NCIF_LOWER | NCIF_UPPER;
+ 
+ class NativeCodeInstruction
+ {
+ public:
++	int ZpParamSize(void) const { return (mFlags & NCIF_ZP_16) ? 2 : 4; }
+ 	NativeCodeInstruction(void);
+ 	NativeCodeInstruction(const InterInstruction * ins, AsmInsType type, AsmInsMode mode = ASMIM_IMPLIED, int64 address = 0, LinkerObject * linkerObject = nullptr, uint32 flags = NCIF_LOWER | NCIF_UPPER, int param = 0, int minv = 0, int maxv = 255);
+ 	NativeCodeInstruction(const InterInstruction* ins, AsmInsType type, const NativeCodeInstruction & addr);
+@@ -1202,6 +1205,7 @@ public:
+ 	void PopulateShortMulTables(void);
+ 
+ 	Runtime& ResolveRuntime(const Ident* ident);
++	bool HasRuntime(const Ident* ident) const;
+ 
+ 	Errors* mErrors;
+ 	Linker* mLinker;
+-- 
+2.43.0
+

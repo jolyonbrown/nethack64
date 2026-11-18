@@ -75,6 +75,31 @@ miss:	jmp far_fault
 }
 #pragma runtime(farxl1, farxl1)
 
+/* the far pointer at zero page address X: its RAM address in ADDR, the page in A too, Y kept
+   (the compiler's call for a page when the program has it; ADDR is set after farxl1, since
+   a fault may use it) */
+__asm farxz1
+{
+		lda $00, x
+		sta __addr + 0
+		lda $01, x
+		tax
+		lda tlb1, x
+		beq zmiss
+		sta farlast
+		sta __addr + 1
+		rts
+zmiss:	lda __addr + 0
+		pha
+		jsr far_fault
+		sta __addr + 1
+		pla
+		sta __addr + 0
+		lda __addr + 1
+		rts
+}
+#pragma runtime(farxz1, farxz1)
+
 /* the address in A and X plus the offset in Y, translated: RAM address in A and X */
 unsigned char xoff, xlo;
 

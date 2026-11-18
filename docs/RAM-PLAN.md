@@ -557,6 +557,29 @@ best fit. What is still near is the vision and level tables (`gbuf`, `rooms`, `c
 `viz_clear`, `Map`, 15 KB), 15.5 KB of anonymous literals, `roles`, `u`, `artilist`,
 `mvitals`.
 
+**Denser far accesses** (2026-11-18, fork commit 5, dac0840;
+`docs/data/measure-c64-far7-2026-11-18.txt`). Two changes to the call sequence. An access in a
+group that got no pin slot now translates its page (`farxlN`) and not its address (`farxoN`,
+13 bytes and `LDY #0`). And when the program defines `farxzN`, a page translation is
+`LDX #reg; JSR farxzN`: the runtime reads the pointer from zero page at X and leaves its RAM
+address in `ADDR`, through which the access goes, 5 bytes. The optimizer has to be told the call
+reads only 2 bytes of zero page (a new flag, `NCIF_ZP_16`): with the 4 its flag for X implies, it
+saved more temporaries, and twelve heavy files grew (+10.5% over near, against +9.8% before);
+with it, +8.0%. All of `port/src`: +5.4% over near (was +6.4%), so 17% of the far code is gone.
+The whole game: banked code and literals 1,650,361 B, +4.3% over near (was +5.0%), and
+`seffects` 16,374 B fits a bank with 10 bytes to spare (so `planfix.py` can repair the plan
+only with its slack per bank cut from 256 bytes to 8). The spike's `farxz1` puts its hit path inline: a walk of 8 far nodes costs
+36.9 cycles a node against 31 with `farxl1` (two more stores to `ADDR`). What is left is about
+5 bytes a translation; the next lever is fewer of them (reuse across calls).
+
+With that, the plan repairs (`docs/data/bankplan-2026-11-18-far.json`, two rounds of
+`planfix.py` and three links on the desktop, `docs/data/wholegame-far-2026-11-18.txt`): 58 of
+1,940 functions change bank, banks 104 and 105 (REU) are new, and `dokick`'s two helpers stay
+out of line. Every banked object places: 105 banks, 1,636,008 B, no call across a bank without
+a trampoline. `planfix.py` now keeps its slack in each bank except where the bank's biggest
+function leaves less (`seffects`' bank keeps 10 bytes). What does not fit is resident: 47.7 KB
+of code and 73.2 KB of data, against 46.7 KB and 128.6 KB near.
+
 `farify.py`'s rewrite (T2.11) cost +13% for all four: about 70 translations of some 22 cycles,
 inline. The compiler translates every access, `youmonst` and the `mondata.h` macros included,
 through a `jsr` (about 34 cycles for a page, 50 with an offset). Next: the hit path inline (a

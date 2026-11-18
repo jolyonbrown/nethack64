@@ -11,7 +11,7 @@ the next.  Re-planning regroups everything and shifts the sizes again.  This kee
 and, for each bank whose objects the build left unplaced (tools/bank/build_c64.py reports
 them), moves the functions with the fewest calls inside their bank (from the host game's
 profile, tools/profile_play.py) to the bank with the least room that takes each (best fit), until the bank has its
-overflow plus --slack bytes to spare.  Sizes come from tools/measure/wholesizes.py
+overflow plus --slack bytes to spare (less in a bank whose biggest function leaves less).  Sizes come from tools/measure/wholesizes.py
 --with-literals on the same build.
 
 --oversized handles a function too big for any bank (Oscar64 inlined the static helpers it
@@ -76,7 +76,13 @@ def main():
 
     banks = sorted(set(plan["banks"].values()))
     banks += [int(x) for x in a.add_banks.split(",") if x]
-    free = {b: BANK - placed[b] - left[b] - a.slack for b in banks}
+    # a bank whose biggest function leaves less than --slack keeps only what that leaves
+    # (T2.12: seffects is 16,374 B, so 256 bytes of slack for every bank would rule it out)
+    biggest = collections.Counter()
+    for k, b in plan["banks"].items():
+        biggest[b] = max(biggest[b], size.get(k.split(":", 1)[1], 0))
+    slack = {b: max(0, min(a.slack, BANK - biggest[b])) for b in banks}
+    free = {b: BANK - placed[b] - left[b] - slack[b] for b in banks}
     moves, fixed = [], set()
     if a.oversized:
         graph = json.load(open(a.graph))["functions"]
@@ -94,7 +100,7 @@ def main():
                 calls[cur].add(re.sub(r"__b\d+$", "", m.group(1)))
         per_file = {k.split(":")[-1]: v["size"] for k, v in json.load(open(a.per_file))["functions"].items()}
         for name, v in graph.items():
-            if v["size"] <= BANK - a.slack:
+            if v["size"] <= BANK:
                 continue
             text = open("%s/%s" % (a.src, v["file"]), encoding="latin-1").read()
             m = re.search(r"\n%s\s*\([^;{]*\)\s*\n\{" % re.escape(name), text)
@@ -123,7 +129,7 @@ def main():
     for b in sorted(left, key=lambda b: (-smallest(b), b)):
         if b in fixed:
             continue
-        need = left[b] + a.slack
+        need = left[b] + slack[b]
         members = [k for k, bk in plan["banks"].items() if bk == b and size.get(k.split(":", 1)[1])]
         members.sort(key=lambda k: (inside[k.split(":", 1)[1]], size[k.split(":", 1)[1]]))
         for k in members:

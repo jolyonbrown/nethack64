@@ -42,3 +42,47 @@ kick_monster and kickstr out of line) and seffects (no static helper inlined: no
 planfix.py on these sizes: with no new bank, no room (bank 37, 1,316 B); with banks 104, 105
 and 108 (free REU below the far spaces' data) it gets as far as bank 73, dokick alone; with
 --oversized and banks 104-105 it stops at seffects.
+
+# The same link with fork dac0840 (denser far accesses: farxzN, NCIF_ZP_16), the same sources
+# (far_meas.c now with farxz1-3), 2026-11-18: 640 s, peak 12,886 MB, exit 20.
+
+                                     far (4cbe292)   far (dac0840)
+listing calls crossing a bank           0 of 32505      0 of 32042
+highest zero-page temporary             $8e m_move      $8e m_move
+banked code + literals (wholesizes)     1,662,347 B     1,650,361 B   (+4.3% over near; was +5.0%)
+banks: placed bytes                     1,611,747 B     1,620,841 B
+banked objects left unplaced            36,072 B        15,036 B      (code 11,281, literals 3,755)
+resident code left unplaced             47,614 B        47,573 B
+resident data left unplaced             73,214 B        73,187 B
+
+Largest functions, near / 4cbe292 / dac0840:
+  dokick 15520 / 17005 / 16707    seffects 15366 / 16473 / 16374    domove 11118 / 12203 / 11977
+  m_move  8861 / 10361 / 10036    use_offensive 7353 / 8360 / 8096  passivemm 5524 / 6738 / 6429
+
+planfix.py on these sizes (--oversized, dokick's kick_monster and kickstr out of line):
+  default slack (256 B a bank): seffects is bigger than a bank less the slack, no plan.
+  --slack 8, no new bank: bank 70 has no room elsewhere for 604 B.
+  --slack 8 --add-banks 104,105: 53 functions moved out of 25 overflowing banks
+    (build/bankplan-far5fix.json); bank 104 takes doeat, grow_up and dokick's helpers,
+    bank 105 use_offensive, priest_talk, edibility_prompts, mon_wield_item and three small ones.
+
+# Relinked with that plan (build/bankplan-far5fix.json), same compiler: 636 s, peak 12,826 MB,
+# exit 20 (only the resident heap, stack and spentry; warnings: 6, all 2019).
+  listing: 0 of 31,915 calls cross a bank; highest temporary $8e (m_move); 105 banks used
+  banked code + literals 1,650,552 B; banks placed 1,635,513 B
+  banked objects left unplaced 495 B (code 92, literals 403) in 4 banks: bank 40 173 B,
+    58 27 B, 85 44 B, 98 251 B; the moves changed the sizes around them and 8 B of slack
+    did not cover it.
+  resident code / data left unplaced 47,666 / 73,187 B
+planfix.py now keeps --slack (256 B) in every bank but one whose biggest function leaves less
+(seffects' bank keeps 10 B). From the far5 sizes that needs banks 104, 105 and 108 (61 moves);
+from this relink's sizes it needs 8 moves and no new bank (build/bankplan-far6fix.json).
+
+# Relinked with build/bankplan-far6fix.json (kept as docs/data/bankplan-2026-11-18-far.json:
+# 58 of 1,940 functions in a different bank from bankplan-2026-11-17-reu.json, banks 104 and
+# 105 new, kick_monster and kickstr not inlined): 636 s, peak 12,826 MB, exit 20 (only the
+# resident heap, stack and spentry; warnings: 6, all 2019).
+  listing: 0 of 31,921 calls cross a bank; highest temporary $8e (m_move); 105 banks used
+  banks placed 1,636,008 B (per bank min 8,396, median 16,018, max 16,384)
+  banked objects left unplaced: none.  The banked side of the far game fits.
+  resident code / data left unplaced 47,672 / 73,187 B (near, 2026-11-17: 46,671 / 128,573)

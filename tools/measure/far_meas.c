@@ -25,6 +25,17 @@ done:	rts
 #pragma runtime(farxl1, farxl1)
 #pragma runtime(farxo1, farxo1)
 
+/* the far pointer at zero page address X to its RAM address in ADDR (page in A too), Y kept */
+__asm farxz1
+{
+		lda $00, x
+		sta __addr + 0
+		lda $01, x
+		sta __addr + 1
+		rts
+}
+#pragma runtime(farxz1, farxz1)
+
 __asm farxl2
 {
 		txa
@@ -44,6 +55,17 @@ done2:	rts
 #pragma runtime(farxl2, farxl2)
 #pragma runtime(farxo2, farxo2)
 
+/* the far pointer at zero page address X to its RAM address in ADDR (page in A too), Y kept */
+__asm farxz2
+{
+		lda $00, x
+		sta __addr + 0
+		lda $01, x
+		sta __addr + 1
+		rts
+}
+#pragma runtime(farxz2, farxz2)
+
 __asm farxl3
 {
 		txa
@@ -62,6 +84,17 @@ done3:	rts
 
 #pragma runtime(farxl3, farxl3)
 #pragma runtime(farxo3, farxo3)
+
+/* the far pointer at zero page address X to its RAM address in ADDR (page in A too), Y kept */
+__asm farxz3
+{
+		lda $00, x
+		sta __addr + 0
+		lda $01, x
+		sta __addr + 1
+		rts
+}
+#pragma runtime(farxz3, farxz3)
 
 /* the pin slots of the compiler's groups of accesses */
 unsigned char farpins[4];

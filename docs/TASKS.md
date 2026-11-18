@@ -744,6 +744,11 @@ Add new tasks at the bottom of the right section.
       banked code +5.0%, 33 banks overflow (36 KB), `seffects` 16,473 B outgrows a bank.
       `planfix.py`: `--add-banks`, best fit. Next: denser far accesses in the compiler (shorter
       call sequence, per-function pin slots), then repair the plan and link again.
+      — 2026-11-18: denser accesses (fork commit 5, dac0840: page form for slotless groups,
+      `farxzN` 5-byte calls, `NCIF_ZP_16`): `port/src` +6.4% to +5.4% over near, whole game
+      +5.0% to +4.3%, `seffects` 16,374 B. Plan repaired (`bankplan-2026-11-18-far.json`,
+      banks 104-105 new, `planfix.py` slack per bank): every banked object places. Next:
+      the resident side (47.7 KB code, 73.2 KB data unplaced), reuse across calls.
 
 ## Housekeeping
 
