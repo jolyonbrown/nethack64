@@ -10,7 +10,7 @@ through a trampoline), so a plan built from one build's sizes can overflow a few
 the next.  Re-planning regroups everything and shifts the sizes again.  This keeps the plan
 and, for each bank whose objects the build left unplaced (tools/bank/build_c64.py reports
 them), moves the functions with the fewest calls inside their bank (from the host game's
-profile, tools/profile_play.py) to the banks with the most room, until the bank has its
+profile, tools/profile_play.py) to the bank with the least room that takes each (best fit), until the bank has its
 overflow plus --slack bytes to spare.  Sizes come from tools/measure/wholesizes.py
 --with-literals on the same build.
 
@@ -18,6 +18,11 @@ overflow plus --slack bytes to spare.  Sizes come from tools/measure/wholesizes.
 alone calls): the helpers its source calls but its intermediate code (--int) no longer does
 are listed in the plan's "noinline" for bankgen.py and go to the bank with the most room,
 with their size estimated as the function's growth over its per-file size (--per-file).
+
+--add-banks B,B,... opens these empty banks for the moves, when the plan's own have no room
+left (T2.12: the far build's code is bigger).  Banks past 103 are REU banks; a far space n's
+data is bank 64+4n+2 and 64+4n+3 ($8000-$FFFF of REU 64 KB bank n, crt_split.py), so 104-105,
+108-109, 112-113 and 116-117 are free.
 """
 import argparse
 import collections
@@ -38,6 +43,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--slack", type=int, default=256)
     ap.add_argument("--oversized", action="store_true")
+    ap.add_argument("--add-banks", default="", help="comma-separated bank numbers")
     ap.add_argument("--int", help="the build's intermediate code, for --oversized")
     ap.add_argument("--src", default="port/src", help="NetHack's sources, for --oversized")
     ap.add_argument("--per-file", default="build/callgraph-c64.json",
@@ -69,6 +75,7 @@ def main():
             inside[v] += n
 
     banks = sorted(set(plan["banks"].values()))
+    banks += [int(x) for x in a.add_banks.split(",") if x]
     free = {b: BANK - placed[b] - left[b] - a.slack for b in banks}
     moves, fixed = [], set()
     if a.oversized:
@@ -109,7 +116,11 @@ def main():
             fixed.add(plan["banks"]["%s:%s" % (v["file"], name)])
             print("  %s (%d B) keeps %d helpers out of line, to bank %d (about %d B): %s" % (
                 name, v["size"], len(helpers), to, estimate, ", ".join(helpers)))
-    for b in sorted(left):
+    def smallest(b):
+        return min([size[k.split(":", 1)[1]] for k, bk in plan["banks"].items()
+                    if bk == b and size.get(k.split(":", 1)[1])] or [0])
+    # the banks of big functions first, while the new banks still have big holes
+    for b in sorted(left, key=lambda b: (-smallest(b), b)):
         if b in fixed:
             continue
         need = left[b] + a.slack
@@ -119,9 +130,12 @@ def main():
             if need <= 0:
                 break
             n = size[k.split(":", 1)[1]]
-            to = max((t for t in banks if t != b and t not in left and t not in fixed), key=lambda t: free[t])
-            if free[to] < n:
+            # best fit: the bank with the least room that takes it, so the big holes stay for
+            # the big functions (the most room first spread 33 overflows over every new bank)
+            fits = [t for t in banks if t != b and t not in left and t not in fixed and free[t] >= n]
+            if not fits:
                 continue
+            to = min(fits, key=lambda t: free[t])
             plan["banks"][k] = to
             free[to] -= n
             need -= n

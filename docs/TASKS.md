@@ -739,6 +739,11 @@ Add new tasks at the bottom of the right section.
       — 2026-11-17: `mons[]`, `objects[]` and `level` in far sections (measurement only,
       `NH_FAR_SPACES`); the 15 game sites warning 2026 found rewritten, `struct rm_s` 8 bytes in
       that build; one harmless warning left; code +6.4%. Next: the whole-game link with them.
+      — 2026-11-18: the whole-game link (desktop, `docs/data/wholegame-far-2026-11-18.txt`):
+      the three sections place, resident data unplaced 128.6 KB to 73.2 KB, bank checks pass;
+      banked code +5.0%, 33 banks overflow (36 KB), `seffects` 16,473 B outgrows a bank.
+      `planfix.py`: `--add-banks`, best fit. Next: denser far accesses in the compiler (shorter
+      call sequence, per-function pin slots), then repair the plan and link again.
 
 ## Housekeeping
 

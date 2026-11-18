@@ -544,6 +544,19 @@ local are used by name), so every page outside `$8000-$FFFF` can be an identity 
   (none before), with 55 KB of data out of near RAM. The host build: Codex compared gcc's
   assembly before and after for the ten changed files, identical; `host_smoke.py` passes.
 
+**The whole game with them** (2026-11-18, `docs/data/wholegame-far-2026-11-18.txt`, one compile
+on the desktop, same plan as the near build of 2026-11-17): the three sections place
+(58.6 KB), and the resident data left unplaced falls from 128.6 KB to 73.2 KB. The bank
+checks pass (no listing call crosses a bank, highest temporary $8E). But the banked code and
+its literals grow 5.0% (79.8 KB), so 33 banks overflow by 36 KB in all, and two functions
+outgrow a bank: `dokick` (17,005 B with its inlined helpers, which `planfix.py --oversized`
+handles) and `seffects` (16,473 B, nothing inlined to take out). So the far accesses have to
+get denser in the compiler before the plan can be repaired: `planfix.py` now takes new
+banks (`--add-banks`; 104-105, 108-109, 112-113 and 116-117 are free in the REU) and moves by
+best fit. What is still near is the vision and level tables (`gbuf`, `rooms`, `could_see`,
+`viz_clear`, `Map`, 15 KB), 15.5 KB of anonymous literals, `roles`, `u`, `artilist`,
+`mvitals`.
+
 `farify.py`'s rewrite (T2.11) cost +13% for all four: about 70 translations of some 22 cycles,
 inline. The compiler translates every access, `youmonst` and the `mondata.h` macros included,
 through a `jsr` (about 34 cycles for a page, 50 with an offset). Next: the hit path inline (a

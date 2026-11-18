@@ -1,0 +1,44 @@
+# The whole game with mons[], objects[] and level far (T2.12), 2026-11-18.
+# Oscar64 feature/far-spaces 4cbe292 (pin of 80 + 4 commits), built on the desktop (make -j6).
+# Sources: tools/bank/build_c64.py --plan docs/data/bankplan-2026-11-17-reu.json --linker-stubs
+#   --main real --generate-only, then -dNH_FAR_SPACES and tools/measure/far_meas.c (identity
+#   translation, spaces 1-3) added to compile.args.  One compile: 642 s, peak 12,880 MB, exit 20
+#   (the data does not fit yet, as before).  Compared with the same plan near (bank-c64-reu2,
+#   2026-11-17: 621 s, 12,794 MB).
+# Checks: build_c64.py --check-only (listing, check_listing.py, intermediate code).
+
+                                     near (reu2)     far
+listing calls crossing a bank           0 of 31482      0 of 32505
+highest zero-page temporary             $8b m_move      $8e m_move
+banked code + literals (wholesizes)     1,582,515 B     1,662,347 B   (+79,832, +5.0%)
+banks: placed bytes                     1,569,172 B     1,611,747 B
+banked objects left unplaced            0               36,072 B in 33 banks (code 29,222, literals 6,850)
+resident code left unplaced             46,671 B        47,614 B
+resident data left unplaced             128,573 B       73,214 B      (-55,359)
+
+Far sections, all placed:
+  mons      bank 106 (6a) $8000-$dfc0  24,512 B
+  objects   bank 110 (6e) $8000-$b640  13,888 B
+  level     bank 114 (72) $8000-$cecd  20,173 B
+
+Warnings: 7, all 2019 (deltrap's bank call objects not placed); no warning 2026 (the per-file
+measurement's restore.c 742 does not appear in this build).
+
+Resident data still unplaced, the biggest (73,214 B in 1,968 objects; data 28,945, bss
+28,599, constants in the code section 15,670):
+  15489 anonymous (string literals and the like)    1680 viz_clear, left_ptrs, right_ptrs, Map
+   5040 gbuf                                        1596 roles
+   4920 rooms                                       1381 u
+   3360 could_see                                   1330 artilist
+   3072 bufs                                        1146 mvitals
+   1736 obj_descr                                   1024 nh_stash_buf
+
+Function growth, far minus near (wholesizes.py --with-literals), the largest:
+  m_move +1500 (10,361)   dokick +1485 (17,005)   passivemm +1214   seffects +1107 (16,473)
+  domove +1085            use_offensive +1007     attack_checks +979  use_defensive +952
+Over a bank (16,384 B): dokick (12 static helpers inlined; planfix.py --oversized keeps
+kick_monster and kickstr out of line) and seffects (no static helper inlined: no plan fits it).
+
+planfix.py on these sizes: with no new bank, no room (bank 37, 1,316 B); with banks 104, 105
+and 108 (free REU below the far spaces' data) it gets as far as bank 73, dokick alone; with
+--oversized and banks 104-105 it stops at seffects.
