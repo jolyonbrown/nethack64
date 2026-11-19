@@ -535,3 +535,28 @@ corpus is byte-identical to 78 commits' (1,080 of 1,080: the autotest sources an
 five configurations); repros 44 of 72; nethack64 `make test` 5/5 (built with `-xb`); the speed
 harness's checksums the host's, `mfndpos` 6.8% faster; the whole game's checks clean, its
 saves and restores 12% fewer cycles a turn (RAM-PLAN.md).
+
+Added on 2026-11-18 (commits 81-83; Jolyon, asked whether they join: "You do what you think is
+best"), three fixes made on the far-spaces fork and not far-specific: 81. `555bcab` r74
+(compat #77): a function first reached from a branch known to be dead was translated with
+warnings held back, and every function first reached from it; each is now translated at the
+default level. It changes no code. 82. `6990a68`: warning 2024 ("Reference to data in another
+bank", the bank call check of commit 72) gives the data's location, its bank and the bank it is
+read from; no code changes. 83. `4f65bc7` r75 (compat #78): five optimisations took a function's
+code, or a constant it returns, into a caller in another section, and its literals stayed
+behind (the analyzer's automatic inlining, the intermediate code's cheap inlining, the native
+code's simple inlining, constant-return extraction, constant-call evaluation); each is now kept
+to callers in the callee's section, a constant call's result going into the caller's. In the
+banked game this fixes `punish` and `domonability`, which read a message of bank 5's at its
+address in their own bank; it changes nothing in a program with one code section.
+
+Results 2026-11-18 (83 commits; the patch files give tree 158d50f, the installed compiler's).
+Autotest 1,621 emulations, all 0; corpus against 80 commits: 1,090 of 1,095 identical, the
+others r75 (four configurations) and `opp_vector.cpp` at bc-O2 (the known heap-dependent one),
+no status changes; repros 46 of 75 (r74, r75 fixed); nethack64 `.crt` and `.prg`
+byte-identical, `make test` 5/5; NetHack (C64), per file: all 108 records identical to 80
+commits' (1,187,381 B). The whole far game linked by the fork with these commits: no warning
+2024 from banked code (79, all resident objects read while the literal's bank is mapped),
+banks 6,588 B smaller, resident code 603 B bigger (bank call stubs), bank 5 519 B over until
+the plan was repaired (`docs/data/wholegame-far-2026-11-18.txt`). The far-spaces series is
+now five commits on these 83.

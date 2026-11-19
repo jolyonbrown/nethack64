@@ -1,8 +1,8 @@
-From dac0840b6f26a9862ed5e909107128f5d94ca3bb Mon Sep 17 00:00:00 2001
+From a3436a13d186e7ee00d98ec61d623dbe31aa02de Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Wed, 18 Nov 2026 03:45:00 +0000
-Subject: [PATCH] Far spaces: a page translation in five bytes (farxzN), single
- accesses by page
+Subject: [PATCH 5/5] Far spaces: a page translation in five bytes (farxzN),
+ single accesses by page
 
 An access alone within its far object now translates only the page, as a
 group does (an object keeps to a page), and keeps the field's offset in
@@ -82,10 +82,10 @@ index 1642561..a0bee7e 100644
  		if (mCompilationUnits->mRuntimeScope->Lookup(Ident::Unique("farpins")))
  			RegisterRuntime(loc, Ident::Unique("farpins"));
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index f5435ad..7d98c44 100644
+index bec3948..3d3d8b2 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
-@@ -27316,7 +27316,30 @@ bool InterCodeBasicBlock::LowerFarAccesses(const ExpandingArray<FarGroup>& inher
+@@ -27319,7 +27319,30 @@ bool InterCodeBasicBlock::LowerFarAccesses(const ExpandingArray<FarGroup>& inher
  				if (g[k] == -2)
  					continue;
  				InterOperand& op = ins->mSrc[k];
@@ -118,7 +118,7 @@ index f5435ad..7d98c44 100644
  					// through the group's translation, at the field's offset
  					op.mTemp = groups[g[k]].mXTemp;
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index 8fcada0..d642583 100644
+index 11ac205..001735c 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
 @@ -895,7 +895,7 @@ bool NativeCodeInstruction::IsUsedResultInstructions(NumberSet& requiredTemps)
@@ -217,7 +217,7 @@ index 8fcada0..d642583 100644
  								pairs += mIns[i].mParam + j;
  						}
  					}
-@@ -41658,8 +41678,8 @@ bool NativeCodeBasicBlock::IsFinalZeroPageUseTail(const NativeCodeBasicBlock* bl
+@@ -41660,8 +41680,8 @@ bool NativeCodeBasicBlock::IsFinalZeroPageUseTail(const NativeCodeBasicBlock* bl
  			{
  				if (mIns[i].mFlags & NCIF_USE_ZP_32_X)
  				{
@@ -228,7 +228,7 @@ index 8fcada0..d642583 100644
  						return false;
  				}
  			}
-@@ -41773,8 +41793,8 @@ bool NativeCodeBasicBlock::IsFinalZeroPageUse(const NativeCodeBasicBlock* block,
+@@ -41775,8 +41795,8 @@ bool NativeCodeBasicBlock::IsFinalZeroPageUse(const NativeCodeBasicBlock* block,
  
  					if (mIns[at].mFlags & NCIF_USE_ZP_32_X)
  					{
@@ -239,7 +239,7 @@ index 8fcada0..d642583 100644
  							return false;
  					}
  				}
-@@ -72854,6 +72874,14 @@ LinkerObject* NativeCodeGenerator::AllocateShortMulTable(InterOperator op, int f
+@@ -72856,6 +72876,14 @@ LinkerObject* NativeCodeGenerator::AllocateShortMulTable(InterOperator op, int f
  	}
  }
  

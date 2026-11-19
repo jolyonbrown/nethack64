@@ -55,10 +55,9 @@ Jolyon has read its explanation and said yes. Until then, branches stay local.
   ADR-0009 decides (`#pragma farspace`, `#pragma farsection`, warning 2026), on top of
   the pin (`git am` after `patches/pin/`; the fork's `feature/far-spaces`). Not in the
   pin: Jolyon decides that. `autotest/farspacetest.c` and
-  `tests/spikes/run_farspace.py --oscar64 PATH` check it. Three commits there are not
-  far-specific, fixes the pin could take on their own: 0006 (compat #77, warnings lost
-  in dead code), 0007 (warning 2024 names the data and its bank), 0008 (compat #78, no
-  inlining or constant folding into another section's code).
+  `tests/spikes/run_farspace.py --oscar64 PATH` check it. (Its three commits that were
+  not far-specific joined the pin on 2026-11-18 as 81-83; the series is five commits on
+  pin 83.)
 - **Reproducible output.** v1.32.273 and the eight-commit pin read several
   members of their own data structures before anything has written them, so what
   they emit can depend on what the compiler's heap held: the install path, the

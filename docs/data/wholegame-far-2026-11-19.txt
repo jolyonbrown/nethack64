@@ -1,0 +1,22 @@
+# The whole far game after compat #78 (T2.12), 2026-11-19 (desktop).  Fork feature/far-spaces
+# b372ebc (pin 80 + #77, warning 2024 detail, #78 + far 1-5; for C the same as pin 83 + far 1-5).
+# Sources: tools/bank/build_c64.py --linker-stubs --main real --generate-only, -dNH_FAR_SPACES
+# and tools/measure/far_meas.c, as in wholegame-far-2026-11-18.txt; every log line kept.
+
+With bankplan-2026-11-18-far.json (far11): 616 s, peak 12,603 MB, exit 20.  No warning 2024
+from banked code (79, all resident).  Banks placed 1,629,420 B (far8: 1,636,008); bank 5 over
+by 519 B: the small functions once inlined elsewhere (placebc, doremove, ...) now live there.
+planfix.py (default slack): 36 small functions out of bank 5 (docs/data/bankplan-2026-11-19-far.json).
+
+With bankplan-2026-11-19-far.json (far12): 615 s, peak 12,603 MB, exit 20 (only the resident
+heap, stack and spentry).  No banked object unplaced; warning 2024: 79, all resident.
+  listing: 0 of 31,957 calls cross a bank without a trampoline; highest temporary $8f (m_move;
+    the area ends at $8f); check_listing.py 0 problems
+  intermediate code: 264 of 24,641 direct calls cross a bank (the linker's stubs; 255 before,
+    the difference being calls that were inlined)
+  banks: 105 used, 1,629,936 B (per bank min 8,396, median 15,964, max 16,370)
+  resident code / data left unplaced 48,182 / 73,292 B (far7: 47,672 / 73,187)
+Diagnostics otherwise as far11: 2001 3, 2003 3, 2007 40, 2009 148, 2011 4, 2012 2, 2014 162,
+2017 1, 2026 1 (restore.c 742).  The two 2011s new with #78 are display.c's swallow_to_glyph
+range check (dead once its constant arguments reach it) and trap.c's two identical
+Ring_gone(obj) branches, merged.

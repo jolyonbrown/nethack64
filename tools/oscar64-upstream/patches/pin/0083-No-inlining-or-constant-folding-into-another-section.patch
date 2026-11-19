@@ -1,7 +1,8 @@
-From a18a530c7c11e27cb0aa148bdea2116df1fa623a Mon Sep 17 00:00:00 2001
+From cf183665b860ca4497d080e11f636e1c409a44ca Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Wed, 18 Nov 2026 22:18:37 +0000
-Subject: [PATCH] No inlining or constant folding into another section's code
+Subject: [PATCH 83/83] No inlining or constant folding into another section's
+ code
 
 A function's string literals and static data stay in the section in force where they
 are written.  When the function's code, or a constant it returns, was taken into a
@@ -126,10 +127,10 @@ index 77a9e26..aae3054 100644
  	void AnalyzeInit(Declaration* mdec);
  	Declaration* Analyze(Expression* exp, Declaration* procDec, uint32 flags);
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index 7d98c44..3d3d8b2 100644
+index 0bd1e8b..9e41ddb 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
-@@ -21107,7 +21107,10 @@ bool InterCodeBasicBlock::CheapInlining(int & numTemps)
+@@ -21104,7 +21104,10 @@ bool InterCodeBasicBlock::CheapInlining(int & numTemps)
  		{
  			InterInstruction* ins(mInstructions[i]);
  
@@ -142,10 +143,10 @@ index 7d98c44..3d3d8b2 100644
  				InterCodeProcedure* proc = ins->mSrc[0].mLinkerObject->mProc;
  				InterCodeBasicBlock* block = proc->mEntryBlock;
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index d642583..001735c 100644
+index 4e42bfc..22fc61e 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
-@@ -23008,7 +23008,9 @@ bool NativeCodeBasicBlock::SimpleInlineCalls(void)
+@@ -22944,7 +22944,9 @@ bool NativeCodeBasicBlock::SimpleInlineCalls(void)
  				if (mIns[i].mLinkerObject && mIns[i].mLinkerObject->mNativeProc)
  				{
  					NativeCodeProcedure* proc = mIns[i].mLinkerObject->mNativeProc;

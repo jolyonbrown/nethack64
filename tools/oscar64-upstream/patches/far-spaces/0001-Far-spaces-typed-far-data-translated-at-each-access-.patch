@@ -1,7 +1,7 @@
-From 06e504a2874b88245893ae4eedd0124c5d73ecef Mon Sep 17 00:00:00 2001
+From 712275c03f1aceeef5163c9b8661ccb499091b68 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 17 Nov 2026 10:49:38 +0000
-Subject: [PATCH 1/4] Far spaces: typed far data, translated at each access
+Subject: [PATCH 1/5] Far spaces: typed far data, translated at each access
  (WIP)
 
 #pragma farspace(n, tag, ...) puts struct types in far space n, and
@@ -116,7 +116,7 @@ index 2dbc06a..53cd6a7 100644
  };
  
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index 0bd1e8b..6b71dd1 100644
+index 9e41ddb..dff6571 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
 @@ -4346,7 +4346,7 @@ void ValueSet::UpdateValue(InterCodeBasicBlock * block, InterInstruction * ins,
@@ -138,7 +138,7 @@ index 0bd1e8b..6b71dd1 100644
  	if (mMemory != IM_NONE && mMemory != IM_INDIRECT)
  	{
  		if (mVarIndex != op.mVarIndex || mLinkerObject != op.mLinkerObject)
-@@ -27004,6 +27007,158 @@ void InterCodeBasicBlock::PeepholeOptimization(const GrowingVariableArray& stati
+@@ -27007,6 +27010,158 @@ void InterCodeBasicBlock::PeepholeOptimization(const GrowingVariableArray& stati
  	}
  }
  
@@ -297,7 +297,7 @@ index 0bd1e8b..6b71dd1 100644
  void InterCodeBasicBlock::CheckNullptrDereference(void) 
  {
  	if (!mVisited)
-@@ -30348,6 +30503,13 @@ void InterCodeProcedure::Close(void)
+@@ -30351,6 +30506,13 @@ void InterCodeProcedure::Close(void)
  	mEntryBlock->ReduceTempLivetimes();
  	DisassembleDebug("reduce temp livetimes");
  
@@ -343,7 +343,7 @@ index d0ae095..6ae4cbb 100644
  	void CollectGlobalReferences(NumberSet& referencedGlobals, NumberSet& modifiedGlobals, bool & storesIndirect, bool & loadsIndirect, bool & globalsChecked);
  	
 diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
-index 084912e..fdb3804 100644
+index ee29855..f58a3a1 100644
 --- a/oscar64/InterCodeGenerator.cpp
 +++ b/oscar64/InterCodeGenerator.cpp
 @@ -69,6 +69,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::Dereference(InterCodeProcedure*
@@ -500,7 +500,7 @@ index 1207b8c..5fe4a7e 100644
  	};
  
 diff --git a/oscar64/Linker.cpp b/oscar64/Linker.cpp
-index d25fcac..4c5d2e1 100644
+index 6d7e22c..c15bb1c 100644
 --- a/oscar64/Linker.cpp
 +++ b/oscar64/Linker.cpp
 @@ -10,7 +10,7 @@ LinkerRegion::LinkerRegion(void)
@@ -525,7 +525,7 @@ index ce7cf0d..7945f2a 100644
  	LinkerSection(void);
  
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index 4e42bfc..c27691d 100644
+index 22fc61e..1862d8f 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
 @@ -13558,6 +13558,27 @@ void NativeCodeBasicBlock::UnaryOperator(InterCodeProcedure* proc, NativeCodePro

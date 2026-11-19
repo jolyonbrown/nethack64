@@ -8,12 +8,12 @@
  *   name      - a constant function call, evaluated into the callee's section
  *   pick      - automatic inlining (cost below zero), native simple inlining and the
  *               extraction of a constant return value; any one of them takes it
- * v1.32.273 has no bank call check; the pin (80 commits) shows a5, b5 and f5.
+ * v1.32.273 has no bank call check; the pin before commit 83 shows a5, b5 and f5.
  * NetHack: the whole game, near and far: punish (bank 60) prints placebc's "Where are your
  * ball and chain?" from bank 5's address, domonability (bank 28) doremove's "You are not
  * chained to anything!" (2026-11-18; the logs' wrapper had dropped warnings until then).
  * Expect when fixed: no warning 2024 (each call goes through the bank call stub instead).
- * Workaround: none yet in port/; fixed in the far-spaces fork (2026-11-18, commit 8).
+ * Workaround: none needed: fixed in the pin, commit 83 (2026-11-18).
  * FLAGS: -n -Os
  * COMPILE-ONLY
  * UNDIAGNOSED: 2024

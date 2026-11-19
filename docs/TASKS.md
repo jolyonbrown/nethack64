@@ -749,6 +749,11 @@ Add new tasks at the bottom of the right section.
       +5.0% to +4.3%, `seffects` 16,374 B. Plan repaired (`bankplan-2026-11-18-far.json`,
       banks 104-105 new, `planfix.py` slack per bank): every banked object places. Next:
       the resident side (47.7 KB code, 73.2 KB data unplaced), reuse across calls.
+      — 2026-11-19: the whole game's warnings, first seen (the desktop's log wrapper had
+      dropped them): two real cross-bank reads, compat #78 (code inlined into another bank),
+      fixed with #77 and warning 2024's detail as pin commits 81-83 (ADR-0007). Plan repaired
+      again (`bankplan-2026-11-19-far.json`, 36 moves out of bank 5): every banked object
+      places, checks clean (`docs/data/wholegame-far-2026-11-19.txt`). Next: as above.
 
 ## Housekeeping
 

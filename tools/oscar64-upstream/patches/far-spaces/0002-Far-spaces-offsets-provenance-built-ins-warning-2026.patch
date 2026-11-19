@@ -1,7 +1,7 @@
-From 39f22f65b21655a97ef1fe89dcc8230e3526f480 Mon Sep 17 00:00:00 2001
+From 8e515eedefbe38d774815b7eaed340dfbda6e22b Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 17 Nov 2026 11:12:04 +0000
-Subject: [PATCH 2/4] Far spaces: offsets, provenance, built-ins, warning 2026,
+Subject: [PATCH 2/5] Far spaces: offsets, provenance, built-ins, warning 2026,
  bytecode error
 
 - farxoN: the address in A and X plus an offset under 256 in Y,
@@ -223,10 +223,10 @@ index 5823e25..3468465 100644
  	EERR_GENERIC = 3000,
  	EERR_FILE_NOT_FOUND,
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index 6b71dd1..da521b7 100644
+index dff6571..74bf651 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
-@@ -27034,7 +27034,7 @@ static int FarSpaceOfOperand(const InterOperand& op)
+@@ -27037,7 +27037,7 @@ static int FarSpaceOfOperand(const InterOperand& op)
  static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& instructions, int& i, InterOperand& op, int space)
  {
  	InterInstruction* ins = instructions[i];
@@ -235,7 +235,7 @@ index 6b71dd1..da521b7 100644
  
  	if (op.mMemory == IM_GLOBAL)
  	{
-@@ -27071,9 +27071,15 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
+@@ -27074,9 +27074,15 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
  			atemp = cins->mDst.mTemp;
  		}
  	}
@@ -252,7 +252,7 @@ index 6b71dd1..da521b7 100644
  		InterInstruction* lins = new InterInstruction(ins->mLocation, IC_LEA);
  		lins->mSrc[1].mMemory = IM_INDIRECT;
  		lins->mSrc[1].mType = IT_POINTER;
-@@ -27094,8 +27100,8 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
+@@ -27097,8 +27103,8 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
  	xins->mOperator = IA_FARXLAT;
  	xins->mSrc[0].mType = IT_POINTER;
  	xins->mSrc[0].mTemp = atemp;
@@ -278,7 +278,7 @@ index 6ae4cbb..fd61353 100644
  
  class InterInstruction;
 diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
-index fdb3804..24af04f 100644
+index f58a3a1..65bc1b1 100644
 --- a/oscar64/InterCodeGenerator.cpp
 +++ b/oscar64/InterCodeGenerator.cpp
 @@ -337,10 +337,45 @@ void InterCodeGenerator::StoreValue(InterCodeProcedure* proc, Expression* exp, I
@@ -453,7 +453,7 @@ index 5fe4a7e..c5855d3 100644
  	ExValue TranslateExpression(Declaration * procType, InterCodeProcedure * proc, InterCodeBasicBlock*& block, Expression* exp, DestructStack*& destack, GotoNode*& gotos, const BranchTarget & breakBlock, const BranchTarget& continueBlock, InlineMapper * inlineMapper, ExValue * lrexp = nullptr);
  	void TranslateLogic(Declaration* procType, InterCodeProcedure* proc, InterCodeBasicBlock* block, InterCodeBasicBlock* tblock, InterCodeBasicBlock* fblock, Expression* exp, DestructStack*& destack, GotoNode*& gotos, InlineMapper* inlineMapper);
 diff --git a/oscar64/Linker.cpp b/oscar64/Linker.cpp
-index 4c5d2e1..81b70c2 100644
+index c15bb1c..2c54852 100644
 --- a/oscar64/Linker.cpp
 +++ b/oscar64/Linker.cpp
 @@ -615,6 +615,9 @@ void Linker::InsertBankCalls(LinkerObject* bankcall, int bankcallOffset, LinkerS
@@ -466,7 +466,7 @@ index 4c5d2e1..81b70c2 100644
  			if (obank == -2)
  				obank = SectionBank(obj->mSection);
  
-@@ -1881,6 +1884,24 @@ bool Linker::WriteCrtFile(const char* filename, uint16 id, uint8 subtype, const
+@@ -1886,6 +1889,24 @@ bool Linker::WriteCrtFile(const char* filename, uint16 id, uint8 subtype, const
  					chipHeader.mLoadAddress = 0x00a0;
  					fwrite(&chipHeader, sizeof(chipHeader), 1, file);
  					fwrite(mCartridge[i] + 0xa000, 1, 0x2000, file);
@@ -492,7 +492,7 @@ index 4c5d2e1..81b70c2 100644
  			}
  		}
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index c27691d..7bb2836 100644
+index 1862d8f..c17e5c0 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
 @@ -13560,21 +13560,36 @@ void NativeCodeBasicBlock::UnaryOperator(InterCodeProcedure* proc, NativeCodePro
