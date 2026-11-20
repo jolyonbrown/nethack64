@@ -44,7 +44,12 @@ def main():
     ap.add_argument("--slack", type=int, default=256)
     ap.add_argument("--oversized", action="store_true")
     ap.add_argument("--add-banks", default="", help="comma-separated bank numbers")
-    ap.add_argument("--int", help="the build's intermediate code, for --oversized")
+    ap.add_argument("--int", help="the build's intermediate code, for --oversized and --glue")
+    ap.add_argument("--glue", action="store_true",
+                    help="count what a move brings into its new bank besides the function: a bank "
+                         "call stub for each callee in another bank, a string wrapper for each "
+                         "string function it calls there (fork commit 6, bankgen.py --linker-stubs); "
+                         "needs --int")
     ap.add_argument("--src", default="port/src", help="NetHack's sources, for --oversized")
     ap.add_argument("--per-file", default="build/callgraph-c64.json",
                     help="per-file sizes (tools/measure/callgraph.py), for --oversized")
@@ -122,6 +127,48 @@ def main():
             fixed.add(plan["banks"]["%s:%s" % (v["file"], name)])
             print("  %s (%d B) keeps %d helpers out of line, to bank %d (about %d B): %s" % (
                 name, v["size"], len(helpers), to, estimate, ", ".join(helpers)))
+    # T2.12: with the bank call glue in the banks, a function moved to bank t brings a 6-byte
+    # stub for each callee outside t (resident ones are called directly) and a caller wrapper
+    # (f__tA) for each string function it calls outside t that has none there yet: far16's
+    # moves, sized without these, overflowed every new bank by 4-5 KB
+    STUB, WRAP = 6, 40
+    glue_calls, has_wrap, wrapped = collections.defaultdict(set), set(), set()
+    if a.glue:
+        if not a.int:
+            sys.exit("--glue needs --int")
+        base = lambda n: re.sub(r"(?:__[btx]\d+|@\w+)+$", "", n)
+        cur, header = None, True
+        for line in open(a.int, errors="replace"):
+            if line.startswith("----"):
+                header = True
+                continue
+            if header:
+                m = re.match(r"^([A-Za-z_]\w*): \S", line)
+                cur, header = (base(m.group(1)) if m else None), False
+                continue
+            m = cur and re.search(r"\tCALL\w*\t[^\t]*\t<-\tV\(-?\d+ '([^']*)'\)", line)
+            if m and base(m.group(1)) != cur:
+                glue_calls[cur].add(base(m.group(1)))
+        for line in open(a.map, errors="replace"):
+            m = re.match(r"^(?:[0-9a-f]{2}:)?[0-9a-f]{4,5} - [0-9a-f]{4,5} : (\w+)__t(\d+), ", line)
+            if m:
+                has_wrap.add(m.group(1))
+                wrapped.add((m.group(1), int(m.group(2))))
+
+    def cost(name, t):
+        if not a.glue or t in plan.get("resident_glue", ()):
+            return size[name], ()
+        extra, new = 0, []
+        for c in glue_calls.get(name, ()):
+            cb = bank_of.get(c)
+            if cb is None or cb == t:
+                continue
+            extra += STUB
+            if c in has_wrap and (c, t) not in wrapped:
+                extra += WRAP
+                new.append((c, t))
+        return size[name] + extra, new
+
     def smallest(b):
         return min([size[k.split(":", 1)[1]] for k, bk in plan["banks"].items()
                     if bk == b and size.get(k.split(":", 1)[1])] or [0])
@@ -135,17 +182,21 @@ def main():
         for k in members:
             if need <= 0:
                 break
-            n = size[k.split(":", 1)[1]]
+            name = k.split(":", 1)[1]
+            n = size[name]
             # best fit: the bank with the least room that takes it, so the big holes stay for
             # the big functions (the most room first spread 33 overflows over every new bank)
-            fits = [t for t in banks if t != b and t not in left and t not in fixed and free[t] >= n]
+            fits = [t for t in banks if t != b and t not in left and t not in fixed and free[t] >= cost(name, t)[0]]
             if not fits:
                 continue
-            to = min(fits, key=lambda t: free[t])
+            to = min(fits, key=lambda t: free[t] - cost(name, t)[0])
+            c, new = cost(name, to)
             plan["banks"][k] = to
-            free[to] -= n
+            bank_of[name] = to
+            wrapped.update(new)
+            free[to] -= c
             need -= n
-            moves.append((k, b, to, n))
+            moves.append((k, b, to, c))
         if need > 0:
             sys.exit("bank %d: no room elsewhere for %d more bytes" % (b, need))
     json.dump(plan, open(a.out, "w"), indent=0, sort_keys=True)

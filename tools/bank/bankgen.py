@@ -311,6 +311,10 @@ def main():
     # functions to keep out of line (a plan's "noinline": the static helpers Oscar64 would
     # inline into a function that then no longer fits a bank; tools/bank/planfix.py)
     noinline = set(planj.get("noinline", []))
+    # banks too full for their own glue (read.c's seffects with its literals): their calls go
+    # through the resident stubs (section flag 4, the far-spaces fork) and their string calls
+    # through the resident trampolines, as before the glue moved into the banks
+    resident_glue = set(planj.get("resident_glue", []))
     files = [os.path.basename(f) for f in a.files]
     if a.define_in not in files:
         sys.exit("%s (--define-in) must be one of the files" % a.define_in)
@@ -441,7 +445,7 @@ def main():
         for f in files:
             for d in info[f]:
                 cb = bank_of.get("%s:%s" % (f, d["name"]))
-                if cb is None:
+                if cb is None or cb in resident_glue:
                     continue
                 for c in d["calls"]:
                     k = key_of(f, c)
@@ -558,7 +562,7 @@ def main():
                             sys.exit("%s: no prototype for %s" % (f, n))
                         lines.append(p)
                         declared.add(n)
-                if a.linker_stubs:
+                if a.linker_stubs and b not in resident_glue:
                     cross = {}
                     for d in run["defs"]:
                         for c in d["calls"]:
@@ -616,7 +620,8 @@ def main():
         out += ["", "/* bankgen: trampolines */"] + tail + [""]
         open(path, "w", encoding="latin-1").write("\n".join(out))
 
-    open(os.path.join(a.dir, "nhbank.h"), "w").write(header(sorted(report["banks"]), keep_extern, a.linker_stubs))
+    open(os.path.join(a.dir, "nhbank.h"), "w").write(header(sorted(report["banks"]), keep_extern, a.linker_stubs,
+                                                          resident_glue))
     report["banks"] = sorted(report["banks"])
     if a.report:
         json.dump(report, open(a.report, "w"), indent=1, sort_keys=True)
@@ -671,7 +676,7 @@ def split_trampoline(d, sig, bank, callers, report):
     out = []
     if sret:
         out += ["#pragma code(nhbank_%d)" % bank,
-                "__noinline %s%s %s__x%d(%s)\n{\n\t%s nh_r = %s__b%d(%s);\n\treturn NH_STASH(nh_r);\n}" % (
+                "__noinline %s%s %s__x%d(%s)\n{\n\t%s nh_r = %s__b%d(%s);\n\treturn NH_RES(nh_r);\n}" % (
                     static, ret, d["name"], bank, plist, ret, d["name"], bank, args)]
         report["result_wrappers"] += 1
     if any(p[2] for p in params):
@@ -847,7 +852,7 @@ nh_setbank(unsigned char b)
 """
 
 
-def header(banks, keep_extern=(), linker_stubs=False):
+def header(banks, keep_extern=(), linker_stubs=False, resident_glue=()):
     bufs_decl = "\n".join("extern char nh_keep_%s[%d];" % (n, KEEP_SIZE) for n in sorted(keep_extern))
     bufs_def = "\n".join("char nh_keep_%s[%d];" % (n, KEEP_SIZE) for n in sorted(keep_extern))
     if linker_stubs:
@@ -855,8 +860,8 @@ def header(banks, keep_extern=(), linker_stubs=False):
     setbank = ("/* through the bank call routine: an REU bank needs fetching (ADR-0008) */\n"
                "extern void nh_setbank(unsigned char b);\n#define NH_BANK(n) nh_setbank(n)"
                if linker_stubs else "#define NH_BANK(n) (nh_bank = (n), eflash.bank = (n))")
-    regions = "\n".join("#pragma section( nhbank_%d, 0 )\n#pragma region( nhbank_%d_r, 0x8000, 0xc000, , %d, "
-                        "{ nhbank_%d } )" % (b, b, b, b) for b in banks)
+    regions = "\n".join("#pragma section( nhbank_%d, %d )\n#pragma region( nhbank_%d_r, 0x8000, 0xc000, , %d, "
+                        "{ nhbank_%d } )" % (b, 4 if b in resident_glue else 0, b, b, b) for b in banks)
     return """/* nhbank.h - written by tools/bank/bankgen.py: the banks, the bank switch and the
  * string copy that its trampolines use (docs/BANKING-SPIKE.md). */
 #ifndef NHBANK_H
@@ -885,7 +890,11 @@ extern volatile unsigned nh_addr;
 extern unsigned nh_args_top;
 extern char *nh_stash_arg(const char *s);
 extern char *nh_unwind(char *r, unsigned m);
-#define NH_ARG(p) (NH_IN_WINDOW(p) ? nh_stash_arg(p) : (p))
+/* calls, not macros: each wrapper then spends about 12 bytes on a copy, not 30 */
+extern __noinline char *nh_arg(const char *p);
+extern __noinline char *nh_res(const char *p);
+#define NH_ARG(p) nh_arg(p)
+#define NH_RES(p) nh_res(p)
 #define NH_ARGMARK() nh_args_top
 #define NH_RELEASE(m) (nh_args_top = (m))
 #define NH_UNWIND(r, m) nh_unwind((char *)(r), (m))
@@ -935,6 +944,18 @@ nh_stash_arg(const char *s)
 	while (n--)
 		d[n] = s[n];
 	return d;
+}
+
+__noinline char *
+nh_arg(const char *p)
+{
+	return NH_IN_WINDOW(p) ? nh_stash_arg(p) : (char *)p;
+}
+
+__noinline char *
+nh_res(const char *p)
+{
+	return NH_IN_WINDOW(p) ? nh_stash(p) : (char *)p;
 }
 
 char *
@@ -994,6 +1015,7 @@ nh_enter(int n, const char *f)
 #define NH_BANK(n) (nh_bank = (n))
 #define NH_STASH(p) (p)
 #define NH_ARG(p) (p)
+#define NH_RES(p) (p)
 #define NH_ARGMARK() 0u
 #define NH_RELEASE(m) ((void)(m))
 #define NH_UNWIND(r, m) ((void)(m), (r))

@@ -27,3 +27,19 @@ far14 has the defects Codex's review found (a result wrapper evaluating its call
 far16's 37 overflowing banks are mostly the ten new ones (104-121): planfix.py moved functions by
 their own sizes, and each brought stubs for its callees in other banks and its wrappers, 4-5 KB
 a bank (left unplaced: 38,254 B code, 13,026 B stubs, 4,888 B wrappers, 7,048 B data).
+
+2026-11-20: smaller wrappers (the window tests as calls of nh_arg()/nh_res(), not inline) and the
+plan repaired with planfix.py --glue (a move's cost counts a 6-byte stub for each callee in another
+bank and a wrapper for each string function it calls there without one):
+  far17 (plan from far16, 332 moves, banks 121-123): banked left unplaced 6,149 B in 10 banks;
+    caller wrappers 1,145 / 77,807 B (68 B each, was 104); result wrappers 118 / 13,259 B
+    (median 49 B; the big ones hold their function's body, inlined into its only caller).
+  far18 (71 more moves): left 1,970 B, nearly all bank 108: seffects (14,119 B of code, 2,158 B
+    of literals) cannot fit with its 77 stubs and 13 wrappers in its own bank.
+  far19 (fork ffadc0c, commit 7: bank 108's section has flag 4, so its calls use the resident
+    stubs, and bankgen.py's plan key resident_glue sends its string calls through the resident
+    trampolines; distant_monnam out of it): every banked object placed, 116 banks, 1,749,437 B
+    (per bank max 16,277). Resident code 31,351 B (14,678 placed + 16,673 unplaced); resident
+    data 72,107 B unplaced. Checks: 0 calls across a bank without a trampoline, $8f, check_listing
+    0 problems, 0 bad intermediate-code calls; warning 2024: 68, all from resident code.
+  Plan: docs/data/bankplan-2026-11-20-far.json.

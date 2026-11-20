@@ -606,8 +606,12 @@ resident bank call stubs (12.5 KB), 264 resident string trampolines (24.5 KB) an
   (11 KB), and a repaired plan (351 moves, banks 108-121) still 63 KB over, because planfix.py
   sized moves without the stubs and wrappers they bring. Code and data in banks now come to
   1.79 MB: about 110 of the 121 banks a 1 MB EasyFlash and a 1 MB REU leave beside the far
-  data, before the far heap spaces. Next: planfix with the glue's cost, smaller wrappers (an
-  assembler copy routine described by a few bytes), then the resident data.
+  data, before the far heap spaces (the REU minimum is now 2 MB, ADR-0008).
+- 2026-11-20: the wrappers' window tests became calls (caller wrappers 104 -> 68 B each), and
+  planfix.py --glue counts the stubs and wrappers a move brings. Three links later every banked
+  object places (far19: 116 banks, 1.75 MB); `seffects`' bank keeps resident glue (fork commit
+  7, section flag 4), since its code, literals and stubs alone exceed 16 KB. Resident code is
+  31.4 KB, resident data 72.1 KB: the data is next.
 
 ## Measured: zero page saves (2026-11-16, T1.49)
 

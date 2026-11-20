@@ -761,8 +761,10 @@ Add new tasks at the bottom of the right section.
       Resident code 65.1 KB -> 29.6 KB; banked code +164 KB, which the repaired plan does not
       yet fit (planfix.py counts no stubs or wrappers). Compat #79 (r76). Codex's review found
       four real defects, all fixed (`tests/spikes/run_bankstr.py`).
-      `docs/data/wholegame-far-2026-11-19b.txt`. Next: planfix with the glue's cost, smaller
-      wrappers; then the resident data (72 KB).
+      `docs/data/wholegame-far-2026-11-19b.txt`. 2026-11-20: REU minimum 2 MB (ADR-0008);
+      smaller wrappers, planfix.py --glue, fork commit 7 (resident glue for seffects' bank):
+      every banked object places again (far19, 116 banks), resident code 31.4 KB
+      (`bankplan-2026-11-20-far.json`). Next: the resident data (72 KB).
 
 ## Housekeeping
 

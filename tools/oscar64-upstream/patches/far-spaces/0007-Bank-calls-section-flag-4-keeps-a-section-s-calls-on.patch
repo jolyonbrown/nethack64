@@ -1,0 +1,47 @@
+From ffadc0c040b9529a3f281a46cfdd128b5d23234b Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 20 Nov 2026 04:19:21 +0000
+Subject: [PATCH] Bank calls: section flag 4 keeps a section's calls on the
+ resident stubs
+
+A bank that its own stubs would overflow (NetHack's seffects, 14 KB of code and 2 KB of
+literals, calls 77 functions in other banks) can name its section with flag 4,
+#pragma section(name, 4): calls from it into other banks then go through the resident
+stubs, as before stubs went into the calling bank.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/Linker.cpp | 2 +-
+ oscar64/Linker.h   | 3 +++
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/oscar64/Linker.cpp b/oscar64/Linker.cpp
+index 49a95f4..e19aaa9 100644
+--- a/oscar64/Linker.cpp
++++ b/oscar64/Linker.cpp
+@@ -676,7 +676,7 @@ void Linker::InsertBankCalls(LinkerObject* bankcall, int bankcallOffset, LinkerS
+ 			// stub before it maps the callee's bank.  A call from resident code and an
+ 			// address, which code in any bank may use, go to the one resident stub.
+ 
+-			int sbank = (call && obank >= 0) ? obank : -1;
++			int sbank = (call && obank >= 0 && !(obj->mSection->mFlags & LSECF_RESIDENT_STUBS)) ? obank : -1;
+ 			LinkerObject* sobj = fobj->mBankStub;
+ 			while (sobj && sobj->mBankStubBank != sbank)
+ 				sobj = sobj->mBankStubNext;
+diff --git a/oscar64/Linker.h b/oscar64/Linker.h
+index 8421153..ad47059 100644
+--- a/oscar64/Linker.h
++++ b/oscar64/Linker.h
+@@ -193,6 +193,9 @@ public:
+ 
+ static const uint32 LSECF_PACKED = 0x00000001;
+ static const uint32 LSECF_PLACED = 0x00000002;
++// #pragma section(name, 4): calls from the section into a bank go through the resident bank
++// call stubs, not through stubs in the caller's own section (a bank too full for them)
++static const uint32 LSECF_RESIDENT_STUBS = 0x00000004;
+ 
+ class LinkerSection
+ {
+-- 
+2.43.0
+
