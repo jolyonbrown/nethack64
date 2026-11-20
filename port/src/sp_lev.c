@@ -68,7 +68,13 @@ STATIC_DCL boolean FDECL(create_subroom, (struct mkroom_s *, XCHAR_P, XCHAR_P,
 static NEARDATA walk walklist[50];
 extern int min_rx, max_rx, min_ry, max_ry; /* from mkmap.c */
 
+#ifdef NH_FAR_GLOBS
+#pragma bss(farglob)		/* far space 4 (c64conf.h), read by name */
+#endif
 static char Map[COLNO][ROWNO];
+#ifdef NH_FAR_GLOBS
+#pragma bss(bss)
+#endif
 static char robjects[10], rloc_x[10], rloc_y[10], rmonst[10];
 static aligntyp	ralign[3] = { AM_CHAOTIC, AM_NEUTRAL, AM_LAWFUL };
 static NEARDATA xchar xstart, ystart;
@@ -2036,7 +2042,11 @@ load_maze(dlb *fd)
     struct trap_s *badtrap;
     boolean has_bounds;
 
+#ifdef NH_FAR_GLOBS
+    nh_farfill4((struct nh_fb4 *) &Map[0][0], 0, sizeof(Map));
+#else
     (void) memset((genericptr_t)&Map[0][0], 0, sizeof(Map));
+#endif
     load_common_data(fd, SP_LEV_MAZE);
 
     /* Initialize map */

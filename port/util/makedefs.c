@@ -1353,7 +1353,9 @@ do_monstr()
     }
     Fprintf(ofp,Dont_Edit_Code);
     Fprintf(ofp,"#include \"config.h\"\n");
-    Fprintf(ofp,"\nconst int monstr[] = {\n");
+    /* the C64's far build keeps the table in far space 4 (c64conf.h, T2.12) */
+    Fprintf(ofp,"\n#ifdef NH_FAR_GLOBS\n#pragma data(farglob)\n#endif\n");
+    Fprintf(ofp,"const int monstr[] = {\n");
     for (ptr = &mons[0], j = 0; ptr->mlet; ptr++) {
 
 	SpinCursor(3);
@@ -1363,6 +1365,7 @@ do_monstr()
     }
     /* might want to insert a final 0 entry here instead of just newline */
     Fprintf(ofp,"%s};\n", (j & 15) ? "\n" : "");
+    Fprintf(ofp,"#ifdef NH_FAR_GLOBS\n#pragma data(data)\n#endif\n");
 
     Fprintf(ofp,"\nvoid NDECL(monstr_init);\n");
     Fprintf(ofp,"\nvoid\n");

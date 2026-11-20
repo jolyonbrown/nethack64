@@ -24,6 +24,9 @@
  *
  * God names use a leading underscore to flag goddesses.
  */
+#ifdef NH_FAR_GLOBS
+#pragma data(farglob)
+#endif
 const struct Role roles[] = {
 {	{"Archeologist", 0}, {
 	{"Digger",      0},
@@ -381,6 +384,11 @@ const struct Role roles[] = {
 {{0, 0}}
 };
 
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#pragma align(roles, 128)
+#endif
+
 
 /* The player's role, created at runtime from initial
  * choices.  This may be munged in role_init().
@@ -403,6 +411,9 @@ struct Role urole =
 
 
 /* Table of all races */
+#ifdef NH_FAR_GLOBS
+#pragma data(farglob)
+#endif
 const struct Race races[] = {
 {	"human", "human", "humanity", "Hum",
 	{"man", "woman"},
@@ -484,6 +495,10 @@ struct Race urace =
 	{  2, 0,  0, 2,  1, 0 },	/* Hit points */
 	{  1, 0,  2, 0,  2, 0 }		/* Energy */
 };
+
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#endif
 
 
 /* Table of all genders */

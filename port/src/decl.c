@@ -98,7 +98,13 @@ const char *alllevels = "levels.*";
 const char *allbones = "bones*.*";
 #endif
 
+#ifdef NH_FAR_GLOBS
+#pragma bss(farglob)
+#endif
 struct linfo level_info[MAXLINFO];
+#ifdef NH_FAR_GLOBS
+#pragma bss(bss)
+#endif
 
 NEARDATA struct sinfo program_state;
 
@@ -185,6 +191,12 @@ NH_FARIO(2)
 NH_FARIO(3)
 #ifdef NH_FAR_GLOBS
 NH_FARIO(4)
+
+void
+nh_farfill4(struct nh_fb4 *d, int c, unsigned n)
+{
+	while (n--) (d++)->b = (unsigned char) c;
+}
 #endif
 
 void
@@ -246,7 +258,13 @@ const int shield_static[SHIELD_COUNT] = {
     S_ss1, S_ss2, S_ss3, S_ss2, S_ss1, S_ss2, S_ss4,
 };
 
+#ifdef NH_FAR_GLOBS
+#pragma data(farglob)
+#endif
 NEARDATA struct spell_s spl_book[MAXSPELL + 1] = {DUMMY};
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#endif
 
 NEARDATA long moves = 1L, monstermoves = 1L;
 	 /* These diverge when player is Fast */

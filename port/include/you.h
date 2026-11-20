@@ -135,9 +135,24 @@ struct Role {
 	/* quest dungeon definition (dat/Xyz.dat) */
 	/* quest text (dat/quest.txt) */
 	/* dictionary entries (dat/data.bas) */
+#ifdef NH_FAR_GLOBS
+	/* 128 bytes in the C64's far build: roles[] is far (c64conf.h), and botl.c's rank_of()
+	 * walks it through a pointer, whose accesses an entry must keep to a page for */
+	char role_pad_c64[128 - 114];
+#endif
 };
+#ifdef NH_FAR_GLOBS
+static_assert(sizeof (struct Role) == 128, "struct Role is 128 bytes in the far build");
+#pragma farspace(4, Role)
+#endif
 
+#ifdef NH_FAR_GLOBS
+#pragma data(farglob)
+#endif
 extern const struct Role roles[];	/* table of available roles */
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#endif
 extern struct Role urole;
 #define Role_if(X)	(urole.malenum == (X))
 #define Role_switch	(urole.malenum)
@@ -189,7 +204,13 @@ struct Race {
 	/* dictionary entries (dat/data.bas) */
 };
 
+#ifdef NH_FAR_GLOBS
+#pragma data(farglob)
+#endif
 extern const struct Race races[];	/* Table of available races */
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#endif
 extern struct Race urace;
 #define Race_if(X)	(urace.malenum == (X))
 #define Race_switch	(urace.malenum)

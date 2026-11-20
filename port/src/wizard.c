@@ -11,7 +11,6 @@
 #include "qtext.h"
 #include "epri.h"
 
-extern const int monstr[];
 
 #ifdef OVLB
 

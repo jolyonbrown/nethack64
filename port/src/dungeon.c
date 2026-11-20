@@ -131,8 +131,13 @@ save_dungeon(int fd, boolean perform_write, boolean free_data)
 
 	count = maxledgerno();
 	bwrite(fd, (genericptr_t) &count, sizeof(count));
+#ifdef NH_FAR_GLOBS
+	nh_farbwrite4(fd, (const struct nh_fb4 *) level_info,
+			(unsigned)count * sizeof (struct linfo));
+#else
 	bwrite(fd, (genericptr_t) level_info,
 			(unsigned)count * sizeof (struct linfo));
+#endif
 	bwrite(fd, (genericptr_t) &inv_pos, sizeof(inv_pos));
     }
 
@@ -174,7 +179,11 @@ restore_dungeon(int fd)
     mread(fd, (genericptr_t) &count, sizeof(count));
     if (count >= MAXLINFO)
 	panic("level information count larger (%d) than allocated size", count);
+#ifdef NH_FAR_GLOBS
+    nh_farmread4(fd, (struct nh_fb4 *) level_info, (unsigned)count*sizeof(struct linfo));
+#else
     mread(fd, (genericptr_t) level_info, (unsigned)count*sizeof(struct linfo));
+#endif
     mread(fd, (genericptr_t) &inv_pos, sizeof(inv_pos));
 }
 

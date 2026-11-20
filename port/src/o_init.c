@@ -11,7 +11,13 @@ STATIC_DCL void NDECL(shuffle_all);
 STATIC_DCL boolean FDECL(interesting_to_discover,(int));
 
 
+#ifdef NH_FAR_GLOBS
+#pragma data(farglob)		/* far space 4 (c64conf.h), read by name */
+#endif
 static NEARDATA short disco[NUM_OBJECTS] = DUMMY;
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#endif
 
 #ifdef USE_TILES
 STATIC_DCL void NDECL(shuffle_tiles);
@@ -251,7 +257,11 @@ savenames(int fd, int mode)
 
 	if (perform_bwrite(mode)) {
 	    bwrite(fd, (genericptr_t)bases, sizeof(bases));
+#ifdef NH_FAR_GLOBS
+	    nh_farbwrite4(fd, (const struct nh_fb4 *) disco, sizeof(disco));
+#else
 	    bwrite(fd, (genericptr_t)disco, sizeof(disco));
+#endif
 #ifdef NH_FAR_OBJS
 	    nh_farbwrite2(fd, (const struct nh_fb2 *)objects,
 		   sizeof(struct objclass) * NUM_OBJECTS);
@@ -284,7 +294,11 @@ restnames(int fd)
 	unsigned int len;
 
 	mread(fd, (genericptr_t) bases, sizeof(bases));
+#ifdef NH_FAR_GLOBS
+	nh_farmread4(fd, (struct nh_fb4 *) disco, sizeof(disco));
+#else
 	mread(fd, (genericptr_t) disco, sizeof(disco));
+#endif
 #ifdef NH_FAR_OBJS
 	nh_farmread2(fd, (struct nh_fb2 *) objects, sizeof(struct objclass) * NUM_OBJECTS);
 #else

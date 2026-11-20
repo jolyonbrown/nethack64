@@ -31,7 +31,6 @@ STATIC_DCL void FDECL(m_initweap,(struct monst_s *));
 STATIC_DCL void FDECL(m_initinv,(struct monst_s *));
 #endif /* OVL1 */
 
-extern const int monstr[];
 
 #define m_initsgrp(mtmp, x, y)	m_initgrp(mtmp, x, y, 3)
 #define m_initlgrp(mtmp, x, y)	m_initgrp(mtmp, x, y, 10)
@@ -1167,10 +1166,16 @@ align_shift(struct permonst *ptr)
     return alshift;
 }
 
+#ifdef NH_FAR_GLOBS
+#pragma data(farglob)		/* far space 4 (c64conf.h), read by name */
+#endif
 static NEARDATA struct {
 	int choice_count;
 	char mchoices[SPECIAL_PM];	/* value range is 0..127 */
 } rndmonst_state = { -1, {0} };
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#endif
 
 /* select a random monster type */
 struct permonst *

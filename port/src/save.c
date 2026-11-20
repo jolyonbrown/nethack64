@@ -305,8 +305,13 @@ savegamestate(int fd, int mode)
 	bwrite(fd, (genericptr_t) &moves, sizeof(moves));
 	bwrite(fd, (genericptr_t) &monstermoves, sizeof(monstermoves));
 	bwrite(fd, (genericptr_t) &quest_status, sizeof(struct q_score));
+#ifdef NH_FAR_GLOBS
+	nh_farbwrite4(fd, (const struct nh_fb4 *) spl_book,
+				sizeof(struct spell_s) * (MAXSPELL + 1));
+#else
 	bwrite(fd, (genericptr_t) spl_book,
 				sizeof(struct spell_s) * (MAXSPELL + 1));
+#endif
 	save_artifacts(fd);
 	save_oracles(fd, mode);
 	if(ustuck_id)

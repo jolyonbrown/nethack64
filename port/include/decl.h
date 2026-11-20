@@ -139,7 +139,13 @@ E NEARDATA struct fruit *ffruit;
 E NEARDATA char tune[6];
 
 #define MAXLINFO (MAXDUNGEON * MAXLEVEL)
+#ifdef NH_FAR_GLOBS
+#pragma bss(farglob)
+#endif
 E struct linfo level_info[MAXLINFO];
+#ifdef NH_FAR_GLOBS
+#pragma bss(bss)
+#endif
 
 E NEARDATA struct sinfo {
 	int gameover;		/* self explanatory? */
@@ -224,7 +230,21 @@ E NEARDATA boolean in_steed_dismounting;
 E const int shield_static[];
 
 #include "spell.h"
+#ifdef NH_FAR_GLOBS
+#pragma data(farglob)
+#endif
 E NEARDATA struct spell_s spl_book[];	/* sized in decl.c */
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#endif
+/* the monsters' difficulty (monstr.c, from makedefs) */
+#ifdef NH_FAR_GLOBS
+#pragma data(farglob)
+#endif
+E const int monstr[];
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#endif
 
 #include "color.h"
 #ifdef TEXTCOLOR

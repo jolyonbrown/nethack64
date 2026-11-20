@@ -223,7 +223,13 @@ struct symdef {
 #endif
 };
 
+#ifdef NH_FAR_GLOBS
+#pragma data(farglob)
+#endif
 extern const struct symdef defsyms[MAXPCHARS];	/* defaults */
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#endif
 extern uchar showsyms[MAXPCHARS];
 extern const struct symdef def_warnsyms[WARNCOUNT];
 
@@ -533,6 +539,7 @@ struct nh_fb4 { unsigned char b; };
 #pragma farspace(4, nh_fb4)
 extern void nh_farbwrite4(int, const struct nh_fb4 *, unsigned);
 extern void nh_farmread4(int, struct nh_fb4 *, unsigned);
+extern void nh_farfill4(struct nh_fb4 *, int, unsigned);
 #endif
 #endif
 

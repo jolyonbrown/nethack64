@@ -73,6 +73,13 @@ banking", options A-C). Measured since (BANKING-SPIKE.md):
   endgame are barely in it. If they enter REU banks often, the remedy is the plan (move hot
   functions to the cartridge), not the design. A stock C64 is outside this plan (as in
   ADR-0003, a stretch).
+- 2026-11-20: the remedy exists, `tools/bank/warmplan.py`. A call into an REU bank copies it
+  into the window, and so does a return into one (about 16 ms each). The plans `planfix.py`
+  repaired for the far game had let hot code drift into REU banks: 114 copies a key in the
+  profile (about 1.9 s a key; `movemon` in bank 90 calling `minliquid` in bank 118 made most
+  of them). warmplan.py moves the function whose calls cost the most copies into the
+  cartridge bank it talks to most, evicting the coldest code there to an REU bank with room;
+  on far25's plan, 32 moves: about 1 copy a key (0.02 s). Run it after each repair.
 
 ## Corrections and progress
 - 2026-11-17: the counts above were first written as 104 banks, 62 kept and 42 (670 KB) off

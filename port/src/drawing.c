@@ -203,6 +203,9 @@ const struct symdef def_warnsyms[WARNCOUNT] = {
  *  Default screen symbols with explanations and colors.
  *  Note:  {ibm|dec|mac}_graphics[] arrays also depend on this symbol order.
  */
+#ifdef NH_FAR_GLOBS
+#pragma data(farglob)
+#endif
 const struct symdef defsyms[MAXPCHARS] = {
 /* 0*/	{' ', "dark part of a room",C(NO_COLOR)},	/* stone */
 	{'|', "wall",		C(CLR_GRAY)},	/* vwall */
@@ -305,6 +308,9 @@ const struct symdef defsyms[MAXPCHARS] = {
  *	  {ibm,dec,mac}_graphics[] arrays below.
  */
 };
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#endif
 
 #undef C
 

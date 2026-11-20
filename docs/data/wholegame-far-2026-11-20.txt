@@ -57,3 +57,16 @@ grids 10.1 KB (could_see 3,360, viz_clear, left_ptrs, right_ptrs, Map 1,680 each
 tables 6.4 KB (objnam.c's bufs 3,072, disco 866, monstr 764); char buffers 4.9 KB and more
 under other names; const struct tables 3.5 KB (roles 1,596, defsyms, shtypes, races); the
 bank glue's buffers 2.4 KB (nh_args, nh_stash_buf, nh_name_ring); u 1,381 B.
+
+far25 (plan far24 repaired, 47 moves): sp_lev.c's Map, o_init.c's disco, monstr (makedefs
+writes its pragmas), makemon.c's rndmonst_state, level_info, spl_book, roles, races and
+defsyms in far space 4, read by name (the compiler groups accesses only through pointers to
+far struct types, so a by-name object may span pages): resident data 55.2 -> 48.5 KB
+(unplaced 34,925 -> 28,227 B); farglob 30,720 B of 32,768.  One new warning 2026: botl.c's
+rank_of() walks roles[] through a struct Role pointer (far26: struct Role far, 128 bytes).
+
+far26 (plan far25 repaired, 32 moves, then tools/bank/warmplan.py, 32 moves): struct Role far
+and 128 bytes; no new warning 2026 (restore.c 803 only); bank checks clean; banked left
+unplaced 4,082 B (the warm moves, for the next repair).  REU copies a key in the profile:
+114 (far25's repaired plan) -> 1.3.
+

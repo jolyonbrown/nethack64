@@ -418,8 +418,13 @@ restgamestate(int fd, unsigned int *stuckid, unsigned int *steedid)
 	mread(fd, (genericptr_t) &moves, sizeof(moves));
 	mread(fd, (genericptr_t) &monstermoves, sizeof(monstermoves));
 	mread(fd, (genericptr_t) &quest_status, sizeof(struct q_score));
+#ifdef NH_FAR_GLOBS
+	nh_farmread4(fd, (struct nh_fb4 *) spl_book,
+				sizeof(struct spell_s) * (MAXSPELL + 1));
+#else
 	mread(fd, (genericptr_t) spl_book,
 				sizeof(struct spell_s) * (MAXSPELL + 1));
+#endif
 	restore_artifacts(fd);
 	restore_oracles(fd);
 	if (u.ustuck)
