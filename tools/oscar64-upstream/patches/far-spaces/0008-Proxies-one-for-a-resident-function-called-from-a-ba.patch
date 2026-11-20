@@ -1,0 +1,111 @@
+From 8178a225ab7b239a0ff4ef8057d8aa51dfaad096 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 20 Nov 2026 18:55:24 +0000
+Subject: [PATCH] Proxies: one for a resident function called from a bank goes
+ into the calling bank
+
+A proxy (a function's entry that loads constant arguments shared by several calls) went
+into the callee's section.  For a resident function called from cartridge banks that put
+the proxies in resident memory: 608 of them in a whole NetHack build, about 4 KB, most of
+them used from a single bank.  Calls of a resident function from code in a bank now share
+proxies only with calls from the same section, and the proxy goes into that section; it
+ends in a jump to the callee, which is in view from any bank.  A section with flag 4
+(LSECF_RESIDENT_STUBS, too full for its own glue) keeps its proxies where they were.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/NativeCodeGenerator.cpp | 22 +++++++++++++++++++---
+ oscar64/NativeCodeGenerator.h   |  2 ++
+ 2 files changed, 21 insertions(+), 3 deletions(-)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 001735c..11ccadd 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -72912,6 +72912,20 @@ static inline bool isfparam(const NativeCodeInstruction & cins, const NativeCode
+ 	return false;
+ }
+ 
++// A proxy (a function's entry with some arguments loaded) goes into the callee's section,
++// except for a resident callee called from code in a cartridge bank: then into the
++// caller's section, one for each calling section, so that the proxy takes no resident
++// memory.  It ends in a jump to the callee, which is in view from any bank.  A section
++// with flag 4 (LSECF_RESIDENT_STUBS: too full for its own glue) keeps them resident.
++LinkerSection* NativeCodeGenerator::ProxySection(NativeCodeBasicBlock* block, LinkerObject* callee)
++{
++	LinkerSection* csec = block->mProc->mLinkerObject ? block->mProc->mLinkerObject->mSection : nullptr;
++	if (csec && callee->mSection && csec != callee->mSection && !(csec->mFlags & LSECF_RESIDENT_STUBS) &&
++		mLinker->SectionBank(callee->mSection) < 0 && mLinker->SectionBank(csec) >= 0)
++		return csec;
++	return callee->mSection;
++}
++
+ void NativeCodeGenerator::RegisterFunctionCall(NativeCodeBasicBlock* block, int at)
+ {
+ 	LinkerObject* lo = block->mIns[at].mLinkerObject;
+@@ -72949,6 +72963,7 @@ void NativeCodeGenerator::RegisterFunctionCall(NativeCodeBasicBlock* block, int
+ 			FunctionCall* ncp = new FunctionCall();
+ 			ncp->mLinkerObject = lo;
+ 			ncp->mOffset = block->mIns[at].mAddress;
++			ncp->mSection = ProxySection(block, lo);
+ 
+ 			ncp->mProxyObject = nullptr;
+ 			ncp->mCount = 1;
+@@ -72966,7 +72981,7 @@ void NativeCodeGenerator::RegisterFunctionCall(NativeCodeBasicBlock* block, int
+ 			}
+ 
+ 			FunctionCall* cp = mFunctionCalls;
+-			while (cp && (cp->mLinkerObject != ncp->mLinkerObject || cp->mOffset != ncp->mOffset))
++			while (cp && (cp->mLinkerObject != ncp->mLinkerObject || cp->mOffset != ncp->mOffset || cp->mSection != ncp->mSection))
+ 				cp = cp->mNext;
+ 			if (!cp)
+ 			{
+@@ -73032,6 +73047,7 @@ bool NativeCodeGenerator::MergeFunctionCall(NativeCodeBasicBlock* block, int at)
+ 			FunctionCall	ncp;
+ 			ncp.mLinkerObject = lo;
+ 			ncp.mOffset = block->mIns[at].mAddress;
++			ncp.mSection = ProxySection(block, lo);
+ 
+ 			int i = lat, lai = -1;
+ 			while (i < at)
+@@ -73046,7 +73062,7 @@ bool NativeCodeGenerator::MergeFunctionCall(NativeCodeBasicBlock* block, int at)
+ 			}
+ 
+ 			FunctionCall* cp = mFunctionCalls;
+-			while (cp && (cp->mLinkerObject != ncp.mLinkerObject || cp->mOffset != ncp.mOffset))
++			while (cp && (cp->mLinkerObject != ncp.mLinkerObject || cp->mOffset != ncp.mOffset || cp->mSection != ncp.mSection))
+ 				cp = cp->mNext;
+ 			if (cp)
+ 			{
+@@ -73716,7 +73732,7 @@ void NativeCodeGenerator::BuildFunctionProxies(void)
+ 			if (ncp->mCount > 1)
+ 			{
+ 				//				printf("RFC %s : %d\n", ncp->mLinkerObject->mIdent->mString, ncp->mCount);
+-				ncp->mProxyObject = mLinker->AddObject(ncp->mLinkerObject->mLocation, ncp->mLinkerObject->mIdent->Mangle("@proxy"), ncp->mLinkerObject->mSection, ncp->mLinkerObject->mType);
++				ncp->mProxyObject = mLinker->AddObject(ncp->mLinkerObject->mLocation, ncp->mLinkerObject->mIdent->Mangle("@proxy"), ncp->mSection, ncp->mLinkerObject->mType);
+ 			}
+ 
+ 			ncp = ncp->mSame;
+diff --git a/oscar64/NativeCodeGenerator.h b/oscar64/NativeCodeGenerator.h
+index 71dc726..4de7bda 100644
+--- a/oscar64/NativeCodeGenerator.h
++++ b/oscar64/NativeCodeGenerator.h
+@@ -1220,6 +1220,7 @@ public:
+ 	struct FunctionCall
+ 	{
+ 		LinkerObject			*	mLinkerObject, * mProxyObject;
++		LinkerSection			*	mSection;		// where the proxy goes
+ 		NativeCodeInstruction		mIns[64];
+ 		FunctionCall			*	mNext, * mSame;
+ 		int							mCount, mOffset;
+@@ -1234,6 +1235,7 @@ public:
+ 
+ 	void OutlineFunctions(void);
+ 
++	LinkerSection* ProxySection(NativeCodeBasicBlock* block, LinkerObject* callee);
+ 	void RegisterFunctionCall(NativeCodeBasicBlock* block, int at);
+ 	void BuildFunctionProxies(void);
+ 	bool MergeFunctionCall(NativeCodeBasicBlock* block, int at);
+-- 
+2.43.0
+

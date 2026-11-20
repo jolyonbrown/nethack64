@@ -111,6 +111,7 @@ __noinline unsigned timer_stop(void)
 }
 
 /* resident */
+int r_mix(int a, int b, int c);
 int r_mul(int a, int b);
 int r_apply(int (*f)(int, int), int a, int b);
 int r_call_back(int (*f)(int), int x);
@@ -123,6 +124,7 @@ int b1_tail(int x);
 char b1_mapped(void);
 unsigned b1_checks(void);
 unsigned b1_same(void);
+int b1_proxies(int x);
 
 /* bank 2 */
 int b2_sub(int a, int b);
@@ -133,6 +135,7 @@ long b2_scale(long a, int b);
 char b2_mapped(void);
 unsigned b2_checks(void);
 unsigned b2_cross(void);
+int b2_proxies(int x);
 
 int (* const ops[3])(int, int) = { b1_add, b2_sub, r_mul };
 
@@ -196,6 +199,19 @@ __noinline unsigned b1_checks(void)
 	return ok;
 }
 
+/* calls of a resident function with the same constant arguments from several places:
+ * Oscar64 gives them one entry that loads the constants (a proxy); for a resident
+ * callee the far-spaces fork puts it in the calling bank (run_bankstub.py checks) */
+__noinline int b1_pa(int x) { return r_mix(3, 5, x); }
+__noinline int b1_pb(int x) { return r_mix(3, 5, x) + 1; }
+__noinline int b1_pc(int x) { return r_mix(3, 5, x) + 2; }
+
+__noinline int b1_proxies(int x)
+{
+	int s = b1_pa(x) + b1_pb(sink) + b1_pc(x);
+	return b1_mapped() ? s : -1;
+}
+
 __noinline unsigned b1_same(void)
 {
 	int i, s = 0;
@@ -254,6 +270,16 @@ __noinline unsigned b2_checks(void)
 	return ok;
 }
 
+__noinline int b2_pa(int x) { return r_mix(7, 1, x); }
+__noinline int b2_pb(int x) { return r_mix(7, 1, x) + 1; }
+__noinline int b2_pc(int x) { return r_mix(7, 1, x) + 2; }
+
+__noinline int b2_proxies(int x)
+{
+	int s = b2_pa(x) + b2_pb(sink) + b2_pc(x) + b1_proxies(x);
+	return b2_mapped() ? s : -1;
+}
+
 __noinline unsigned b2_cross(void)
 {
 	int i, s = 0;
@@ -266,6 +292,11 @@ __noinline unsigned b2_cross(void)
 
 #pragma code( code )
 #pragma data( data )
+
+__noinline int r_mix(int a, int b, int c)
+{
+	return a * 100 + b * 10 + c;
+}
 
 __noinline int r_mul(int a, int b)
 {
@@ -303,6 +334,10 @@ int main(void)
 	check(0x0200, k & 2);
 	check(0x0400, ops[0](20, 22) == 42 && ops[1](20, 22) == -2 && nh_bank == 0);
 	check(0x0800, b1_tail(1) == 4 && b2_inc(41) == 42 && nh_bank == 0);
+	/* 354 + (354 + 1) + (354 + 2); 714 + 715 + 716 and bank 1's; 351 + 352 */
+	sink = 4;
+	check(0x2000, b1_proxies(4) == 1065 && b2_proxies(4) == 2145 + 1065 &&
+		r_mix(3, 5, 1) + r_mix(3, 5, sink) == 705 && nh_bank == 0);
 
 	__asm { sei }
 	spike_result[2] = b2_cross();

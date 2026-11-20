@@ -59,7 +59,9 @@ Jolyon has read its explanation and said yes. Until then, branches stay local.
   not far-specific joined the pin on 2026-11-18 as 81-83; the series is five commits on
   pin 83, and a sixth, 2026-11-19: a call from code in a bank goes through a stub in that bank;
   `tests/spikes/run_bankstub.py --banked-stubs 8` checks it; a seventh, 2026-11-20: section
-  flag 4 keeps a section's calls on the resident stubs.)
+  flag 4 keeps a section's calls on the resident stubs; an eighth, the same day: the proxy
+  of a resident function called from a bank goes into that bank, `run_bankstub.py
+  --banked-proxies 2`.)
 - **Reproducible output.** v1.32.273 and the eight-commit pin read several
   members of their own data structures before anything has written them, so what
   they emit can depend on what the compiler's heap held: the install path, the

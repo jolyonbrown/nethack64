@@ -33,6 +33,7 @@ CHECKS = [
     "const table of function pointers called from resident code",
     "tail call and byte call from resident code",
     "bank restored after the timing loops",
+    "resident function with constant arguments called from banks 1 and 2 (proxies)",
 ]
 
 
@@ -42,6 +43,9 @@ def main():
     ap.add_argument("--banked-stubs", type=int, default=0,
                     help="fail unless at least this many stubs are in their calling banks "
                          "(8 for a compiler that puts them there, the far-spaces fork from c0c33b1)")
+    ap.add_argument("--banked-proxies", type=int, default=0,
+                    help="fail unless at least this many proxies of resident functions are in "
+                         "their calling banks (2 for the far-spaces fork from its commit 8)")
     a = ap.parse_args()
     os.makedirs(rb.OUT, exist_ok=True)
     crt = os.path.join(rb.OUT, "bankstub.crt")
@@ -57,8 +61,11 @@ def main():
         print("  %-7s %s" % (state, what))
     # where the linker put the stubs: a call from a bank goes through a stub in that bank
     # (name@bankcallN, in bank N) when the compiler has that change, else a resident one
-    banked, misplaced = 0, []
+    banked, misplaced, proxies = 0, [], []
     for line in open(crt[:-4] + ".map", errors="replace"):
+        m = re.match(r"^([0-9a-f]{2}|--):[0-9a-f]{4} - [0-9a-f]{4} : r_mix@proxy,", line)
+        if m:
+            proxies.append("resident" if m.group(1) == "--" else "bank %d" % int(m.group(1), 16))
         m = re.match(r"^([0-9a-f]{2}|--):[0-9a-f]{4} - [0-9a-f]{4} : (\S+)@bankcall(\d+),", line)
         if m:
             banked += 1
@@ -68,6 +75,11 @@ def main():
     bad += len(misplaced) + (banked < a.banked_stubs)
     if banked < a.banked_stubs:
         print("  FAIL    fewer stubs in their calling banks than --banked-stubs %d" % a.banked_stubs)
+    inbanks = sum(p.startswith("bank") for p in proxies)
+    print("proxies of r_mix: %s" % (", ".join(sorted(proxies)) or "none"))
+    if inbanks < a.banked_proxies:
+        print("  FAIL    fewer proxies in their calling banks than --banked-proxies %d" % a.banked_proxies)
+        bad += 1
     print("%d calls of an int (int, int) function: %.1f cycles each into another bank, "
           "%.1f within the bank, so %.1f for the switch" % (
               rb.N, cross / rb.N, same / rb.N, (cross - same) / rb.N))
