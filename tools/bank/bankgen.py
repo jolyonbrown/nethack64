@@ -100,7 +100,8 @@ def definitions(toks):
                     cur = {"name": name, "line": nline, "brace": line,
                            "static": any(x == "static" for x, _ in toks[start:k - 1]),
                            "decl": [x for x, _ in toks[start:i]], "calls": set(), "idents": set(),
-                           "passed": set(), "bare": set(), "callstack": [],
+                           "passed": set(), "bare": set(), "callstack": [], "fieldstores": set(),
+                           "stmt": i + 1,
                            "fnptrs": {toks[j + 2][0] for j in range(start, i - 3)
                                       if toks[j][0] == "(" and toks[j + 1][0] == "*"
                                       and toks[j + 3][0] == ")"}}
@@ -117,6 +118,20 @@ def definitions(toks):
             start = i + 1
         elif cur is not None and depth > 0 and IDENT.match(t) and i + 1 < len(toks) and toks[i + 1][0] == "(":
             cur["calls"].add(t)
+        if cur is not None and depth > 0 and t in (";", "{", "}"):
+            cur["stmt"] = i + 1
+        elif cur is not None and depth > 0 and t == "=" and toks[i - 1][0] not in ("=", "!", "<", ">") and \
+                i + 1 < len(toks) and toks[i + 1][0] != "=" and \
+                any(x in ("->", ".") for x, _ in toks[cur["stmt"]:i]):
+            # a store to a member: what the right side names may be kept in the struct
+            # (`ptr->name = table[i]`), past its bank's being mapped
+            k = i + 1
+            while k < len(toks) and toks[k][0] not in (";", "{", "}"):
+                if IDENT.match(toks[k][0]) and toks[k - 1][0] != "sizeof" and \
+                        not (toks[k - 1][0] == "(" and toks[k - 2][0] == "sizeof"):
+                    # (name, an element of it rather than the name itself)
+                    cur["fieldstores"].add((toks[k][0], k + 1 < len(toks) and toks[k + 1][0] == "["))
+                k += 1
         if cur is not None and depth > 0 and IDENT.match(t):
             cur["idents"].add(t)
             # an object passed on in a call: not an element read (t[i]), or an element's
@@ -176,6 +191,10 @@ def data_definitions(toks):
                           # elements nothing may change: `const T t[]`, `const T * const t[]`
                           "const": "const" in words[:k] and ("*" not in words[:k] or
                                                             words[k - 1] == "const"),
+                          # its elements are values, not pointers: an int or char table
+                          "values": "*" not in words[:k] and "struct" not in words[:k] and
+                                    any(w in ("char", "int", "short", "long", "uchar", "schar",
+                                              "xchar", "boolean", "unsigned") for w in words[:k]),
                           "idents": {x for x in words[eq + 1:] if IDENT.match(x)}})
     return found
 
@@ -508,6 +527,11 @@ def main():
         # would write to the cartridge, or to a copy of the bank thrown away
         if not d["string"] and not d["const"] and any(name in u["bare"] for uf in scope for u in info[uf]):
             report["data_left"][key] = "address taken, not const"
+        elif any(n == name and (not elem or not d["values"])
+                 for uf in scope for u in info[uf] for n, elem in u["fieldstores"]):
+            # its element, a pointer into the bank, could be kept in a struct and read
+            # with another bank mapped (NH_KEEP covers variables, not members)
+            report["data_left"][key] = "stored in a member"
         elif away and len(banks) == 1:
             report["data_left"][key] = "passed to " + ", ".join(away)
         elif named:
