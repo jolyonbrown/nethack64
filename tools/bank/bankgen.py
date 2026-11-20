@@ -99,7 +99,8 @@ def definitions(toks):
                 if nline and IDENT.match(name):
                     cur = {"name": name, "line": nline, "brace": line,
                            "static": any(x == "static" for x, _ in toks[start:k - 1]),
-                           "decl": [x for x, _ in toks[start:i]], "calls": set(),
+                           "decl": [x for x, _ in toks[start:i]], "calls": set(), "idents": set(),
+                           "passed": set(), "bare": set(), "callstack": [],
                            "fnptrs": {toks[j + 2][0] for j in range(start, i - 3)
                                       if toks[j][0] == "(" and toks[j + 1][0] == "*"
                                       and toks[j + 3][0] == ")"}}
@@ -116,9 +117,66 @@ def definitions(toks):
             start = i + 1
         elif cur is not None and depth > 0 and IDENT.match(t) and i + 1 < len(toks) and toks[i + 1][0] == "(":
             cur["calls"].add(t)
+        if cur is not None and depth > 0 and IDENT.match(t):
+            cur["idents"].add(t)
+            # an object passed on in a call: not an element read (t[i]), or an element's
+            # address (&t[i]); not a size (sizeof t, SIZE(t)) or a member (.t, ->t)
+            nxt, prv = toks[i + 1][0] if i + 1 < len(toks) else "", toks[i - 1][0]
+            if nxt != "(" and (nxt != "[" or prv == "&") and prv not in ("sizeof", ".", "->") and \
+                    not (prv == "(" and toks[i - 2][0] in ("SIZE", "sizeof")):
+                cur["bare"].add(t)                # its address taken, kept or passed on
+                if cur["callstack"] and cur["callstack"][-1]:
+                    cur["passed"].add((cur["callstack"][-1], t))
+        if cur is not None and depth > 0 and t == "(":
+            p = toks[i - 1][0]
+            callee = p if IDENT.match(p) and p not in C_WORDS and \
+                p not in ("if", "while", "for", "switch", "return", "sizeof", "SIZE") else None
+            # a parenthesised part of a call's arguments belongs to that call
+            cur["callstack"].append(callee or (cur["callstack"][-1] if cur["callstack"] else None))
+        elif cur is not None and depth > 0 and t == ")" and cur["callstack"]:
+            cur["callstack"].pop()
         if cur is not None and depth > 0 and t == "(" and i + 3 < len(toks) and toks[i + 1][0] == "*" \
                 and IDENT.match(toks[i + 2][0]) and toks[i + 3][0] == ")":
             cur["fnptrs"].add(toks[i + 2][0])     # a local function pointer, `(*name)`
+    return found
+
+
+def data_definitions(toks):
+    """The file's own file-scope object definitions with an initialiser: name, the line of
+    the name, the line of the closing `;`, and the identifiers the initialiser uses."""
+    found, depth, start, top_eq = [], 0, 0, False
+    for i, (t, line) in enumerate(toks):
+        if t in "{([":
+            depth += 1
+        elif t in "})]":
+            depth -= 1
+            if depth == 0 and t == "}" and not top_eq:
+                start = i + 1                # a function body or a struct, union or enum body
+        elif t == "=" and depth == 0:
+            top_eq = True
+        elif t == ";" and depth == 0:
+            stmt = toks[start:i]
+            start, had_eq, top_eq = i + 1, top_eq, False
+            words = [x for x, _ in stmt]
+            if not had_eq or "typedef" in words or "extern" in words:
+                continue
+            eq = words.index("=")
+            k = eq - 1
+            while k > 0 and words[k] == "]":           # back over `[N]` dimensions
+                while k > 0 and words[k] != "[":
+                    k -= 1
+                k -= 1
+            if k < 0 or not IDENT.match(words[k]) or not stmt[k][1] or "(" in words[:eq]:
+                continue
+            found.append({"name": words[k], "line": stmt[k][1], "end": line,
+                          "static": "static" in words[:k],    # (not after a struct body)
+                          # `const char t[]`: passed on, it is a string like a literal
+                          "string": words[:k].count("char") == 1 and "const" in words[:k] and
+                                    "*" not in words[:k] and words[k + 1:k + 2] == ["["],
+                          # elements nothing may change: `const T t[]`, `const T * const t[]`
+                          "const": "const" in words[:k] and ("*" not in words[:k] or
+                                                            words[k - 1] == "const"),
+                          "idents": {x for x in words[eq + 1:] if IDENT.match(x)}})
     return found
 
 
@@ -325,11 +383,13 @@ def main():
     files = [f for f in files if f not in selfinc]
 
     # pass 1: every file's definitions, so other files can declare a bank's functions
-    info, macros = {}, set()
+    info, data_info, macros = {}, {}, set()
     for f in files:
         path = os.path.join(a.dir, f)
         text = preprocess(path, a.inc, a.cpp)
-        info[f] = definitions(tokens(text, path))
+        toks = tokens(text, path)
+        info[f] = definitions(toks)
+        data_info[f] = data_definitions(toks)
         macros |= set(re.findall(r"(?m)^#define\s+([A-Za-z_]\w*)", preprocess_dm(path, a.inc, a.cpp)))
     # Global `char *` variables: one may be given a literal of a banked function, or a
     # trampoline's temporary copy of one, and be read after that bank is unmapped or the
@@ -349,7 +409,8 @@ def main():
               "followed_callers": 0, "files_left_alone": selfinc, "entry_checks": 0, "shadowed": [],
               "used_bare": [], "kept": 0, "kept_fields": [], "keep_unhandled": [], "noinline": [],
               "keep_globals": sorted(keep_extern), "linker_stubs": a.linker_stubs, "direct": 0,
-              "cross_macros": 0, "caller_wrappers": 0, "result_wrappers": 0}
+              "cross_macros": 0, "caller_wrappers": 0, "result_wrappers": 0,
+              "data_banked": 0, "data_left": {}}
     bank_of, sig_of = {}, {}
 
     renamed = set()      # banked functions that are renamed and get a trampoline
@@ -410,6 +471,54 @@ def main():
                 if cs and len(banks) == 1 and None not in banks and place(f, d, banks.pop()):
                     report["followed_callers"] += 1
                     changed = True
+    # Read-only tables (a plan's "bank_data": file-scope definitions that no code writes,
+    # tools/bank/tables.py) go into the bank of the code that reads them, with their
+    # literals, when all of it is in one bank: nothing else reads them by name, so they
+    # are read with that bank mapped, as the bank's own literals are, and reach other
+    # banks the same ways (copied as `char *` arguments and results, kept by NH_KEEP).
+    # A table another initialiser names (shknam.c's shtypes names shkliquors) stays.
+    data_bank = {}
+
+    def fn_bank(f, c):
+        """The bank of function c as file f calls it (None: resident, or not ours)."""
+        if any(x["name"] == c for x in info[f]):
+            return bank_of.get("%s:%s" % (f, c))
+        for of in files:
+            for x in info[of]:
+                if x["name"] == c and not x["static"]:
+                    return bank_of.get("%s:%s" % (of, c))
+        return None
+
+    for key in planj.get("bank_data", []):
+        f, name = key.split(":")
+        d = next((x for x in data_info.get(f, []) if x["name"] == name), None)
+        if d is None:
+            report["data_left"][key] = "no definition"
+            continue
+        scope = [f] if d["static"] else files
+        users = {"%s:%s" % (uf, u["name"]) for uf in scope for u in info[uf] if name in u["idents"]}
+        named = [x["name"] for uf in scope for x in data_info[uf] if name in x["idents"]]
+        banks = {bank_of.get(u) for u in users}
+        # passed on as a pointer, a table other than a string must stay in the bank: the
+        # callee has to be there too (a string is copied, as a literal is)
+        away = sorted({c for uf in scope for u in info[uf] for c, n in u["passed"]
+                       if n == name and not d["string"] and fn_bank(uf, c) not in banks})
+        # nor may a table whose elements are not const have its address taken: what writes
+        # through the pointer (u_init.c's ini_inv() counts down its tables' quantities)
+        # would write to the cartridge, or to a copy of the bank thrown away
+        if not d["string"] and not d["const"] and any(name in u["bare"] for uf in scope for u in info[uf]):
+            report["data_left"][key] = "address taken, not const"
+        elif away and len(banks) == 1:
+            report["data_left"][key] = "passed to " + ", ".join(away)
+        elif named:
+            report["data_left"][key] = "named by " + ", ".join(named)
+        elif not users:
+            report["data_left"][key] = "no users"
+        elif len(banks) != 1 or None in banks:
+            report["data_left"][key] = "banks %s" % sorted(banks, key=lambda b: -1 if b is None else b)
+        else:
+            data_bank.setdefault(f, []).append((d, banks.pop()))
+            report["data_banked"] += 1
     # extern functions by name, for calls between files within a bank
     extern_bank = {}
     for f in files:
@@ -484,6 +593,10 @@ def main():
                 begins.setdefault(insertion_line(raw, d["line"]), []).append("#pragma code(nhbank_%d)" % b)
             if d.get("end"):
                 ends.setdefault(d["end"], []).append("#pragma code(code)")
+        for d, b in data_bank.get(f, []):
+            begins.setdefault(insertion_line(raw, d["line"]), []).extend(
+                ["#pragma code(nhbank_%d)" % b, "#pragma data(nhbank_%d)" % b])
+            ends.setdefault(d["end"], []).extend(["#pragma code(code)", "#pragma data(data)"])
         for d in defs:
             b = bank_of.get("%s:%s" % (f, d["name"]))
             if "%s:%s" % (f, d["name"]) in noinline:
@@ -625,6 +738,9 @@ def main():
     report["banks"] = sorted(report["banks"])
     if a.report:
         json.dump(report, open(a.report, "w"), indent=1, sort_keys=True)
+    if report["data_banked"] or report["data_left"]:
+        print("bankgen: %d read-only tables banked, %d left resident" % (report["data_banked"],
+                                                                       len(report["data_left"])))
     print("bankgen: %d functions banked in %d banks (%d with a trampoline), %d resident, "
           "%d kept resident (%s)" % (
         report["banked"], len(report["banks"]), report["trampolines"], report["resident"], len(report["kept_resident"]),
