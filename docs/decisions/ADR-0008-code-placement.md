@@ -1,6 +1,8 @@
 # ADR-0008: Code placement: the busiest banks on the EasyFlash, the rest from the REU
 
-- Status: accepted (Jolyon, 2026-11-17: "accept ADR-0008, 1 MB REU minimum is fine")
+- Status: accepted (Jolyon, 2026-11-17: "accept ADR-0008, 1 MB REU minimum is fine");
+  amended 2026-11-20: the REU minimum is 2 MB (Jolyon: "A bigger REU requirement is OK - if
+  we need 2MB so be it"), below
 - Date: 2026-11-16
 - Deciders: Jolyon (+ Claude, who proposes it)
 
@@ -94,3 +96,10 @@ banking", options A-C). Measured since (BANKING-SPIKE.md):
 role (`tools/host-build.sh --profile` first); `python3 tools/measure/bankplace.py --profile
 build/profile-arcs-wide.json`; the whole game's bank sizes from `tools/bank/build_c64.py
 --check-only` (BANKING-SPIKE.md); `tests/spikes/bankcall.c` for the call and REU costs.
+- 2026-11-20: **the REU minimum is 2 MB** (Jolyon). The far build's banked code grew with the
+  bank call glue moved out of resident memory (T2.12, `docs/data/wholegame-far-2026-11-19b.txt`):
+  1.79 MB of code and literals, about 110 banks, against the 121 a 1 MB EasyFlash and a 1 MB REU
+  leave beside the far data, with the far heap spaces still to come. Banks 128-191 are the
+  second megabyte; `nh_map` and `crt_split.py` needed no change (bank b at (b - 64) * 16 KB),
+  and `crt_split.py` now pads the image to 2 MB. Checked in VICE: `tests/spikes/run_bankreu.py
+  --second-bank 191` (the last 16 KB of a 2 MB REU), 14/14.

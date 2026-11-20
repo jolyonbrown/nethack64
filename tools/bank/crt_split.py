@@ -36,7 +36,7 @@ def main():
     ap.add_argument("crt_out")
     ap.add_argument("reu_out")
     ap.add_argument("--first", type=int, default=64, help="first bank that goes to the REU")
-    ap.add_argument("--reu-kb", type=int, default=1024,
+    ap.add_argument("--reu-kb", type=int, default=2048,
                     help="pad the image to the REU's size (VICE ignores a shorter image)")
     a = ap.parse_args()
     data = open(a.crt_in, "rb").read()

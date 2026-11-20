@@ -2,7 +2,7 @@
 #
 #   make            EasyFlash cartridge  -> build/nethack-ef.crt   (primary target)
 #   make prg        plain C64 program    -> build/nethack.prg      (quick iteration)
-#   make run        build the cart and launch VICE with a 2 MB REU (ADR-0008: 1 MB minimum)
+#   make run        build the cart and launch VICE with a 2 MB REU (ADR-0008: 2 MB minimum)
 #   make run-prg    same for the .prg
 #   make test       headless self-tests in VICE (AUTOTEST builds, debug cartridge)
 #   make repros     re-run the Oscar64 compatibility repros (tests/oscar64-repros)

@@ -34,7 +34,7 @@ Read before any substantial change: `docs/PLAN.md` (where we are),
 make                 # EasyFlash cartridge -> build/nethack-ef.crt
 make prg             # plain .prg (fast iteration)
 make test            # headless VICE self-tests across prg/EF x REU sizes (must stay green)
-make run             # VICE window, cart + 2 MB REU (the whole game needs 1 MB, ADR-0008)
+make run             # VICE window, cart + 2 MB REU (the whole game needs 2 MB, ADR-0008)
 make repros          # which Oscar64 compatibility repros are still broken
 make port-tree       # regenerate port/ from upstream (refuses if port/ exists)
 tools/check_ansi.sh  # port/ is ANSI-clean and prototypes match (gcc)

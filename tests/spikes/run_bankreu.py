@@ -41,18 +41,21 @@ CHECKS = [
 def main():
     ap = argparse.ArgumentParser(description=__doc__.strip().split("\n")[0])
     ap.add_argument("--oscar64", default="oscar64")
+    ap.add_argument("--second-bank", type=int, default=65,
+                    help="the bank number of the second REU bank (191: the end of a 2 MB REU)")
     a = ap.parse_args()
     os.makedirs(rb.OUT, exist_ok=True)
     full = os.path.join(rb.OUT, "bankreu-all.crt")
     crt = os.path.join(rb.OUT, "bankreu.crt")
     reu = os.path.join(rb.OUT, "bankreu.reu")
-    r = subprocess.run([a.oscar64, "-Os", "-g", "-tf=crt", "-o=" + full, SRC], capture_output=True, text=True)
+    r = subprocess.run([a.oscar64, "-Os", "-g", "-tf=crt", "-dU2BANK=%d" % a.second_bank, "-o=" + full, SRC], capture_output=True, text=True)
     if r.returncode:
         sys.exit("build failed:\n%s" % (r.stdout + r.stderr))
-    subprocess.run([sys.executable, SPLIT, full, crt, reu], check=True)
+    reu_kb = 2048 if a.second_bank >= 128 else 1024
+    subprocess.run([sys.executable, SPLIT, full, crt, reu, "--reu-kb", str(reu_kb)], check=True)
     lbl = full.rsplit(".", 1)[0] + ".lbl"
     done, result = rb.label(lbl, "spike_done"), rb.label(lbl, "spike_result")
-    subprocess.run(rb.VICE + ["launch", "--crt", crt, "--reu", "1024", "--reuimage", reu,
+    subprocess.run(rb.VICE + ["launch", "--crt", crt, "--reu", str(reu_kb), "--reuimage", reu,
                               "--headless", "--warp"], check=True, capture_output=True)
     try:
         for _ in range(150):

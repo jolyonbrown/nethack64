@@ -34,7 +34,12 @@
 #pragma region( bank64, 0x8000, 0xc000, , 64, { bcode64, bdata64 } )
 #pragma section( bcode65, 0 )
 #pragma section( bdata65, 0 )
-#pragma region( bank65, 0x8000, 0xc000, , 65, { bcode65, bdata65 } )
+/* "bank 65": U2BANK, 65 unless run_bankreu.py --second-bank says otherwise (191 is the
+ * last 16 KB of a 2 MB REU, ADR-0008) */
+#ifndef U2BANK
+#define U2BANK 65
+#endif
+#pragma region( bank65, 0x8000, 0xc000, , U2BANK, { bcode65, bdata65 } )
 
 volatile unsigned spike_result[5];
 volatile char spike_done;
