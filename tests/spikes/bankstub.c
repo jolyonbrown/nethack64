@@ -3,8 +3,9 @@
  * Needs an Oscar64 with Linker::InsertBankCalls (the pin from commit 72, ADR-0007):
  * because this program names a bank call routine (#pragma runtime(bankcall, ...)), the
  * linker sends every call into a bank from outside it, and every use of a banked
- * function's address, through a 6-byte resident stub, `jsr nh_bankcall; .byte bank;
- * .word function`.  The functions below call each other by name, with no trampolines.
+ * function's address, through a 6-byte stub, `jsr nh_bankcall; .byte bank;
+ * .word function`: resident, or for a call from another bank in that bank (the far-spaces
+ * fork from 2026-11-19; run_bankstub.py checks where each one is).  The functions below call each other by name, with no trampolines.
  *
  * Each check is a bit of spike_result[0], set when it passes; spike_result[1] holds the
  * checks that ran.  After every call that comes back from another bank, the caller reads
@@ -36,8 +37,8 @@ volatile int sink;
 unsigned char nh_bank;
 unsigned char nh_bc_a, nh_bc_x, nh_bc_y;
 
-/* Entered from a stub with the stub's last byte on the stack: reads the bank and the
- * function from the stub, maps the bank and jumps to the function with A, X and Y as
+/* Entered from a stub with the stub's last byte on the stack: reads the function and the
+ * bank from the stub (which may be in the caller's bank), then maps the bank and jumps to the function with A, X and Y as
  * the caller left them; the function returns to bret, which maps the caller's bank
  * again and returns to the caller with A, X and Y as the function left them.  The old
  * bank and bret's address wait on the hardware stack.  No zero page is touched.
@@ -61,16 +62,16 @@ __asm nh_bankcall
 		pha
 		lda #<bret
 		pha
-		ldy #1
-l1:		lda $ffff, y
-		sta nh_bank
-		sta $de00
-		iny
+		ldy #2
 l2:		lda $ffff, y
 		sta bjmp + 1
 		iny
 l3:		lda $ffff, y
 		sta bjmp + 2
+		ldy #1
+l1:		lda $ffff, y
+		sta nh_bank
+		sta $de00
 		lda nh_bc_a
 		ldx nh_bc_x
 		ldy nh_bc_y

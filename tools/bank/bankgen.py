@@ -344,7 +344,8 @@ def main():
     report = {"banked": 0, "resident": 0, "kept_resident": {}, "trampolines": 0, "banks": set(),
               "followed_callers": 0, "files_left_alone": selfinc, "entry_checks": 0, "shadowed": [],
               "used_bare": [], "kept": 0, "kept_fields": [], "keep_unhandled": [], "noinline": [],
-              "keep_globals": sorted(keep_extern), "linker_stubs": a.linker_stubs, "direct": 0}
+              "keep_globals": sorted(keep_extern), "linker_stubs": a.linker_stubs, "direct": 0,
+              "cross_macros": 0, "caller_wrappers": 0, "result_wrappers": 0}
     bank_of, sig_of = {}, {}
 
     renamed = set()      # banked functions that are renamed and get a trampoline
@@ -360,6 +361,10 @@ def main():
             why = "declarator"
         elif s[2]:
             why = "variadic"
+        elif any("va_list" in p[0] for p in s[1]):
+            # it formats `%s` arguments, which may be literals of its caller's bank: resident,
+            # it does so with that bank still mapped (vpline, vraw_printf)
+            why = "va_list"
         elif tramp and d["name"] in macros:
             why = "also a macro"
         elif tramp and d["name"] in members:
@@ -409,10 +414,44 @@ def main():
             if key in renamed and not d["static"]:
                 extern_bank[d["name"]] = (bank_of[key], f, d)
 
-    def proto(d, bank):
+    def proto(d, bank, suffix="b"):
         decl = [t for t in d["decl"] if t != "register"]
-        return "%s;" % " ".join(decl).replace(" %s (" % d["name"], " %s__b%d (" % (d["name"], bank), 1) \
+        return "%s;" % " ".join(decl).replace(" %s (" % d["name"], " %s__%s%d (" % (d["name"], suffix, bank), 1) \
             if " %s (" % d["name"] in " ".join(decl) else None
+
+    # With linker stubs a call across banks needs no trampoline to switch banks, only to
+    # copy strings while the bank that holds them is mapped: a call from bank A to a
+    # renamed function f of bank N goes to f__tA, in bank A, which copies f's string
+    # arguments out of the window and calls f__xN (or f__bN when f returns no string)
+    # through the linker's stub; f__xN, in bank N, copies a string result out of the
+    # window before it returns.  The resident trampoline f is left for resident callers
+    # and f's address; the linker leaves out whichever of these nothing calls.
+    def key_of(f, c):
+        """The plan key of the renamed function a call to `c` in file f reaches, or None."""
+        if any(x["name"] == c for x in info[f]):
+            k = "%s:%s" % (f, c)
+            return k if k in renamed else None
+        if c in extern_bank:
+            k = "%s:%s" % (extern_bank[c][1], c)
+            return k if k in renamed else None
+        return None
+
+    call_banks = {}
+    if a.linker_stubs:
+        for f in files:
+            for d in info[f]:
+                cb = bank_of.get("%s:%s" % (f, d["name"]))
+                if cb is None:
+                    continue
+                for c in d["calls"]:
+                    k = key_of(f, c)
+                    if k is not None and bank_of[k] != cb:
+                        call_banks.setdefault(k, set()).add(cb)
+
+    def cross_target(k):
+        """(suffix, bank) of what a call from another bank to renamed k goes to."""
+        ret, params, _ = sig_of[k]
+        return ("t", None) if any(p[2] for p in params) else ("x", bank_of[k])
 
     for f in files:
         path = os.path.join(a.dir, f)
@@ -519,6 +558,28 @@ def main():
                             sys.exit("%s: no prototype for %s" % (f, n))
                         lines.append(p)
                         declared.add(n)
+                if a.linker_stubs:
+                    cross = {}
+                    for d in run["defs"]:
+                        for c in d["calls"]:
+                            ck = key_of(f, c)
+                            if ck is not None and bank_of[ck] != b and c not in names:
+                                cross[c] = ck
+                    for n in sorted(set(cross) - bare - shadowed):
+                        ck = cross[n]
+                        suffix, tb = cross_target(ck)
+                        tb = b if tb is None else tb
+                        dn = extern_bank[n][2] if ck.split(":")[0] != f else \
+                            next(x for x in info[f] if x["name"] == n)
+                        lines.append("#define %s(...) %s__%s%d(__VA_ARGS__)" % (n, n, suffix, tb))
+                        defined_macros.add(n)
+                        if (n, suffix, tb) not in declared:
+                            p = proto(dn, tb, suffix)
+                            if p is None:
+                                sys.exit("%s: no prototype for %s" % (f, n))
+                            lines.append(p)
+                            declared.add((n, suffix, tb))
+                        report["cross_macros"] += 1
                 report["banks"].add(b)
             inserts.setdefault(starts[k], []).extend(lines)
         tail = []
@@ -538,7 +599,10 @@ def main():
                 report["direct"] += 1
                 continue
             report["trampolines"] += 1
-            tail.append(trampoline(d, sig_of[key], bank_of[key]))
+            if a.linker_stubs:
+                tail += split_trampoline(d, sig_of[key], bank_of[key], sorted(call_banks.get(key, ())), report)
+            else:
+                tail.append(trampoline(d, sig_of[key], bank_of[key]))
         out = []
         for i, l in enumerate(raw):
             before = ends.get(i, []) + [x for x in inserts.get(i, []) if not x.startswith("NH_ENTER(")] + \
@@ -575,6 +639,49 @@ def strings(sig):
     return bool(CHAR_PTR.match(ret)) or any(p[2] for p in params)
 
 
+def split_trampoline(d, sig, bank, callers, report):
+    """With linker stubs (see main): f__xN in f's bank when f returns a string, f__tA in
+    each calling bank A when it takes one, and the resident f, as lines for the tail."""
+    ret, params, _ = sig
+    void = ret == "void"
+    static = "static " if d["static"] else ""
+    plist = ", ".join(p[0] for p in params) or "void"
+    args = ", ".join(p[1] for p in params)
+    sret = bool(CHAR_PTR.match(ret))
+    target = "%s__%s%d(%s)" % (d["name"], "x" if sret else "b", bank, args)
+
+    def copy_in(name):
+        if not any(p[2] for p in params):
+            body = ["\t%s%s;" % ("" if void else "return ", target)]
+        else:
+            # the copies go on a stack that the wrapper releases when the call returns, so
+            # nested calls cannot reuse one while its call is running (getobj keeps `word`)
+            body = ["\tunsigned nh_m = NH_ARGMARK();"]
+            if not void:
+                body.append("\t%s nh_r;" % ret)
+            body += ["\t%s = NH_ARG(%s);" % (p[1], p[1]) for p in params if p[2]]
+            if void:
+                body += ["\t%s;" % target, "\tNH_RELEASE(nh_m);"]
+            elif sret:
+                body += ["\tnh_r = %s;" % target, "\treturn NH_UNWIND(nh_r, nh_m);"]
+            else:
+                body += ["\tnh_r = %s;" % target, "\tNH_RELEASE(nh_m);", "\treturn nh_r;"]
+        return "__noinline %s%s %s(%s)\n{\n%s\n}" % (static, ret, name, plist, "\n".join(body))
+
+    out = []
+    if sret:
+        out += ["#pragma code(nhbank_%d)" % bank,
+                "__noinline %s%s %s__x%d(%s)\n{\n\t%s nh_r = %s__b%d(%s);\n\treturn NH_STASH(nh_r);\n}" % (
+                    static, ret, d["name"], bank, plist, ret, d["name"], bank, args)]
+        report["result_wrappers"] += 1
+    if any(p[2] for p in params):
+        for cb in callers:
+            out += ["#pragma code(nhbank_%d)" % cb, copy_in("%s__t%d" % (d["name"], cb))]
+            report["caller_wrappers"] += 1
+    out += ["#pragma code(code)", copy_in(d["name"])]
+    return out
+
+
 def trampoline(d, sig, bank):
     ret, params, _ = sig
     void = ret == "void"
@@ -602,8 +709,9 @@ def trampoline(d, sig, bank):
 BANKCALL = r"""
 /* The linker sends a call into a bank from outside it, and every use of a banked
  * function's address, through a stub, `jsr nh_bankcall; .byte bank; .word function`
- * (Oscar64's Linker::InsertBankCalls).  This reads the bank and the function from the
- * stub, maps the bank and jumps to the function with A, X and Y as the caller left
+ * (Oscar64's Linker::InsertBankCalls; a call from another bank may go to a stub in
+ * the caller's bank, the far-spaces fork from 2026-11-19).  This reads the function and
+ * the bank from the stub, and only then maps the bank, and jumps to the function with A, X and Y as the caller left
  * them (arguments may be in A and X); the function returns to bret, which maps the
  * caller's bank again and returns with A, X and Y as the function left them (results
  * may be in A and X, and the caller may keep values in X or Y).  The old bank and
@@ -704,15 +812,15 @@ __asm nh_bankcall
 		pha
 		lda #<bret
 		pha
-		ldy #1
-l1:		lda $ffff, y
-		jsr nh_map
-		iny
+		ldy #2
 l2:		lda $ffff, y
 		sta bjmp + 1
 		iny
 l3:		lda $ffff, y
 		sta bjmp + 2
+		ldy #1
+l1:		lda $ffff, y
+		jsr nh_map
 		lda nh_bc_a
 		ldx nh_bc_x
 		ldy nh_bc_y
@@ -766,8 +874,21 @@ extern __noinline char *nh_unstash(const char *s, unsigned char b);
 #define NH_UNSTASH(p, b) nh_unstash((p), (b))
 #define NH_SAVE() nh_bank
 %s
-#define NH_IN_WINDOW(p) ((unsigned)(p) >= 0x8000u && (unsigned)(p) < 0xc000u)
+/* through a volatile: Oscar64 folds the comparison of a known object's address with a
+ * constant, as if every object were below $8000, so a literal passed to a wrapper would
+ * not be copied (compat #79, tests/oscar64-repros/r76) */
+extern volatile unsigned nh_addr;
+#define NH_IN_WINDOW(p) (nh_addr = (unsigned)(p), nh_addr >= 0x8000u && nh_addr < 0xc000u)
 #define NH_STASH(p) (NH_IN_WINDOW(p) ? nh_stash(p) : (p))
+/* a string argument: copied onto a stack that the wrapper releases after the call (a
+ * string result that points into what it releases goes to nh_stash's buffers) */
+extern unsigned nh_args_top;
+extern char *nh_stash_arg(const char *s);
+extern char *nh_unwind(char *r, unsigned m);
+#define NH_ARG(p) (NH_IN_WINDOW(p) ? nh_stash_arg(p) : (p))
+#define NH_ARGMARK() nh_args_top
+#define NH_RELEASE(m) (nh_args_top = (m))
+#define NH_UNWIND(r, m) nh_unwind((char *)(r), (m))
 #define NH_ENTER(n)
 /* a pointer about to be kept in a variable: a literal in the bank window, or a
  * trampoline's temporary copy, is copied into the variable's own buffer */
@@ -782,6 +903,9 @@ volatile unsigned char nh_bank;
  * resident buffers, which callers reuse in turn */
 static char nh_stash_buf[4][256];
 static unsigned char nh_stash_next;
+volatile unsigned nh_addr;
+static char nh_args[1024];
+unsigned nh_args_top;
 
 char *
 nh_stash(const char *s)
@@ -793,6 +917,33 @@ nh_stash(const char *s)
 		d[i] = s[i];
 	d[i] = 0;
 	return d;
+}
+
+char *
+nh_stash_arg(const char *s)
+{
+	char *d;
+	unsigned n = 0;
+
+	while (n < 255 && s[n])
+		n++;
+	if (nh_args_top + n + 1 > sizeof(nh_args))
+		return nh_stash(s);		/* full: one of the four, as before */
+	d = nh_args + nh_args_top;
+	nh_args_top += n + 1;
+	d[n] = 0;
+	while (n--)
+		d[n] = s[n];
+	return d;
+}
+
+char *
+nh_unwind(char *r, unsigned m)
+{
+	if (r >= nh_args + m && r < nh_args + nh_args_top)
+		r = nh_stash(r);
+	nh_args_top = m;
+	return r;
 }
 
 __noinline char *
@@ -808,7 +959,8 @@ nh_keep(char *buf, unsigned size, const char *p)
 {
 	unsigned i;
 
-	if (!p || (!NH_IN_WINDOW(p) && (p < nh_stash_buf[0] || p >= nh_stash_buf[4])))
+	if (!p || (!NH_IN_WINDOW(p) && (p < nh_stash_buf[0] || p >= nh_stash_buf[4]) &&
+		   (p < nh_args || p >= nh_args + sizeof(nh_args))))
 		return (char *)p;
 	for (i = 0; i + 1 < size && p[i]; i++)
 		buf[i] = p[i];
@@ -841,6 +993,10 @@ nh_enter(int n, const char *f)
 #define NH_SAVE() nh_bank
 #define NH_BANK(n) (nh_bank = (n))
 #define NH_STASH(p) (p)
+#define NH_ARG(p) (p)
+#define NH_ARGMARK() 0u
+#define NH_RELEASE(m) ((void)(m))
+#define NH_UNWIND(r, m) ((void)(m), (r))
 #define NH_UNSTASH(p, b) (NH_BANK(b), (p))
 #define NH_ENTER(n) int nh_entered = nh_enter((n), __FUNCTION__);
 #define NH_KEEP(buf, p) (p)

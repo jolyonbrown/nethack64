@@ -47,6 +47,8 @@ def check(path, zp_end):
         bank, addr, op, b1, b2, mnem, rest = m.groups()
         bank, addr = bank or "", int(addr, 16)
         starts.add((bank, addr))
+        if func and re.search(r"@bankcall\d*$", func):
+            continue    # a bank call stub: its bank and function bytes are data, not code
         if mnem in BRANCHES and b1 != "__" and b2 == "__":
             off = int(b1, 16)
             branches.append((bank, addr, addr + 2 + (off - 256 if off >= 128 else off), func))

@@ -1,0 +1,29 @@
+# The whole far game with the bank call glue moved out of resident memory (T2.12), 2026-11-19
+# (desktop).  Plan docs/data/bankplan-2026-11-19-far.json unless stated; sources from
+# tools/bank/build_c64.py --linker-stubs --main real --generate-only, -dNH_FAR_SPACES and
+# tools/measure/far_meas.c; every log line kept.  All four links exit 20 (resident side).
+
+                         far12 (before)   far13          far14           far16
+compiler (far-spaces)    b372ebc          c0c33b1        c0c33b1         c0c33b1
+stubs for banked callers resident         calling bank   calling bank    calling bank
+string trampolines       resident C       resident C     split           split + review fixes
+plan                     2026-11-19       2026-11-19     2026-11-19      far14 repaired (351 moves)
+resident code            65,073 B         55,294 B       28,425 B        29,560 B
+  resident stubs         2,076 / 12,456   446 / 2,676    194 / 1,164     (0 placed)
+  trampolines            264 / 24,542     264            8 / 393         7 / 434
+resident data unplaced   73,292 B         73,292 B       70,605 B        72,082 B
+banked code + data       1,629,936 B      1,665,186 B    1,740,018 B     1,794,295 B
+  stubs in banks         -                5,883 / 35,298 7,815 / 46,890
+  caller wrappers (f__tA)                                1,127 / 60,406
+  result wrappers (f__xN)                                117 / 10,752
+banked left unplaced     0                8,370 B        69,675 B        63,216 B (37 banks)
+listing: calls across a bank without a trampoline: 0 in all four; highest temporary $8f (m_move);
+check_listing.py 0 problems; intermediate code 0 bad calls (the 264 reported for far12 before
+were the trampolines' own calls of their functions, which the check now recognises).
+Diagnostics as far12 apart from 2019 (4,765-6,898) and 2024 (79, 79, 62, 66, all resident).
+
+far14 has the defects Codex's review found (a result wrapper evaluating its call twice, compat
+#79, the argument ring); far16 has the fixes, so the sizes of far14's wrappers are low.
+far16's 37 overflowing banks are mostly the ten new ones (104-121): planfix.py moved functions by
+their own sizes, and each brought stubs for its callees in other banks and its wrappers, 4-5 KB
+a bank (left unplaced: 38,254 B code, 13,026 B stubs, 4,888 B wrappers, 7,048 B data).

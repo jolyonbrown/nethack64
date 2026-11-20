@@ -114,8 +114,8 @@ off:	lda nh_cartoff
 		rts
 }
 
-/* Entered from a stub with the stub's last byte on the stack: reads the bank and the
- * function from the stub, maps the bank and jumps to the function with A, X and Y as
+/* Entered from a stub with the stub's last byte on the stack: reads the function and
+ * the bank from the stub (which may be in the caller's bank), then maps the bank and jumps to the function with A, X and Y as
  * the caller left them; the function returns to bret, which maps the caller's bank
  * again (fetching it back into the window if it is an REU bank another call replaced)
  * and returns with A, X and Y as the function left them. Not re-entrant. */
@@ -138,15 +138,15 @@ __asm nh_bankcall
 		pha
 		lda #<bret
 		pha
-		ldy #1
-l1:		lda $ffff, y
-		jsr nh_map
-		iny
+		ldy #2
 l2:		lda $ffff, y
 		sta bjmp + 1
 		iny
 l3:		lda $ffff, y
 		sta bjmp + 2
+		ldy #1
+l1:		lda $ffff, y
+		jsr nh_map
 		lda nh_bc_a
 		ldx nh_bc_x
 		ldy nh_bc_y

@@ -1,0 +1,101 @@
+From c0c33b1a94fff3451ad32aa7c0052dd1a36eae49 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 19 Nov 2026 19:26:50 +0000
+Subject: [PATCH] Bank calls: a call from code in a bank goes through a stub in
+ that bank
+
+The linker made one resident stub for each banked function that anything outside its
+bank referred to: 6 bytes of resident memory each, 1,793 of them (10.8 KB) in a whole
+NetHack build.  A call from code in another bank now goes to a stub in the caller's own
+section, so in the caller's bank, made once for each function and calling bank; a call
+from resident code, and an address (a function pointer, which code in any bank may use),
+still go to the one resident stub.  The stub is unchanged (jsr bankcall / .byte bank /
+.word function), so the bank call routine must read all of it before it maps the
+callee's bank, since the stub may then no longer be in view.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/Linker.cpp | 33 ++++++++++++++++++++++++++-------
+ oscar64/Linker.h   |  4 +++-
+ 2 files changed, 29 insertions(+), 8 deletions(-)
+
+diff --git a/oscar64/Linker.cpp b/oscar64/Linker.cpp
+index 2c54852..49a95f4 100644
+--- a/oscar64/Linker.cpp
++++ b/oscar64/Linker.cpp
+@@ -49,7 +49,7 @@ LinkerObject::LinkerObject(void)
+ 	: mReferences(nullptr), mNumTemporaries(0), mSize(0), mStripe(0), mAlignment(1), mStackSection(nullptr), mIdent(nullptr), mFullIdent(nullptr), mStartUsed(0x10000), mEndUsed(0x00000), mMemory(nullptr)
+ 	, mPrefix(nullptr), mSuffix(nullptr), mProc(nullptr), mNativeProc(nullptr), mOwnerProc(nullptr)
+ 	, mType(LOT_NONE), mID(0), mMapID(0), mAddress(0), mRefAddress(0), mSection(nullptr), mRegion(nullptr), mData(nullptr)
+-	, mVariable(nullptr), mFlags(0), mSuffixReference(0), mBankStub(nullptr)
++	, mVariable(nullptr), mFlags(0), mSuffixReference(0), mBankStub(nullptr), mBankStubNext(nullptr), mBankStubBank(-1)
+ {
+ 	// An object that is never placed (its region is full) keeps these, and both
+ 	// the reference patcher and the map and listing writers read them
+@@ -670,12 +670,29 @@ void Linker::InsertBankCalls(LinkerObject* bankcall, int bankcallOffset, LinkerS
+ 				continue;		// a label inside code of the same bank
+ 
+ 			// A function's address is its stub's, and an address computed from it (the
+-			// function pointer cast and offset) is the same offset into the stub
+-
+-			if (!fobj->mBankStub)
++			// function pointer cast and offset) is the same offset into the stub.  A call
++			// from code in a bank goes to a stub in the caller's own section, in its bank,
++			// so that the stub takes no resident memory: the bank call routine reads the
++			// stub before it maps the callee's bank.  A call from resident code and an
++			// address, which code in any bank may use, go to the one resident stub.
++
++			int sbank = (call && obank >= 0) ? obank : -1;
++			LinkerObject* sobj = fobj->mBankStub;
++			while (sobj && sobj->mBankStubBank != sbank)
++				sobj = sobj->mBankStubNext;
++
++			if (!sobj)
+ 			{
+-				const Ident* sident = fobj->mIdent ? fobj->mIdent->Mangle("@bankcall") : Ident::Unique("@bankcall");
+-				LinkerObject* sobj = AddObject(fobj->mLocation, sident, stubSection, LOT_NATIVE_CODE);
++				const Ident* sident;
++				if (sbank >= 0)
++				{
++					char	sname[32];
++					snprintf(sname, sizeof(sname), "@bankcall%d", sbank);
++					sident = fobj->mIdent ? fobj->mIdent->Mangle(sname) : Ident::Unique(sname);
++				}
++				else
++					sident = fobj->mIdent ? fobj->mIdent->Mangle("@bankcall") : Ident::Unique("@bankcall");
++				sobj = AddObject(fobj->mLocation, sident, sbank >= 0 ? obj->mSection : stubSection, LOT_NATIVE_CODE);
+ 				uint8* d = sobj->AddSpace(6);
+ 				d[0] = 0x20; d[1] = 0; d[2] = 0;
+ 				d[3] = uint8(fbank);
+@@ -697,10 +714,12 @@ void Linker::InsertBankCalls(LinkerObject* bankcall, int bankcallOffset, LinkerS
+ 				mReferences.Push(sobj->mReferences.Last());
+ 
+ 				sobj->mFlags |= LOBJF_REFERENCED;
++				sobj->mBankStubBank = sbank;
++				sobj->mBankStubNext = fobj->mBankStub;
+ 				fobj->mBankStub = sobj;
+ 				nstubs++;
+ 			}
+-			ref->mRefObject = fobj->mBankStub;
++			ref->mRefObject = sobj;
+ 		}
+ 	}
+ 
+diff --git a/oscar64/Linker.h b/oscar64/Linker.h
+index 7945f2a..8421153 100644
+--- a/oscar64/Linker.h
++++ b/oscar64/Linker.h
+@@ -283,7 +283,9 @@ public:
+ 	LinkerSection					*	mStackSection;
+ 	LinkerObject					*	mPrefix, * mSuffix;
+ 	int									mSuffixReference;
+-	LinkerObject					*	mBankStub;
++	LinkerObject					*	mBankStub;		// the first of the bank call stubs of a banked function
++	LinkerObject					*	mBankStubNext;	// a stub: the function's next one
++	int								mBankStubBank;	// a stub: the bank it is in, -1 resident
+ 
+ 	ExpandingArray<LinkerObjectRange>	mRanges;
+ 	ExpandingArray<CodeLocation>		mCodeLocations, mCodeOrigins;
+-- 
+2.43.0
+

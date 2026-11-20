@@ -586,6 +586,29 @@ through a `jsr` (about 34 cycles for a page, 50 with an offset). Next: the hit p
 `jsr` only on a miss), then reuse with pinning (ADR-0009 point 4), which took `farify.py`'s
 13.4% to 8.7%.
 
+**The resident side, first the glue** (2026-11-19, `docs/data/wholegame-far-2026-11-19b.txt`).
+What the far game still wants resident, from far12's map: 65.1 KB of code and 95 KB of data
+(73.3 KB of it unplaced, 37.7 KB literals), against the 21-28 KB the RAM in view leaves beside
+the far page cache (16 KB) and the stack. Of the code, 44 KB was glue between banks: 2,076
+resident bank call stubs (12.5 KB), 264 resident string trampolines (24.5 KB) and 1,025 proxies
+(8.9 KB, constant-argument entries, 608 of them of resident functions such as `rn2`).
+- A call from code in a bank now goes through a stub in that bank (fork commit 6, c0c33b1):
+  resident stubs only for resident callers and addresses; `nh_bankcall` reads the whole stub
+  before it maps the callee's bank. Resident code 65.1 -> 55.3 KB; 5,883 stubs in banks (35 KB).
+- With the linker switching banks, a string trampoline only has to copy strings while the right
+  bank is mapped, so bankgen.py splits it: `f__tA` in each calling bank copies the arguments onto
+  a stack it releases when the call returns (a result inside what it releases moves to
+  `nh_stash`'s four buffers), `f__xN` in f's bank copies a string result; the resident `f` stays
+  for resident callers and pointers. 14 of 264 trampolines are needed resident (1.1 KB).
+  Resident code 29.6 KB (far16). `vpline` and `vraw_printf` stay resident: they format `%s`
+  arguments, which may be literals of the caller's bank.
+- The cost is banked: 7,815 stubs (47 KB), 1,127 caller wrappers (60 KB), 117 result wrappers
+  (11 KB), and a repaired plan (351 moves, banks 108-121) still 63 KB over, because planfix.py
+  sized moves without the stubs and wrappers they bring. Code and data in banks now come to
+  1.79 MB: about 110 of the 121 banks a 1 MB EasyFlash and a 1 MB REU leave beside the far
+  data, before the far heap spaces. Next: planfix with the glue's cost, smaller wrappers (an
+  assembler copy routine described by a few bytes), then the resident data.
+
 ## Measured: zero page saves (2026-11-16, T1.49)
 
 After the padding (ADR-0009 point 5), what is left of Oscar64's multiply routine is small: 0.2%

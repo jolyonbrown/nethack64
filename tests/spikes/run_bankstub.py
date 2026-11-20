@@ -11,6 +11,7 @@ exit status 0 when every check passes.
 """
 import argparse
 import os
+import re
 import subprocess
 import sys
 
@@ -38,6 +39,9 @@ CHECKS = [
 def main():
     ap = argparse.ArgumentParser(description=__doc__.strip().split("\n")[0])
     ap.add_argument("--oscar64", default="oscar64")
+    ap.add_argument("--banked-stubs", type=int, default=0,
+                    help="fail unless at least this many stubs are in their calling banks "
+                         "(8 for a compiler that puts them there, the far-spaces fork from c0c33b1)")
     a = ap.parse_args()
     os.makedirs(rb.OUT, exist_ok=True)
     crt = os.path.join(rb.OUT, "bankstub.crt")
@@ -51,6 +55,19 @@ def main():
         state = "pass" if passed & bit else ("FAIL" if ran & bit else "not run")
         bad += state != "pass"
         print("  %-7s %s" % (state, what))
+    # where the linker put the stubs: a call from a bank goes through a stub in that bank
+    # (name@bankcallN, in bank N) when the compiler has that change, else a resident one
+    banked, misplaced = 0, []
+    for line in open(crt[:-4] + ".map", errors="replace"):
+        m = re.match(r"^([0-9a-f]{2}|--):[0-9a-f]{4} - [0-9a-f]{4} : (\S+)@bankcall(\d+),", line)
+        if m:
+            banked += 1
+            if m.group(1) == "--" or int(m.group(1), 16) != int(m.group(3)):
+                misplaced.append(m.group(2) + "@bankcall" + m.group(3))
+    print("stubs in the calling bank: %d%s" % (banked, ", MISPLACED: " + " ".join(misplaced) if misplaced else ""))
+    bad += len(misplaced) + (banked < a.banked_stubs)
+    if banked < a.banked_stubs:
+        print("  FAIL    fewer stubs in their calling banks than --banked-stubs %d" % a.banked_stubs)
     print("%d calls of an int (int, int) function: %.1f cycles each into another bank, "
           "%.1f within the bank, so %.1f for the switch" % (
               rb.N, cross / rb.N, same / rb.N, (cross - same) / rb.N))

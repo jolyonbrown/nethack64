@@ -50,6 +50,9 @@ import check_listing   # noqa: E402
 
 INSN = re.compile(r"^(?:([0-9a-f]{2}):)?([0-9a-f]{4}) : (?:[0-9a-f_ ]{8}) (\w+)\s+(\S+)?(?:\s*; \(([^ .)]+))?")
 FUNC = re.compile(r"^([A-Za-z_]\w*): ; ")
+# a bank call stub (Linker::InsertBankCalls), resident or in its caller's bank: its bank and
+# function bytes are data, which the listing shows as instructions (bank $20 as a JSR)
+STUB = re.compile(r"^\S+@bankcall\d*: ; ")
 BANKED = re.compile(r"^(\w+)__b(\d+)$")
 
 
@@ -84,6 +87,9 @@ def check(asm, mapfile=None):
         m = FUNC.match(line)
         if m:
             cur, cur_bank = m.group(1), "unseen"
+            continue
+        if STUB.match(line):
+            cur = None
             continue
         m = INSN.match(line)
         if not m or cur is None:
@@ -170,6 +176,7 @@ def sizes(mapfile):
 ANYOBJ = re.compile(r"^(?:(?:--|[0-9a-f]{2}):)?[0-9a-f]{4,5} [-(] [0-9a-f]{4,5}\)? : ([^,]+), (\w+):(\S+)")
 CALL = re.compile(r"\tCALL\w*\t[^\t]*\t<-\t(?:V\(-?\d+ '([^']*)'\)|(\S+))")
 PROC = re.compile(r"^([A-Za-z_]\w*): \S")
+WRAPPER = re.compile(r"^(\w+?)__([tx])(\d+)$")
 BANKREG = "V(-1 '')+56832"     # $DE00, EasyFlash's bank register
 
 
@@ -187,6 +194,7 @@ def check_int(intfile, mapfile, linker_stubs=False):
             sec = re.match(r"nhbank_(\d+)$", m.group(3))
             bank[m.group(1)] = int(sec.group(1)) if sec else None
     bad, switching, ncalls, ptr = [], set(), 0, 0
+    copies_args = {WRAPPER.match(n).group(1) for n in bank if WRAPPER.match(n) and WRAPPER.match(n).group(2) == "t"}
     proc, header, selects, taken = None, True, set(), set()
     for line in open(intfile, errors="replace"):
         if line.startswith("----"):
@@ -221,8 +229,21 @@ def check_int(intfile, mapfile, linker_stubs=False):
             continue
         if pb is None and cb in selects:
             continue                       # a trampoline calls into the bank it has selected
-        if linker_stubs and not BANKED.match(callee):
-            continue                       # the linker inserts the bank switch
+        if linker_stubs:
+            # bankgen.py's split trampolines: f__tA copies f's string arguments in bank A,
+            # f__xN copies its string result in bank N (f__bN is f itself)
+            w = WRAPPER.match(callee)
+            if w and w.group(2) == "t":
+                bad.append((proc, pb, callee, cb))     # skips the copies, from another bank
+                continue
+            if w and w.group(2) == "x" and w.group(1) in copies_args and \
+                    not re.match(r"^%s(?:__t\d+)?$" % re.escape(w.group(1)), proc):
+                bad.append((proc, pb, callee, cb))     # skips the argument copies
+                continue
+            if not BANKED.match(callee):
+                continue                   # the linker inserts the bank switch
+            if re.match(r"^%s(?:__t\d+)?$" % re.escape(BANKED.match(callee).group(1)), proc):
+                continue                   # its trampoline (resident, or in the caller's bank)
         bad.append((proc, pb, callee, cb))
     return bad, sorted(switching), ncalls, ptr, sorted(taken)
 

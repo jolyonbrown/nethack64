@@ -754,6 +754,15 @@ Add new tasks at the bottom of the right section.
       fixed with #77 and warning 2024's detail as pin commits 81-83 (ADR-0007). Plan repaired
       again (`bankplan-2026-11-19-far.json`, 36 moves out of bank 5): every banked object
       places, checks clean (`docs/data/wholegame-far-2026-11-19.txt`). Next: as above.
+      — 2026-11-19 (2): the resident side, bank call glue first. Fork commit 6 (c0c33b1): a call
+      from a bank goes through a stub in that bank; bankgen.py splits the string trampolines
+      (f__tA copies arguments in the calling bank onto a stack it releases, f__xN copies a
+      result in the callee's); `vpline`/`vraw_printf` resident (they format `%s` arguments).
+      Resident code 65.1 KB -> 29.6 KB; banked code +164 KB, which the repaired plan does not
+      yet fit (planfix.py counts no stubs or wrappers). Compat #79 (r76). Codex's review found
+      four real defects, all fixed (`tests/spikes/run_bankstr.py`).
+      `docs/data/wholegame-far-2026-11-19b.txt`. Next: planfix with the glue's cost, smaller
+      wrappers; then the resident data (72 KB).
 
 ## Housekeeping
 
