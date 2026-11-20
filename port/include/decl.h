@@ -336,7 +336,22 @@ E const char *materialnm[];
 
 /* Vision */
 E NEARDATA boolean vision_full_recalc;	/* TRUE if need vision recalc */
-E NEARDATA char **viz_array;		/* could see/in sight row pointers */
+/*
+ * A row of the could-see arrays (vision.c).  A struct rather than a char array so that
+ * the C64's far build can put the arrays in a far space (ADR-0009: a far space is a set
+ * of struct types); a row is then padded to 128 bytes, two to a page.
+ */
+struct vrow_s {
+	char c[COLNO];
+#ifdef NH_FAR_GLOBS
+	char vrow_pad_c64[128 - COLNO];
+#endif
+};
+#ifdef NH_FAR_GLOBS
+#pragma farspace(4, vrow_s)
+#endif
+
+E NEARDATA struct vrow_s **viz_array;	/* could see/in sight row pointers */
 
 /* Window system stuff */
 E NEARDATA winid WIN_MESSAGE, WIN_STATUS;

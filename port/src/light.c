@@ -119,13 +119,13 @@ del_light_source(int type, genericptr_t id)
 
 /* Mark locations that are temporarily lit via mobile light sources. */
 void
-do_light_sources(char **cs_rows)
+do_light_sources(struct vrow_s **cs_rows)
 {
     int x, y, min_x, max_x, max_y, offset;
     char *limits;
     short at_hero_range = 0;
     light_source *ls;
-    char *row;
+    struct vrow_s *row;
 
     for (ls = light_base; ls; ls = ls->next) {
 	ls->flags &= ~LSF_SHOW;
@@ -183,13 +183,13 @@ do_light_sources(char **cs_rows)
 		     * does this.
 		     */
 		    for (x = min_x; x <= max_x; x++)
-			if (row[x] & COULD_SEE)
-			    row[x] |= TEMP_LIT;
+			if (row->c[x] & COULD_SEE)
+			    row->c[x] |= TEMP_LIT;
 		} else {
 		    for (x = min_x; x <= max_x; x++)
 			if ((ls->x == x && ls->y == y)
 				|| clear_path((int)ls->x, (int) ls->y, x, y))
-			    row[x] |= TEMP_LIT;
+			    row->c[x] |= TEMP_LIT;
 		}
 	    }
 	}

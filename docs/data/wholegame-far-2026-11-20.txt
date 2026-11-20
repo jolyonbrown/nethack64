@@ -33,6 +33,12 @@ warnings 2026            restore.c 803 (a near local, harmless, as before), mkma
                          of a room), h_real.c's qsort stub (sort_rooms()); far23: restore.c only
 * far22 left mvitals in near bss: it has no initialiser, so #pragma data did not place it.
 
+far24 (plan far23 repaired, 19 moves): the vision grids in far space 4.  could_see as rows of
+struct vrow_s (padded to 128 bytes, two to a page; 5,376 B), viz_clear, left_ptrs and
+right_ptrs by name (1,680 B each): resident data 63.6 -> 55.2 KB (unplaced 43,357 -> 34,925 B),
+farglob 23,936 B; banked code +6.4 KB (5,769 B left in banks); the only warning 2026 is
+restore.c 803; bank checks clean; resident code 25,972 B.
+
 far20: bankgen.py places 104 of the 202 read-only tables tables.py lists (from far19's
 intermediate code) in the bank of the code that reads them, with their literals; left: 59
 read in more than one bank, 31 whose elements are not const with their address taken

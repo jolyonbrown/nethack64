@@ -7,7 +7,7 @@
 
 #if 0	/* (moved to decl.h) */
 extern boolean vision_full_recalc;	/* TRUE if need vision recalc */
-extern char **viz_array;		/* could see/in sight row pointers */
+extern struct vrow_s **viz_array;	/* could see/in sight row pointers */
 extern char *viz_rmin;			/* min could see indices */
 extern char *viz_rmax;			/* max could see indices */
 #endif
@@ -27,9 +27,9 @@ extern char *viz_rmax;			/* max could see indices */
  *  couldsee()	- Returns true if the hero has a clear line of sight to
  *		  the location.
  */
-#define cansee(x,y)	(viz_array[y][x] & IN_SIGHT)
-#define couldsee(x,y)	(viz_array[y][x] & COULD_SEE)
-#define templit(x,y)	(viz_array[y][x] & TEMP_LIT)
+#define cansee(x,y)	(viz_array[y]->c[x] & IN_SIGHT)
+#define couldsee(x,y)	(viz_array[y]->c[x] & COULD_SEE)
+#define templit(x,y)	(viz_array[y]->c[x] & TEMP_LIT)
 
 /*
  *  The following assume the monster is not blind.

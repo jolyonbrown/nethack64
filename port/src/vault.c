@@ -400,10 +400,10 @@ wallify_vault(struct monst_s *grd)
 		     * hack: player knows walls are restored because of the
 		     * message, below, so show this on the screen.
 		     */
-		    tmp_viz = viz_array[y][x];
-		    viz_array[y][x] = IN_SIGHT|COULD_SEE;
+		    tmp_viz = viz_array[y]->c[x];
+		    viz_array[y]->c[x] = IN_SIGHT|COULD_SEE;
 		    newsym(x,y);
-		    viz_array[y][x] = tmp_viz;
+		    viz_array[y]->c[x] = tmp_viz;
 		    block_point(x,y);
 		    fixed = TRUE;
 		}

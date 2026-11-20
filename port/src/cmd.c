@@ -701,11 +701,11 @@ wiz_show_vision(void)
 		if (x == u.ux && y == u.uy)
 		    row[x] = '@';
 		else {
-		    v = viz_array[y][x]; /* data access should be hidden */
+		    v = viz_array[y]->c[x]; /* data access should be hidden */
 		    if (v == 0)
 			row[x] = ' ';
 		    else
-			row[x] = '0' + viz_array[y][x];
+			row[x] = '0' + viz_array[y]->c[x];
 		}
 	    }
 	    /* remove trailing spaces */

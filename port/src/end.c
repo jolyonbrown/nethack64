@@ -790,7 +790,7 @@ die:
 	    artifact_score(invent, TRUE, endwin);
 
 	    keepdogs(TRUE);
-	    viz_array[0][0] |= IN_SIGHT; /* need visibility for naming */
+	    viz_array[0]->c[0] |= IN_SIGHT; /* need visibility for naming */
 	    mtmp = mydogs;
 	    if (!done_stopprint) Strcpy(pbuf, "You");
 	    if (mtmp) {

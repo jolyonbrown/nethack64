@@ -154,6 +154,9 @@ def main():
     ap.add_argument("--wide", action="store_true", help="use the inventory too (ADR-0008)")
     ap.add_argument("--role", default="Valkyrie")
     ap.add_argument("--merge", action="store_true", help="add to the counts already in --out")
+    ap.add_argument("--transcript", help="write the game's output, as text, to this file: two "
+                                         "builds that behave the same, given the same clock "
+                                         "(an LD_PRELOAD time()), write the same transcript")
     a = ap.parse_args()
     global INST, GAMEDIR, EXE
     if a.install:
@@ -219,6 +222,8 @@ def main():
 
     s = Discover("prof")
     transcript = s.run(play)
+    if a.transcript:
+        open(a.transcript, "w", encoding="latin-1").write(hs.strip_tty(transcript))
     if s.problem:
         open(a.out + ".tail.txt", "w").write(hs.strip_tty(transcript)[-3000:])
     levels = sorted(set(int(x) for x in re.findall(r"Dlvl:(\d+)", transcript)))

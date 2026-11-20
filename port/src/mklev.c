@@ -1496,7 +1496,7 @@ mkinvpos(xchar x, xchar y, int dist)
     if(dist < 6) lev->lit = TRUE;
     lev->waslit = TRUE;
     lev->horizontal = FALSE;
-    viz_array[y][x] = (dist < 6 ) ?
+    viz_array[y]->c[x] = (dist < 6 ) ?
 	(IN_SIGHT|COULD_SEE) : /* short-circuit vision recalc */
 	COULD_SEE;
 

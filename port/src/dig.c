@@ -69,7 +69,7 @@ mkcavepos(xchar x, xchar y, int dist, boolean waslit, boolean rockit)
     if(dist < 3) lev->lit = (rockit ? FALSE : TRUE);
     if(waslit) lev->waslit = (rockit ? FALSE : TRUE);
     lev->horizontal = FALSE;
-    viz_array[y][x] = (dist < 3 ) ?
+    viz_array[y]->c[x] = (dist < 3 ) ?
 	(IN_SIGHT|COULD_SEE) : /* short-circuit vision recalc */
 	COULD_SEE;
     lev->typ = (rockit ? STONE : ROOM);

@@ -59,6 +59,11 @@ pointers at 16 bits: the type of the pointer says which space it is an address i
    touches 36 pages at the median and 63 at most, and 64 pages fault almost never (run C,
    on level 1); the cost is then the translations, at most 121 ms a turn before reuse. The cache sits behind one interface, so that a
    C128's second bank, or a disk on a stock C64, could back it instead.
+   Amended 2026-11-20: **16 RAM pages (4 KB)** (Jolyon: "4 KB cache is fine"). With the far
+   set of the whole-game links (`mons[]`, `objects[]`, the level, the heap, the glyph
+   buffer) a 6,000-key game faults 89 times a turn at the median, about 125 ms a turn
+   with the C handler's 600 cycles a fault (`docs/data/fardata-trace-cache-2026-11-20.txt`);
+   the 12 KB this frees goes to the resident side, which the whole game cannot fit without.
 7. **What goes far is decided per type, by measurement**: `mons[]`, `objects[]` and the heap
    first; the level and vision grids stay near while RAM allows.
 

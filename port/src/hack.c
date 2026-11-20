@@ -152,7 +152,7 @@ moverock(void)
 		    /* vision kludge to get messages right;
 		       the pit will temporarily be seen even
 		       if this is one among multiple boulders */
-		    if (!Blind) viz_array[ry][rx] |= IN_SIGHT;
+		    if (!Blind) viz_array[ry]->c[rx] |= IN_SIGHT;
 		    if (!flooreffects(otmp, rx, ry, "fall")) {
 			place_object(otmp, rx, ry);
 		    }
