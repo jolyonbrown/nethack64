@@ -2084,7 +2084,7 @@ maybe_wail(void)
 	int i, powercnt;
 
 	who = (Role_if(PM_WIZARD) || Role_if(PM_VALKYRIE)) ?
-		urole.name.m : "Elf";
+		NH_RNAME(urole.name.m) : "Elf";
 	if (u.uhp == 1) {
 	    pline("%s is about to die.", who);
 	} else {

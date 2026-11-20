@@ -462,9 +462,9 @@ domonnoise(struct monst_s *mtmp)
 		boolean nightchild = (Upolyd && (u.umonnum == PM_WOLF ||
 				       u.umonnum == PM_WINTER_WOLF ||
 	    			       u.umonnum == PM_WINTER_WOLF_CUB));
-		const char *racenoun = (flags.female && urace.individual.f) ?
-					urace.individual.f : (urace.individual.m) ?
-					urace.individual.m : urace.noun;
+		const char *racenoun = (flags.female && NH_RNAME(urace.individual.f)) ?
+					NH_RNAME(urace.individual.f) : (NH_RNAME(urace.individual.m)) ?
+					NH_RNAME(urace.individual.m) : NH_RNAME(urace.noun);
 
 		if (mtmp->mtame) {
 			if (kindred) {

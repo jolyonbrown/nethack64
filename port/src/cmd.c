@@ -1150,12 +1150,12 @@ minimal_enlightenment(void)
 	/* Starting name, race, role, gender */
 	Sprintf(buf, fmtstr, "name", plname);
 	add_menu(tmpwin, NO_GLYPH, &any, 0, 0, ATR_NONE, buf, FALSE);
-	Sprintf(buf, fmtstr, "race", urace.noun);
+	Sprintf(buf, fmtstr, "race", NH_RNAME(urace.noun));
 	add_menu(tmpwin, NO_GLYPH, &any, 0, 0, ATR_NONE, buf, FALSE);
 	Sprintf(buf, fmtstr, "role",
-		(flags.initgend && urole.name.f) ? urole.name.f : urole.name.m);
+		(flags.initgend && NH_RNAME(urole.name.f)) ? NH_RNAME(urole.name.f) : NH_RNAME(urole.name.m));
 	add_menu(tmpwin, NO_GLYPH, &any, 0, 0, ATR_NONE, buf, FALSE);
-	Sprintf(buf, fmtstr, "gender", genders[flags.initgend].adj);
+	Sprintf(buf, fmtstr, "gender", NH_RNAME(genders[flags.initgend].adj));
 	add_menu(tmpwin, NO_GLYPH, &any, 0, 0, ATR_NONE, buf, FALSE);
 
 	/* Starting alignment */
@@ -1165,23 +1165,23 @@ minimal_enlightenment(void)
 	/* Current name, race, role, gender */
 	add_menu(tmpwin, NO_GLYPH, &any, 0, 0, ATR_NONE, "", FALSE);
 	add_menu(tmpwin, NO_GLYPH, &any, 0, 0, iflags.menu_headings, "Current", FALSE);
-	Sprintf(buf, fmtstr, "race", Upolyd ? NH_MNAME(youmonst.data->mname) : urace.noun);
+	Sprintf(buf, fmtstr, "race", Upolyd ? NH_MNAME(youmonst.data->mname) : NH_RNAME(urace.noun));
 	add_menu(tmpwin, NO_GLYPH, &any, 0, 0, ATR_NONE, buf, FALSE);
 	if (Upolyd) {
 	    Sprintf(buf, fmtstr, "role (base)",
-		(u.mfemale && urole.name.f) ? urole.name.f : urole.name.m);
+		(u.mfemale && NH_RNAME(urole.name.f)) ? NH_RNAME(urole.name.f) : NH_RNAME(urole.name.m));
 	    add_menu(tmpwin, NO_GLYPH, &any, 0, 0, ATR_NONE, buf, FALSE);
 	} else {
 	    Sprintf(buf, fmtstr, "role",
-		(flags.female && urole.name.f) ? urole.name.f : urole.name.m);
+		(flags.female && NH_RNAME(urole.name.f)) ? NH_RNAME(urole.name.f) : NH_RNAME(urole.name.m));
 	    add_menu(tmpwin, NO_GLYPH, &any, 0, 0, ATR_NONE, buf, FALSE);
 	}
 	/* don't want poly_gender() here; it forces `2' for non-humanoids */
 	genidx = is_neuter(youmonst.data) ? 2 : flags.female;
-	Sprintf(buf, fmtstr, "gender", genders[genidx].adj);
+	Sprintf(buf, fmtstr, "gender", NH_RNAME(genders[genidx].adj));
 	add_menu(tmpwin, NO_GLYPH, &any, 0, 0, ATR_NONE, buf, FALSE);
 	if (Upolyd && (int)u.mfemale != genidx) {
-	    Sprintf(buf, fmtstr, "gender (base)", genders[u.mfemale].adj);
+	    Sprintf(buf, fmtstr, "gender (base)", NH_RNAME(genders[u.mfemale].adj));
 	    add_menu(tmpwin, NO_GLYPH, &any, 0, 0, ATR_NONE, buf, FALSE);
 	}
 

@@ -595,7 +595,7 @@ set_bonesfile_name(char *file, d_level *lev)
 	char *dptr;
 
 	Sprintf(file, "bon%c%s", dungeons[lev->dnum].boneid,
-			In_quest(lev) ? urole.filecode : "0");
+			In_quest(lev) ? NH_RNAME(urole.filecode) : "0");
 	dptr = eos(file);
 	if ((sptr = Is_special(lev)) != 0)
 	    Sprintf(dptr, ".%c", sptr->boneid);

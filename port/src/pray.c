@@ -1164,7 +1164,7 @@ dosacrifice(void)
 
 	    if (altaralign != A_CHAOTIC && altaralign != A_NONE) {
 		/* curse the lawful/neutral altar */
-		pline_The("altar is stained with %s blood.", urace.adj);
+		pline_The("altar is stained with %s blood.", NH_RNAME(urace.adj));
 		if(!Is_astralevel(&u.uz))
 		    levl[u.ux][u.uy].altarmask = AM_CHAOTIC;
 		angry_priest();
@@ -1759,9 +1759,9 @@ align_gname(aligntyp alignment)
 
     switch (alignment) {
      case A_NONE:	gnam = Moloch; break;
-     case A_LAWFUL:	gnam = urole.lgod; break;
-     case A_NEUTRAL:	gnam = urole.ngod; break;
-     case A_CHAOTIC:	gnam = urole.cgod; break;
+     case A_LAWFUL:	gnam = NH_RNAME(urole.lgod); break;
+     case A_NEUTRAL:	gnam = NH_RNAME(urole.ngod); break;
+     case A_CHAOTIC:	gnam = NH_RNAME(urole.cgod); break;
      default:		impossible("unknown alignment.");
 			gnam = "someone"; break;
     }
@@ -1781,9 +1781,9 @@ halu_gname(aligntyp alignment)
 
     which = randrole();
     switch (rn2(3)) {
-     case 0:	gnam = roles[which].lgod; break;
-     case 1:	gnam = roles[which].ngod; break;
-     case 2:	gnam = roles[which].cgod; break;
+     case 0:	gnam = NH_RNAME(roles[which].lgod); break;
+     case 1:	gnam = NH_RNAME(roles[which].ngod); break;
+     case 2:	gnam = NH_RNAME(roles[which].cgod); break;
      default:	gnam = 0; break;		/* lint suppression */
     }
     if (!gnam) gnam = Moloch;
@@ -1798,9 +1798,9 @@ align_gtitle(aligntyp alignment)
     const char *gnam, *result = "god";
 
     switch (alignment) {
-     case A_LAWFUL:	gnam = urole.lgod; break;
-     case A_NEUTRAL:	gnam = urole.ngod; break;
-     case A_CHAOTIC:	gnam = urole.cgod; break;
+     case A_LAWFUL:	gnam = NH_RNAME(urole.lgod); break;
+     case A_NEUTRAL:	gnam = NH_RNAME(urole.ngod); break;
+     case A_CHAOTIC:	gnam = NH_RNAME(urole.cgod); break;
      default:		gnam = 0; break;
     }
     if (gnam && *gnam == '_') result = "goddess";

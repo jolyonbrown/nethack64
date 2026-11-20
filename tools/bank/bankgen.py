@@ -517,6 +517,13 @@ def main():
         scope = [f] if d["static"] else files
         users = {"%s:%s" % (uf, u["name"]) for uf in scope for u in info[uf] if name in u["idents"]}
         named = [x["name"] for uf in scope for x in data_info[uf] if name in x["idents"]]
+        # a table another initialiser names (shknam.c's shtypes names each shopkeeper name
+        # list) may go too when the plan's "bank_data_readers" lists every function that
+        # reads it through that pointer, by reading the code: they must share its bank
+        readers = planj.get("bank_data_readers", {}).get(key)
+        if readers is not None:
+            users |= set(readers)
+            named = []
         banks = {bank_of.get(u) for u in users}
         # passed on as a pointer, a table other than a string must stay in the bank: the
         # callee has to be there too (a string is copied, as a literal is)
@@ -1044,12 +1051,12 @@ extern __noinline char *nh_res(const char *p);
 extern char *nh_keep(char *buf, unsigned size, const char *p);
 #define NH_KEEP(buf, p) nh_keep((buf), sizeof(buf), (p))
 #define NH_KEEPBUF(decl) decl
-#if defined(NH_FAR_MNAMES) || defined(NH_FAR_ONAMES)
+#if defined(NH_FAR_MNAMES) || defined(NH_FAR_ONAMES) || defined(NH_FAR_RNAMES)
 /* far names (permonst.h, objclass.h): NH_MNAME() and NH_ONAME() copy one into a ring of
  * near buffers, long enough for the longest ("cheap plastic imitation of the Amulet of
  * Yendor"); nh_keep() copies out of the ring too */
 #define NH_NAME_SLOTS 8
-#define NH_NAME_LEN 48
+#define NH_NAME_LEN NH_NAMEBUF		/* permonst.h */
 extern char nh_name_ring[NH_NAME_SLOTS][NH_NAME_LEN];
 #endif
 %s
@@ -1123,7 +1130,7 @@ nh_unstash(const char *s, unsigned char b)
 	return p;
 }
 
-#if defined(NH_FAR_MNAMES) || defined(NH_FAR_ONAMES)
+#if defined(NH_FAR_MNAMES) || defined(NH_FAR_ONAMES) || defined(NH_FAR_RNAMES)
 char nh_name_ring[NH_NAME_SLOTS][NH_NAME_LEN];
 static unsigned char nh_name_next;
 
@@ -1133,21 +1140,28 @@ extern void nh_farcopy(char *d, const char *p, unsigned n, unsigned char s);
 /* A name is at $E000-$FFFF of its space (permonst.h); anything below is null or a near
  * string (options.c points the fruit's name at pl_fruit), returned as it is. */
 static const char *
-nh_name(const char *p, unsigned char s)
+nh_name_into(const char *p, unsigned char s, char *d)
 {
-	char *d;
 	unsigned n;
 
 	nh_addr = (unsigned)p;
 	if (nh_addr < 0xe000u)
 		return p;
-	d = nh_name_ring[nh_name_next++ & (NH_NAME_SLOTS - 1)];
 	n = 0u - nh_addr;			/* bytes up to the end of the space */
 	if (n > NH_NAME_LEN - 1)
 		n = NH_NAME_LEN - 1;
 	nh_farcopy(d, p, n, s);
 	d[n] = 0;
 	return d;
+}
+
+static const char *
+nh_name(const char *p, unsigned char s)
+{
+	nh_addr = (unsigned)p;
+	if (nh_addr < 0xe000u)
+		return p;
+	return nh_name_into(p, s, nh_name_ring[nh_name_next++ & (NH_NAME_SLOTS - 1)]);
 }
 #endif
 #ifdef NH_FAR_MNAMES
@@ -1156,12 +1170,32 @@ nh_mname(const char *p)
 {
 	return nh_name(p, 1);
 }
+
+/* into the caller's buffer of NH_NAMEBUF bytes (permonst.h), not the ring */
+const char *
+nh_mname_b(const char *p, char *d)
+{
+	return nh_name_into(p, 1, d);
+}
 #endif
 #ifdef NH_FAR_ONAMES
 const char *
 nh_oname(const char *p)
 {
 	return nh_name(p, 2);
+}
+
+const char *
+nh_oname_b(const char *p, char *d)
+{
+	return nh_name_into(p, 2, d);
+}
+#endif
+#ifdef NH_FAR_RNAMES
+const char *
+nh_rname(const char *p)
+{
+	return nh_name(p, 3);
 }
 #endif
 
@@ -1171,7 +1205,7 @@ nh_keep(char *buf, unsigned size, const char *p)
 	unsigned i;
 
 	if (!p || (!NH_IN_WINDOW(p) && (p < nh_stash_buf[0] || p >= nh_stash_buf[4]) &&
-#if defined(NH_FAR_MNAMES) || defined(NH_FAR_ONAMES)
+#if defined(NH_FAR_MNAMES) || defined(NH_FAR_ONAMES) || defined(NH_FAR_RNAMES)
 		   (p < nh_name_ring[0] || p >= nh_name_ring[NH_NAME_SLOTS]) &&
 #endif
 		   (p < nh_args || p >= nh_args + sizeof(nh_args))))

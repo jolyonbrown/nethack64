@@ -1633,8 +1633,8 @@ do_genocide(int how)
 	    if (Upolyd)
 		Strcpy(buf,NH_MNAME(youmonst.data->mname));
 	    else {
-		Strcpy(buf, (flags.female && urole.name.f) ?
-				urole.name.f : urole.name.m);
+		Strcpy(buf, (flags.female && NH_RNAME(urole.name.f)) ?
+				NH_RNAME(urole.name.f) : NH_RNAME(urole.name.m));
 		buf[0] = lowc(buf[0]);
 	    }
 	} else {

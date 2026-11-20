@@ -3020,9 +3020,9 @@ get_compopt_value(const char *optname, char *buf)
 		Sprintf(buf, "%s", ocl[0] ? ocl : "all" );
 	     }
 	else if (!strcmp(optname, "race"))
-		Sprintf(buf, "%s", rolestring(flags.initrace, races, noun));
+		Sprintf(buf, "%s", NH_RNAME(rolestring(flags.initrace, races, noun)));
 	else if (!strcmp(optname, "role"))
-		Sprintf(buf, "%s", rolestring(flags.initrole, roles, name.m));
+		Sprintf(buf, "%s", NH_RNAME(rolestring(flags.initrole, roles, name.m)));
 	else if (!strcmp(optname, "runmode"))
 		Sprintf(buf, "%s", runmodes[iflags.runmode]);
 	else if (!strcmp(optname, "scores")) {
@@ -3358,7 +3358,9 @@ fruitadd(char *str)
 
 		for (i = bases[FOOD_CLASS]; objects[i].oc_class == FOOD_CLASS;
 						i++) {
-			if (!strcmp(OBJ_NAME(objects[i]), pl_fruit)) {
+			char fnbuf[NH_NAMEBUF];
+
+			if (!strcmp(NH_ONAME_B(obj_descr[objects[i].oc_name_idx].oc_name, fnbuf), pl_fruit)) {
 				found = TRUE;
 				break;
 			}

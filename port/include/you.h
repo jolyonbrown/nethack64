@@ -14,6 +14,17 @@
 
 /*** Substructures ***/
 
+#ifdef NH_FAR_RNAMES
+/* a near copy of one of role.c's strings in the ring of buffers (nhbank.h) */
+extern const char *nh_rname(const char *);
+#define NH_RNAME(p) nh_rname(p)
+#elif defined(NH_NAME_RING_TEST)
+extern const char *nh_name_test(const char *);	/* decl.c */
+#define NH_RNAME(p) nh_name_test(p)
+#else
+#define NH_RNAME(p) (p)
+#endif
+
 struct RoleName {
 	const char	*m;	/* name when character is male */
 	const char	*f;	/* when female; null if same as male */

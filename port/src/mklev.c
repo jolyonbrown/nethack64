@@ -647,10 +647,10 @@ makelevel(void)
 		    char	fillname[9];
 		    s_level	*loc_lev;
 
-		    Sprintf(fillname, "%s-loca", urole.filecode);
+		    Sprintf(fillname, "%s-loca", NH_RNAME(urole.filecode));
 		    loc_lev = find_level(fillname);
 
-		    Sprintf(fillname, "%s-fil", urole.filecode);
+		    Sprintf(fillname, "%s-fil", NH_RNAME(urole.filecode));
 		    Strcat(fillname,
 			   (u.uz.dlevel < loc_lev->dlevel.dlevel) ? "a" : "b");
 		    makemaz(fillname);

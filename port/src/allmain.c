@@ -561,15 +561,15 @@ welcome(boolean new_game)
     *buf = '\0';
     if (new_game || u.ualignbase[A_ORIGINAL] != u.ualignbase[A_CURRENT])
 	Sprintf(eos(buf), " %s", align_str(u.ualignbase[A_ORIGINAL]));
-    if (!urole.name.f &&
+    if (!NH_RNAME(urole.name.f) &&
 	    (new_game ? (urole.allow & ROLE_GENDMASK) == (ROLE_MALE|ROLE_FEMALE) :
 	     currentgend != flags.initgend))
-	Sprintf(eos(buf), " %s", genders[currentgend].adj);
+	Sprintf(eos(buf), " %s", NH_RNAME(genders[currentgend].adj));
 
     pline(new_game ? "%s %s, welcome to NetHack!  You are a%s %s %s."
 		   : "%s %s, the%s %s %s, welcome back to NetHack!",
-	  Hello((struct monst_s *) 0), plname, buf, urace.adj,
-	  (currentgend && urole.name.f) ? urole.name.f : urole.name.m);
+	  Hello((struct monst_s *) 0), plname, buf, NH_RNAME(urace.adj),
+	  (currentgend && NH_RNAME(urole.name.f)) ? NH_RNAME(urole.name.f) : NH_RNAME(urole.name.m));
 }
 
 #ifdef POSITIONBAR

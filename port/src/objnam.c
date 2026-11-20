@@ -2159,8 +2159,9 @@ srch:
 	if(!oclass && actualn) {
 	    for(i = bases[GEM_CLASS]; i <= LAST_GEM; i++) {
 		register const char *zn;
+		char znbuf[NH_NAMEBUF];
 
-		if((zn = OBJ_NAME(objects[i])) && !strcmpi(actualn, zn)) {
+		if((zn = NH_ONAME_B(obj_descr[objects[i].oc_name_idx].oc_name, znbuf)) && !strcmpi(actualn, zn)) {
 		    typ = i;
 		    goto typfnd;
 		}
@@ -2169,13 +2170,14 @@ srch:
 	i = oclass ? bases[(int)oclass] : 1;
 	while(i < NUM_OBJECTS && (!oclass || objects[i].oc_class == oclass)){
 		register const char *zn;
+		char znbuf[NH_NAMEBUF];
 
-		if (actualn && (zn = OBJ_NAME(objects[i])) != 0 &&
+		if (actualn && (zn = NH_ONAME_B(obj_descr[objects[i].oc_name_idx].oc_name, znbuf)) != 0 &&
 			    wishymatch(actualn, zn, TRUE)) {
 			typ = i;
 			goto typfnd;
 		}
-		if (dn && (zn = OBJ_DESCR(objects[i])) != 0 &&
+		if (dn && (zn = NH_ONAME_B(obj_descr[objects[i].oc_descr_idx].oc_descr, znbuf)) != 0 &&
 			    wishymatch(dn, zn, FALSE)) {
 			/* don't match extra descriptions (w/o real name) */
 			if (!OBJ_NAME(objects[i])) return (struct obj_s *)0;

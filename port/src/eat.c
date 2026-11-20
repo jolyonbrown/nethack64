@@ -850,7 +850,7 @@ cpostfx(int pm) /* called after completely consuming a corpse */
 		    Sprintf(buf, Hallucination ?
 			"You suddenly dread being peeled and mimic %s again!" :
 			"You now prefer mimicking %s again.",
-			an(Upolyd ? NH_MNAME(youmonst.data->mname) : urace.noun));
+			an(Upolyd ? NH_MNAME(youmonst.data->mname) : NH_RNAME(urace.noun)));
 		    eatmbuf = strcpy((char *) alloc(strlen(buf) + 1), buf);
 		    nomovemsg = eatmbuf;
 		    afternmv = eatmdone;
@@ -2339,7 +2339,7 @@ newuhs(boolean incr) /* compute and comment on your (new?) hunger status */
 				 Role_if(PM_VALKYRIE)))
 			    pline("%s needs food, badly!",
 				  (Role_if(PM_WIZARD) || Role_if(PM_VALKYRIE)) ?
-				  urole.name.m : "Elf");
+				  NH_RNAME(urole.name.m) : "Elf");
 			else
 			    You((!incr) ? "feel weak now." :
 				  (u.uhunger < 45) ? "feel weak." :

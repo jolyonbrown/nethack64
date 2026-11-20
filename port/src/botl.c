@@ -68,21 +68,21 @@ rank_of(int lev, short monnum, boolean female)
 
 
 	/* Find the role */
-	for (role = (struct Role *) roles; role->name.m; role++)
+	for (role = (struct Role *) roles; NH_RNAME(role->name.m); role++)
 	    if (monnum == role->malenum || monnum == role->femalenum)
 	    	break;
-	if (!role->name.m)
+	if (!NH_RNAME(role->name.m))
 	    role = &urole;
 
 	/* Find the rank */
 	for (i = xlev_to_rank((int)lev); i >= 0; i--) {
-	    if (female && role->rank[i].f) return (role->rank[i].f);
-	    if (role->rank[i].m) return (role->rank[i].m);
+	    if (female && NH_RNAME(role->rank[i].f)) return (NH_RNAME(role->rank[i].f));
+	    if (NH_RNAME(role->rank[i].m)) return (NH_RNAME(role->rank[i].m));
 	}
 
 	/* Try the role name, instead */
-	if (female && role->name.f) return (role->name.f);
-	else if (role->name.m) return (role->name.m);
+	if (female && NH_RNAME(role->name.f)) return (NH_RNAME(role->name.f));
+	else if (NH_RNAME(role->name.m)) return (NH_RNAME(role->name.m));
 	return ("Player");
 }
 
@@ -100,18 +100,18 @@ title_to_mon(const char *str, int *rank_indx, int *title_length)
 
 
 	/* Loop through each of the roles */
-	for (i = 0; roles[i].name.m; i++)
+	for (i = 0; NH_RNAME(roles[i].name.m); i++)
 	    for (j = 0; j < 9; j++) {
-	    	if (roles[i].rank[j].m && !strncmpi(str,
-	    			roles[i].rank[j].m, strlen(roles[i].rank[j].m))) {
+	    	if (NH_RNAME(roles[i].rank[j].m) && !strncmpi(str,
+	    			NH_RNAME(roles[i].rank[j].m), strlen(NH_RNAME(roles[i].rank[j].m)))) {
 	    	    if (rank_indx) *rank_indx = j;
-	    	    if (title_length) *title_length = strlen(roles[i].rank[j].m);
+	    	    if (title_length) *title_length = strlen(NH_RNAME(roles[i].rank[j].m));
 	    	    return roles[i].malenum;
 	    	}
-	    	if (roles[i].rank[j].f && !strncmpi(str,
-	    			roles[i].rank[j].f, strlen(roles[i].rank[j].f))) {
+	    	if (NH_RNAME(roles[i].rank[j].f) && !strncmpi(str,
+	    			NH_RNAME(roles[i].rank[j].f), strlen(NH_RNAME(roles[i].rank[j].f)))) {
 	    	    if (rank_indx) *rank_indx = j;
-	    	    if (title_length) *title_length = strlen(roles[i].rank[j].f);
+	    	    if (title_length) *title_length = strlen(NH_RNAME(roles[i].rank[j].f));
 	    	    return ((roles[i].femalenum != NON_PM) ?
 	    	    		roles[i].femalenum : roles[i].malenum);
 	    	}
@@ -127,8 +127,8 @@ max_rank_sz(void)
 {
 	register int i, r, maxr = 0;
 	for (i = 0; i < 9; i++) {
-	    if (urole.rank[i].m && (r = strlen(urole.rank[i].m)) > maxr) maxr = r;
-	    if (urole.rank[i].f && (r = strlen(urole.rank[i].f)) > maxr) maxr = r;
+	    if (NH_RNAME(urole.rank[i].m) && (r = strlen(NH_RNAME(urole.rank[i].m))) > maxr) maxr = r;
+	    if (NH_RNAME(urole.rank[i].f) && (r = strlen(NH_RNAME(urole.rank[i].f))) > maxr) maxr = r;
 	}
 	mrank_sz = maxr;
 	return;

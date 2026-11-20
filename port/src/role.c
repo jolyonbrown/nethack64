@@ -27,6 +27,9 @@
 #ifdef NH_FAR_GLOBS
 #pragma data(farglob)
 #endif
+#ifdef NH_FAR_RNAMES
+#pragma code(farrnames)	/* the strings: literals go to the code section in force */
+#endif
 const struct Role roles[] = {
 {	{"Archeologist", 0}, {
 	{"Digger",      0},
@@ -388,6 +391,9 @@ const struct Role roles[] = {
 #pragma data(data)
 #pragma align(roles, 128)
 #endif
+#ifdef NH_FAR_RNAMES
+#pragma code(code)
+#endif
 
 
 /* The player's role, created at runtime from initial
@@ -413,6 +419,9 @@ struct Role urole =
 /* Table of all races */
 #ifdef NH_FAR_GLOBS
 #pragma data(farglob)
+#endif
+#ifdef NH_FAR_RNAMES
+#pragma code(farrnames)
 #endif
 const struct Race races[] = {
 {	"human", "human", "humanity", "Hum",
@@ -499,6 +508,9 @@ struct Race urace =
 #ifdef NH_FAR_GLOBS
 #pragma data(data)
 #endif
+#ifdef NH_FAR_RNAMES
+#pragma code(code)
+#endif
 
 
 /* Table of all genders */
@@ -550,15 +562,15 @@ str2role(char *str)
 
 	/* Match as much of str as is provided */
 	len = strlen(str);
-	for (i = 0; roles[i].name.m; i++) {
+	for (i = 0; NH_RNAME(roles[i].name.m); i++) {
 	    /* Does it match the male name? */
-	    if (!strncmpi(str, roles[i].name.m, len))
+	    if (!strncmpi(str, NH_RNAME(roles[i].name.m), len))
 		return i;
 	    /* Or the female name? */
-	    if (roles[i].name.f && !strncmpi(str, roles[i].name.f, len))
+	    if (NH_RNAME(roles[i].name.f) && !strncmpi(str, NH_RNAME(roles[i].name.f), len))
 		return i;
 	    /* Or the filecode? */
-	    if (!strcmpi(str, roles[i].filecode))
+	    if (!strcmpi(str, NH_RNAME(roles[i].filecode)))
 		return i;
 	}
 
@@ -586,14 +598,14 @@ randrace(int rolenum)
 	int i, n = 0;
 
 	/* Count the number of valid races */
-	for (i = 0; races[i].noun; i++)
+	for (i = 0; NH_RNAME(races[i].noun); i++)
 	    if (roles[rolenum].allow & races[i].allow & ROLE_RACEMASK)
 	    	n++;
 
 	/* Pick a random race */
 	/* Use a factor of 100 in case of bad random number generators */
 	if (n) n = rn2(n*100)/100;
-	for (i = 0; races[i].noun; i++)
+	for (i = 0; NH_RNAME(races[i].noun); i++)
 	    if (roles[rolenum].allow & races[i].allow & ROLE_RACEMASK) {
 	    	if (n) n--;
 	    	else return (i);
@@ -615,12 +627,12 @@ str2race(char *str)
 
 	/* Match as much of str as is provided */
 	len = strlen(str);
-	for (i = 0; races[i].noun; i++) {
+	for (i = 0; NH_RNAME(races[i].noun); i++) {
 	    /* Does it match the noun? */
-	    if (!strncmpi(str, races[i].noun, len))
+	    if (!strncmpi(str, NH_RNAME(races[i].noun), len))
 		return i;
 	    /* Or the filecode? */
-	    if (!strcmpi(str, races[i].filecode))
+	    if (!strcmpi(str, NH_RNAME(races[i].filecode)))
 		return i;
 	}
 
@@ -681,10 +693,10 @@ str2gend(char *str)
 	len = strlen(str);
 	for (i = 0; i < ROLE_GENDERS; i++) {
 	    /* Does it match the adjective? */
-	    if (!strncmpi(str, genders[i].adj, len))
+	    if (!strncmpi(str, NH_RNAME(genders[i].adj), len))
 		return i;
 	    /* Or the filecode? */
-	    if (!strcmpi(str, genders[i].filecode))
+	    if (!strcmpi(str, NH_RNAME(genders[i].filecode)))
 		return i;
 	}
 	if ((len == 1 && (*str == '*' || *str == '@')) ||
@@ -744,10 +756,10 @@ str2align(char *str)
 	len = strlen(str);
 	for (i = 0; i < ROLE_ALIGNS; i++) {
 	    /* Does it match the adjective? */
-	    if (!strncmpi(str, aligns[i].adj, len))
+	    if (!strncmpi(str, NH_RNAME(aligns[i].adj), len))
 		return i;
 	    /* Or the filecode? */
-	    if (!strcmpi(str, aligns[i].filecode))
+	    if (!strcmpi(str, NH_RNAME(aligns[i].filecode)))
 		return i;
 	}
 	if ((len == 1 && (*str == '*' || *str == '@')) ||
@@ -1115,11 +1127,11 @@ root_plselection_prompt(char *suppliedbuf,
 		/* if race specified, and multiple choice of alignments for it */
 		if ((racenum >= 0) && (aligncount > 1)) {
 			if (donefirst) Strcat(buf, " ");
-			Strcat(buf, aligns[alignnum].adj);
+			Strcat(buf, NH_RNAME(aligns[alignnum].adj));
 			donefirst = TRUE;
 		} else {
 			if (donefirst) Strcat(buf, " ");
-			Strcat(buf, aligns[alignnum].adj);
+			Strcat(buf, NH_RNAME(aligns[alignnum].adj));
 			donefirst = TRUE;
 		}
 	} else {
@@ -1145,14 +1157,14 @@ root_plselection_prompt(char *suppliedbuf,
 		     /* if role specified, and multiple choice of genders for it,
 			and name of role itself does not distinguish gender */
 			if ((rolenum != ROLE_NONE) && (gendercount > 1)
-						&& !roles[rolenum].name.f) {
+						&& !NH_RNAME(roles[rolenum].name.f)) {
 				if (donefirst) Strcat(buf, " ");
-				Strcat(buf, genders[gendnum].adj);
+				Strcat(buf, NH_RNAME(genders[gendnum].adj));
 				donefirst = TRUE;
 			}
 	        } else {
 			if (donefirst) Strcat(buf, " ");
-	        	Strcat(buf, genders[gendnum].adj);
+	        	Strcat(buf, NH_RNAME(genders[gendnum].adj));
 			donefirst = TRUE;
 	        }
 	} else {
@@ -1170,12 +1182,12 @@ root_plselection_prompt(char *suppliedbuf,
 		if (validrole(rolenum) && ok_race(rolenum, racenum, gendnum, alignnum)) {
 			if (donefirst) Strcat(buf, " "); 
 			Strcat(buf, (rolenum == ROLE_NONE) ?
-				races[racenum].noun :
-				races[racenum].adj);
+				NH_RNAME(races[racenum].noun) :
+				NH_RNAME(races[racenum].adj));
 			donefirst = TRUE;
 		} else if (!validrole(rolenum)) {
 			if (donefirst) Strcat(buf, " ");
-			Strcat(buf, races[racenum].noun);
+			Strcat(buf, NH_RNAME(races[racenum].noun));
 			donefirst = TRUE;
 		} else {
 			pa[BP_RACE] = 1;
@@ -1190,17 +1202,17 @@ root_plselection_prompt(char *suppliedbuf,
 	if (validrole(rolenum)) {
 		if (donefirst) Strcat(buf, " ");
 		if (gendnum != ROLE_NONE) {
-		    if (gendnum == 1  && roles[rolenum].name.f)
-			Strcat(buf, roles[rolenum].name.f);
+		    if (gendnum == 1  && NH_RNAME(roles[rolenum].name.f))
+			Strcat(buf, NH_RNAME(roles[rolenum].name.f));
 		    else
-  			Strcat(buf, roles[rolenum].name.m);
+  			Strcat(buf, NH_RNAME(roles[rolenum].name.m));
 		} else {
-			if (roles[rolenum].name.f) {
-				Strcat(buf, roles[rolenum].name.m);
+			if (NH_RNAME(roles[rolenum].name.f)) {
+				Strcat(buf, NH_RNAME(roles[rolenum].name.m));
 				Strcat(buf, "/");
-				Strcat(buf, roles[rolenum].name.f);
+				Strcat(buf, NH_RNAME(roles[rolenum].name.f));
 			} else 
-				Strcat(buf, roles[rolenum].name.m);
+				Strcat(buf, NH_RNAME(roles[rolenum].name.m));
 		}
 		donefirst = TRUE;
 	} else if (rolenum == ROLE_NONE) {
@@ -1359,7 +1371,7 @@ role_init(void)
 
 	/* We now have a valid role index.  Copy the role name back. */
 	/* This should become OBSOLETE */
-	Strcpy(pl_character, roles[flags.initrole].name.m);
+	Strcpy(pl_character, NH_RNAME(roles[flags.initrole].name.m));
 	pl_character[PL_CSIZ-1] = '\0';
 
 	/* Check for a valid race */
@@ -1411,10 +1423,10 @@ role_init(void)
 	/* Fix up the god names */
 	if (flags.pantheon == -1) {		/* new game */
 	    flags.pantheon = flags.initrole;	/* use own gods */
-	    while (!roles[flags.pantheon].lgod)	/* unless they're missing */
+	    while (!NH_RNAME(roles[flags.pantheon].lgod))	/* unless they're missing */
 		flags.pantheon = randrole();
 	}
-	if (!urole.lgod) {
+	if (!NH_RNAME(urole.lgod)) {
 	    urole.lgod = roles[flags.pantheon].lgod;
 	    urole.ngod = roles[flags.pantheon].ngod;
 	    urole.cgod = roles[flags.pantheon].cgod;

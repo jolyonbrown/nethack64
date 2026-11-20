@@ -471,8 +471,8 @@ can_twoweapon(void)
 		    You_cant("use two weapons in your current form.");
 		else
 		    pline("%s aren't able to use two weapons at once.",
-			  makeplural((flags.female && urole.name.f) ?
-				     urole.name.f : urole.name.m));
+			  makeplural((flags.female && NH_RNAME(urole.name.f)) ?
+				     NH_RNAME(urole.name.f) : NH_RNAME(urole.name.m)));
 	} else if (!uwep || !uswapwep)
 		Your("%s%s%s empty.", uwep ? "left " : uswapwep ? "right " : "",
 			body_part(HAND), (!uwep && !uswapwep) ? "s are" : " is");

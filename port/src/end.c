@@ -760,8 +760,8 @@ die:
 	if (!done_stopprint) {
 	    Sprintf(pbuf, "%s %s the %s...", Goodbye(), plname,
 		   how != ASCENDED ?
-		      (const char *) ((flags.female && urole.name.f) ?
-		         urole.name.f : urole.name.m) :
+		      (const char *) ((flags.female && NH_RNAME(urole.name.f)) ?
+		         NH_RNAME(urole.name.f) : NH_RNAME(urole.name.m)) :
 		      (const char *) (flags.female ? "Demigoddess" : "Demigod"));
 	    putstr(endwin, 0, pbuf);
 	    putstr(endwin, 0, "");

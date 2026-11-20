@@ -359,8 +359,13 @@ static_assert(sizeof (struct rm_s) == 8, "struct rm_s is 8 bytes in the far buil
 #pragma farspace(3, rm_s)
 #pragma section(farlevel, 0)
 #pragma farsection(farlevel, 3)
-#pragma region(farlevel, 0x8000, 0x10000, , 114, { farlevel })
+#pragma region(farlevel, 0x8000, 0xe000, , 114, { farlevel })
 #define NH_FAR_LEVEL
+/* role.c's strings (roles[], races[]) at $E000-$FFFF of the space, read through NH_RNAME()
+ * (you.h), as permonst.h's monster names are through NH_MNAME() */
+#pragma section(farrnames, 0)
+#pragma region(farrnames, 0xe000, 0x10000, , 114, { farrnames })
+#define NH_FAR_RNAMES
 #endif
 
 /*

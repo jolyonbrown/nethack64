@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""farnames.py - read the names of mons[] and obj_descr[] through an accessor (T2.12).
+"""farnames.py - read the names of mons[], obj_descr[] and roles[] through an accessor (T2.12).
 
 usage: tools/farnames.py [--check] FILE.c ...
 
@@ -11,6 +11,9 @@ This wraps each read of such a member, `EXPR->mname` or `EXPR.oc_name`, in the a
 `NH_MNAME(EXPR->mname)`.  A store to the member (options.c gives the fruit its name) and
 `sizeof` are left alone, and so is a use already wrapped, so the script can be run again.
 On the host, and in any build without far names, the accessors are the identity.
+The role and race strings (struct Role, struct Race: role.c) go through NH_RNAME() the
+same way; a store of one into another such member (`urole.lgod = roles[i].lgod`) keeps
+the far address and is not wrapped, since the copy would not outlive the ring.
 
 --check: change nothing, list what would change; exit 1 if anything would.
 """
@@ -19,7 +22,18 @@ import re
 import sys
 
 MEMBERS = {"mname": "NH_MNAME", "oc_name": "NH_ONAME", "oc_descr": "NH_ONAME"}
+# role.c's strings (struct Role, struct Race, and the genders' and alignments' that share
+# member names): NH_RNAME() returns a near string as it is, so a read of a member of the
+# same name in a near table only costs a call
+ROLE_MEMBERS = ["lgod", "ngod", "cgod", "filecode", "homebase", "intermed", "noun", "adj", "coll"]
+MEMBERS.update({m: "NH_RNAME" for m in ROLE_MEMBERS})
+MEMBERS.update({"m": "NH_RNAME", "f": "NH_RNAME"})       # struct RoleName, see below
 ACCESS = re.compile(r"(->|\.)\s*(%s)\b" % "|".join(MEMBERS))
+# m and f only as struct RoleName's: after name, individual or rank[...] (timeout.c's
+# timeout_funcs[].f is a function)
+ROLENAME = re.compile(r"(?:\bname|\bindividual|\brank\s*\[[^\]]*\])\s*$")
+FAMILY = "|".join(re.escape(m) for m in MEMBERS)
+STORED = re.compile(r"(?:->|\.)\s*(?:%s)\s*=$" % FAMILY)
 SKIP = re.compile(r'/\*.*?\*/|"(?:[^"\\\n]|\\.)*"|\'(?:[^\'\\\n]|\\.)*\'|^[ \t]*#[^\n]*', re.S | re.M)
 
 
@@ -72,14 +86,20 @@ def wrap(text):
                     else re.sub(r"[^\n]", " ", m.group(0)), text)
     edits = []
     for m in ACCESS.finditer(code):
+        if m.group(2) in ("m", "f") and not ROLENAME.search(code[:m.start()]):
+            continue
         after = code[m.end():].lstrip()
         if after.startswith("=") and not after.startswith("=="):
             continue                                  # a store
         start = expr_start(code, m.start())
         before = code[:start].rstrip()
-        if before.endswith("sizeof") or re.search(r"\bNH_[MO]NAME\s*\(\s*$", before):
+        if before.endswith("sizeof") or re.search(r"\bNH_[MOR]NAME(?:_B)?\s*\(\s*$", before):
             continue
-        if before.endswith("&"):
+        if re.match(r"(?:name|individual|rank)\b", code[start:]):
+            continue        # a bare member path, a macro's field (options.c's rolestring())
+        if STORED.search(before) and code[m.end():].lstrip().startswith(";"):
+            continue        # copied into a member of the family: the far address, kept as it is
+        if before.endswith("&") and not before.endswith("&&"):
             sys.exit("the address of a name member at offset %d: handle it by hand" % start)
         edits.append((start, m.end(), MEMBERS[m.group(2)]))
     out, pos = [], 0

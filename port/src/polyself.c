@@ -111,10 +111,10 @@ change_sex(void)
 	if (already_polyd)	/* poly'd: also change saved sex */
 	    u.mfemale = !u.mfemale;
 	max_rank_sz();		/* [this appears to be superfluous] */
-	if ((already_polyd ? u.mfemale : flags.female) && urole.name.f)
-	    Strcpy(pl_character, urole.name.f);
+	if ((already_polyd ? u.mfemale : flags.female) && NH_RNAME(urole.name.f))
+	    Strcpy(pl_character, NH_RNAME(urole.name.f));
 	else
-	    Strcpy(pl_character, urole.name.m);
+	    Strcpy(pl_character, NH_RNAME(urole.name.m));
 	u.umonster = ((already_polyd ? u.mfemale : flags.female) && urole.femalenum != NON_PM) ?
 			urole.femalenum : urole.malenum;
 	if (!already_polyd) {
@@ -205,8 +205,8 @@ dead: /* we come directly here if their experience level went to 0 or less */
 	}
 	newuhs(FALSE);
 	polyman("feel like a new %s!",
-		(flags.female && urace.individual.f) ? urace.individual.f :
-		(urace.individual.m) ? urace.individual.m : urace.noun);
+		(flags.female && NH_RNAME(urace.individual.f)) ? NH_RNAME(urace.individual.f) :
+		(NH_RNAME(urace.individual.m)) ? NH_RNAME(urace.individual.m) : NH_RNAME(urace.noun));
 	if (Slimed) {
 		Your("body transforms, but there is still slime on you.");
 		Slimed = 10L;
@@ -714,12 +714,12 @@ rehumanize(void)
 
 	if (emits_light(youmonst.data))
 	    del_light_source(LS_MONSTER, (genericptr_t)&youmonst);
-	polyman("return to %s form!", urace.adj);
+	polyman("return to %s form!", NH_RNAME(urace.adj));
 
 	if (u.uhp < 1) {
 	    char kbuf[256];
 
-	    Sprintf(kbuf, "reverting to unhealthy %s form", urace.adj);
+	    Sprintf(kbuf, "reverting to unhealthy %s form", NH_RNAME(urace.adj));
 	    killer_format = KILLED_BY;
 	    killer = kbuf;
 	    done(DIED);

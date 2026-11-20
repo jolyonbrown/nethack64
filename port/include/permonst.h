@@ -92,16 +92,23 @@ static_assert(sizeof (struct permonst) == 64, "struct permonst is 64 bytes (ADR-
 #endif
 #endif
 
+/* NH_MNAME_B(p, buf): a copy in the caller's buffer of NH_NAMEBUF bytes, for a lookup that
+ * reads every name (name_to_mon()) and would otherwise cycle the ring under its callers */
+#define NH_NAMEBUF 48
 #ifdef NH_FAR_MNAMES
 /* a near copy of a monster's name in a ring of buffers (the far runtime) */
 extern const char *nh_mname(const char *);
+extern const char *nh_mname_b(const char *, char *);
 #define NH_MNAME(p) nh_mname(p)
+#define NH_MNAME_B(p, buf) nh_mname_b((p), (buf))
 #elif defined(NH_NAME_RING_TEST)
 /* the host's check of how long a copy is held (decl.c) */
 extern const char *nh_name_test(const char *);
 #define NH_MNAME(p) nh_name_test(p)
+#define NH_MNAME_B(p, buf) (p)
 #else
 #define NH_MNAME(p) (p)
+#define NH_MNAME_B(p, buf) (p)
 #endif
 
 #ifdef NH_FAR_MONS

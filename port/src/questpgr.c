@@ -113,10 +113,10 @@ load_qtlist(void)
 	for (i = 0; i < n_classes; i++) {
 	    if (!strncmp(COMMON_ID, qt_classes[i], LEN_HDR))
 	    	qt_list.common = construct_qtlist(qt_offsets[i]);
-	    else if (!strncmp(urole.filecode, qt_classes[i], LEN_HDR))
+	    else if (!strncmp(NH_RNAME(urole.filecode), qt_classes[i], LEN_HDR))
 	    	qt_list.chrole = construct_qtlist(qt_offsets[i]);
 #if 0	/* UNUSED but available */
-	    else if (!strncmp(urace.filecode, qt_classes[i], LEN_HDR))
+	    else if (!strncmp(NH_RNAME(urace.filecode), qt_classes[i], LEN_HDR))
 	    	qt_list.chrace = construct_qtlist(qt_offsets[i]);
 #endif
 	}
@@ -169,7 +169,7 @@ ldrname(void) /* return your role leader's name */
 STATIC_OVL const char *
 intermed(void) /* return your intermediate target string */
 {
-	return (urole.intermed);
+	return (NH_RNAME(urole.intermed));
 }
 
 boolean
@@ -200,7 +200,7 @@ guardname(void) /* return your role leader's guard monster name */
 STATIC_OVL const char *
 homebase(void) /* return your role leader's location */
 {
-	return(urole.homebase);
+	return(NH_RNAME(urole.homebase));
 }
 
 STATIC_OVL struct qtmsg *
@@ -223,8 +223,8 @@ convert_arg(char c)
 
 	    case 'p':	str = plname;
 			break;
-	    case 'c':	str = (flags.female && urole.name.f) ?
-	    			urole.name.f : urole.name.m;
+	    case 'c':	str = (flags.female && NH_RNAME(urole.name.f)) ?
+	    			NH_RNAME(urole.name.f) : NH_RNAME(urole.name.m);
 			break;
 	    case 'r':	str = rank_of(u.ulevel, Role_switch, flags.female);
 			break;

@@ -156,7 +156,7 @@ readentry(FILE *rfile, struct toptenentry *tt)
 			tt->points = 0;
 		    tt->plrole[1] = '\0';
 		    if ((i = str2role(tt->plrole)) >= 0)
-			Strcpy(tt->plrole, roles[i].filecode);
+			Strcpy(tt->plrole, NH_RNAME(roles[i].filecode));
 		    Strcpy(tt->plrace, "?");
 		    Strcpy(tt->plgend, (tt->plgend[0] == 'M') ? "Mal" : "Fem");
 		    Strcpy(tt->plalign, "?");
@@ -294,13 +294,13 @@ topten(int how)
 	t0->maxhp = u.uhpmax;
 	t0->deaths = u.umortality;
 	t0->uid = uid;
-	(void) strncpy(t0->plrole, urole.filecode, ROLESZ);
+	(void) strncpy(t0->plrole, NH_RNAME(urole.filecode), ROLESZ);
 	t0->plrole[ROLESZ] = '\0';
-	(void) strncpy(t0->plrace, urace.filecode, ROLESZ);
+	(void) strncpy(t0->plrace, NH_RNAME(urace.filecode), ROLESZ);
 	t0->plrace[ROLESZ] = '\0';
-	(void) strncpy(t0->plgend, genders[flags.female].filecode, ROLESZ);
+	(void) strncpy(t0->plgend, NH_RNAME(genders[flags.female].filecode), ROLESZ);
 	t0->plgend[ROLESZ] = '\0';
-	(void) strncpy(t0->plalign, aligns[1-u.ualign.type].filecode, ROLESZ);
+	(void) strncpy(t0->plalign, NH_RNAME(aligns[1-u.ualign.type].filecode), ROLESZ);
 	t0->plalign[ROLESZ] = '\0';
 	(void) strncpy(t0->name, plname, NAMSZ);
 	t0->name[NAMSZ] = '\0';
@@ -871,8 +871,8 @@ classmon(char *plch, boolean fem)
 	int i;
 
 	/* Look for this role in the role table */
-	for (i = 0; roles[i].name.m; i++)
-	    if (!strncmp(plch, roles[i].filecode, ROLESZ)) {
+	for (i = 0; NH_RNAME(roles[i].name.m); i++)
+	    if (!strncmp(plch, NH_RNAME(roles[i].filecode), ROLESZ)) {
 		if (fem && roles[i].femalenum != NON_PM)
 		    return roles[i].femalenum;
 		else if (roles[i].malenum != NON_PM)

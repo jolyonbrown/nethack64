@@ -133,13 +133,17 @@ struct objclass {
 /* a near copy of an object's name or description (the far runtime); options.c may point
  * the fruit's at a near string, which it returns as it is */
 extern const char *nh_oname(const char *);
+extern const char *nh_oname_b(const char *, char *);
 #define NH_ONAME(p) nh_oname(p)
+#define NH_ONAME_B(p, buf) nh_oname_b((p), (buf))	/* see NH_MNAME_B() */
 #elif defined(NH_NAME_RING_TEST)
 /* the host's check of how long a copy is held (decl.c) */
 extern const char *nh_name_test(const char *);
 #define NH_ONAME(p) nh_name_test(p)
+#define NH_ONAME_B(p, buf) (p)
 #else
 #define NH_ONAME(p) (p)
+#define NH_ONAME_B(p, buf) (p)
 #endif
 
 #if defined(C64) && defined(__OSCAR64C__)

@@ -839,7 +839,7 @@ init_dungeons(void) /* initialize the "dungeon" structs */
 				/* This is where the name substitution on the
 				 * levels of the quest dungeon occur.
 				 */
-				Sprintf(x->proto, "%s%s", urole.filecode, &lev_map->lev_name[1]);
+				Sprintf(x->proto, "%s%s", NH_RNAME(urole.filecode), &lev_map->lev_name[1]);
 			} else if (lev_map->lev_spec == &knox_level) {
 				branch *br;
 				/*

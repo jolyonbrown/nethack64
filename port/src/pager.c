@@ -66,7 +66,7 @@ lookat(int x, int y, char *buf, char *monbuf)
 	/* if not polymorphed, show both the role and the race */
 	race[0] = 0;
 	if (!Upolyd) {
-	    Sprintf(race, "%s ", urace.adj);
+	    Sprintf(race, "%s ", NH_RNAME(urace.adj));
 	}
 
 	Sprintf(buf, "%s%s%s called %s",
