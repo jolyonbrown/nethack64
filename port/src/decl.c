@@ -324,6 +324,26 @@ char *fqn_prefix_names[PREFIX_COUNT] = { "hackdir", "leveldir", "savedir",
 					"lockdir", "configdir", "troubledir" };
 #endif
 
+#ifdef NH_NAME_RING_TEST
+/* On the C64 a monster's or object's name is copied out of far memory into one of eight
+ * buffers used in turn (T2.12, permonst.h).  For the host's AddressSanitizer build each
+ * copy is freed eight reads later, so whatever holds one longer is reported. */
+const char *
+nh_name_test(const char *p)
+{
+	static char *ring[8];
+	static unsigned next;
+	char *d;
+
+	if (!p)
+		return p;
+	free(ring[next & 7]);
+	d = ring[next++ & 7] = (char *) malloc(strlen(p) + 1);
+	Strcpy(d, p);
+	return d;
+}
+#endif
+
 /* dummy routine used to force linkage */
 void
 decl_init(void)

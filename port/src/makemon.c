@@ -791,7 +791,7 @@ propagate(int mndx, boolean tally, boolean ghostly)
 		!(mvitals[mndx].mvflags & G_EXTINCT)) {
 #if defined(DEBUG) && defined(WIZARD)
 		if (wizard) pline("Automatically extinguished %s.",
-					makeplural(mons[mndx].mname));
+					makeplural(NH_MNAME(mons[mndx].mname)));
 #endif
 		mvitals[mndx].mvflags |= G_EXTINCT;
 		reset_rndmonst(mndx);
@@ -859,7 +859,7 @@ makemon(struct permonst *ptr, int x, int y, int mmflags)
 #if defined(WIZARD) && defined(DEBUG)
 		if (wizard && (mvitals[mndx].mvflags & G_EXTINCT))
 		    pline("Explicitly creating extinct monster %s.",
-			mons[mndx].mname);
+			NH_MNAME(mons[mndx].mname));
 #endif
 	} else {
 		/* make a random (common) monster that can survive here.
@@ -1431,7 +1431,7 @@ grow_up(struct monst_s *mtmp, struct monst_s *victim) /* `mtmp' might "grow up" 
 	    if (mvitals[newtype].mvflags & G_GENOD) {	/* allow G_EXTINCT */
 		if (sensemon(mtmp))
 		    pline("As %s grows up into %s, %s %s!", mon_nam(mtmp),
-			an(ptr->mname), mhe(mtmp),
+			an(NH_MNAME(ptr->mname)), mhe(mtmp),
 			nonliving(ptr) ? "expires" : "dies");
 		set_mon_data(mtmp, ptr, -1);	/* keep mvitals[] accurate */
 		mondied(mtmp);

@@ -459,8 +459,8 @@ name_to_mon(const char *in_str)
     }
 
 	for (len = 0, i = LOW_PM; i < NUMMONS; i++) {
-	    register int m_i_len = strlen(mons[i].mname);
-	    if (m_i_len > len && !strncmpi(mons[i].mname, str, m_i_len)) {
+	    register int m_i_len = strlen(NH_MNAME(mons[i].mname));
+	    if (m_i_len > len && !strncmpi(NH_MNAME(mons[i].mname), str, m_i_len)) {
 		if (m_i_len == slen) return i;	/* exact match */
 		else if (slen > m_i_len &&
 			(str[m_i_len] == ' ' ||

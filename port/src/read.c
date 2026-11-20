@@ -1479,7 +1479,7 @@ do_class_genocide(void)
 		    if(mons[i].mlet == class) {
 			char nam[BUFSZ];
 
-			Strcpy(nam, makeplural(mons[i].mname));
+			Strcpy(nam, makeplural(NH_MNAME(mons[i].mname)));
 			/* Although "genus" is Latin for race, the hero benefits
 			 * from both race and role; thus genocide affects either.
 			 */
@@ -1540,7 +1540,7 @@ do_class_genocide(void)
 
 				You("aren't permitted to genocide %s%s.",
 				    (uniq && !named) ? "the " : "",
-				    (uniq || named) ? mons[i].mname : nam);
+				    (uniq || named) ? NH_MNAME(mons[i].mname) : nam);
 			    }
 			}
 		    }
@@ -1573,7 +1573,7 @@ do_genocide(int how)
 	if (how & PLAYER) {
 		mndx = u.umonster;	/* non-polymorphed mon num */
 		ptr = &mons[mndx];
-		Strcpy(buf, ptr->mname);
+		Strcpy(buf, NH_MNAME(ptr->mname));
 		killplayer++;
 	} else {
 	    for(i = 0; ; i++) {
@@ -1631,14 +1631,14 @@ do_genocide(int how)
 	which = "all ";
 	if (Hallucination) {
 	    if (Upolyd)
-		Strcpy(buf,youmonst.data->mname);
+		Strcpy(buf,NH_MNAME(youmonst.data->mname));
 	    else {
 		Strcpy(buf, (flags.female && urole.name.f) ?
 				urole.name.f : urole.name.m);
 		buf[0] = lowc(buf[0]);
 	    }
 	} else {
-	    Strcpy(buf, ptr->mname); /* make sure we have standard singular */
+	    Strcpy(buf, NH_MNAME(ptr->mname)); /* make sure we have standard singular */
 	    if ((ptr->geno & G_UNIQ) && ptr != &mons[PM_HIGH_PRIEST])
 		which = !type_is_pname(ptr) ? "the " : "";
 	}

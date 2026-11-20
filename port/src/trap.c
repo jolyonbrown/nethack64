@@ -2181,16 +2181,16 @@ selftouch(const char *arg)
 	if(uwep && uwep->otyp == CORPSE && touch_petrifies(&mons[uwep->corpsenm])
 			&& !Stone_resistance) {
 		pline("%s touch the %s corpse.", arg,
-		        mons[uwep->corpsenm].mname);
-		Sprintf(kbuf, "%s corpse", an(mons[uwep->corpsenm].mname));
+		        NH_MNAME(mons[uwep->corpsenm].mname));
+		Sprintf(kbuf, "%s corpse", an(NH_MNAME(mons[uwep->corpsenm].mname)));
 		instapetrify(kbuf);
 	}
 	/* Or your secondary weapon, if wielded */
 	if(u.twoweap && uswapwep && uswapwep->otyp == CORPSE &&
 			touch_petrifies(&mons[uswapwep->corpsenm]) && !Stone_resistance){
 		pline("%s touch the %s corpse.", arg,
-		        mons[uswapwep->corpsenm].mname);
-		Sprintf(kbuf, "%s corpse", an(mons[uswapwep->corpsenm].mname));
+		        NH_MNAME(mons[uswapwep->corpsenm].mname));
+		Sprintf(kbuf, "%s corpse", an(NH_MNAME(mons[uswapwep->corpsenm].mname)));
 		instapetrify(kbuf);
 	}
 }
@@ -2204,7 +2204,7 @@ mselftouch(struct monst_s *mon, const char *arg, boolean byplayer)
 		if (cansee(mon->mx, mon->my)) {
 			pline("%s%s touches the %s corpse.",
 			    arg ? arg : "", arg ? mon_nam(mon) : Monnam(mon),
-			    mons[mwep->corpsenm].mname);
+			    NH_MNAME(mons[mwep->corpsenm].mname));
 		}
 		minstapetrify(mon, byplayer);
 	}
@@ -3283,7 +3283,7 @@ help_monster_out(struct monst_s *mtmp, struct trap_s *ttmp)
 	/* is it a cockatrice?... */
 	if (touch_petrifies(mtmp->data) && !uarmg && !Stone_resistance) {
 		You("grab the trapped %s using your bare %s.",
-				mtmp->data->mname, makeplural(body_part(HAND)));
+				NH_MNAME(mtmp->data->mname), makeplural(body_part(HAND)));
 
 		if (poly_when_stoned(youmonst.data) && polymon(PM_STONE_GOLEM))
 			display_nhwindow(WIN_MESSAGE, FALSE);
@@ -3291,7 +3291,7 @@ help_monster_out(struct monst_s *mtmp, struct trap_s *ttmp)
 			char kbuf[BUFSZ];
 
 			Sprintf(kbuf, "trying to help %s out of a pit",
-					an(mtmp->data->mname));
+					an(NH_MNAME(mtmp->data->mname)));
 			instapetrify(kbuf);
 			return 1;
 		}

@@ -355,7 +355,7 @@ mattacku(struct monst_s *mtmp)
 			newsym(u.ux,u.uy);
 		    } else {
 			pline("%s is killed by a falling %s (you)!",
-					Monnam(mtmp), youmonst.data->mname);
+					Monnam(mtmp), NH_MNAME(youmonst.data->mname));
 			killed(mtmp);
 			newsym(u.ux,u.uy);
 			if (mtmp->mhp > 0) return 0;
@@ -399,10 +399,10 @@ mattacku(struct monst_s *mtmp)
 			    }
 			    if (youmonst.data->mlet == S_EEL)
 		pline("Wait, %s!  There's a hidden %s named %s there!",
-				m_monnam(mtmp), youmonst.data->mname, plname);
+				m_monnam(mtmp), NH_MNAME(youmonst.data->mname), plname);
 			    else
 	     pline("Wait, %s!  There's a %s named %s hiding under %s!",
-				m_monnam(mtmp), youmonst.data->mname, plname,
+				m_monnam(mtmp), NH_MNAME(youmonst.data->mname), plname,
 				doname(level.objects[u.ux][u.uy]));
 			    if (obj) obj->spe = save_spe;
 			} else
@@ -416,7 +416,7 @@ mattacku(struct monst_s *mtmp)
 		    !range2 && foundyou && !u.uswallow) {
 		if (!youseeit) pline("It gets stuck on you.");
 		else pline("Wait, %s!  That's a %s named %s!",
-			   m_monnam(mtmp), youmonst.data->mname, plname);
+			   m_monnam(mtmp), NH_MNAME(youmonst.data->mname), plname);
 		u.ustuck = mtmp;
 		youmonst.m_ap_type = M_AP_NOTHING;
 		youmonst.mappearance = 0;
@@ -433,12 +433,12 @@ mattacku(struct monst_s *mtmp)
 	    else pline("Wait, %s!  That %s is really %s named %s!",
 			m_monnam(mtmp),
 			mimic_obj_name(&youmonst),
-			an(mons[u.umonnum].mname),
+			an(NH_MNAME(mons[u.umonnum].mname)),
 			plname);
 	    if (multi < 0) {	/* this should always be the case */
 		char buf[BUFSZ];
 		Sprintf(buf, "You appear to be %s again.",
-			Upolyd ? (const char *) an(youmonst.data->mname) :
+			Upolyd ? (const char *) an(NH_MNAME(youmonst.data->mname)) :
 			    (const char *) "yourself");
 		unmul(buf);	/* immediately stop mimicking */
 	    }
@@ -755,7 +755,7 @@ diseasemu(struct permonst *mdat)
 		return FALSE;
 	} else {
 		make_sick(Sick ? Sick/3L + 1L : (long)rn1(ACURR(A_CON), 20),
-			mdat->mname, TRUE, SICK_NONVOMITABLE);
+			NH_MNAME(mdat->mname), TRUE, SICK_NONVOMITABLE);
 		return TRUE;
 	}
 }
@@ -917,7 +917,7 @@ hitmu(struct monst_s *mtmp, struct attack_s *mattk)
 				&& touch_petrifies(&mons[otmp->corpsenm])) {
 			    dmg = 1;
 			    pline("%s hits you with the %s corpse.",
-				Monnam(mtmp), mons[otmp->corpsenm].mname);
+				Monnam(mtmp), NH_MNAME(mons[otmp->corpsenm].mname));
 			    if (!Stoned)
 				goto do_stone;
 			}
@@ -1032,7 +1032,7 @@ dopois:
 		if (uncancelled && !rn2(8)) {
 		    Sprintf(buf, "%s %s",
 			    s_suffix(Monnam(mtmp)), mpoisons_subj(mtmp, mattk));
-		    poisoned(buf, ptmp, mdat->mname, 30);
+		    poisoned(buf, ptmp, NH_MNAME(mdat->mname), 30);
 		}
 		break;
 	    case AD_DRIN:
@@ -1172,7 +1172,7 @@ dopois:
 				    && !(poly_when_stoned(youmonst.data) &&
 					polymon(PM_STONE_GOLEM))) {
 				Stoned = 5;
-				delayed_killer = mtmp->data->mname;
+				delayed_killer = NH_MNAME(mtmp->data->mname);
 				if (mtmp->data->geno & G_UNIQ) {
 				    if (!type_is_pname(mtmp->data)) {
 					static char kbuf[BUFSZ];
@@ -1219,7 +1219,7 @@ dopois:
 			    killer_format = KILLED_BY_AN;
 			    Sprintf(buf, "%s by %s",
 				    moat ? "moat" : "pool of water",
-				    an(mtmp->data->mname));
+				    an(NH_MNAME(mtmp->data->mname)));
 			    killer = buf;
 			    done(DROWNING);
 			} else if(mattk->aatyp == AT_HUGS)
@@ -1515,7 +1515,7 @@ dopois:
 		    Slimed = 10L;
 		    flags.botl = 1;
 		    killer_format = KILLED_BY_AN;
-		    delayed_killer = mtmp->data->mname;
+		    delayed_killer = NH_MNAME(mtmp->data->mname);
 		} else
 		    pline("Yuck!");
 		break;
@@ -1913,7 +1913,7 @@ gazemu(struct monst_s *mtmp, struct attack_s *mattk) /* monster gazes at you */
 			break;
 		    You("turn to stone...");
 		    killer_format = KILLED_BY;
-		    killer = mtmp->data->mname;
+		    killer = NH_MNAME(mtmp->data->mname);
 		    done(STONING);
 		}
 		break;
@@ -2492,7 +2492,7 @@ passiveum(struct permonst *olduasmon,
 				(perceives(mtmp->data) || !Invis)) {
 			if (Blind)
 			    pline("As a blind %s, you cannot defend yourself.",
-							youmonst.data->mname);
+							NH_MNAME(youmonst.data->mname));
 		        else {
 			    if (mon_reflects(mtmp,
 					    "Your gaze is reflected by %s %s."))

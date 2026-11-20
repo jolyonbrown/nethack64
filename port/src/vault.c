@@ -768,7 +768,7 @@ paygd(void)
 	    gy = rooms[EGD(grd)->vroom].ly + rn2(2);
 	    Sprintf(buf,
 		"To Croesus: here's the gold recovered from %s the %s.",
-		plname, mons[u.umonster].mname);
+		plname, NH_MNAME(mons[u.umonster].mname));
 	    make_grave(gx, gy, buf);
 	}
 #ifndef GOLDOBJ

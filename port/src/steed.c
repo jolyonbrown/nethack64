@@ -82,7 +82,7 @@ use_saddle(struct obj_s *otmp)
 
 	    You("touch %s.", mon_nam(mtmp));
  	    if (!(poly_when_stoned(youmonst.data) && polymon(PM_STONE_GOLEM))) {
-		Sprintf(kbuf, "attempting to saddle %s", an(mtmp->data->mname));
+		Sprintf(kbuf, "attempting to saddle %s", an(NH_MNAME(mtmp->data->mname)));
 		instapetrify(kbuf);
  	    }
 	}
@@ -262,7 +262,7 @@ mount_steed(struct monst_s *mtmp, boolean force)
 	    char kbuf[BUFSZ];
 
 	    You("touch %s.", mon_nam(mtmp));
-	    Sprintf(kbuf, "attempting to ride %s", an(mtmp->data->mname));
+	    Sprintf(kbuf, "attempting to ride %s", an(NH_MNAME(mtmp->data->mname)));
 	    instapetrify(kbuf);
 	}
 	if (!mtmp->mtame || mtmp->isminion) {
@@ -509,7 +509,7 @@ dismount_steed(int reason)
 		}
 		if (!mtmp->mnamelth) {
 			pline("You've been through the dungeon on %s with no name.",
-				an(mtmp->data->mname));
+				an(NH_MNAME(mtmp->data->mname)));
 			if (Hallucination)
 				pline("It felt good to get out of the rain.");
 		} else

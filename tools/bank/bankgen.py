@@ -1020,6 +1020,14 @@ extern __noinline char *nh_res(const char *p);
 extern char *nh_keep(char *buf, unsigned size, const char *p);
 #define NH_KEEP(buf, p) nh_keep((buf), sizeof(buf), (p))
 #define NH_KEEPBUF(decl) decl
+#if defined(NH_FAR_MNAMES) || defined(NH_FAR_ONAMES)
+/* far names (permonst.h, objclass.h): NH_MNAME() and NH_ONAME() copy one into a ring of
+ * near buffers, long enough for the longest ("cheap plastic imitation of the Amulet of
+ * Yendor"); nh_keep() copies out of the ring too */
+#define NH_NAME_SLOTS 8
+#define NH_NAME_LEN 48
+extern char nh_name_ring[NH_NAME_SLOTS][NH_NAME_LEN];
+#endif
 %s
 
 #ifdef NHBANK_DEFINE
@@ -1091,12 +1099,57 @@ nh_unstash(const char *s, unsigned char b)
 	return p;
 }
 
+#if defined(NH_FAR_MNAMES) || defined(NH_FAR_ONAMES)
+char nh_name_ring[NH_NAME_SLOTS][NH_NAME_LEN];
+static unsigned char nh_name_next;
+
+/* the far runtime: n bytes at address p of far space s into d */
+extern void nh_farcopy(char *d, const char *p, unsigned n, unsigned char s);
+
+/* A name is at $E000-$FFFF of its space (permonst.h); anything below is null or a near
+ * string (options.c points the fruit's name at pl_fruit), returned as it is. */
+static const char *
+nh_name(const char *p, unsigned char s)
+{
+	char *d;
+	unsigned n;
+
+	nh_addr = (unsigned)p;
+	if (nh_addr < 0xe000u)
+		return p;
+	d = nh_name_ring[nh_name_next++ & (NH_NAME_SLOTS - 1)];
+	n = 0u - nh_addr;			/* bytes up to the end of the space */
+	if (n > NH_NAME_LEN - 1)
+		n = NH_NAME_LEN - 1;
+	nh_farcopy(d, p, n, s);
+	d[n] = 0;
+	return d;
+}
+#endif
+#ifdef NH_FAR_MNAMES
+const char *
+nh_mname(const char *p)
+{
+	return nh_name(p, 1);
+}
+#endif
+#ifdef NH_FAR_ONAMES
+const char *
+nh_oname(const char *p)
+{
+	return nh_name(p, 2);
+}
+#endif
+
 char *
 nh_keep(char *buf, unsigned size, const char *p)
 {
 	unsigned i;
 
 	if (!p || (!NH_IN_WINDOW(p) && (p < nh_stash_buf[0] || p >= nh_stash_buf[4]) &&
+#if defined(NH_FAR_MNAMES) || defined(NH_FAR_ONAMES)
+		   (p < nh_name_ring[0] || p >= nh_name_ring[NH_NAME_SLOTS]) &&
+#endif
 		   (p < nh_args || p >= nh_args + sizeof(nh_args))))
 		return (char *)p;
 	for (i = 0; i + 1 < size && p[i]; i++)

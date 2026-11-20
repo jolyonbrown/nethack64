@@ -120,8 +120,26 @@ struct objclass {
 #pragma farspace(2, objclass)
 #pragma section(farobjs, 0)
 #pragma farsection(farobjs, 2)
-#pragma region(farobjs, 0x8000, 0x10000, , 110, { farobjs })
+#pragma region(farobjs, 0x8000, 0xe000, , 110, { farobjs })
 #define NH_FAR_OBJS
+/* obj_descr[]'s names and descriptions at $E000-$FFFF of the space, copied out by
+ * NH_ONAME() as permonst.h's mnames are by NH_MNAME() */
+#pragma section(faronames, 0)
+#pragma region(faronames, 0xe000, 0x10000, , 110, { faronames })
+#define NH_FAR_ONAMES
+#endif
+
+#ifdef NH_FAR_ONAMES
+/* a near copy of an object's name or description (the far runtime); options.c may point
+ * the fruit's at a near string, which it returns as it is */
+extern const char *nh_oname(const char *);
+#define NH_ONAME(p) nh_oname(p)
+#elif defined(NH_NAME_RING_TEST)
+/* the host's check of how long a copy is held (decl.c) */
+extern const char *nh_name_test(const char *);
+#define NH_ONAME(p) nh_name_test(p)
+#else
+#define NH_ONAME(p) (p)
 #endif
 
 #if defined(C64) && defined(__OSCAR64C__)
@@ -206,6 +224,6 @@ struct fruit {
 #define newfruit() (struct fruit *)alloc(sizeof(struct fruit))
 #define dealloc_fruit(rind) free((genericptr_t) (rind))
 
-#define OBJ_NAME(obj)  (obj_descr[(obj).oc_name_idx].oc_name)
-#define OBJ_DESCR(obj) (obj_descr[(obj).oc_descr_idx].oc_descr)
+#define OBJ_NAME(obj)  NH_ONAME(obj_descr[(obj).oc_name_idx].oc_name)
+#define OBJ_DESCR(obj) NH_ONAME(obj_descr[(obj).oc_descr_idx].oc_descr)
 #endif /* OBJCLASS_H */

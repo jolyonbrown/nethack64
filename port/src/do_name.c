@@ -653,7 +653,7 @@ x_monnam(struct monst_s *mtmp,
 	    Strcat(buf, " the ");
 	    if (do_invis)
 		Strcat(buf, "invisible ");
-	    Strcat(buf, mdat->mname);
+	    Strcat(buf, NH_MNAME(mdat->mname));
 	    return buf;
 	}
 
@@ -684,7 +684,7 @@ x_monnam(struct monst_s *mtmp,
 		Sprintf(eos(buf), "%s ghost", s_suffix(name));
 		name_at_start = TRUE;
 	    } else if (called) {
-		Sprintf(eos(buf), "%s called %s", mdat->mname, name);
+		Sprintf(eos(buf), "%s called %s", NH_MNAME(mdat->mname), name);
 		name_at_start = (boolean)type_is_pname(mdat);
 	    } else if (is_mplayer(mdat) && (bp = strstri(name, " the ")) != 0) {
 		/* <name> the <adjective> <invisible> <saddled> <rank> */
@@ -710,7 +710,7 @@ x_monnam(struct monst_s *mtmp,
 	    Strcat(buf, lcase(pbuf));
 	    name_at_start = FALSE;
 	} else {
-	    Strcat(buf, mdat->mname);
+	    Strcat(buf, NH_MNAME(mdat->mname));
 	    name_at_start = (boolean)type_is_pname(mdat);
 	}
 
@@ -939,7 +939,7 @@ rndmonnam(void)
 	    (type_is_pname(&mons[name]) || (mons[name].geno & G_NOGEN)));
 
 	if (name >= SPECIAL_PM) return bogusmons[name - SPECIAL_PM];
-	return mons[name].mname;
+	return NH_MNAME(mons[name].mname);
 }
 
 #ifdef REINCARNATION

@@ -72,6 +72,20 @@ pointers at 16 bits: the type of the pointer says which space it is an address i
   handled: the far build's checksum oracle (`farify.py`) is the first check.
 - Open: strings (37.7 KB of literals reached as `char *`, which mixes provenance): keep them
   banked with today's trampolines, or a string space with a range test. Decided separately.
+  Amended 2026-11-20 (T2.12), both, by where a literal is read from:
+  - a read-only table and its literals go into the bank of the code that reads them, when
+    that code is all in one bank (`tools/bank/tables.py`, bankgen.py's `bank_data`): they
+    then cross banks as that bank's own literals do (copied as `char *` arguments and
+    results, kept by `NH_KEEP`). A table whose elements are not const and whose address is
+    taken stays resident (`u_init.c`'s `ini_inv()` writes through one);
+  - the names of `mons[]` and `obj_descr[]`, which code in every bank reads, form a string
+    space: the literals at `$E000-$FFFF` of far spaces 1 and 2, read in place by no code.
+    Every read of `mname`, `oc_name` or `oc_descr` goes through `NH_MNAME()`/`NH_ONAME()`
+    (`tools/farnames.py`), which copies the name into one of eight 48-byte near buffers (an
+    address below `$E000` is a near string, returned as it is), and `nh_keep()` copies out
+    of that ring for a pointer kept in a variable (`killer`). How long a copy is held is
+    checked on the host: `-DNH_NAME_RING_TEST` frees each copy eight reads later, under
+    AddressSanitizer.
 - Zero page: reused and pinned translations stay in zero page, and the game is close to the
   end of Oscar64's area already (`m_move` reaches $8B of $8F, 2026-11-16); in the experiment
   with all four types far, `mfndpos` needs $90 before any reuse and $88 with it

@@ -162,7 +162,7 @@ ldrname(void) /* return your role leader's name */
 
 	Sprintf(nambuf, "%s%s",
 		type_is_pname(&mons[i]) ? "" : "the ",
-		mons[i].mname);
+		NH_MNAME(mons[i].mname));
 	return nambuf;
 }
 
@@ -185,7 +185,7 @@ neminame(void) /* return your role nemesis' name */
 
 	Sprintf(nambuf, "%s%s",
 		type_is_pname(&mons[i]) ? "" : "the ",
-		mons[i].mname);
+		NH_MNAME(mons[i].mname));
 	return nambuf;
 }
 
@@ -194,7 +194,7 @@ guardname(void) /* return your role leader's guard monster name */
 {
 	int i = urole.guardnum;
 
-	return(mons[i].mname);
+	return(NH_MNAME(mons[i].mname));
 }
 
 STATIC_OVL const char *

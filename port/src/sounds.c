@@ -193,8 +193,8 @@ dosounds(void)
 	    if (DEADMONSTER(mtmp)) continue;
 	    if (is_mercenary(mtmp->data) &&
 #if 0		/* don't bother excluding these */
-		!strstri(mtmp->data->mname, "watch") &&
-		!strstri(mtmp->data->mname, "guard") &&
+		!strstri(NH_MNAME(mtmp->data->mname), "watch") &&
+		!strstri(NH_MNAME(mtmp->data->mname), "guard") &&
 #endif
 		mon_in_room(mtmp, BARRACKS) &&
 		/* sleeping implies not-yet-disturbed (usually) */
@@ -517,7 +517,7 @@ domonnoise(struct monst_s *mtmp)
 	    			verbl_msg = verbuf;
 			    } else if (vampindex == 1) {
 				Sprintf(verbuf, vampmsg[vampindex],
-					Upolyd ? an(mons[u.umonnum].mname) : an(racenoun));
+					Upolyd ? an(NH_MNAME(mons[u.umonnum].mname)) : an(racenoun));
 	    			verbl_msg = verbuf;
 		    	    } else
 			    	verbl_msg = vampmsg[vampindex];
@@ -832,7 +832,7 @@ dochat(void)
     struct obj_s *otmp;
 
     if (is_silent(youmonst.data)) {
-	pline("As %s, you cannot speak.", an(youmonst.data->mname));
+	pline("As %s, you cannot speak.", an(NH_MNAME(youmonst.data->mname)));
 	return(0);
     }
     if (Strangled) {

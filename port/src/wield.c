@@ -131,8 +131,8 @@ ready_weapon(struct obj_s *wep)
 	    char kbuf[BUFSZ];
 
 	    You("wield the %s corpse in your bare %s.",
-		mons[wep->corpsenm].mname, makeplural(body_part(HAND)));
-	    Sprintf(kbuf, "%s corpse", an(mons[wep->corpsenm].mname));
+		NH_MNAME(mons[wep->corpsenm].mname), makeplural(body_part(HAND)));
+	    Sprintf(kbuf, "%s corpse", an(NH_MNAME(mons[wep->corpsenm].mname)));
 	    instapetrify(kbuf);
 	} else if (uarms && bimanual(wep))
 	    You("cannot wield a two-handed %s while wearing a shield.",
@@ -493,8 +493,8 @@ can_twoweapon(void)
 		char kbuf[BUFSZ];
 
 		You("wield the %s corpse with your bare %s.",
-		    mons[uswapwep->corpsenm].mname, body_part(HAND));
-		Sprintf(kbuf, "%s corpse", an(mons[uswapwep->corpsenm].mname));
+		    NH_MNAME(mons[uswapwep->corpsenm].mname), body_part(HAND));
+		Sprintf(kbuf, "%s corpse", an(NH_MNAME(mons[uswapwep->corpsenm].mname)));
 		instapetrify(kbuf);
 	} else if (Glib || uswapwep->cursed) {
 		if (!Glib)

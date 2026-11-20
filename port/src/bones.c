@@ -274,7 +274,7 @@ savebones(struct obj_s *corpse)
 		mtmp = christen_monst(mtmp, plname);
 		newsym(u.ux, u.uy);
 		Your("body rises from the dead as %s...",
-			an(mons[u.ugrave_arise].mname));
+			an(NH_MNAME(mons[u.ugrave_arise].mname)));
 		display_nhwindow(WIN_MESSAGE, FALSE);
 		drop_upon_death(mtmp, (struct obj_s *)0);
 		m_dowear(mtmp, TRUE);
@@ -430,7 +430,7 @@ getbones(void)
 #if defined(DEBUG) && defined(WIZARD)
 				if (wizard)
 				    pline("Removing defunct monster %s from bones.",
-					mtmp->data->mname);
+					NH_MNAME(mtmp->data->mname));
 #endif
 				mongone(mtmp);
 			    } else

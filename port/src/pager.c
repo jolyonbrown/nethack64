@@ -72,7 +72,7 @@ lookat(int x, int y, char *buf, char *monbuf)
 	Sprintf(buf, "%s%s%s called %s",
 		Invis ? "invisible " : "",
 		race,
-		mons[u.umonnum].mname,
+		NH_MNAME(mons[u.umonnum].mname),
 		plname);
 	/* file lookup can't distinguish between "gnomish wizard" monster
 	   and correspondingly named player character, always picking the
@@ -217,7 +217,7 @@ lookat(int x, int y, char *buf, char *monbuf)
 				Strcat(monbuf, "paranoid delusion");
 			else {
 				Sprintf(wbuf, "warned of %s",
-					makeplural(mtmp->data->mname));
+					makeplural(NH_MNAME(mtmp->data->mname)));
 		    		Strcat(monbuf, wbuf);
 		    	}
 		    	if (ways_seen-- > 1) Strcat(monbuf, ", ");
@@ -317,7 +317,7 @@ checkfile(char *inp,
      * user_typed_name and picked name.
      */
     if (pm != (struct permonst *) 0 && !user_typed_name)
-	dbase_str = strcpy(newstr, pm->mname);
+	dbase_str = strcpy(newstr, NH_MNAME(pm->mname));
     else dbase_str = strcpy(newstr, inp);
     (void) lcase(dbase_str);
 

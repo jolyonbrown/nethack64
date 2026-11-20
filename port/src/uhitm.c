@@ -707,8 +707,8 @@ hmon_hitmon(struct monst_s *mon, struct obj_s *obj, int thrown)
 			    tmp = 1;
 			    hittxt = TRUE;
 			    You("hit %s with %s %s.", mon_nam(mon),
-				obj->dknown ? the(mons[obj->corpsenm].mname) :
-				an(mons[obj->corpsenm].mname),
+				obj->dknown ? the(NH_MNAME(mons[obj->corpsenm].mname)) :
+				an(NH_MNAME(mons[obj->corpsenm].mname)),
 				(obj->quan > 1) ? makeplural(withwhat) : withwhat);
 			    if (!munstone(mon, TRUE))
 				minstapetrify(mon, TRUE);
@@ -748,7 +748,7 @@ hmon_hitmon(struct monst_s *mon, struct obj_s *obj, int thrown)
 			    pline("Splat! You hit %s with %s %s egg%s!",
 				mon_nam(mon),
 				obj->known ? "the" : cnt > 1L ? "some" : "a",
-				obj->known ? mons[obj->corpsenm].mname : "petrifying",
+				obj->known ? NH_MNAME(mons[obj->corpsenm].mname) : "petrifying",
 				plur(cnt));
 			    obj->known = 1;	/* (not much point...) */
 			    useup_eggs(obj);
@@ -759,7 +759,7 @@ hmon_hitmon(struct monst_s *mon, struct obj_s *obj, int thrown)
 			} else {	/* ordinary egg(s) */
 			    const char *eggp =
 				     (obj->corpsenm != NON_PM && obj->known) ?
-					      the(mons[obj->corpsenm].mname) :
+					      the(NH_MNAME(mons[obj->corpsenm].mname)) :
 					      (cnt > 1L) ? "some" : "an";
 			    You("hit %s with %s egg%s.",
 				mon_nam(mon), eggp, plur(cnt));
@@ -1231,7 +1231,7 @@ steal_it(struct monst_s *mdef, struct attack_s *mattk)
 		    touch_petrifies(&mons[otmp->corpsenm]) && !uarmg) {
 		char kbuf[BUFSZ];
 
-		Sprintf(kbuf, "stolen %s corpse", mons[otmp->corpsenm].mname);
+		Sprintf(kbuf, "stolen %s corpse", NH_MNAME(mons[otmp->corpsenm].mname));
 		instapetrify(kbuf);
 		break;		/* stop the theft even if hero survives */
 	    }
@@ -1514,7 +1514,7 @@ damageum(struct monst_s *mdef, struct attack_s *mattk)
 		if (touch_petrifies(mdef->data) && !Stone_resistance && !Stoned) {
 		    Stoned = 5;
 		    killer_format = KILLED_BY_AN;
-		    delayed_killer = mdef->data->mname;
+		    delayed_killer = NH_MNAME(mdef->data->mname);
 		}
 		if (!vegan(mdef->data))
 		    u.uconduct.unvegan++;
@@ -1738,7 +1738,7 @@ gulpum(struct monst_s *mdef, struct attack_s *mattk)
 			 pline("Unfortunately, digesting any of it is fatal.");
 			    end_engulf();
 			    Sprintf(msgbuf, "unwisely tried to eat %s",
-				    mdef->data->mname);
+				    NH_MNAME(mdef->data->mname));
 			    killer = msgbuf;
 			    killer_format = NO_KILLER_PREFIX;
 			    done(DIED);
@@ -1788,7 +1788,7 @@ gulpum(struct monst_s *mdef, struct attack_s *mattk)
 			    } else pline("%s", msgbuf);
 			    if (mdef->data == &mons[PM_GREEN_SLIME]) {
 				Sprintf(msgbuf, "%s isn't sitting well with you.",
-					The(mdef->data->mname));
+					The(NH_MNAME(mdef->data->mname)));
 				if (!Unchanging) {
 					Slimed = 5L;
 					flags.botl = 1;
@@ -1876,7 +1876,7 @@ gulpum(struct monst_s *mdef, struct attack_s *mattk)
 		char kbuf[BUFSZ];
 
 		You("bite into %s.", mon_nam(mdef));
-		Sprintf(kbuf, "swallowing %s whole", an(mdef->data->mname));
+		Sprintf(kbuf, "swallowing %s whole", an(NH_MNAME(mdef->data->mname)));
 		instapetrify(kbuf);
 	    }
 	}

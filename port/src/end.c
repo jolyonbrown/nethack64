@@ -215,7 +215,7 @@ done_in_by(struct monst_s *mtmp)
 		killer = m_monnam(mtmp);
 		Strcat(buf, killer);
 	} else {
-		Strcat(buf, mtmp->data->mname);
+		Strcat(buf, NH_MNAME(mtmp->data->mname));
 		if (mtmp->mnamelth)
 		    Sprintf(eos(buf), " called %s", NAME(mtmp));
 	}
@@ -995,7 +995,7 @@ list_vanquished(char defquery, boolean ask)
 		    if ((mons[i].geno & G_UNIQ) && i != PM_HIGH_PRIEST) {
 			Sprintf(buf, "%s%s",
 				!type_is_pname(&mons[i]) ? "The " : "",
-				mons[i].mname);
+				NH_MNAME(mons[i].mname));
 			if (nkilled > 1) {
 			    switch (nkilled) {
 				case 2:  Sprintf(eos(buf)," (twice)");  break;
@@ -1009,10 +1009,10 @@ list_vanquished(char defquery, boolean ask)
 			/* trolls or undead might have come back,
 			   but we don't keep track of that */
 			if (nkilled == 1)
-			    Strcpy(buf, an(mons[i].mname));
+			    Strcpy(buf, an(NH_MNAME(mons[i].mname)));
 			else
 			    Sprintf(buf, "%d %s",
-				    nkilled, makeplural(mons[i].mname));
+				    nkilled, makeplural(NH_MNAME(mons[i].mname)));
 		    }
 		    putstr(klwin, 0, buf);
 		}
@@ -1069,9 +1069,9 @@ list_genocided(char defquery, boolean ask)
 		    if ((mons[i].geno & G_UNIQ) && i != PM_HIGH_PRIEST)
 			Sprintf(buf, "%s%s",
 				!type_is_pname(&mons[i]) ? "" : "the ",
-				mons[i].mname);
+				NH_MNAME(mons[i].mname));
 		    else
-			Strcpy(buf, makeplural(mons[i].mname));
+			Strcpy(buf, makeplural(NH_MNAME(mons[i].mname)));
 		    putstr(klwin, 0, buf);
 		}
 

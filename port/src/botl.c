@@ -174,7 +174,7 @@ bot1(void)
 		char mbot[BUFSZ];
 		int k = 0;
 
-		Strcpy(mbot, mons[u.umonnum].mname);
+		Strcpy(mbot, NH_MNAME(mons[u.umonnum].mname));
 		while(mbot[k] != 0) {
 		    if ((k == 0 || (k > 0 && mbot[k-1] == ' ')) &&
 					'a' <= mbot[k] && mbot[k] <= 'z')

@@ -99,3 +99,11 @@ __asm farxz3
 /* the pin slots of the compiler's groups of accesses */
 unsigned char farpins[4];
 #pragma runtime(farpins, farpins)
+
+/* far names (permonst.h, objclass.h): every page maps to itself, so a copy from the
+ * space is a copy in place */
+void nh_farcopy(char *d, const char *p, unsigned n, unsigned char s)
+{
+	while (n--)
+		*d++ = *p++;
+}

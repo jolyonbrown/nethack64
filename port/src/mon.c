@@ -1499,7 +1499,7 @@ corpse_chance(struct monst_s *mon, struct monst_s *magr, boolean was_swallowed)
 			There("is an explosion in your %s!",
 			      body_part(STOMACH));
 			Sprintf(killer_buf, "%s explosion",
-				s_suffix(mdat->mname));
+				s_suffix(NH_MNAME(mdat->mname)));
 			if (Half_physical_damage) tmp = (tmp+1) / 2;
 			losehp(tmp, killer_buf, KILLED_BY_AN);
 		    } else {
@@ -1517,7 +1517,7 @@ corpse_chance(struct monst_s *mon, struct monst_s *magr, boolean was_swallowed)
 		    return FALSE;
 		}
 
-	    	Sprintf(killer_buf, "%s explosion", s_suffix(mdat->mname));
+	    	Sprintf(killer_buf, "%s explosion", s_suffix(NH_MNAME(mdat->mname)));
 	    	killer = killer_buf;
 	    	killer_format = KILLED_BY_AN;
 	    	explode(mon->mx, mon->my, -1, tmp, MON_EXPLODE, EXPL_NOXIOUS); 
@@ -1887,7 +1887,7 @@ mon_to_stone(struct monst_s *mtmp)
 	    pline("%s solidifies...", Monnam(mtmp));
 	if (newcham(mtmp, &mons[PM_STONE_GOLEM], FALSE, FALSE)) {
 	    if(canseemon(mtmp))
-		pline("Now it's %s.", an(mtmp->data->mname));
+		pline("Now it's %s.", an(NH_MNAME(mtmp->data->mname)));
 	} else {
 	    if(canseemon(mtmp))
 		pline("... and returns to normal.");
@@ -2094,8 +2094,8 @@ setmangry(struct monst_s *mtmp)
 		}
 	    if (got_mad && !Hallucination)
 		pline_The("%s appear%s to be angry too...",
-		      got_mad == 1 ? q_guardian->mname :
-				    makeplural(q_guardian->mname),
+		      got_mad == 1 ? NH_MNAME(q_guardian->mname) :
+				    makeplural(NH_MNAME(q_guardian->mname)),
 		      got_mad == 1 ? "s" : "");
 	}
 }

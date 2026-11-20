@@ -12,6 +12,10 @@
 #                                        port/src/vis_tab.c, port/src/monstr.c
 #   tools/host-build.sh --sanitize       full build with AddressSanitizer + UBSan, installed to
 #                                        build/host-asan-install (known reports: NETHACK-SURVEY.md)
+#   HOST_DEFS=-DNH_NAME_RING_TEST tools/host-build.sh --sanitize
+#                                        each monster or object name read gets a copy freed
+#                                        eight reads later, as the C64's ring reuses its
+#                                        buffers (decl.c): a name held too long is a report
 #   tools/host-build.sh --profile        full build for gprof (-pg, no inlining, no sibling
 #                                        calls, so every call is an arc), installed to
 #                                        build/host-prof-install (tools/profile_play.py)
@@ -58,7 +62,7 @@ fi
 
 # compiler flags: the converted source is ANSI; keep prototypes narrow like
 # the C64 build (UNWIDENED_PROTOTYPES), silence 1990s-era warnings.
-sed -i "s|^CFLAGS = -O -I../include|CFLAGS = -O -g $SAN -std=gnu89 -w -DUNWIDENED_PROTOTYPES -I../include|" src/Makefile
+sed -i "s|^CFLAGS = -O -I../include|CFLAGS = -O -g $SAN -std=gnu89 -w -DUNWIDENED_PROTOTYPES ${HOST_DEFS:-} -I../include|" src/Makefile
 # util/ links some of src/'s objects, so it needs the sanitizer (or profiling) runtime too
 [ -z "$SAN" ] || sed -i "s|^LFLAGS =.*|LFLAGS = $SAN|" src/Makefile util/Makefile
 sed -i 's|^CFLAGS = -O -I../include|CFLAGS = -O -g -std=gnu89 -w -I../include|' util/Makefile

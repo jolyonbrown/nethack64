@@ -2245,11 +2245,11 @@ feel_cockatrice(struct obj_s *otmp, boolean force_touch)
 	if (will_feel_cockatrice(otmp, force_touch)) {
 	    if(poly_when_stoned(youmonst.data))
 			You("touched the %s corpse with your bare %s.",
-				mons[otmp->corpsenm].mname, makeplural(body_part(HAND)));
+				NH_MNAME(mons[otmp->corpsenm].mname), makeplural(body_part(HAND)));
 	    else
 			pline("Touching the %s corpse is a fatal mistake...",
-				mons[otmp->corpsenm].mname);
-		Sprintf(kbuf, "%s corpse", an(mons[otmp->corpsenm].mname));
+				NH_MNAME(mons[otmp->corpsenm].mname));
+		Sprintf(kbuf, "%s corpse", an(NH_MNAME(mons[otmp->corpsenm].mname)));
 		instapetrify(kbuf);
 	}
 }

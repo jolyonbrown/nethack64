@@ -242,7 +242,7 @@ char *
 priestname(struct monst_s *mon, char *pname)
 /* caller-supplied output buffer */
 {
-	const char *what = Hallucination ? rndmonnam() : mon->data->mname;
+	const char *what = Hallucination ? rndmonnam() : NH_MNAME(mon->data->mname);
 
 	Strcpy(pname, "the ");
 	if (mon->minvis) Strcat(pname, "invisible ");

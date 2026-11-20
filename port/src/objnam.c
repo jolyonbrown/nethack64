@@ -287,8 +287,8 @@ xname(struct obj_s *obj)
 		/* it whenever calling doname() or xname(). */
 		if (typ == FIGURINE)
 		    Sprintf(eos(buf), " of a%s %s",
-			index(vowels,*(mons[obj->corpsenm].mname)) ? "n" : "",
-			mons[obj->corpsenm].mname);
+			index(vowels,*(NH_MNAME(mons[obj->corpsenm].mname))) ? "n" : "",
+			NH_MNAME(mons[obj->corpsenm].mname));
 		break;
 	    case ARMOR_CLASS:
 		/* depends on order of the dragon scales objects */
@@ -347,9 +347,9 @@ xname(struct obj_s *obj)
 		    else if (obj->corpsenm == NON_PM)
 		        Strcpy(buf, "empty tin");
 		    else if (vegetarian(&mons[obj->corpsenm]))
-			Sprintf(eos(buf), " of %s", mons[obj->corpsenm].mname);
+			Sprintf(eos(buf), " of %s", NH_MNAME(mons[obj->corpsenm].mname));
 		    else
-			Sprintf(eos(buf), " of %s meat", mons[obj->corpsenm].mname);
+			Sprintf(eos(buf), " of %s meat", NH_MNAME(mons[obj->corpsenm].mname));
 		}
 		break;
 	    case COIN_CLASS:
@@ -363,9 +363,9 @@ xname(struct obj_s *obj)
 			actualn,
 			type_is_pname(&mons[obj->corpsenm]) ? "" :
 			  (mons[obj->corpsenm].geno & G_UNIQ) ? "the " :
-			    (index(vowels,*(mons[obj->corpsenm].mname)) ?
+			    (index(vowels,*(NH_MNAME(mons[obj->corpsenm].mname))) ?
 								"an " : "a "),
-			mons[obj->corpsenm].mname);
+			NH_MNAME(mons[obj->corpsenm].mname));
 		else Strcpy(buf, actualn);
 		break;
 	    case BALL_CLASS:
@@ -702,10 +702,10 @@ ring:
 			Sprintf(prefix, "%s%s ",
 				(type_is_pname(&mons[obj->corpsenm]) ?
 					"" : "the "),
-				s_suffix(mons[obj->corpsenm].mname));
+				s_suffix(NH_MNAME(mons[obj->corpsenm].mname)));
 			if (obj->oeaten) Strcat(prefix, "partly eaten ");
 		    } else {
-			Strcat(prefix, mons[obj->corpsenm].mname);
+			Strcat(prefix, NH_MNAME(mons[obj->corpsenm].mname));
 			Strcat(prefix, " ");
 		    }
 		} else if (obj->otyp == EGG) {
@@ -716,7 +716,7 @@ ring:
 		    if (obj->corpsenm >= LOW_PM &&
 			    (obj->known ||
 			    mvitals[obj->corpsenm].mvflags & MV_KNOWS_EGG)) {
-			Strcat(prefix, mons[obj->corpsenm].mname);
+			Strcat(prefix, NH_MNAME(mons[obj->corpsenm].mname));
 			Strcat(prefix, " ");
 			if (obj->spe)
 			    Strcat(bp, " (laid by you)");
@@ -821,7 +821,7 @@ corpse_xname(struct obj_s *otmp, boolean ignore_oquan)
 {
 	char *nambuf = nextobuf();
 
-	Sprintf(nambuf, "%s corpse", mons[otmp->corpsenm].mname);
+	Sprintf(nambuf, "%s corpse", NH_MNAME(mons[otmp->corpsenm].mname));
 
 	if (ignore_oquan || otmp->quan < 2)
 	    return nambuf;
@@ -1983,7 +1983,7 @@ readobjnam(char *bp, struct obj_s *no_wish, boolean from_user)
 		int mntmptoo, mntmplen;	/* double check for rank title */
 		char *obp = bp;
 		mntmptoo = title_to_mon(bp, (int *)0, &mntmplen);
-		bp += mntmp != mntmptoo ? (int)strlen(mons[mntmp].mname) : mntmplen;
+		bp += mntmp != mntmptoo ? (int)strlen(NH_MNAME(mons[mntmp].mname)) : mntmplen;
 		if (*bp == ' ') bp++;
 		else if (!strncmpi(bp, "s ", 2)) bp += 2;
 		else if (!strncmpi(bp, "es ", 3)) bp += 3;
@@ -2738,7 +2738,7 @@ mimic_obj_name(struct monst_s *mtmp)
 	if (mtmp->m_ap_type == M_AP_OBJECT && mtmp->mappearance != STRANGE_OBJECT) {
 		int idx = objects[mtmp->mappearance].oc_descr_idx;
 		if (mtmp->mappearance == GOLD_PIECE) return "gold";
-		return obj_descr[idx].oc_name;
+		return NH_ONAME(obj_descr[idx].oc_name);
 	}
 	return "whatcha-may-callit";
 }

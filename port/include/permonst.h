@@ -80,9 +80,28 @@ static_assert(sizeof (struct permonst) == 64, "struct permonst is 64 bytes (ADR-
 #pragma farspace(1, permonst, attack_s)
 #pragma section(farmons, 0)
 #pragma farsection(farmons, 1)
-#pragma region(farmons, 0x8000, 0x10000, , 106, { farmons })
+#pragma region(farmons, 0x8000, 0xe000, , 106, { farmons })
 #define NH_FAR_MONS
+/* the names, which mons[] points to, at $E000-$FFFF of the space: not a far section (no
+ * code reads them in place), but bytes NH_MNAME() copies out (tools/farnames.py wraps
+ * every read of mname); kept out of $D000-$DFFF, the I/O page in view, so that a read
+ * of one in place by mistake reads only RAM or ROM */
+#pragma section(farmnames, 0)
+#pragma region(farmnames, 0xe000, 0x10000, , 106, { farmnames })
+#define NH_FAR_MNAMES
 #endif
+#endif
+
+#ifdef NH_FAR_MNAMES
+/* a near copy of a monster's name in a ring of buffers (the far runtime) */
+extern const char *nh_mname(const char *);
+#define NH_MNAME(p) nh_mname(p)
+#elif defined(NH_NAME_RING_TEST)
+/* the host's check of how long a copy is held (decl.c) */
+extern const char *nh_name_test(const char *);
+#define NH_MNAME(p) nh_name_test(p)
+#else
+#define NH_MNAME(p) (p)
 #endif
 
 #ifdef NH_FAR_MONS

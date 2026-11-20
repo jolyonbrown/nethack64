@@ -60,14 +60,14 @@ new_were(struct monst_s *mon)
 
 	pm = counter_were(monsndx(mon->data));
 	if(!pm) {
-	    impossible("unknown lycanthrope %s.", mon->data->mname);
+	    impossible("unknown lycanthrope %s.", NH_MNAME(mon->data->mname));
 	    return;
 	}
 
 	if(canseemon(mon) && !Hallucination)
 	    pline("%s changes into a %s.", Monnam(mon),
 			is_human(&mons[pm]) ? "human" :
-			mons[pm].mname+4);
+			NH_MNAME(mons[pm].mname)+4);
 
 	set_mon_data(mon, &mons[pm], 0);
 	if (mon->msleeping || !mon->mcanmove) {
@@ -135,7 +135,7 @@ you_were(void)
 	if (Polymorph_control) {
 	    /* `+4' => skip "were" prefix to get name of beast */
 	    Sprintf(qbuf, "Do you want to change into %s? ",
-		    an(mons[u.ulycn].mname+4));
+		    an(NH_MNAME(mons[u.ulycn].mname)+4));
 	    if(yn(qbuf) == 'n') return;
 	}
 	(void) polymon(u.ulycn);

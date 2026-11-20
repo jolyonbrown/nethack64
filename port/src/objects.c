@@ -34,6 +34,9 @@ struct monst_s { struct monst_s *dummy; };	/* lint: struct obj_s's union */
  #define OBJECT(obj,bits,prp,sym,prob,dly,wt,cost,sdam,ldam,oc1,oc2,nut,color) \
 	{obj}
 
+#ifdef NH_FAR_ONAMES
+#pragma code(faronames)		/* the names: literals go to the code section in force */
+#endif
 NEARDATA struct objdescr obj_descr[] = {
 #else
 /* second pass -- object definitions */
@@ -973,6 +976,9 @@ OBJECT(OBJ("acid venom", "splash of venom"),
 }; /* objects[] */
 #ifdef NH_FAR_OBJS
 #pragma data(data)
+#endif
+#if defined(NH_FAR_ONAMES) && !defined(OBJECTS_PASS_2_)
+#pragma code(code)
 #endif
 
 #ifndef OBJECTS_PASS_2_

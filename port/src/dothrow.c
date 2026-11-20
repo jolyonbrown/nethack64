@@ -93,8 +93,8 @@ throw_obj(struct obj_s *obj, int shotlimit)
 	if (!uarmg && !Stone_resistance && (obj->otyp == CORPSE &&
 		    touch_petrifies(&mons[obj->corpsenm]))) {
 		You("throw the %s corpse with your bare %s.",
-		    mons[obj->corpsenm].mname, body_part(HAND));
-		Sprintf(killer_buf, "%s corpse", an(mons[obj->corpsenm].mname));
+		    NH_MNAME(mons[obj->corpsenm].mname), body_part(HAND));
+		Sprintf(killer_buf, "%s corpse", an(NH_MNAME(mons[obj->corpsenm].mname)));
 		instapetrify(killer_buf);
 	}
 	if (welded(obj)) {

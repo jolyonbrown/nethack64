@@ -93,6 +93,9 @@ void NDECL(monst_init);
 #ifdef NH_FAR_MONS
 #pragma data(farmons)
 #endif
+#ifdef NH_FAR_MNAMES
+#pragma code(farmnames)		/* the names: literals go to the code section in force */
+#endif
 NEARDATA struct permonst mons[] = {
 /*
  * ants
@@ -3468,6 +3471,9 @@ struct permonst _mons2[] = {
 };
 #ifdef NH_FAR_MONS
 #pragma data(data)
+#endif
+#ifdef NH_FAR_MNAMES
+#pragma code(code)
 #endif
 #endif /* !SPLITMON_1 */
 

@@ -366,6 +366,16 @@ port as at `543fcd3`.
   passed. NetHack 3.6 moved "shuriken" into a table checked through `BSTRCMPI`, compares
   "matza" at `spot-4` (a behaviour change from 3.4.3) and writes static zero structs;
   it still reads `wins[WIN_MESSAGE]` there.
+- **2026-11-20, T2.12's name ring test** (`HOST_DEFS=-DNH_NAME_RING_TEST tools/host-build.sh
+  --sanitize`: each monster or object name read gets a copy freed eight reads later, as the
+  C64's ring of name buffers reuses it; gcc 13.3.0). The smoke test, `smoke_stress.py` 240
+  cycles, and `profile_play.py` games of 6,000 keys (seeds 1, 2, 3, 64) and with `--wide`
+  (11-14, which stall early at an inventory prompt): no name held past its copy. One report,
+  NetHack 3.4.3's own: `doengrave()` (`engrave.c` 855) reads `otmp->oclass` after `useup()`
+  freed the cancelled wand that "turns to dust" (an engrave with a wand of spe < 0). On the
+  C64 it reads a freed heap block, normally still intact, so the "You can't reach the floor"
+  check behaves as on Unix. NetHack 3.6 sets `otmp = 0` there and tests it; changing it
+  here would change behaviour (no "can't reach" message), so it is left as it is.
 
 ## Oscar64 compile status after T1.29-T1.32 (2026-11-14, later)
 
