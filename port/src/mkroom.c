@@ -703,7 +703,11 @@ save_room(int fd, struct mkroom_s *r)
 	 * of writing the whole structure. That is I should not write
 	 * the subrooms pointers, but who cares ?
 	 */
+#ifdef NH_FAR_GLOBS
+	nh_farbwrite4(fd, (const struct nh_fb4 *) r, sizeof(struct mkroom_s));
+#else
 	bwrite(fd, (genericptr_t) r, sizeof(struct mkroom_s));
+#endif
 	for(i=0; i<r->nsubrooms; i++)
 	    save_room(fd, r->sbrooms[i]);
 }
@@ -728,7 +732,11 @@ rest_room(int fd, struct mkroom_s *r)
 {
 	short i;
 
+#ifdef NH_FAR_GLOBS
+	nh_farmread4(fd, (struct nh_fb4 *) r, sizeof(struct mkroom_s));
+#else
 	mread(fd, (genericptr_t) r, sizeof(struct mkroom_s));
+#endif
 	for(i=0; i<r->nsubrooms; i++) {
 		r->sbrooms[i] = &subrooms[nsubroom];
 		rest_room(fd, &subrooms[nsubroom]);

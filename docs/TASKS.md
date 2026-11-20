@@ -765,6 +765,15 @@ Add new tasks at the bottom of the right section.
       smaller wrappers, planfix.py --glue, fork commit 7 (resident glue for seffects' bank):
       every banked object places again (far19, 116 banks), resident code 31.4 KB
       (`bankplan-2026-11-20-far.json`). Next: the resident data (72 KB).
+      — 2026-11-20 (2): the resident data (RAM-PLAN.md "the data",
+      `docs/data/wholegame-far-2026-11-20.txt`): read-only tables in their readers' bank
+      (bankgen.py `bank_data`, `tools/bank/tables.py`); the names of `mons[]` and `obj_descr[]`
+      far, read through `NH_MNAME()`/`NH_ONAME()` (`tools/farnames.py`, ADR-0009 amended; the
+      host's ring test under AddressSanitizer); fork commit 8 (proxies in the calling banks);
+      far space 4 (`rooms`, `gbuf`, `mvitals`) and `obj_descr` with `objects[]`. Resident data
+      99.6 -> about 63 KB, code 31.4 -> 25.9 KB. The page cache traced at 8-64 pages: 4 KB costs
+      about 125 ms a turn. Next: the cache size into the budget, the vision grids far, the
+      hot set and libc out of resident code, then strings.
 
 ## Housekeeping
 

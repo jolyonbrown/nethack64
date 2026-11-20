@@ -397,8 +397,12 @@ remove_room(unsigned roomno)
 	/* since the order in the array only matters for making corridors,
 	 * copy the last room over the one being removed on the assumption
 	 * that corridors have already been dug. */
+#ifdef NH_FAR_GLOBS
+	*croom = *maxroom;	/* far (c64conf.h): a struct copy, not memcpy()'s near one */
+#else
 	(void) memcpy((genericptr_t)croom, (genericptr_t)maxroom,
 		      sizeof(struct mkroom_s));
+#endif
 
 	/* since maxroom moved, update affected level roomno values */
 	oroomno = nroom + ROOMOFFSET;

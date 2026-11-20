@@ -37,6 +37,9 @@ struct monst_s { struct monst_s *dummy; };	/* lint: struct obj_s's union */
 #ifdef NH_FAR_ONAMES
 #pragma code(faronames)		/* the names: literals go to the code section in force */
 #endif
+#ifdef NH_FAR_OBJS
+#pragma data(farobjs)
+#endif
 NEARDATA struct objdescr obj_descr[] = {
 #else
 /* second pass -- object definitions */

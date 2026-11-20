@@ -17,7 +17,14 @@ struct mkroom_s {
 	boolean irregular;	/* true if room is non-rectangular */
 	struct mkroom_s *sbrooms[MAX_SUBROOMS];  /* Subrooms pointers */
 	struct monst_s *resident; /* priest/shopkeeper/guard for this room */
+#ifdef NH_FAR_GLOBS
+	uchar	mkroom_pad_c64[4];	/* 64 bytes: an entry keeps to a page (c64conf.h) */
+#endif
 };
+#ifdef NH_FAR_GLOBS
+static_assert(sizeof (struct mkroom_s) == 64, "struct mkroom_s is 64 bytes in the far build");
+#pragma farspace(4, mkroom_s)
+#endif
 
 struct shclass {
 	const char *name;	/* name of the shop type */
@@ -34,7 +41,13 @@ struct shclass {
 	const char * const *shknms;	/* list of shopkeeper names for this type */
 };
 
+#ifdef NH_FAR_GLOBS
+#pragma data(farglob)
+#endif
 extern NEARDATA struct mkroom_s rooms[(MAXNROFROOMS+1)*2];
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#endif
 extern NEARDATA struct mkroom_s* subrooms;
 /* the normal rooms on the current level are described in rooms[0..n] for
  * some n<MAXNROFROOMS

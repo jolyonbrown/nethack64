@@ -1,0 +1,53 @@
+# The whole far game, resident data (T2.12), 2026-11-20 (desktop).  Sources from
+# tools/bank/build_c64.py --linker-stubs --main real --generate-only, -dNH_FAR_SPACES and
+# tools/measure/far_meas.c, as in wholegame-far-2026-11-19b.txt; every log line kept.  All
+# links exit 20 (resident side).  Resident data counts each static frame once (overlaid,
+# 3,264 B); "literals" are the anonymous objects of the resident code section.
+
+                         far19            far20            far21
+compiler (far-spaces)    ffadc0c          ffadc0c          8178a22 (commit 8)
+change                   (before)         read-only tables names far, proxies
+                                          banked           in calling banks
+plan                     far18fix         far19 + tables   far20 repaired (38 moves)
+resident data            99.6 KB          88.3 KB          76.4 KB
+  literals               37.5 KB          29.3 KB          17.0 KB
+  named objects          58.8 KB          55.7 KB          56.1 KB
+resident code            31,351 B         31,251 B         25,444 B
+  proxies                6,413 B          6,401 B          294 B (banked 17,942 B, was 4,190)
+banked left unplaced     0                3,293 B (7)      7,786 B (54 banks, the proxies)
+checks                   0 calls across a bank without a trampoline, highest temporary $8f,
+                         check_listing 0 problems, in all three
+
+                         far22            far23
+compiler                 8178a22          8178a22
+change                   far space 4      mvitals in far bss; sort_rooms(),
+                         (rooms, gbuf,    remove_room() far-safe
+                         mvitals*), obj_descr in space 2
+plan                     far21 repaired (203 moves)   far22 repaired (53 moves)
+resident data            65.1 KB          63.6 KB
+  literals               17.0 KB          17.0 KB
+resident code            25,923 B         25,868 B
+banked left unplaced     3,738 B (12)     504 B
+farglob (space 4)        rooms 5,248 + gbuf 6,720   + mvitals 1,528 = 13,504 B
+warnings 2026            restore.c 803 (a near local, harmless, as before), mkmap.c 447 (memcpy
+                         of a room), h_real.c's qsort stub (sort_rooms()); far23: restore.c only
+* far22 left mvitals in near bss: it has no initialiser, so #pragma data did not place it.
+
+far20: bankgen.py places 104 of the 202 read-only tables tables.py lists (from far19's
+intermediate code) in the bank of the code that reads them, with their literals; left: 59
+read in more than one bank, 31 whose elements are not const with their address taken
+(u_init.c's ini_inv() writes through them), 4 another initialiser names (shknam.c's shk
+name lists, named by shtypes), 1 passed by pointer to another bank, 3 not found.
+
+far21: the names of mons[] (4,016 B) and obj_descr[] (8,187 B, of 8,192 at $E000-$FFFF of
+space 2) in far memory, read through NH_MNAME()/NH_ONAME() (121 sites, tools/farnames.py);
+one warning 2024, obj_descr[] (resident) pointing at them, which no code reads in place.
+Proxies of resident functions (608 resident in far19) are made in each calling bank (fork
+commit 8): 6.1 KB less resident code, 13.7 KB more in the banks.
+
+Resident data of far21 by kind (named objects): struct tables 17.6 KB (gbuf 5,040, rooms
+4,920, obj_descr 1,736, artilist 1,330, mvitals 1,146, dungeons 768, level_info 512); vision
+grids 10.1 KB (could_see 3,360, viz_clear, left_ptrs, right_ptrs, Map 1,680 each); scalar
+tables 6.4 KB (objnam.c's bufs 3,072, disco 866, monstr 764); char buffers 4.9 KB and more
+under other names; const struct tables 3.5 KB (roles 1,596, defsyms, shtypes, races); the
+bank glue's buffers 2.4 KB (nh_args, nh_stash_buf, nh_name_ring); u 1,381 B.

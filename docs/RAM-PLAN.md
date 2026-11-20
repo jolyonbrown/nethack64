@@ -613,6 +613,52 @@ resident bank call stubs (12.5 KB), 264 resident string trampolines (24.5 KB) an
   7, section flag 4), since its code, literals and stubs alone exceed 16 KB. Resident code is
   31.4 KB, resident data 72.1 KB: the data is next.
 
+**The resident side, the data** (2026-11-20, `docs/data/wholegame-far-2026-11-20.txt`). Counted
+with each static frame once (they overlay: 3.3 KB), far19 kept 99.6 KB of data resident: 37.5
+KB of literals, 58.8 KB of named objects. Three changes so far:
+- *Read-only tables into their bank* (far20): a file-scope table no code writes and only one
+  bank's code reads goes into that bank with its literals (bankgen.py `bank_data`, from
+  `tools/bank/tables.py`), crossing banks as the bank's own literals do. 104 of 202 tables;
+  the rest are read from several banks, are named by another table, or are not const with
+  their address taken (`u_init.c`'s `ini_inv()` writes through one). -11.3 KB.
+- *The names far* (far21): `mons[]`'s and `obj_descr[]`'s names (12.2 KB) in sections at
+  `$E000-$FFFF` of far spaces 1 and 2, read through `NH_MNAME()`/`NH_ONAME()` into a ring of
+  eight near buffers (ADR-0009, amended); the object names fill 8,187 of the 8,192 bytes.
+  The fork's commit 8 puts the proxies of resident functions in the calling banks: resident
+  code 31.4 -> 25.4 KB, the banks 13.7 KB fuller. -11.9 KB of data.
+- *Far space 4* (far22-23): `rooms` (64-byte entries), `gbuf` and `mvitals` (padded to 4) in
+  far space 4 (`c64conf.h`, bank 130: REU 64 KB bank 16, past the code), `obj_descr` with
+  `objects[]` in space 2. Two places moved rooms through near pointers and are rewritten:
+  `sort_rooms()` (an insertion sort by `lx` for `qsort()`) and `remove_room()` (a struct
+  copy for `memcpy()`). -11.3 KB in far22 (`mvitals` was left in near bss; far23 fixes it).
+
+What is left, far22 (65.1 KB of data, 25.9 KB of code): 17.0 KB of literals (`options.c` 4.2,
+`shknam.c` 2.8, `role.c` 2.5 KB, tables read from several banks, and resident code's own);
+10.1 KB of vision grids (`could_see`, `viz_clear`, `left_ptrs`, `right_ptrs`, `Map`), reached as
+`char *` rows; 6.4 KB of scalar tables (`objnam.c`'s `bufs` 3 KB, `disco`, `monstr`); 6.3 KB of
+struct tables (`artilist`, which holds `struct attack_s` of space 1, `dungeons`, whose names are
+`char` arrays, `level_info`); 4.6 KB and more of `char` buffers; 3.5 KB of read-only struct
+tables (`roles`, `races`, `defsyms`, `shtypes`); 2.4 KB of the bank glue's buffers; `u`, `flags`
+2.3 KB; 3.3 KB of frames. Against a budget of about 21 KB for code and data (34 KB in view,
+less a 8-16 KB page cache, the stack and a near heap), the far sections that are still
+straightforward leave roughly 50 KB: the rest needs a smaller page cache, which costs faults,
+or strings and `char` data in far memory, which `char *` makes hard.
+
+**How small the page cache can be** (2026-11-20, `docs/data/fardata-trace-cache-2026-11-20.txt`;
+`nh_trace.c`'s `NH_TRACE_CACHES`; a 6,000-key bot game on level 1, the far set of far23 and the
+heap; 600 cycles a fault, 21 a translation):
+
+| Cache (CLOCK) | Faults a turn, median / p90 | Far cost a turn, median / p90 |
+|---|---|---|
+| 64 pages, 16 KB | 1 / 19 | 69 / 151 ms |
+| 32 pages, 8 KB | 50 / 79 | 100 / 183 ms |
+| 16 pages, 4 KB | 89 / 144 | 125 / 220 ms |
+| 8 pages, 2 KB | 187 / 303 | 185 / 315 ms |
+
+With the vision grids far too, 16 pages cost 152 / 273 ms. A fault is cheap next to a
+human's turn, so the cache is the budget's best lever: 4 KB instead of 16 gives the resident
+side 12 KB for about 55 ms a turn (less with a fault handler in assembler, about 350 cycles).
+
 ## Measured: zero page saves (2026-11-16, T1.49)
 
 After the padding (ADR-0009 point 5), what is left of Oscar64's multiply routine is small: 0.2%

@@ -110,4 +110,17 @@ extern void srand48(long);
 extern void VDECL(error, (const char *,...)) PRINTF_F(1,2);
 extern void FDECL(regularize, (char *));
 
+#if defined(__OSCAR64C__) && defined(NH_FAR_SPACES)
+/* T2.12, a measurement, not yet the build's: far space 4 holds globals of struct types
+ * reached through pointers or by index from many banks (the rooms, the monster
+ * counts, the glyph buffer: mkroom.h, decl.h, display.c), at $8000-$FFFF of the space,
+ * bank 130 (REU 64 KB bank 16 at $8000, past the code banks; crt_split.py).  Each type
+ * is padded to a power of two and each table aligned to its entries, so that no entry
+ * crosses a page (ADR-0009 point 5). */
+#pragma section(farglob, 0)
+#pragma farsection(farglob, 4)
+#pragma region(farglob, 0x8000, 0x10000, , 130, { farglob })
+#define NH_FAR_GLOBS
+#endif
+
 #endif /* C64CONF_H */

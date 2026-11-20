@@ -262,11 +262,22 @@ E NEARDATA struct you_s u;
 E NEARDATA struct monst_s youmonst;	/* init'd and defined in decl.c */
 E NEARDATA struct monst_s *mydogs, *migrating_mons;
 
-E NEARDATA struct mvitals_s {
+struct mvitals_s {
 	uchar	born;
 	uchar	died;
 	uchar	mvflags;
-} mvitals[NUMMONS];
+#ifdef NH_FAR_GLOBS
+	uchar	mvitals_pad_c64;	/* 4 bytes: an entry keeps to a page (c64conf.h) */
+#endif
+};
+#ifdef NH_FAR_GLOBS
+#pragma farspace(4, mvitals_s)
+#pragma bss(farglob)		/* no initialiser: bss, not data */
+#endif
+E NEARDATA struct mvitals_s mvitals[NUMMONS];
+#ifdef NH_FAR_GLOBS
+#pragma bss(bss)
+#endif
 
 E NEARDATA struct c_color_names_s {
     const char	*const c_black, *const c_amber, *const c_golden,

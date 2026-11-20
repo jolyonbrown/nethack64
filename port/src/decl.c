@@ -138,7 +138,14 @@ NEARDATA boolean in_steed_dismounting = FALSE;
 NEARDATA coord bhitpos = DUMMY;
 NEARDATA coord doors[DOORMAX] = {DUMMY};
 
+#ifdef NH_FAR_GLOBS
+#pragma data(farglob)
+#endif
 NEARDATA struct mkroom_s rooms[(MAXNROFROOMS+1)*2] = {DUMMY};
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#pragma align(rooms, 64)
+#endif
 NEARDATA struct mkroom_s* subrooms = &rooms[MAXNROFROOMS+1];
 struct mkroom_s *upstairs_room, *dnstairs_room, *sstairs_room;
 
@@ -149,7 +156,7 @@ dlevel_t level;		/* level map */
 #ifdef NH_FAR_LEVEL
 #pragma bss(bss)
 #endif
-#if defined(NH_FAR_LEVEL) || defined(NH_FAR_OBJS)
+#if defined(NH_FAR_LEVEL) || defined(NH_FAR_OBJS) || defined(NH_FAR_GLOBS)
 /* rm.h: block moves of far data through a near buffer (T2.12) */
 static unsigned char nh_farbuf[64];
 
@@ -176,6 +183,9 @@ void nh_farmread##sp(int fd, struct nh_fb##sp *d, unsigned n) \
 }
 NH_FARIO(2)
 NH_FARIO(3)
+#ifdef NH_FAR_GLOBS
+NH_FARIO(4)
+#endif
 
 void
 nh_farfill3(struct nh_fb3 *d, int c, unsigned n)
@@ -260,7 +270,14 @@ NEARDATA struct monst_s *mydogs = (struct monst_s *)0;
 /* monsters that are moving to another dungeon level */
 NEARDATA struct monst_s *migrating_mons = (struct monst_s *)0;
 
+#ifdef NH_FAR_GLOBS
+#pragma bss(farglob)		/* no initialiser: bss, not data */
+#endif
 NEARDATA struct mvitals_s mvitals[NUMMONS];
+#ifdef NH_FAR_GLOBS
+#pragma bss(bss)
+#pragma align(mvitals, 4)
+#endif
 
 NEARDATA struct c_color_names_s c_color_names = {
 	"black", "amber", "golden",

@@ -103,11 +103,26 @@ gotit:
 void
 sort_rooms(void)
 {
+#ifdef NH_FAR_GLOBS
+	/* rooms[] is far (c64conf.h), which qsort() would move through a near pointer:
+	 * an insertion sort by lx, do_comp()'s order (for rooms with the same lx qsort()
+	 * leaves the order unspecified; this keeps theirs) */
+	int i, j;
+	struct mkroom_s t;
+
+	for (i = 1; i < nroom; i++) {
+	    t = rooms[i];
+	    for (j = i; j > 0 && rooms[j - 1].lx > t.lx; j--)
+		rooms[j] = rooms[j - 1];
+	    rooms[j] = t;
+	}
+#else
 #if defined(SYSV) || defined(DGUX)
 	qsort((genericptr_t) rooms, (unsigned)nroom, sizeof(struct mkroom_s), do_comp);
 #else
 	qsort((genericptr_t) rooms, nroom, sizeof(struct mkroom_s), do_comp);
 #endif
+#endif /* NH_FAR_GLOBS */
 }
 
 STATIC_OVL void

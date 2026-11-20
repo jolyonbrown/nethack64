@@ -150,6 +150,9 @@ struct objdescr {
 	const char *oc_name;		/* actual name */
 	const char *oc_descr;		/* description when name unknown */
 };
+#ifdef NH_FAR_OBJS
+#pragma farspace(2, objdescr)	/* obj_descr[] is in objects[]'s section */
+#endif
 
 #ifdef NH_FAR_OBJS
 #pragma data(farobjs)
@@ -158,7 +161,13 @@ extern NEARDATA struct objclass objects[];
 #ifdef NH_FAR_OBJS
 #pragma data(data)
 #endif
+#ifdef NH_FAR_OBJS
+#pragma data(farobjs)
+#endif
 extern NEARDATA struct objdescr obj_descr[];
+#ifdef NH_FAR_OBJS
+#pragma data(data)
+#endif
 
 /*
  * All objects have a class. Make sure that all classes have a corresponding

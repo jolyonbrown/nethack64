@@ -29,6 +29,7 @@
  * globals (one a line) to keep near: their accesses are counted as near and reach no page.
  * NH_TRACE_FAR names the kinds that are far, comma-separated (e.g. "mons,objects,heap", the
  * first set of ADR-0009); every other kind is counted as near.  Without it all are far.
+ * NH_TRACE_CACHES sets the four simulated cache sizes (default "32,64,96,128").
  * Environment: NH_TRACE_LAYOUT (the table), NH_TRACE_OUT (the output); without them the
  * callbacks do nothing.
  */
@@ -61,7 +62,7 @@ static const struct obj_ent *last;    /* the entry the previous access hit */
 
 #define NSIZE 4
 #define NPOL 3                         /* FIFO, CLOCK, LRU */
-static const int simsize[NSIZE] = { 32, 64, 96, 128 };
+static int simsize[NSIZE] = { 32, 64, 96, 128 };	/* NH_TRACE_CACHES may set them */
 static const char *polname[NPOL] = { "fifo", "clock", "lru" };
 struct sim {
 	int size, count, hand;
@@ -201,6 +202,19 @@ static void start(void)
 		for (int i = 0; i < nents; i++)
 			if (ents[i].kind != K_OTHER && !far_kind[ents[i].kind])
 				ents[i].kind = K_NEAR;
+	}
+	{
+		/* NH_TRACE_CACHES: the four cache sizes in pages, e.g. "8,16,32,64" (at most 128) */
+		const char *cp = getenv("NH_TRACE_CACHES");
+		for (int z = 0; cp && *cp && z < NSIZE; z++)
+		{
+			int v = atoi(cp);
+			if (v > 0 && v <= 128)
+				simsize[z] = v;
+			cp = strchr(cp, ',');
+			if (cp)
+				cp++;
+		}
 	}
 	for (int pl = 0; pl < NPOL; pl++)
 		for (int z = 0; z < NSIZE; z++)

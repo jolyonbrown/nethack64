@@ -1,0 +1,282 @@
+# 2026-11-20 (T2.12): how small the far page cache can be. tools/profile_play.py --keys 6000 --seed 64 on
+# tools/host-build.sh --trace (clang), NH_TRACE_CACHES=8,16,32,64, layout from T1.54's near whole-game map
+# (bank-c64-t154: unpadded mons/objects entries). The bot stayed on level 1. Prices: a translation 21 cycles
+# (every far access counted, an upper bound), a fault 600 (the C handler of tests/spikes/fardata.c).
+
+## A: NH_TRACE_FAR=mons,objects,level,heap,display (the far set of far23 and the heap)
+14227 turns (the first 1 left out)
+
+pages touched a turn (C64 256-byte pages):     median    p90    max
+  all far data                                 50     64     90
+  level                                        18     28     52
+  vision                                        0      0      0
+  display                                       5      9     19
+  mons                                          7      8     18
+  objects                                       1      3     12
+  globals                                       0      0      0
+  strings                                       0      0      0
+  heap                                         18     21     23
+  near                                          0      0      0
+  over the last 10 turns                       70     88    236
+
+accesses a turn:                                median    p90    max
+  other                                       149   2062  27789
+  level                                       543   1544  26528
+  vision                                        0      0      0
+  display                                      24    349   4332
+  mons                                        425    770  16632
+  objects                                       1      7     91
+  globals                                       0      0      0
+  strings                                       0      0      0
+  heap                                       2023   4021  41323
+  near                                       1550   3920  75777
+  far (all but other and near)               3136   6725  67947
+
+far-data cost a turn, translations (21 cycles each, upper bound) + faults (600 each):
+  cache        faults50 faults90      max    ms median     ms p90    ms mean
+  fifo8             205      334     2788          196        334        222
+  fifo16            101      160     2523          132        230        157
+  fifo32             55       91      237          105        189        120
+  fifo64              3       29       90           71        155         89
+  clock8            187      303     2746          185        315        211
+  clock16            89      144     2493          125        220        150
+  clock32            50       79      220          100        183        116
+  clock64             1       19       82           69        151         87
+  lru8              173      281     2692          176        301        202
+  lru16              84      138     2487          122        216        147
+  lru32              47       74      177           98        180        113
+  lru64               1       15       72           68        149         86
+
+globals by accesses per C64 byte (221 accessed; 32798069 accesses in all):
+  WIN_MESSAGE                   2 B     632632 accesses (  1.9% so far,      2 B so far) in 4449 turns
+  ftrap                         2 B     452641 accesses (  3.3% so far,      4 B so far) in 14229 turns
+  in_mklev                      1 B     199892 accesses (  3.9% so far,      5 B so far) in 14226 turns
+  viz_array                     2 B     355074 accesses (  5.0% so far,      7 B so far) in 14228 turns
+  gtyp                          1 B     172498 accesses (  5.5% so far,      8 B so far) in 14033 turns
+  ublindf                       2 B     322324 accesses (  6.5% so far,     10 B so far) in 14229 turns
+  gx                            1 B     144524 accesses (  7.0% so far,     11 B so far) in 14033 turns
+  gy                            1 B     142502 accesses (  7.4% so far,     12 B so far) in 14033 turns
+  n_regions                     2 B     253268 accesses (  8.2% so far,     14 B so far) in 14229 turns
+  vision_full_recalc            1 B     122061 accesses (  8.5% so far,     15 B so far) in 14229 turns
+  multi                         2 B     228602 accesses (  9.2% so far,     17 B so far) in 14229 turns
+  uarmh                         2 B     215115 accesses (  9.9% so far,     19 B so far) in 14229 turns
+  vis_func                      2 B     208868 accesses ( 10.5% so far,     21 B so far) in 5056 turns
+  WIN_MAP                       2 B     198119 accesses ( 11.1% so far,     23 B so far) in 12893 turns
+  occupation                    2 B     166652 accesses ( 11.6% so far,     25 B so far) in 14229 turns
+  tby                           1 B      81441 accesses ( 11.9% so far,     26 B so far) in 14155 turns
+  tbx                           1 B      81441 accesses ( 12.1% so far,     27 B so far) in 14155 turns
+  uarmg                         2 B     148035 accesses ( 12.6% so far,     29 B so far) in 14229 turns
+  head_engr                     2 B     127862 accesses ( 13.0% so far,     31 B so far) in 14229 turns
+  step                          2 B     127760 accesses ( 13.4% so far,     33 B so far) in 5056 turns
+  uwep                          2 B     122714 accesses ( 13.7% so far,     35 B so far) in 14141 turns
+  WIN_STATUS                    2 B     118921 accesses ( 14.1% so far,     37 B so far) in 12704 turns
+  viz_rmin                      2 B      87364 accesses ( 14.4% so far,     39 B so far) in 3968 turns
+  viz_rmax                      2 B      87364 accesses ( 14.6% so far,     41 B so far) in 3968 turns
+  utpnt                         2 B      85066 accesses ( 14.9% so far,     43 B so far) in 14228 turns
+  invent                        2 B      81553 accesses ( 15.1% so far,     45 B so far) in 14229 turns
+  start_col                     2 B      74590 accesses ( 15.4% so far,     47 B so far) in 5056 turns
+  varg                          2 B      67561 accesses ( 15.6% so far,     49 B so far) in 5056 turns
+  moves                         4 B     135049 accesses ( 16.0% so far,     53 B so far) in 14229 turns
+  utcnt                         2 B      56376 accesses ( 16.2% so far,     55 B so far) in 14228 turns
+  youmonst                     80 B    2221345 accesses ( 22.9% so far,    135 B so far) in 14229 turns
+  cs_rows                       2 B      54984 accesses ( 23.1% so far,    137 B so far) in 5056 turns
+  cs_right                      2 B      54984 accesses ( 23.3% so far,    139 B so far) in 5056 turns
+  cs_left                       2 B      54984 accesses ( 23.4% so far,    141 B so far) in 5056 turns
+  monstermoves                  4 B      96002 accesses ( 23.7% so far,    145 B so far) in 14228 turns
+  ydir                         10 B     219580 accesses ( 24.4% so far,    155 B so far) in 3157 turns
+  xdir                         10 B     219580 accesses ( 25.1% so far,    165 B so far) in 3157 turns
+  in_doagain                    2 B      40649 accesses ( 25.2% so far,    167 B so far) in 3230 turns
+  propellor                     2 B      39923 accesses ( 25.3% so far,    169 B so far) in 267 turns
+  start_row                     2 B      38068 accesses ( 25.4% so far,    171 B so far) in 5056 turns
+  seenv_matrix                  9 B     143661 accesses ( 25.9% so far,    180 B so far) in 3968 turns
+  force_save_hs                 1 B      14391 accesses ( 25.9% so far,    181 B so far) in 14228 turns
+  shead                         2 B      26986 accesses ( 26.0% so far,    183 B so far) in 3224 turns
+  dungeon_topology             52 B     676146 accesses ( 28.0% so far,    235 B so far) in 14229 turns
+  uleft                         2 B      25713 accesses ( 28.1% so far,    237 B so far) in 14229 turns
+  uright                        2 B      25708 accesses ( 28.2% so far,    239 B so far) in 14229 turns
+  uarms                         2 B      25684 accesses ( 28.3% so far,    241 B so far) in 14229 turns
+  uarm                          2 B      25681 accesses ( 28.4% so far,    243 B so far) in 14229 turns
+  uarmf                         2 B      25648 accesses ( 28.4% so far,    245 B so far) in 14229 turns
+  uarmc                         2 B      25648 accesses ( 28.5% so far,    247 B so far) in 14229 turns
+  uarmu                         2 B      25647 accesses ( 28.6% so far,    249 B so far) in 14229 turns
+  mrank_sz                      2 B      25023 accesses ( 28.7% so far,    251 B so far) in 12682 turns
+  viz_clear_rows               42 B     523879 accesses ( 30.3% so far,    293 B so far) in 8679 turns
+  no_repeat                     1 B      11797 accesses ( 30.3% so far,    294 B so far) in 4426 turns
+  light_base                    2 B      22435 accesses ( 30.4% so far,    296 B so far) in 14229 turns
+  u                          1381 B   14578318 accesses ( 74.8% so far,   1677 B so far) in 14229 turns
+  flags                       127 B    1292501 accesses ( 78.8% so far,   1804 B so far) in 14229 turns
+  bhitpos                       2 B      15210 accesses ( 78.8% so far,   1806 B so far) in 4649 turns
+  readchar_queue                2 B      15154 accesses ( 78.9% so far,   1808 B so far) in 3230 turns
+  cs_rmin0                     21 B     152904 accesses ( 79.3% so far,   1829 B so far) in 3968 turns
+  cs_rmin1                     21 B     152788 accesses ( 79.8% so far,   1850 B so far) in 3968 turns
+  timer_base                    2 B      14493 accesses ( 79.8% so far,   1852 B so far) in 14229 turns
+  last_multi                    2 B      14125 accesses ( 79.9% so far,   1854 B so far) in 3224 turns
+  cs_rows0                     42 B     293114 accesses ( 80.8% so far,   1896 B so far) in 9179 turns
+  phead                         2 B      13934 accesses ( 80.8% so far,   1898 B so far) in 3320 turns
+  cs_rows1                     42 B     289425 accesses ( 81.7% so far,   1940 B so far) in 9017 turns
+  cs_rmax0                     21 B     143509 accesses ( 82.1% so far,   1961 B so far) in 3968 turns
+  ptail                         2 B      13640 accesses ( 82.2% so far,   1963 B so far) in 3320 turns
+  cs_rmax1                     21 B     143131 accesses ( 82.6% so far,   1984 B so far) in 3968 turns
+  stail                         2 B      13493 accesses ( 82.7% so far,   1986 B so far) in 3224 turns
+  save_cm                       2 B      13493 accesses ( 82.7% so far,   1988 B so far) in 3224 turns
+  utrack                      100 B     458704 accesses ( 84.1% so far,   2088 B so far) in 14228 turns
+  uball                         2 B       8524 accesses ( 84.1% so far,   2090 B so far) in 4240 turns
+  in_steed_dismounting          1 B       4195 accesses ( 84.1% so far,   2091 B so far) in 4195 turns
+  inv_pos                       2 B       7938 accesses ( 84.2% so far,   2093 B so far) in 3966 turns
+  next_check                    4 B      14260 accesses ( 84.2% so far,   2097 B so far) in 14228 turns
+  iflags                      103 B     351773 accesses ( 85.3% so far,   2200 B so far) in 14229 turns
+  windowprocs                  88 B     266717 accesses ( 86.1% so far,   2288 B so far) in 14229 turns
+  hu_stat                      14 B      38363 accesses ( 86.2% so far,   2302 B so far) in 12682 turns
+  disrobing                     2 B       4195 accesses ( 86.2% so far,   2304 B so far) in 4195 turns
+  timed_occ_fn                  2 B       4016 accesses ( 86.2% so far,   2306 B so far) in 4016 turns
+  toplines                    300 B     555296 accesses ( 87.9% so far,   2606 B so far) in 4175 turns
+  oc_syms                      18 B      27145 accesses ( 88.0% so far,   2624 B so far) in 12740 turns
+  urole                       114 B     165196 accesses ( 88.5% so far,   2738 B so far) in 14144 turns
+  saveq                        20 B      26986 accesses ( 88.6% so far,   2758 B so far) in 3224 turns
+  mrg_to_wielded                1 B       1282 accesses ( 88.6% so far,   2759 B so far) in 1060 turns
+  taking_off                    4 B       4195 accesses ( 88.6% so far,   2763 B so far) in 4195 turns
+  takeoff_mask                  4 B       4195 accesses ( 88.6% so far,   2767 B so far) in 4195 turns
+  otmp                          2 B       1905 accesses ( 88.6% so far,   2769 B so far) in 283 turns
+  cmdlist                     576 B     533469 accesses ( 90.2% so far,   3345 B so far) in 3224 turns
+  you_buf                       2 B       1702 accesses ( 90.3% so far,   3347 B so far) in 1470 turns
+  you_buf_siz                   2 B       1700 accesses ( 90.3% so far,   3349 B so far) in 1470 turns
+  showsyms                     92 B      71225 accesses ( 90.5% so far,   3441 B so far) in 3764 turns
+  sdir                         11 B       7952 accesses ( 90.5% so far,   3452 B so far) in 476 turns
+  vis                           1 B        655 accesses ( 90.5% so far,   3453 B so far) in 283 turns
+  zdir                         10 B       6293 accesses ( 90.5% so far,   3463 B so far) in 2691 turns
+keeping 129 globals near (4096 B, within 4.0 KB) takes 91.0% of the globals' accesses off the far path
+(their names: build/trace-cache/turns-A.txt.near, for NH_TRACE_NEAR)
+
+## B: the same and the vision grids (vision)
+14227 turns (the first 1 left out)
+
+pages touched a turn (C64 256-byte pages):     median    p90    max
+  all far data                                 59     81    113
+  level                                        18     28     52
+  vision                                        7     20     34
+  display                                       5      9     19
+  mons                                          7      8     18
+  objects                                       1      3     12
+  globals                                       0      0      0
+  strings                                       0      0      0
+  heap                                         18     21     23
+  near                                          0      0      0
+  over the last 10 turns                       87    111    265
+
+accesses a turn:                                median    p90    max
+  other                                       149   2062  27789
+  level                                       543   1544  26528
+  vision                                       76    836   2029
+  display                                      24    349   4332
+  mons                                        425    770  16632
+  objects                                       1      7     91
+  globals                                       0      0      0
+  strings                                       0      0      0
+  heap                                       2023   4021  41323
+  near                                       1408   3219  75684
+  far (all but other and near)               3379   7231  68040
+
+far-data cost a turn, translations (21 cycles each, upper bound) + faults (600 each):
+  cache        faults50 faults90      max    ms median     ms p90    ms mean
+  fifo8             292      496     2985          255        446        286
+  fifo16            140      242     2597          163        291        190
+  fifo32             82      133      281          124        225        142
+  fifo64             18       78      138           86        189        107
+  clock8            266      448     2926          238        418        269
+  clock16           124      212     2548          152        273        179
+  clock32            71      116      264          117        216        135
+  clock64            10       63      116           82        183        103
+  lru8              248      413     2855          227        398        257
+  lru16             117      202     2535          149        267        175
+  lru32              65      109      217          114        212        131
+  lru64               7       56      112           81        180        101
+
+globals by accesses per C64 byte (207 accessed; 28719072 accesses in all):
+  WIN_MESSAGE                   2 B     632632 accesses (  2.2% so far,      2 B so far) in 4449 turns
+  ftrap                         2 B     452641 accesses (  3.8% so far,      4 B so far) in 14229 turns
+  in_mklev                      1 B     199892 accesses (  4.5% so far,      5 B so far) in 14226 turns
+  gtyp                          1 B     172498 accesses (  5.1% so far,      6 B so far) in 14033 turns
+  ublindf                       2 B     322324 accesses (  6.2% so far,      8 B so far) in 14229 turns
+  gx                            1 B     144524 accesses (  6.7% so far,      9 B so far) in 14033 turns
+  gy                            1 B     142502 accesses (  7.2% so far,     10 B so far) in 14033 turns
+  n_regions                     2 B     253268 accesses (  8.1% so far,     12 B so far) in 14229 turns
+  vision_full_recalc            1 B     122061 accesses (  8.5% so far,     13 B so far) in 14229 turns
+  multi                         2 B     228602 accesses (  9.3% so far,     15 B so far) in 14229 turns
+  uarmh                         2 B     215115 accesses ( 10.0% so far,     17 B so far) in 14229 turns
+  vis_func                      2 B     208868 accesses ( 10.8% so far,     19 B so far) in 5056 turns
+  WIN_MAP                       2 B     198119 accesses ( 11.5% so far,     21 B so far) in 12893 turns
+  occupation                    2 B     166652 accesses ( 12.0% so far,     23 B so far) in 14229 turns
+  tby                           1 B      81441 accesses ( 12.3% so far,     24 B so far) in 14155 turns
+  tbx                           1 B      81441 accesses ( 12.6% so far,     25 B so far) in 14155 turns
+  uarmg                         2 B     148035 accesses ( 13.1% so far,     27 B so far) in 14229 turns
+  head_engr                     2 B     127862 accesses ( 13.6% so far,     29 B so far) in 14229 turns
+  step                          2 B     127760 accesses ( 14.0% so far,     31 B so far) in 5056 turns
+  uwep                          2 B     122714 accesses ( 14.4% so far,     33 B so far) in 14141 turns
+  WIN_STATUS                    2 B     118921 accesses ( 14.9% so far,     35 B so far) in 12704 turns
+  utpnt                         2 B      85066 accesses ( 15.2% so far,     37 B so far) in 14228 turns
+  invent                        2 B      81553 accesses ( 15.4% so far,     39 B so far) in 14229 turns
+  start_col                     2 B      74590 accesses ( 15.7% so far,     41 B so far) in 5056 turns
+  varg                          2 B      67561 accesses ( 15.9% so far,     43 B so far) in 5056 turns
+  moves                         4 B     135049 accesses ( 16.4% so far,     47 B so far) in 14229 turns
+  utcnt                         2 B      56376 accesses ( 16.6% so far,     49 B so far) in 14228 turns
+  youmonst                     80 B    2221345 accesses ( 24.3% so far,    129 B so far) in 14229 turns
+  cs_rows                       2 B      54984 accesses ( 24.5% so far,    131 B so far) in 5056 turns
+  cs_right                      2 B      54984 accesses ( 24.7% so far,    133 B so far) in 5056 turns
+  cs_left                       2 B      54984 accesses ( 24.9% so far,    135 B so far) in 5056 turns
+  monstermoves                  4 B      96002 accesses ( 25.2% so far,    139 B so far) in 14228 turns
+  ydir                         10 B     219580 accesses ( 26.0% so far,    149 B so far) in 3157 turns
+  xdir                         10 B     219580 accesses ( 26.8% so far,    159 B so far) in 3157 turns
+  in_doagain                    2 B      40649 accesses ( 26.9% so far,    161 B so far) in 3230 turns
+  propellor                     2 B      39923 accesses ( 27.1% so far,    163 B so far) in 267 turns
+  start_row                     2 B      38068 accesses ( 27.2% so far,    165 B so far) in 5056 turns
+  seenv_matrix                  9 B     143661 accesses ( 27.7% so far,    174 B so far) in 3968 turns
+  force_save_hs                 1 B      14391 accesses ( 27.7% so far,    175 B so far) in 14228 turns
+  shead                         2 B      26986 accesses ( 27.8% so far,    177 B so far) in 3224 turns
+  dungeon_topology             52 B     676146 accesses ( 30.2% so far,    229 B so far) in 14229 turns
+  uleft                         2 B      25713 accesses ( 30.3% so far,    231 B so far) in 14229 turns
+  uright                        2 B      25708 accesses ( 30.4% so far,    233 B so far) in 14229 turns
+  uarms                         2 B      25684 accesses ( 30.5% so far,    235 B so far) in 14229 turns
+  uarm                          2 B      25681 accesses ( 30.5% so far,    237 B so far) in 14229 turns
+  uarmf                         2 B      25648 accesses ( 30.6% so far,    239 B so far) in 14229 turns
+  uarmc                         2 B      25648 accesses ( 30.7% so far,    241 B so far) in 14229 turns
+  uarmu                         2 B      25647 accesses ( 30.8% so far,    243 B so far) in 14229 turns
+  mrank_sz                      2 B      25023 accesses ( 30.9% so far,    245 B so far) in 12682 turns
+  no_repeat                     1 B      11797 accesses ( 30.9% so far,    246 B so far) in 4426 turns
+  light_base                    2 B      22435 accesses ( 31.0% so far,    248 B so far) in 14229 turns
+  u                          1381 B   14578318 accesses ( 81.8% so far,   1629 B so far) in 14229 turns
+  flags                       127 B    1292501 accesses ( 86.3% so far,   1756 B so far) in 14229 turns
+  bhitpos                       2 B      15210 accesses ( 86.3% so far,   1758 B so far) in 4649 turns
+  readchar_queue                2 B      15154 accesses ( 86.4% so far,   1760 B so far) in 3230 turns
+  timer_base                    2 B      14493 accesses ( 86.4% so far,   1762 B so far) in 14229 turns
+  last_multi                    2 B      14125 accesses ( 86.5% so far,   1764 B so far) in 3224 turns
+  phead                         2 B      13934 accesses ( 86.5% so far,   1766 B so far) in 3320 turns
+  ptail                         2 B      13640 accesses ( 86.6% so far,   1768 B so far) in 3320 turns
+  stail                         2 B      13493 accesses ( 86.6% so far,   1770 B so far) in 3224 turns
+  save_cm                       2 B      13493 accesses ( 86.7% so far,   1772 B so far) in 3224 turns
+  utrack                      100 B     458704 accesses ( 88.3% so far,   1872 B so far) in 14228 turns
+  uball                         2 B       8524 accesses ( 88.3% so far,   1874 B so far) in 4240 turns
+  in_steed_dismounting          1 B       4195 accesses ( 88.3% so far,   1875 B so far) in 4195 turns
+  inv_pos                       2 B       7938 accesses ( 88.3% so far,   1877 B so far) in 3966 turns
+  next_check                    4 B      14260 accesses ( 88.4% so far,   1881 B so far) in 14228 turns
+  iflags                      103 B     351773 accesses ( 89.6% so far,   1984 B so far) in 14229 turns
+  windowprocs                  88 B     266717 accesses ( 90.5% so far,   2072 B so far) in 14229 turns
+  hu_stat                      14 B      38363 accesses ( 90.7% so far,   2086 B so far) in 12682 turns
+  disrobing                     2 B       4195 accesses ( 90.7% so far,   2088 B so far) in 4195 turns
+  timed_occ_fn                  2 B       4016 accesses ( 90.7% so far,   2090 B so far) in 4016 turns
+  toplines                    300 B     555296 accesses ( 92.6% so far,   2390 B so far) in 4175 turns
+  oc_syms                      18 B      27145 accesses ( 92.7% so far,   2408 B so far) in 12740 turns
+  urole                       114 B     165196 accesses ( 93.3% so far,   2522 B so far) in 14144 turns
+  saveq                        20 B      26986 accesses ( 93.4% so far,   2542 B so far) in 3224 turns
+  mrg_to_wielded                1 B       1282 accesses ( 93.4% so far,   2543 B so far) in 1060 turns
+  taking_off                    4 B       4195 accesses ( 93.4% so far,   2547 B so far) in 4195 turns
+  takeoff_mask                  4 B       4195 accesses ( 93.4% so far,   2551 B so far) in 4195 turns
+  otmp                          2 B       1905 accesses ( 93.4% so far,   2553 B so far) in 283 turns
+  cmdlist                     576 B     533469 accesses ( 95.3% so far,   3129 B so far) in 3224 turns
+  you_buf                       2 B       1702 accesses ( 95.3% so far,   3131 B so far) in 1470 turns
+  you_buf_siz                   2 B       1700 accesses ( 95.3% so far,   3133 B so far) in 1470 turns
+  showsyms                     92 B      71225 accesses ( 95.6% so far,   3225 B so far) in 3764 turns
+  sdir                         11 B       7952 accesses ( 95.6% so far,   3236 B so far) in 476 turns
+  vis                           1 B        655 accesses ( 95.6% so far,   3237 B so far) in 283 turns
+  zdir                         10 B       6293 accesses ( 95.6% so far,   3247 B so far) in 2691 turns
+keeping 144 globals near (4096 B, within 4.0 KB) takes 96.1% of the globals' accesses off the far path
+(their names: build/trace-cache/turns-B.txt.near, for NH_TRACE_NEAR)

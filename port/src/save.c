@@ -293,7 +293,11 @@ savegamestate(int fd, int mode)
 	    migrating_objs = 0;
 	    migrating_mons = 0;
 	}
+#ifdef NH_FAR_GLOBS
+	nh_farbwrite4(fd, (const struct nh_fb4 *) mvitals, sizeof(mvitals));
+#else
 	bwrite(fd, (genericptr_t) mvitals, sizeof(mvitals));
+#endif
 
 	save_dungeon(fd, (boolean)!!perform_bwrite(mode),
 			 (boolean)!!release_data(mode));

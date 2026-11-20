@@ -1182,12 +1182,23 @@ docrt(void)
 /* ========================================================================= */
 /* Glyph Buffering (3rd screen) ============================================ */
 
-typedef struct {
+typedef struct gbuf_s {
     xchar new;		/* perhaps move this bit into the rm strucure. */
     int   glyph;
+#ifdef NH_FAR_GLOBS
+    uchar gbuf_pad_c64;	/* 4 bytes: an entry keeps to a page (c64conf.h) */
+#endif
 } gbuf_entry;
 
+#ifdef NH_FAR_GLOBS
+#pragma farspace(4, gbuf_s)
+#pragma bss(farglob)
+#endif
 static gbuf_entry gbuf[ROWNO][COLNO];
+#ifdef NH_FAR_GLOBS
+#pragma bss(bss)
+#pragma align(gbuf, 4)
+#endif
 static char gbuf_start[ROWNO];
 static char gbuf_stop[ROWNO];
 

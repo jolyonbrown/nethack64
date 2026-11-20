@@ -393,7 +393,11 @@ restgamestate(int fd, unsigned int *stuckid, unsigned int *steedid)
 	invent = restobjchn(fd, FALSE, FALSE);
 	migrating_objs = restobjchn(fd, FALSE, FALSE);
 	migrating_mons = restmonchn(fd, FALSE);
+#ifdef NH_FAR_GLOBS
+	nh_farmread4(fd, (struct nh_fb4 *) mvitals, sizeof(mvitals));
+#else
 	mread(fd, (genericptr_t) mvitals, sizeof(mvitals));
+#endif
 
 	/* this comes after inventory has been loaded */
 	for(otmp = invent; otmp; otmp = otmp->nobj)

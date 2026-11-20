@@ -513,7 +513,7 @@ extern dlevel_t level;	/* structure describing the current level */
 #if defined(NH_FAR_LEVEL) && !defined(RLECOMP)
  #error "the far level is saved square by square (save.c, RLECOMP); the other way passes level.locations as a near pointer"
 #endif
-#if defined(NH_FAR_LEVEL) || defined(NH_FAR_OBJS)
+#if defined(NH_FAR_LEVEL) || defined(NH_FAR_OBJS) || defined(NH_FAR_GLOBS)
 /*
  * T2.12: block moves of far data.  memset(), bwrite() and mread() reach memory through a
  * near void *, which would miss the far space (Oscar64's warning 2026); these move it a
@@ -528,6 +528,12 @@ extern void nh_farbwrite2(int, const struct nh_fb2 *, unsigned);
 extern void nh_farmread2(int, struct nh_fb2 *, unsigned);
 extern void nh_farbwrite3(int, const struct nh_fb3 *, unsigned);
 extern void nh_farmread3(int, struct nh_fb3 *, unsigned);
+#ifdef NH_FAR_GLOBS
+struct nh_fb4 { unsigned char b; };
+#pragma farspace(4, nh_fb4)
+extern void nh_farbwrite4(int, const struct nh_fb4 *, unsigned);
+extern void nh_farmread4(int, struct nh_fb4 *, unsigned);
+#endif
 #endif
 
 /*
