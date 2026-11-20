@@ -1,0 +1,44 @@
+# 2026-11-20 (T2.12): #pragma fardefault (fork commit 9) tried on the whole far game (far28, not linked:
+# Oscar64 stopped at h_real.c's volatile sinks, error 3012, and crashed after it).
+# The warnings 2026 (864 sites) and the declarations give what fardefault could move:
+#   near by the trace (1+ accesses a turn): 86 objects; near because code takes their address
+#   as a near pointer, or char arrays (strings, handed on as char *): 321 more, 15,790 B;
+#   left to go far: 250 objects, 7,014 B, of which 2,432 B are the bank glue's own buffers.
+# So it waits for far strings (RAM-PLAN.md): with char data far, the near list is the hot one.
+
+## the 321 names a far default would have to keep near (warning lines, char arrays)
+Archeologist Barbarian Blindfold Cave_man Healer Instrument Japanese_items Knight Lamp Leash 
+Magicmarker Monk Priest Ranger Rogue SAVEF Samurai Skill_A Skill_B Skill_C Skill_H Skill_K 
+Skill_Mon Skill_P Skill_R Skill_Ran Skill_S Skill_T Skill_V Skill_W Tinopener Tourist Towel 
+Valkyrie Wishing Wizard Xtra_food You_ a_your acceptgift accessories action actions addluck 
+allobj allowall altbuf arc_abil are are_blinded_by_the_flash arrest_msg artidisco artiexist 
+artilist bad_skill bar_abil barracks_msg bases behead_msg beverages bgp billobjs bones 
+brief_feeling buf bufidx bufs bullets burdentype bwritefd c_obj_colors can cant_reach 
+cant_see_spot catname cav_abil ccc clothes could cranky_msg cross_matrix current_fruit cvt_buf 
+d_action d_target dec_graphics def_monsyms def_oc_syms defopt delayed_killer deliver 
+destroy_strings digging disclosure_names disclosure_options disrobing dknowns dndest dnladder 
+dnstair dogname doors elf_abil empty_shops extcmdlist eyemsg fam_msgs fgp files flash_types fmt 
+fmt32 fmt33 fmtstr fmtstr_doset_add_menu fmtstr_doset_add_menu_tab fortune_msg fountain_msg 
+h_sounds hackpid had halu_fam_msgs have hea_abil help_menu_items hofe_titles honored horsename 
+how humanoid_parts ibm_graphics in_line inbuf inbufsz init_lev inv_pos junk justgems kbuf 
+killed_by_prefix killer killer_buf kni_abil laugh_msg leftglow lev level_map li lock mal_aura 
+mapped_menu_cmds mapped_menu_op maybeluck menutype mhchoices migrating_mons migrating_objs 
+moderateloadmsg mon_abil monexplain monsterc monsyms mreadfd msg msg_file msgbuf n_dgns nambuf 
+names ndir nearloadmsg nh_farbuf nh_keep_cmd_readchar_queue nh_keep_delayed_killer 
+nh_keep_do_wear_disrobing nh_keep_dokick_gate_str nh_keep_eat_eatmbuf nh_keep_killer 
+nh_keep_nomovemsg nh_keep_pline_you_buf nh_keep_save_cm nh_keep_vision_cs_left 
+nh_keep_vision_cs_right nh_vl nh_vp no_elbow_room no_longer no_shk nogood noluck nomovemsg none 
+not_claws not_enough_room nothing_else_happens npchoices nroom nul objexplain occupants 
+oclass_names odd_skill_names omoves only opt_intro ora_msg oracle_cnt orc_abil otmp out_line 
+outbuf outbufp overloadmsg pick_chars pl_character pl_fruit plname poiseff pri_abil pushq 
+quest_status quitchars r ran_abil randomstr ready_objs recharge_type rect rect_cnt rightglow 
+rloc_x rloc_y rmonst robjects rog_abil runmodes sam_abil same_class_msg save_cm save_dlevel 
+save_monsyms save_oc_syms save_showsyms sc scritch sdir see_yourself sell_response shirt_msgs 
+shop_msg shortnames shtypes sink_msg sit_message soldier_foe_msg spellings sstairs swamp_msg 
+tabbed_deity_fmtstr tabbed_fmtstr template tgfirst tglyph throne_msg timer_id tools_too 
+tou_abil tower_of_flame tune txt unknown_type untabbed_deity_fmtstr untabbed_fmtstr up updest 
+upladder upstair use_thec usteed_id ustuck_id val_abil valid_menu_classes valid_settings 
+valuables vampmsg vault_x vault_y venom_inv version_data vismsg vowels wall_matrix warn_str 
+were wgrowtime what_is_an_unknown_object where_to_hit whistle_str wholebuf withwhat wiz_abil 
+wiz_only_list wizkit wnames worn writing_vanishes xmax xmin xsize ymax ymin ynNaqchars 
+ynaqchars ynchars ynqchars you you_buy_it your ysize zeroobj zoo_msg

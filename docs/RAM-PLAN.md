@@ -659,6 +659,16 @@ With the vision grids far too, 16 pages cost 152 / 273 ms. A fault is cheap next
 human's turn, so the cache is the budget's best lever: 4 KB instead of 16 gives the resident
 side 12 KB for about 55 ms a turn (less with a fault handler in assembler, about 350 cycles).
 
+**Later the same day** (`docs/data/wholegame-far-2026-11-20.txt`, far24-27): the vision grids
+far (rows of `struct vrow_s`), nine more tables far by name, the shopkeeper names in their
+bank, role and race strings far (`NH_RNAME()`), and name lookups off the ring: resident data
+about 47 KB, resident code 26 KB. A far default for the rest (`#pragma fardefault`, the
+fork's commit 9, `docs/data/fardefault-trial-2026-11-20.txt`) would move only about 4.6 KB:
+of the 27 KB of named objects left, 15.8 KB are `char` arrays or have their address handed
+on as a near pointer, and 3 KB are touched every turn. The bulk left is strings and `char`
+data, read through `char *`: far strings in the compiler come next (Jolyon agreed), and the
+far default after them.
+
 ## Measured: zero page saves (2026-11-16, T1.49)
 
 After the padding (ADR-0009 point 5), what is left of Oscar64's multiply routine is small: 0.2%

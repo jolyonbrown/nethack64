@@ -1,0 +1,363 @@
+From 351bf6dead4a870531fb39fc9dc2116d5ed2fdce Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Fri, 20 Nov 2026 22:00:47 +0000
+Subject: [PATCH] Far default: #pragma fardefault(section) and #pragma
+ near(name, ...)
+
+A program with many small globals that code reads by name, NetHack's, can put them in
+a far section without wrapping each declaration in #pragma data/bss.  #pragma
+fardefault(section) (a far section, #pragma farsection) marks the variables the rest of
+the file declares; when such a variable's linker object is made and its section is
+still the default data or bss, it goes to the far section instead, unless #pragma near
+names it.  #pragma fardefault() ends it.  The mark is the definition's: an extern
+declared before the pragma and defined after it is far, and a definition elsewhere
+(libc's own files) is not.
+
+autotest/fardefaulttest.c: far variables (initialised, zeroed, arrays, a struct table, a
+function's static, an extern defined under the pragma) read and written by name with
+their pages mapped to a copy and garbage at the link address; near ones (named, before
+the pragma, after fardefault()) below $8000.  -n at -O0 to -O3.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/fardefaulttest.c      | 93 ++++++++++++++++++++++++++++++++++
+ autotest/makefile              |  8 +++
+ oscar64/Declaration.cpp        |  2 +-
+ oscar64/Declaration.h          |  1 +
+ oscar64/InterCodeGenerator.cpp |  8 +--
+ oscar64/Linker.cpp             | 15 +++++-
+ oscar64/Linker.h               |  7 +++
+ oscar64/Parser.cpp             | 41 +++++++++++++++
+ oscar64/Parser.h               |  1 +
+ 9 files changed, 170 insertions(+), 6 deletions(-)
+ create mode 100644 autotest/fardefaulttest.c
+
+diff --git a/autotest/fardefaulttest.c b/autotest/fardefaulttest.c
+new file mode 100644
+index 0000000..4b40ac4
+--- /dev/null
++++ b/autotest/fardefaulttest.c
+@@ -0,0 +1,93 @@
++/* #pragma fardefault(section) and #pragma near(name, ...): variables declared under
++ * fardefault whose section would be the default data or bss go to the far section, unless
++ * near names them.  The far section is linked at $8000; the translation maps its pages to a
++ * copy at $9000, and main() fills $8000 with garbage first, so a far variable read or
++ * written without a translation reads garbage (as in farspacetest.c).  Native code only. */
++#include <string.h>
++
++#pragma section(fardata, 0)
++#pragma farsection(fardata, 1)
++#pragma region(farr, 0x8000, 0x9000, , , { fardata })
++#pragma region(main, 0x0900, 0x8000, , , { code, data, bss, heap, stack })
++
++/* the space's page table: far page p at RAM page p + $10 */
++unsigned char tlb1[256];
++
++__asm farxl1
++{
++		lda tlb1, x
++		rts
++}
++#pragma runtime(farxl1, farxl1)
++
++unsigned char xoff, xlo;
++
++__asm farxo1
++{
++		sty xoff
++		clc
++		adc xoff
++		bcc nc
++		inx
++nc:		sta xlo
++		lda tlb1, x
++		tax
++		lda xlo
++		rts
++}
++#pragma runtime(farxo1, farxo1)
++
++unsigned char farpins[4];
++#pragma runtime(farpins, farpins)
++
++int before = 3;			/* before the pragma: near */
++extern int early;		/* declared before, defined under it: far */
++
++#pragma near(keep, hits)
++#pragma fardefault(fardata)
++
++int early = 5;
++int counter;			/* bss */
++int table[40] = { 1, 2, 3 };
++struct pt { char x; int y; } pts[3] = { { 1, 10 }, { 2, 20 }, { 3, 30 } };
++char text[16] = "far text";
++int keep = 9;			/* named near */
++int hits;
++
++__noinline int tick(void)
++{
++	static int calls = 100;	/* a function's static: far too */
++	return ++calls;
++}
++
++#pragma fardefault()
++
++int after = 4;			/* after fardefault(): near */
++
++__noinline int idx(int i) { return i; }
++
++int main(void)
++{
++	for (int i = 0; i < 256; i++)
++		tlb1[i] = i;
++	for (int i = 0x80; i < 0x90; i++)
++		tlb1[i] = i + 0x10;
++	memcpy((char *)0x9000, (char *)0x8000, 0x1000);
++	memset((char *)0x8000, 0xee, 0x1000);
++
++	int fails = 0;
++	if (early != 5 || table[idx(2)] != 3 || pts[idx(1)].y != 20 || text[idx(4)] != 't') fails |= 1;
++	counter += 7;
++	table[idx(30)] = counter;
++	pts[idx(2)].x = 'z';
++	if (counter != 7 || table[30] != 7 || pts[2].x != 'z' || pts[2].y != 30) fails |= 2;
++	if (tick() != 101 || tick() != 102) fails |= 4;
++	/* the near ones are where near data is, and hold their values */
++	if ((unsigned)&before >= 0x8000 || (unsigned)&after >= 0x8000 ||
++		(unsigned)&keep >= 0x8000 || (unsigned)&hits >= 0x8000) fails |= 8;
++	hits = keep + before + after;
++	if (hits != 16) fails |= 16;
++	/* the far copy holds what was stored, the fake addresses only garbage */
++	if (*(unsigned char *)0x8000 != 0xee) fails |= 32;
++	return fails;
++}
+diff --git a/autotest/makefile b/autotest/makefile
+index f6f9db6..4991e57 100644
+--- a/autotest/makefile
++++ b/autotest/makefile
+@@ -50,6 +50,14 @@ bitshifttest: bitshifttest.c
+ 	$(OSCAR64_CC) -ea -g -bc -O3 $<
+ 	$(OSCAR64_CC) -ea -g -n $<
+ 
++# testn
++fardefaulttest: fardefaulttest.c
++	$(OSCAR64_CC) -ea -g -n $<
++	$(OSCAR64_CC) -ea -g -O2 -n $<
++	$(OSCAR64_CC) -ea -g -O0 -n $<
++	$(OSCAR64_CC) -ea -g -Os -n $<
++	$(OSCAR64_CC) -ea -g -O3 -n $<
++
+ # testn
+ farspacetest: farspacetest.c
+ 	$(OSCAR64_CC) -ea -g -n $<
+diff --git a/oscar64/Declaration.cpp b/oscar64/Declaration.cpp
+index 3cc7611..e2db3be 100644
+--- a/oscar64/Declaration.cpp
++++ b/oscar64/Declaration.cpp
+@@ -1491,7 +1491,7 @@ Declaration::Declaration(const Location& loc, DecType type)
+ 	mVectorConstructor(nullptr), mVectorDestructor(nullptr), mVectorCopyConstructor(nullptr), mVectorCopyAssignment(nullptr),
+ 	mVectorMoveConstructor(nullptr), mVectorMoveAssignment(nullptr),
+ 	mVTable(nullptr), mTemplate(nullptr), mForwardParam(nullptr), mForwardCall(nullptr),
+-	mVarIndex(-1), mLinkerObject(nullptr), mAlignment(1), mCallers(nullptr), mCalled(nullptr), mFriends(nullptr), mMayCall(nullptr),
++	mVarIndex(-1), mLinkerObject(nullptr), mAlignment(1), mFarDefault(false), mCallers(nullptr), mCalled(nullptr), mFriends(nullptr), mMayCall(nullptr),
+ 	mInteger(0), mNumber(0), mMinValue(-0x80000000LL), mMaxValue(0x7fffffffLL), 
+ 	mFastCallBase(0), mFastCallSize(0), 
+ 	mFastCallBase2(0), mFastCallSize2(0), mVariadicSize(0),
+diff --git a/oscar64/Declaration.h b/oscar64/Declaration.h
+index 53cd6a7..4d75370 100644
+--- a/oscar64/Declaration.h
++++ b/oscar64/Declaration.h
+@@ -330,6 +330,7 @@ public:
+ 	Expression*			mValue, * mReturn;
+ 	DeclarationScope*	mScope;
+ 	int					mOffset, mSize, mVarIndex, mNumVars, mComplexity, mLocalSize, mAlignment, mFastCallBase, mFastCallSize, mFastCallBase2, mFastCallSize2, mStride, mStripe, mVariadicSize;
++	bool				mFarDefault;	// declared under #pragma fardefault (Linker::FarDefaultSection)
+ 	uint8				mShift, mBits;
+ 	int64				mInteger, mMinValue, mMaxValue;
+ 	double				mNumber;
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index 46919cc..37ff5b9 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -869,7 +869,7 @@ void InterCodeGenerator::InitGlobalVariable(InterCodeModule * mod, Declaration*
+ 		InterVariable	*	var = new InterVariable();
+ 		var->mOffset = 0;
+ 		var->mSize = dec->mSize;
+-		var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection, LOT_DATA, dec->mAlignment);
++		var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection = mLinker->FarDefaultSection(dec->mIdent, dec->mSection, dec->mFarDefault), LOT_DATA, dec->mAlignment);
+ 		var->mLinkerObject->mVariable = var;
+ 		var->mIdent = dec->mQualIdent;
+ 
+@@ -2530,7 +2530,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 					var->mIdent = dec->mQualIdent;
+ 					var->mOffset = 0;
+ 					var->mSize = dec->mSize;
+-					var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection, LOT_DATA, dec->mAlignment);
++					var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection = mLinker->FarDefaultSection(dec->mIdent, dec->mSection, dec->mFarDefault), LOT_DATA, dec->mAlignment);
+ 					var->mLinkerObject->mVariable = var;
+ 
+ 					if (dec->mBase->mFlags & DTF_CONST)
+@@ -2569,7 +2569,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 					var->mSize = dec->mSize;
+ 					if (dec->mFlags & DTF_VAR_ALIASING)
+ 						var->mAliased = true;
+-					var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection, LOT_DATA, dec->mAlignment);
++					var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection = mLinker->FarDefaultSection(dec->mIdent, dec->mSection, dec->mFarDefault), LOT_DATA, dec->mAlignment);
+ 					var->mLinkerObject->mVariable = var;
+ 					dec->mLinkerObject = var->mLinkerObject;
+ 					var->mIdent = dec->mQualIdent;
+@@ -6366,7 +6366,7 @@ void InterCodeGenerator::BuildInitializer(InterCodeModule * mod, uint8* dp, int
+ 				var->mSize = dec->mSize;
+ 				if (dec->mFlags & DTF_VAR_ALIASING)
+ 					var->mAliased = true;
+-				var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection, LOT_DATA, dec->mAlignment);
++				var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection = mLinker->FarDefaultSection(dec->mIdent, dec->mSection, dec->mFarDefault), LOT_DATA, dec->mAlignment);
+ 				var->mLinkerObject->mVariable = var;
+ 				dec->mLinkerObject = var->mLinkerObject;
+ 				var->mLinkerObject->AddData(dec->mData, dec->mSize);
+diff --git a/oscar64/Linker.cpp b/oscar64/Linker.cpp
+index e19aaa9..b461375 100644
+--- a/oscar64/Linker.cpp
++++ b/oscar64/Linker.cpp
+@@ -178,7 +178,7 @@ LinkerOverlay::~LinkerOverlay(void)
+ 
+ Linker::Linker(Errors* errors)
+ 	: mErrors(errors), mSections(nullptr), mReferences(nullptr), mObjects(nullptr), mRegions(nullptr), mOverlays(nullptr), mBreakpoints(0), mCompilerOptions(COPT_DEFAULT),
+-	  mProgramStart(0), mProgramEnd(0)
++	  mProgramStart(0), mProgramEnd(0), mFarDefault(nullptr)
+ {
+ 	for (int i = 0; i < CartridgeBankSet::NUM_BANKS; i++)
+ 	{
+@@ -560,6 +560,19 @@ void Linker::CheckDirectJumps(void)
+ // The cartridge bank of the code in a section: the bank of the one region that holds
+ // it, or -1 when it is not in exactly one region of exactly one bank (resident code,
+ // or a section placed in several banks).
++// The section of a variable declared under #pragma fardefault: the far default section in
++// place of the default data or bss section, unless #pragma near names it
++LinkerSection* Linker::FarDefaultSection(const Ident* ident, LinkerSection* section, bool fardefault)
++{
++	if (!fardefault || !mFarDefault || !section || !section->mIdent ||
++		(strcmp(section->mIdent->mString, "data") && strcmp(section->mIdent->mString, "bss")))
++		return section;
++	for (int i = 0; i < mNearIdents.Size(); i++)
++		if (mNearIdents[i] == ident)
++			return section;
++	return mFarDefault;
++}
++
+ int Linker::SectionBank(LinkerSection* section)
+ {
+ 	LinkerRegion* rgn = FindRegionOfSection(section);
+diff --git a/oscar64/Linker.h b/oscar64/Linker.h
+index ad47059..2fb2fd6 100644
+--- a/oscar64/Linker.h
++++ b/oscar64/Linker.h
+@@ -383,6 +383,13 @@ public:
+ 
+ 	GrowingArray<LinkerReference*>	mReferences;
+ 	GrowingArray<LinkerRegion*>		mRegions;
++
++	// #pragma fardefault(section) and #pragma near(name, ...): a variable declared in a
++	// file under fardefault, in the default data or bss section and not named near, goes
++	// to the far default section
++	LinkerSection*					mFarDefault;
++	ExpandingArray<const Ident*>	mNearIdents;
++	LinkerSection* FarDefaultSection(const Ident* ident, LinkerSection* section, bool fardefault);
+ 	GrowingArray<LinkerSection*>	mSections;
+ 	GrowingArray<LinkerObject*>		mObjects;
+ 	GrowingArray<LinkerOverlay*>	mOverlays;
+diff --git a/oscar64/Parser.cpp b/oscar64/Parser.cpp
+index 68559cf..1600220 100644
+--- a/oscar64/Parser.cpp
++++ b/oscar64/Parser.cpp
+@@ -15,6 +15,7 @@ Parser::Parser(Errors* errors, Scanner* scanner, CompilationUnits* compilationUn
+ 	mCodeSection = compilationUnits->mSectionCode;
+ 	mDataSection = compilationUnits->mSectionData;
+ 	mBSSection = compilationUnits->mSectionBSS;
++	mFarDefault = false;
+ 
+ 	mUnrollLoop = 0;
+ 	mUnrollLoopPage = false;
+@@ -1412,6 +1413,7 @@ Declaration* Parser::ParsePostfixDeclaration(bool autoBase)
+ 		dec = new Declaration(mScanner->mLocation, DT_VARIABLE);
+ 		dec->mIdent = mScanner->mTokenIdent;
+ 		dec->mSection = mBSSection;
++		dec->mFarDefault = mFarDefault;
+ 		dec->mBase = nullptr;
+ 		mScanner->NextToken();
+ 
+@@ -6674,6 +6676,7 @@ Declaration* Parser::ParseDeclaration(Declaration * pdec, bool variable, bool ex
+ 							{
+ 								pdec->mFlags &= ~DTF_EXTERN;
+ 								pdec->mSection = ndec->mSection;
++								pdec->mFarDefault = ndec->mFarDefault;
+ 								pdec->mSize = ndec->mSize;
+ 							}
+ 
+@@ -6705,6 +6708,7 @@ Declaration* Parser::ParseDeclaration(Declaration * pdec, bool variable, bool ex
+ 							}
+ 
+ 							pdec->mSection = ndec->mSection;
++								pdec->mFarDefault = ndec->mFarDefault;
+ 
+ 							pdec->mFlags |= ndec->mFlags & DTF_ZEROPAGE;
+ 
+@@ -15521,6 +15525,43 @@ void Parser::ParsePragma(void)
+ 
+ 			ConsumeToken(TK_CLOSE_PARENTHESIS);
+ 		}
++		else if (!strcmp(mScanner->mTokenIdent->mString, "fardefault"))
++		{
++			// #pragma fardefault(section): variables declared from here to the end of this
++			// file (or #pragma fardefault()) whose section is the default data or bss go to
++			// section instead, unless #pragma near names them (Linker::FarDefaultSection)
++			mScanner->NextToken();
++			ConsumeToken(TK_OPEN_PARENTHESIS);
++			if (mScanner->mToken == TK_IDENT)
++			{
++				LinkerSection* lsec = mCompilationUnits->mLinker->FindSection(mScanner->mTokenIdent);
++				mScanner->NextToken();
++				if (lsec && lsec->mFarSpace)
++				{
++					mCompilationUnits->mLinker->mFarDefault = lsec;
++					mFarDefault = true;
++				}
++				else
++					mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Far section expected");
++			}
++			else
++				mFarDefault = false;
++			ConsumeToken(TK_CLOSE_PARENTHESIS);
++		}
++		else if (!strcmp(mScanner->mTokenIdent->mString, "near"))
++		{
++			// #pragma near(name, ...): variables that #pragma fardefault leaves near
++			mScanner->NextToken();
++			ConsumeToken(TK_OPEN_PARENTHESIS);
++			while (mScanner->mToken == TK_IDENT)
++			{
++				mCompilationUnits->mLinker->mNearIdents.Push(mScanner->mTokenIdent);
++				mScanner->NextToken();
++				if (!ConsumeTokenIf(TK_COMMA))
++					break;
++			}
++			ConsumeToken(TK_CLOSE_PARENTHESIS);
++		}
+ 		else if (!strcmp(mScanner->mTokenIdent->mString, "data"))
+ 		{
+ 			mScanner->NextToken();
+diff --git a/oscar64/Parser.h b/oscar64/Parser.h
+index 2277bd1..4395d42 100644
+--- a/oscar64/Parser.h
++++ b/oscar64/Parser.h
+@@ -20,6 +20,7 @@ public:
+ 	Token					mCaptureToken;
+ 	
+ 	LinkerSection	* mCodeSection, * mDataSection, * mBSSection;
++	bool			mFarDefault;
+ 
+ 	uint64			mCompilerOptions;
+ 	uint64			mCompilerOptionStack[32];
+-- 
+2.43.0
+
