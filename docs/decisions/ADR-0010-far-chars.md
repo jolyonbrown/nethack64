@@ -214,6 +214,30 @@ string crosses a bank. The hot arrays stay near too.
   - Why the single-bank ones are resident is not known yet: suffix sharing between literals,
     an inlined resident helper, or a heuristic miss. Finding out comes first.
 
+### Step 1 looked into (2026-11-21): no linker fix to make
+
+The 1,613 B of literals that only banked code seemed to use was mostly an artefact of the
+attribution, and the cause question has a plain answer (far36's listing, map and generated
+sources):
+- Oscar64 puts a literal in the code section in force where it is written. bankgen.py wraps
+  each banked function in `#pragma code(nhbank_N)`, and the map shows those literals in
+  their banks (`DATA:nhbank_N`), so banked code's own literals already go with it.
+- The resident literals are those of resident code and those written at file scope,
+  which is compiled under `#pragma code(code)`: the strings of tables, and the occasional
+  pointer such as pray.c's `Moloch` or trap.c's `A_gush_of_water_hits`.
+- Resident code includes the variadic message functions (`You_hear`, `There`, `You_feel`,
+  ...), which bankgen.py keeps resident whatever the plan says ("variadic"). Their literals,
+  such as "You dream that you hear ", are resident with them.
+- `litrefs.py` missed references that load the high byte first (`LDA #hi; LDX #lo`, as in
+  `You_hear`) and credited chance pairs of immediates in banked code instead. Counting both
+  byte orders, within three instructions of one function, still leaves mostly chance matches
+  (monster-class and skill names "used" by unrelated functions). Those literals belong to tables.
+- What a linker change could still move is the file-scope pointers that one bank alone
+  uses: about 35 such definitions across the sources, 528 B of literal in all (most of them
+  locals, already banked), so a few hundred bytes at best. And it has the same escape question as
+  banked literals. Not worth a step of its own: the range tag (point 2) takes these
+  literals with the rest.
+
 ### Recommendation
 
 1. The linker fix for literals placed with their code, first: up to 1.6 KB, no run-time cost.
