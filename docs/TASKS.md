@@ -778,7 +778,12 @@ Add new tasks at the bottom of the right section.
       a C128 + Magic Desk 128 + REU in x128, the C64 build kept working): a `-tm=c128` build of
       the banked game with its banks on a Magic Desk 128 image (16 KB at `$8000`, `$DE00`) and
       the REU; the VDC for the 80 columns; the keyboard; 2 MHz; `make test` cases for it.
-      Evidence so far: `tests/spikes/c128.c`, `c128ef.c` (HARDWARE.md).
+      Evidence so far: `tests/spikes/c128.c`, `c128ef.c` (HARDWARE.md). 2026-11-21: bank calls
+      on a C128, `bankreu128.c` 14/14 (`tools/bank/c128_images.py`); `bankgen.py`/`build_c64.py
+      --target c128`; the far36 plan links for the C128, every bank placed, 18.6 KB of resident
+      data over 36.6 KB of regions (`docs/data/wholegame-c128-2026-11-21.txt`). Next: far
+      characters laid out for the C128 (ADR-0010), the I/O out by default (+4 KB), `$0400-$1BFF`
+      (+6 KB).
 
 ## Housekeeping
 
