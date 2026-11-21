@@ -273,6 +273,9 @@ def main():
     ap.add_argument("--far", action="store_true",
                     help="the far spaces (T2.11-T2.12, ADR-0009): -dNH_FAR_SPACES for the compile and "
                          "for bankgen.py's view of the sources, and tools/measure/far_meas.c's runtime")
+    ap.add_argument("--target", choices=("c64", "c128"), default="c64",
+                    help="c128 (T2.13): bankgen.py --target c128 and -tm=c128; the banks come out as "
+                         "nethack_ovN.prg beside nethack.prg, for tools/bank/c128_images.py")
     ap.add_argument("--generate-only", action="store_true",
                     help="write the rewritten sources and compile.args (the compile's arguments, "
                          "relative to DIR) without compiling, e.g. to compile on a bigger machine")
@@ -303,6 +306,7 @@ def main():
                            ["--cpp=" + c for c in cpp] + (["--cpp=-DNH_FAR_SPACES"] if a.far else []) +
                            (["--cpp=-DNH_FAR_DEFAULT"] if far_default else []) +
                            (["--linker-stubs"] if a.linker_stubs else []) +
+                           (["--target", "c128"] if a.target == "c128" else []) +
                            files, capture_output=True, text=True)
         if r.returncode:
             sys.exit("bankgen.py failed:\n" + r.stdout + r.stderr)
@@ -315,7 +319,8 @@ def main():
                                "int main(void) { newgame(); moveloop(); return 0; }\n")
         # -xb: the game never returns to BASIC, so main need not keep BASIC's zero page
         # (the pin's -Ot, part of -Os, then saves less in the game's functions)
-        args = ["-rmp", "-Os", "-xb", "-i=inc", "-i=stub", "-i=src", "-o=nethack.prg"] + \
+        args = ["-rmp", "-Os", "-xb"] + (["-tm=c128"] if a.target == "c128" else []) + \
+            ["-i=inc", "-i=stub", "-i=src", "-o=nethack.prg"] + \
             ["src/" + f for f in files] + [os.path.basename(h)] + mo.DEFS
         if a.far:
             shutil.copy(os.path.join(ROOT, "tools", "measure", "far_meas.c"), out)

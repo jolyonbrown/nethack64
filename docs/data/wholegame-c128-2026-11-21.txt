@@ -1,0 +1,25 @@
+# The whole far game for a C128 in its own mode (T2.13), 2026-11-21 (desktop).  Sources from
+# tools/bank/build_c64.py --plan docs/data/bankplan-2026-11-21-far36.json --linker-stubs
+# --main real --far --generate-only --target c128 (bankgen.py --target c128: the C128 bank call
+# routine, NH_MAP_C128, and an overlay per bank; -tm=c128); compiler oscar64-far14 (the
+# far-spaces fork on pin 85), as far36.  The link exits 20 (resident side), as far36's does.
+
+plan                     far36's, unchanged
+resident regions         $1D00-$7FFF (code, data, bss, heap, stack), $C000-$CFFF and
+                         $E000-$FBFF (code, data): 36,608 B in all, with the I/O in at $D000
+                         and nothing below $1D00 (BASIC's and the KERNAL's workspace)
+resident code            20,448 B (far36 on the C64: 20,436), of which 22 trampolines
+                         1,610 B and 245 bank call stubs 1,470 B
+left unplaced            resident data 18,582 B; and the heap and the stack ("cannot place")
+banks                    119 used, 1,854,897 B in all, as far36: every banked object placed
+checks                   0 calls across a bank without a trampoline, highest temporary $8f,
+                         check_listing 0 problems; 709 calls through pointers from banked
+                         code, 0 uses of a banked function's address
+build                    757 s, peak 12.7 GB (memlog-a.py)
+
+So the resident side is the same size as the C64's (about 58.3 KB: the same code, a few
+bytes apart), and the C128 offers 36.6 KB of regions for it as laid out here, against the
+C64's real budget of about 25 KB (RAM-PLAN.md).  Not counted yet: the RAM under the I/O
+(4 KB, if the program ran with the I/O out, $3F/$3B, and switched it in around the chips, as
+Oscar64's C128 start does), $0400-$1BFF (6 KB, if the KERNAL's workspace is given back
+around KERNAL calls), and what the page cache, stack and near heap take.
