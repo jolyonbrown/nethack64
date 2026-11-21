@@ -10,6 +10,7 @@ Exit status 0 when every bank read back its own tag at $8000 and $A000 with the 
 """
 import argparse
 import os
+import re
 import struct
 import subprocess
 import sys
@@ -32,10 +33,10 @@ def mem(addr, n):
     r = subprocess.run(rb.VICE + ["mem", hex(addr), str(n)], capture_output=True, text=True)
     out = []
     for line in r.stdout.splitlines():
-        for t in line.split()[1:17]:
-            if len(t) != 2:
-                break
-            out.append(int(t, 16))
+        # ">C:2f00  00 01 ...  ascii": up to 16 hex pairs after the address, then the text
+        m = re.match(r"^\S*?([0-9a-fA-F]{4})((?:\s+[0-9a-fA-F]{2}(?=\s|$)){1,16})", line.strip())
+        if m:
+            out += [int(t, 16) for t in m.group(2).split()]
     return out[:n]
 
 

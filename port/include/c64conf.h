@@ -145,4 +145,17 @@ extern int nh_fscanf(FILE *, const char *, ...);
 #include "nhnear.h"
 #endif
 
+#if defined(__OSCAR64C__) && defined(NH_FAR_SPACES) && defined(NH_FAR_CHARS)
+/* T2.13, a measurement (ADR-0010, far characters): far space 6 is the character space, which
+ * a byte reached through a pointer may be in (the far-spaces fork's commit 11): addresses
+ * $C100-$FBFF, which no near byte takes (the C128 keeps only code from $C000 up), bank 138
+ * (REU 16 KB slot 75 from $C100). The string literals of resident code and of file scope go
+ * there (#pragma strings); banked code's stay in its bank. Every object keeps to a page. */
+#pragma section(farchars, 0)
+#pragma farsection(farchars, 6)
+#pragma region(farchars, 0xc100, 0xfc00, , 138, { farchars })
+#pragma farchars(6)
+#pragma strings(code, farchars)
+#endif
+
 #endif /* C64CONF_H */

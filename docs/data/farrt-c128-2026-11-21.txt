@@ -1,0 +1,34 @@
+The far runtime on a C128 (T2.13, ADR-0009, ADR-0010), 2026-11-21
+
+tests/spikes/run_farrt128.py --oscar64 <far-spaces fork 757a917, commits 11-12 on pin 85>
+(tools/bank/farrt.py --target c128 --frames 4 --space 1:80:bf:01 --space 6:c1:fb:00 --chars 6;
+VICE 3.7.1 x128, C128 mode at 1 MHz, a 512 KB REU from c128_images.py's image)
+
+  pass    24 far literals read as their near copies, through 4 frames
+  pass    a list through 512 nodes of far space 1 holding far literals' bytes
+  pass    the library's strcpy, strcmp, memcpy, memset on far strings
+  pass    nh_farcopy() from space 1 across a page
+  pass    faults and write-backs happened; the MMU as it was
+  pass    a fault with the MMU at $3F switches the I/O in and out again
+  pass    a far literal and its near copy sum the same (the timing's check)
+faults 2892, write-backs 2888; 40 bytes of a far literal in the cache 3625 cycles (90.6 a byte), near 3162 (79.0 a byte)
+
+The timing loop reads both through a byte pointer, so the near copy pays the character test
+(a call of farxl6 that finds the page below $C1) and the far one the table look-up: about
+11.6 cycles a byte more for a far byte in the cache. The compiler uses farxl6/farxo6 (the page
+form): with farxz6, a pointer stepped in a loop loses its carry (ADR-0010, "Built").
+
+Found on the way (each with its own record):
+- docs/OSCAR64-COMPAT.md row 81, tests/oscar64-repros/r78: a field read from the next object
+  (`for (; o; o = o->nobj) s += o->oclass;`), the pin and upstream; fixed in the fork's commit 12.
+- the farxz form's lost carry: the fork only, open (ADR-0010).
+- an __asm block's store to a C local is not seen by the code after it (farrt.py: the page
+  comes back through a volatile global).
+
+Per-file code with far characters (tools/measure/measure_oscar64.py --config c64, the fork
+with commit 11, MEASURE_DEFS -dNH_FAR_SPACES [-dNH_FAR_CHARS -dOSCAR_FARCHARS],
+MEASURE_EXTRA tools/measure/far_meas.c; its farxz forms in use for both):
+  pline.c    4,217 -> 4,483 B (+6.3%)
+  hacklib.c  3,192 -> 3,600 B (+12.8%)
+(objnam.c, invent.c, options.c, do_name.c need bankgen.py's name glue, which the per-file
+measurement does not have.)

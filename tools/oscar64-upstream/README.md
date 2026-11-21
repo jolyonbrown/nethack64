@@ -64,7 +64,12 @@ Jolyon has read its explanation and said yes. Until then, branches stay local.
   --banked-proxies 2`; a ninth: `#pragma fardefault(section)` and `#pragma near(name, ...)`,
   `autotest/fardefaulttest.c`; a tenth, 2026-11-21: a far default object keeps to one page,
   aligned to the power of two at or above its size, one larger than a page staying near. On
-  2026-11-21 the ten moved onto pin 85, which adds upstream's fix of r77.)
+  2026-11-21 the ten moved onto pin 85, which adds upstream's fix of r77. An eleventh, the
+  same day: far characters, `#pragma farchars` and `#pragma strings` (ADR-0010),
+  `autotest/farcharstest.c`, with `-dOSCAR_FARCHARS` for the library's assembler string
+  routines. A twelfth fixes r78, which is not far-specific: two loads through one pointer
+  sorted by offset even when the second loads the pointer; `autotest/loadordertest.c`.
+  Proposed for the pin too: it applies there as it is.)
 - **Reproducible output.** v1.32.273 and the eight-commit pin read several
   members of their own data structures before anything has written them, so what
   they emit can depend on what the compiler's heap held: the install path, the

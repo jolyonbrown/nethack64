@@ -342,3 +342,53 @@ them inventory commands).
 - A turn is 1-1.8 s at 1 MHz (RAM-PLAN.md, "the estimate"), so names and messages cost a few
   thousandths of it. Even an inventory of 30 items costs about 90 ms more.
 - **The speed doesn't decide against the range tag; the size is its real cost.**
+
+### Built (2026-11-21)
+
+Far characters are in the far-spaces fork as commit 11 (`patches/far-spaces/0011-*`), and the
+runtime that pages every far space from the REU is `tools/bank/farrt.py`. Both are checked on
+the C128 in x128 (`docs/data/farrt-c128-2026-11-21.txt`). How it differs from the design above:
+
+- **One mechanism on both machines.** The character space is another far space, paged from the
+  REU through the cache like the typed ones, chosen by the pointer's value rather than by type.
+  The bank-1 access of the C128 note (above) is left for later: the compiler translates a
+  pointer and then uses it as a near one, and a bank-1 byte can't be reached that way.
+- **The compiler.** `#pragma farchars(n)` makes a one-byte integer type answer far space n in
+  `Declaration::FarSpace()`. So a byte reached through a pointer is translated like a typed
+  space's, while struct fields keep their struct's space and locals and near globals stay near.
+  - The space's routines (`farxlN`, `farxoN`) return an address outside its pages as it is.
+  - A volatile byte is hardware's, and is left alone.
+  - `#pragma farchars(off)` (a compiler option bit) gives the functions defined after it plain
+    addresses. An inlined function takes its caller's setting.
+  - A pointer leaving the character space gives no warning 2026, since its address still tells;
+    a typed space's pointer entering it still warns.
+- **Objects keep to a page.** Every object of a section in the character space is placed so that
+  it doesn't cross a page (`LOBJF_NEVER_CROSS`, `Linker::AddObject`), at no cost in alignment.
+  - So a built-in `strcpy`, `memcpy` or `memset` within one object is translated once, and no
+    page-straddling routines are needed (the review's chunked copies).
+  - With a character space, `MapLateIntrinsics()` leaves `memcpy()` calls alone.
+- **The literals.** `#pragma strings(code, farchars)` sends the literals written under the
+  `code` section, those of resident code and of file scope, to the character space's section.
+  Banked code's stay in its bank.
+- **The library.** With `-dOSCAR_FARCHARS`, the assembler `strcpy`, `strcmp`, `memcpy` and
+  `memset` translate each pointer once, through the program's `farxzc` (declared in `string.h`
+  as a C function, as `crt.c` declares `main`). The C routines are translated byte by byte.
+  - These routines also translate plain addresses passed from `farchars(off)` code. So hardware
+    code (the C64's bitmap clear) copies with its own loops.
+- **The names.** `nh_farcopy()` (in `farrt.py`) is `farchars(off)` and goes through the name
+  space's own table a page at a time. A name pointer at `$E000` and above is never reached by
+  the byte test.
+- **The whole game.** `build_c64.py --far --far-chars` (`c64conf.h`'s `NH_FAR_CHARS`: space 6
+  at `$C100-$FBFF`, bank 138) makes `bankgen.py`'s C128 regions above the window code-only.
+  `far_meas.c` gives the measurement build the space's routines.
+  - The first whole-game link waits for the desktop: the compile needs 12.7 GB, more than this
+    machine has free.
+- **Speed and size.** A far byte in the cache costs about 11.6 cycles more than a tested near
+  one in the spike's loop.
+  - Per-file code grows 6-13% in string-heavy files (`pline.c`, `hacklib.c`), as estimated.
+  - Both use the page form (`farxlN`, 11 bytes a site). The five-byte `farxzN` loses a
+    pointer's carry in a loop: `while (s[n]) n++` becomes `INC P0` alone before the call. That
+    is a fork bug, still open; `farrt.py` gives the compiler `farxzN` only with `--xz`.
+- **Found on the way:** an upstream optimiser bug that reads a field from the next object of a
+  list (`docs/OSCAR64-COMPAT.md` row 81, r78), fixed in the fork's commit 12 and proposed for
+  the pin.

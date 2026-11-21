@@ -403,6 +403,9 @@ def main():
                     help="c128 (T2.13): the bank call routine for a C128 in its own mode (MMU, a Magic Desk "
                          "128 cartridge and the REU), the C128's resident regions, and an overlay per "
                          "bank so that Oscar64 writes each bank as a file (tools/bank/c128_images.py)")
+    ap.add_argument("--far-chars", action="store_true",
+                    help="far characters (ADR-0010, NH_FAR_CHARS): with --target c128, the regions above "
+                         "the bank window hold code only")
     ap.add_argument("files", nargs="+")
     a = ap.parse_args()
 
@@ -835,7 +838,7 @@ def main():
         sys.exit("--target c128 needs --linker-stubs")
     text = header(sorted(report["banks"]), kept_extern, a.linker_stubs, resident_glue,
                   slice_start if slice_plan else None, a.target,
-                  region_banks(a.inc) if a.target == "c128" else ())
+                  region_banks(a.inc) if a.target == "c128" else (), a.far_chars)
     open(os.path.join(a.dir, "nhbank.h"), "w").write(text)
     # a far default (a plan's "far_default": {"near": [...]}; c64conf.h, NH_FAR_DEFAULT): every
     # other global of NetHack's files goes to far space 5, so what must stay near is named in
@@ -1158,6 +1161,11 @@ on:		rts
 C128_REGIONS = """#pragma region( main, 0x1d00, 0x8000, , , { code, data, bss, heap, stack } )
 #pragma region( nh_c128_c000, 0xc000, 0xd000, , , { code, data } )
 #pragma region( nh_c128_e000, 0xe000, 0xfc00, , , { code, data } )"""
+# with far characters (ADR-0010, c64conf.h's NH_FAR_CHARS) a byte pointer from $C100 up is
+# the character space's, so no near data may lie there: code only (the code section's only
+# data, its literals, then goes to the character space; the multiplication tables are read
+# by absolute index)
+C128_REGIONS_FAR_CHARS = C128_REGIONS.replace("{ code, data } )", "{ code } )")
 
 
 def region_banks(incs):
@@ -1175,7 +1183,7 @@ def region_banks(incs):
 
 
 def header(banks, keep_extern={}, linker_stubs=False, resident_glue=(), slice_start=None, target="c64",
-           more_banks=()):
+           more_banks=(), far_chars=False):
     """keep_extern: the extern keepers assigned somewhere, with their buffers' sizes"""
     bufs_decl = "\n".join("extern char nh_keep_%s[%d];" % (n, keep_extern[n]) for n in sorted(keep_extern))
     bufs_def = "\n".join("char nh_keep_%s[%d];" % (n, keep_extern[n]) for n in sorted(keep_extern))
@@ -1193,7 +1201,8 @@ def header(banks, keep_extern={}, linker_stubs=False, resident_glue=(), slice_st
                         "{ nhbank_%d } )" % (b, 4 if b in resident_glue else 0, b, end, b, b) for b in banks)
     if target == "c128":
         # each bank a file of its own (Linker::WritePrgFile), nethack_ovN.prg beside nethack.prg
-        regions += "\n/* C128: the resident regions, and each bank written as a file */\n" + C128_REGIONS + "\n" + \
+        regions += "\n/* C128: the resident regions, and each bank written as a file */\n" + \
+            (C128_REGIONS_FAR_CHARS if far_chars else C128_REGIONS) + "\n" + \
             "\n".join("#pragma overlay( nethack_ov%d, %d )" % (b, b) for b in sorted(set(banks) | set(more_banks)))
     if slice_start:
         # the slice: one region in every bank, so the linker writes its bytes into each;

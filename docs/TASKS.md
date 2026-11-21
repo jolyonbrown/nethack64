@@ -785,9 +785,13 @@ Add new tasks at the bottom of the right section.
       laid out for the C128 (ADR-0010): the character space in RAM bank 1 at `$C100-$FBFF`,
       under bank 0's code; `tests/spikes/farchar128.c` 7/7; the speed of `doname()` and of a
       message (`tools/measure/speed/fcbytes.py`, `docs/data/farchar-checks-2026-11-21.txt`):
-      about 3 ms and 2 ms more at 1 MHz. Next: the range tag in the far fork (`#pragma
-      farchars`, the inline test, the C128 runtime), the I/O out by default (+4 KB),
-      `$0400-$1BFF` (+6 KB).
+      about 3 ms and 2 ms more at 1 MHz. Built the same night: far characters in the far fork
+      (commit 11, `autotest/farcharstest.c` 15/15), the far runtime `tools/bank/farrt.py`
+      (REU paging for every space; `tests/spikes/farrt128.c` 7/7 in x128,
+      `docs/data/farrt-c128-2026-11-21.txt`), `build_c64.py --far-chars`; and an upstream
+      miscompile of list walks (COMPAT row 81, r78), fixed in the fork's commit 12. Next: the
+      C128 whole-game link with far characters on the desktop; the pin fix (Jolyon); the farxz
+      form's lost carry; the I/O out by default (+4 KB), `$0400-$1BFF` (+6 KB).
 
 ## Housekeeping
 

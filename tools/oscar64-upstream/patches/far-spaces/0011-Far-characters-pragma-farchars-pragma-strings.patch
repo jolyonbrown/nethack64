@@ -1,0 +1,670 @@
+From 96e6d17ccfa4fd6e861d51cca98cf3637474037a Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 21 Nov 2026 23:06:11 +0000
+Subject: [PATCH] Far characters: #pragma farchars, #pragma strings
+
+#pragma farchars(n) makes far space n the character space: Declaration::FarSpace
+answers it for a one-byte integer type, so a byte reached through a pointer is
+translated through farxlN/farxoN/farxzN like a typed space's, and the program's
+routines tell by the address (one below the space's range comes back as it is).
+Struct fields keep their struct's space, locals and near globals stay near, a
+volatile byte is hardware's, and functions defined under #pragma farchars(off)
+(COPT_FAR_CHARS_OFF) use plain addresses. An object of a section in the
+character space keeps to a page (LOBJF_NEVER_CROSS), so a built-in strcpy,
+memcpy or memset within one is translated once, as for a far struct; with a
+character space, MapLateIntrinsics leaves memcpy() calls alone. A pointer leaving
+the character space gives no warning 2026 (its address still tells).
+
+#pragma strings(codesection, stringsection) sends the string literals written
+while codesection is the code section to stringsection.
+
+With -dOSCAR_FARCHARS, string.c's assembler strcpy, strcmp, memcpy and memset
+translate each pointer once at entry through the program's farxzc (declared in
+string.h as a C function, as crt.c declares main), so they also translate plain
+addresses passed from farchars(off) code: hardware code copies with its own
+loops.
+
+autotest/farcharstest.c: literals in the space, tables of them, a writable buffer
+there, near buffers through pointers, struct fields untranslated (counted), void *
+round trips, the built-ins, the library routines, page keeping over 24 literals,
+volatile and farchars(off) plain; -n at -O0 to -O3 with farxl6/farxo6, farxz6,
+and the library: 15 of 15. With the space mapped to itself the test never ends.
+make check: exit 0.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ autotest/farcharstest.c        | 233 +++++++++++++++++++++++++++++++++
+ autotest/makefile              |  18 +++
+ include/string.c               |  58 ++++++++
+ include/string.h               |   7 +
+ oscar64/CompilerTypes.h        |   3 +
+ oscar64/Declaration.cpp        |   4 +
+ oscar64/InterCode.cpp          |  11 ++
+ oscar64/InterCodeGenerator.cpp |   8 +-
+ oscar64/Linker.cpp             |  16 +++
+ oscar64/Linker.h               |   5 +
+ oscar64/Parser.cpp             |  76 ++++++++++-
+ 11 files changed, 437 insertions(+), 2 deletions(-)
+ create mode 100644 autotest/farcharstest.c
+
+diff --git a/autotest/farcharstest.c b/autotest/farcharstest.c
+new file mode 100644
+index 0000000..9aa36da
+--- /dev/null
++++ b/autotest/farcharstest.c
+@@ -0,0 +1,233 @@
++/* Far characters (#pragma farchars, #pragma strings): far space 6 is the character space.
++ * A byte reached through a pointer is translated through farxl6/farxo6 (farxz6 with
++ * -dFARXZ), which leave an address below $C000 as it is and map $C100-$CFFF to a copy at
++ * $D100-$DFFF; main() fills $C100-$CFFF with garbage first, so a far byte that is not
++ * translated reads garbage.  The literals of the code section go to the character space's
++ * section, and its objects keep to a page.  Struct fields, locals, globals and volatile
++ * bytes are not translated, nor is code under #pragma farchars(off).  Native code only. */
++#include <string.h>
++
++#pragma farchars(6)
++
++#pragma section(farstr, 0)
++#pragma farsection(farstr, 6)
++#pragma region(farstr, 0xc100, 0xd000, , , { farstr })
++#pragma region(main, 0x0900, 0xc000, , , { code, data, bss, heap, stack })
++
++#pragma strings(code, farstr)
++
++/* the character space's page table: far page p at RAM page p + $10 from $C1 up */
++unsigned char tlb6[256];
++unsigned xlats;
++
++__asm farxl6
++{
++		inc xlats
++		bne n0
++		inc xlats + 1
++n0:		cpx #$c0
++		bcc near
++		lda tlb6, x
++		rts
++near:	txa
++		rts
++}
++#pragma runtime(farxl6, farxl6)
++
++#ifdef FARXZ
++__asm farxz6
++{
++		inc xlats
++		bne n1
++		inc xlats + 1
++n1:		lda $00, x
++		sta __addr + 0
++		lda $01, x
++		cmp #$c0
++		bcc near
++		tax
++		lda tlb6, x
++near:	sta __addr + 1
++		rts
++}
++#pragma runtime(farxz6, farxz6)
++
++#ifdef OSCAR_FARCHARS
++/* the library's assembler routines translate their pointers through farxzc (string.h) */
++void farxzc(void)
++{
++	__asm { jmp farxz6 }
++}
++#endif
++#endif
++
++unsigned char xoff, xlo;
++
++__asm farxo6
++{
++		inc xlats
++		bne n2
++		inc xlats + 1
++n2:		sty xoff
++		clc
++		adc xoff
++		bcc nc
++		inx
++nc:		cpx #$c0
++		bcc near
++		sta xlo
++		lda tlb6, x
++		tax
++		lda xlo
++near:	rts
++}
++#pragma runtime(farxo6, farxo6)
++
++unsigned char farpins[4];
++#pragma runtime(farpins, farpins)
++
++/* file scope: the code section's, so in the character space */
++const char * const names[] = { "alpha", "beta", "gamma", "delta-epsilon-zeta" };
++
++/* enough literals that one would cross a page if nothing kept them to one */
++const char * const many[] = {
++	"0123456789abcdefghi", "1123456789abcdefghi", "2123456789abcdefghi", "3123456789abcdefghi",
++	"4123456789abcdefghi", "5123456789abcdefghi", "6123456789abcdefghi", "7123456789abcdefghi",
++	"8123456789abcdefghi", "9123456789abcdefghi", "a123456789abcdefghi", "b123456789abcdefghi",
++	"c123456789abcdefghi", "d123456789abcdefghi", "e123456789abcdefghi", "f123456789abcdefghi",
++	"g123456789abcdefghi", "h123456789abcdefghi", "i123456789abcdefghi", "j123456789abcdefghi",
++};
++
++/* a writable buffer in the character space */
++#pragma bss(farstr)
++char fbuf[40];
++#pragma bss(bss)
++
++struct thing { char kind; char name[8]; int n; };
++struct thing things[2] = { { 'x', "near", 1 }, { 'y', "also", 2 } };
++
++char nearbuf[64];
++
++__noinline int mylen(const char * s)
++{
++	int n = 0;
++	while (s[n])
++		n++;
++	return n;
++}
++
++__noinline void mycpy(char * d, const char * s)
++{
++	while ((*d++ = *s++))
++		;
++}
++
++__noinline const char * pick(int i)
++{
++	return names[i];
++}
++
++__noinline char kind_of(struct thing * t)
++{
++	return t->kind;
++}
++
++__noinline const void * as_void(const char * s)
++{
++	return s;
++}
++
++__noinline int idx(int i) { return i; }
++
++#ifdef OSCAR_FARCHARS
++__noinline void lcpy(char * d, const char * s) { strcpy(d, s); }
++__noinline void lmcpy(char * d, const char * s, int n) { memcpy(d, s, n); }
++__noinline void lmset(char * d, char c, int n) { memset(d, c, n); }
++#endif
++
++#pragma farchars(off)
++
++/* plain addresses: what RAM holds */
++__noinline char raw(const char * p)
++{
++	return *p;
++}
++
++/* whether an object of n bytes at p crosses a page (the length comes from code that may
++ * read the space: code under farchars(off), inlined strlen() too, reads plain RAM) */
++__noinline int crosses(const char * p, int n)
++{
++	unsigned a = (unsigned)p;
++	return (a & 0xff) + n > 256;
++}
++
++__noinline void setup(void)
++{
++	for (int i = 0; i < 256; i++)
++		tlb6[i] = i;
++	for (int i = 0xc1; i < 0xd0; i++)
++		tlb6[i] = i + 0x10;
++	/* own loops: with -dOSCAR_FARCHARS the library's memcpy() and memset() translate what
++	 * they are given, plain addresses from code under farchars(off) too */
++	for (unsigned a = 0xc100; a < 0xd000; a++)
++	{
++		((char *)0x1000)[a] = *(char *)a;
++		*(char *)a = (char)0xee;
++	}
++}
++
++#pragma farchars(on)
++
++int main(void)
++{
++	setup();
++
++	int fails = 0;
++	const char * hello = "hello, world";
++	if ((unsigned)hello < 0xc100 || (unsigned)hello >= 0xd000) fails |= 1;	/* a literal is in the space */
++	if (mylen(hello) != 12 || hello[7] != 'w') fails |= 2;
++	if (names[1][2] != 't' || mylen(names[3]) != 18 || pick(2)[4] != 'a') fails |= 4;
++
++	char buf[32];
++	mycpy(buf, names[0]);
++	if (buf[0] != 'a' || buf[4] != 'a' || buf[5] != 0) fails |= 8;
++	strcpy(buf, names[3]);			/* the built-in strcpy, from the space to a local */
++	if (buf[17] != 'a' || buf[18] != 0) fails |= 16;
++	memcpy(buf, "xyz", 4);			/* the built-in memcpy */
++	if (buf[0] != 'x' || buf[3] != 0) fails |= 32;
++
++	mycpy(fbuf, "written far");		/* through a pointer into the space's buffer */
++	if (mylen(fbuf) != 11 || fbuf[8] != 'f' || raw(fbuf) != (char)0xee) fails |= 64;
++
++	mycpy(nearbuf, "near");			/* a near buffer through a pointer: left as it is */
++	if (nearbuf[3] != 'r' || raw(nearbuf) != 'n') fails |= 128;
++
++	unsigned before = xlats;
++	if (kind_of(&things[1]) != 'y' || things[0].name[1] != 'e') fails |= 256;	/* struct fields */
++	if (xlats != before) fails |= 512;
++
++	if (((const char *)as_void(names[2]))[1] != 'a') fails |= 1024;
++
++	int cross = 0;
++	for (int i = 0; i < 20; i++)
++		cross += crosses(many[i], mylen(many[i]) + 1);
++	for (int i = 0; i < 4; i++)
++		cross += crosses(names[i], mylen(names[i]) + 1);
++	if (cross || mylen(many[19]) != 19 || many[13][0] != 'd') fails |= 2048;
++
++#ifdef OSCAR_FARCHARS
++	/* the library's assembler strcpy, strcmp, memcpy and memset, called (not built in) */
++	lcpy(nearbuf, names[3]);
++	lcpy(fbuf, "library");
++	if (mylen(nearbuf) != 18 || strcmp(nearbuf, names[3]) || strcmp(fbuf, "library") || strcmp(names[0], "alpha")) fails |= 8192;
++	if (strcmp(names[1], names[2]) >= 0 || strcmp(names[2], "gamm") <= 0) fails |= 16384;
++	lmcpy(nearbuf, names[2], idx(6));
++	lmset(fbuf, 'z', idx(3));
++	if (nearbuf[4] != 'a' || fbuf[2] != 'z' || fbuf[3] != 'r' || raw(fbuf) != (char)0xee) fails |= 32768;
++#endif
++
++	/* a volatile byte is hardware's: not translated */
++	if (*(volatile char *)(char *)0xc100 != (char)0xee) fails |= 4096;
++
++	return fails;
++}
+diff --git a/autotest/makefile b/autotest/makefile
+index 4991e57..a8ad486 100644
+--- a/autotest/makefile
++++ b/autotest/makefile
+@@ -58,6 +58,24 @@ fardefaulttest: fardefaulttest.c
+ 	$(OSCAR64_CC) -ea -g -Os -n $<
+ 	$(OSCAR64_CC) -ea -g -O3 -n $<
+ 
++# testn
++farcharstest: farcharstest.c
++	$(OSCAR64_CC) -ea -g -n $<
++	$(OSCAR64_CC) -ea -g -O2 -n $<
++	$(OSCAR64_CC) -ea -g -O0 -n $<
++	$(OSCAR64_CC) -ea -g -Os -n $<
++	$(OSCAR64_CC) -ea -g -O3 -n $<
++	$(OSCAR64_CC) -ea -g -n -dFARXZ $<
++	$(OSCAR64_CC) -ea -g -O2 -n -dFARXZ $<
++	$(OSCAR64_CC) -ea -g -O0 -n -dFARXZ $<
++	$(OSCAR64_CC) -ea -g -Os -n -dFARXZ $<
++	$(OSCAR64_CC) -ea -g -O3 -n -dFARXZ $<
++	$(OSCAR64_CC) -ea -g -n -dFARXZ -dOSCAR_FARCHARS $<
++	$(OSCAR64_CC) -ea -g -O2 -n -dFARXZ -dOSCAR_FARCHARS $<
++	$(OSCAR64_CC) -ea -g -O0 -n -dFARXZ -dOSCAR_FARCHARS $<
++	$(OSCAR64_CC) -ea -g -Os -n -dFARXZ -dOSCAR_FARCHARS $<
++	$(OSCAR64_CC) -ea -g -O3 -n -dFARXZ -dOSCAR_FARCHARS $<
++
+ # testn
+ farspacetest: farspacetest.c
+ 	$(OSCAR64_CC) -ea -g -n $<
+diff --git a/include/string.c b/include/string.c
+index 389d252..4dae537 100644
+--- a/include/string.c
++++ b/include/string.c
+@@ -1,5 +1,13 @@
+ #include "string.h"
+ 
++#ifdef OSCAR_FARCHARS
++// The character space (#pragma farchars): the assembler routines below translate each
++// pointer once, at entry, through the program's farxzc (the character space's translation
++// of the pointer at zero page address X into ADDR, an address below the space coming back
++// as it is). An object of the space keeps to a page, so a string or block in one does not
++// need more. The C routines translate byte by byte, as the compiler makes them.
++#endif
++
+ #if 1
+ 
+ char * strcpy(char * dst, const char * src)
+@@ -10,6 +18,20 @@ char * strcpy(char * dst, const char * src)
+ 		sta accu
+ 		lda dst + 1
+ 		sta accu + 1
++#ifdef OSCAR_FARCHARS
++		ldx #dst
++		jsr farxzc
++		lda __addr
++		sta dst
++		lda __addr + 1
++		sta dst + 1
++		ldx #src
++		jsr farxzc
++		lda __addr
++		sta src
++		lda __addr + 1
++		sta src + 1
++#endif
+ 
+ 		ldy #0
+ 	L1:	lda (src), y
+@@ -67,6 +89,20 @@ signed char strcmp(const char * ptr1, const char * ptr2)
+ {
+ 	__asm 
+ 	{
++#ifdef OSCAR_FARCHARS
++		ldx #ptr1
++		jsr farxzc
++		lda __addr
++		sta ptr1
++		lda __addr + 1
++		sta ptr1 + 1
++		ldx #ptr2
++		jsr farxzc
++		lda __addr
++		sta ptr2
++		lda __addr + 1
++		sta ptr2 + 1
++#endif
+ 		ldy #0
+ 	L1: lda (ptr1), y
+ 		beq W1
+@@ -267,6 +303,14 @@ void * memset(void * dst, int value, int size)
+ {
+ 	__asm
+ 	{
++#ifdef OSCAR_FARCHARS
++		ldx #dst
++		jsr farxzc
++		lda __addr
++		sta dst
++		lda __addr + 1
++		sta dst + 1
++#endif
+ 			lda	value
+ 
+ 			ldx	size + 1
+@@ -304,6 +348,20 @@ void * memcpy(void * dst, const void * src, int size)
+ {
+ 	__asm
+ 	{
++#ifdef OSCAR_FARCHARS
++		ldx #dst
++		jsr farxzc
++		lda __addr
++		sta dst
++		lda __addr + 1
++		sta dst + 1
++		ldx #src
++		jsr farxzc
++		lda __addr
++		sta src
++		lda __addr + 1
++		sta src + 1
++#endif
+ 			ldx	size + 1
+ 			beq	_w1
+ 			ldy	#0
+diff --git a/include/string.h b/include/string.h
+index 65d75b9..e1984dd 100644
+--- a/include/string.h
++++ b/include/string.h
+@@ -43,6 +43,13 @@ void * memchr(const void * ptr, int ch, int size);
+ 
+ #pragma intrinsic(memclr)
+ 
++#ifdef OSCAR_FARCHARS
++// the character space's translation (#pragma farchars), which the program defines and the
++// assembler routines of string.c call: the pointer at the zero page address in X to its RAM
++// address in ADDR, Y kept (a function whose body is the routine, or a jump to it)
++void farxzc(void);
++#endif
++
+ #pragma compile("string.c")
+ 
+ #endif
+diff --git a/oscar64/CompilerTypes.h b/oscar64/CompilerTypes.h
+index b8b086a..383bf80 100644
+--- a/oscar64/CompilerTypes.h
++++ b/oscar64/CompilerTypes.h
+@@ -50,6 +50,9 @@ static const uint64 COPT_ERROR_FILES = 1ULL << 54;
+ 
+ static const uint64 COPT_PROFILEINFO = 1ULL << 55;
+ static const uint64 COPT_STRICT = 1ULL << 56;
++// #pragma farchars(off): this code's byte pointers are plain addresses, never the character
++// space's (hardware code: a bitmap or colour RAM in the space's range)
++static const uint64 COPT_FAR_CHARS_OFF = 1ULL << 57;
+ 
+ 
+ 
+diff --git a/oscar64/Declaration.cpp b/oscar64/Declaration.cpp
+index e2db3be..e56b71a 100644
+--- a/oscar64/Declaration.cpp
++++ b/oscar64/Declaration.cpp
+@@ -1539,6 +1539,10 @@ int Declaration::FarSpace(void) const
+ 			if (FarSpaceTags[i] == dec->mIdent)
+ 				return FarSpaceIds[i];
+ 	}
++	// #pragma farchars: a byte reached through a pointer may be in the character space,
++	// which the translation tells by the address (a near pointer comes back as it is)
++	if (dec && dec->mType == DT_TYPE_INTEGER && dec->mSize == 1)
++		return FarCharSpace();
+ 	return 0;
+ }
+ 
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index f158a04..4007b50 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -21299,7 +21299,10 @@ bool InterCodeBasicBlock::MapLateIntrinsics(void)
+ 		{
+ 			InterInstruction* ins(mInstructions[i]);
+ 
++			// with a character space, a memcpy() through byte pointers stays a call (its
++			// arguments no longer say which space they are in)
+ 			if (ins->mCode == IC_CALL_NATIVE && ins->mSrc[0].mLinkerObject && 
++				!(FarCharSpace() && !(mProc->mCompilerOptions & COPT_FAR_CHARS_OFF)) &&
+ 				ins->mSrc[0].mLinkerObject->mProc &&
+ 				ins->mSrc[0].mLinkerObject->mProc->mIntrinsicFunction &&
+ 				!strcmp(ins->mSrc[0].mLinkerObject->mIdent->mString, "memcpy"))
+@@ -27210,6 +27213,14 @@ bool InterCodeBasicBlock::LowerFarAccesses(const ExpandingArray<FarGroup>& inher
+ 			break;
+ 		}
+ 
++		// the character space: a volatile byte is hardware's, and code under #pragma
++		// farchars(off) uses plain addresses
++		for (int k = 0; k < 2; k++)
++		{
++			if (s[k] && s[k] == FarCharSpace() && (ins->mVolatile || (mProc->mCompilerOptions & COPT_FAR_CHARS_OFF)))
++				s[k] = 0;
++		}
++
+ 		int g[2] = { -2, -2 };
+ 		for (int k = 0; k < 2; k++)
+ 		{
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index 895f636..db48d6a 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -360,6 +360,10 @@ int InterCodeGenerator::BuiltinFarSpace(Expression* exp, const ExValue& v, int64
+ 	int space = v.mFarSpace;
+ 	if (!space && v.mReference == 0 && v.mType->mType == DT_TYPE_POINTER)
+ 		space = v.mType->mBase->FarSpace();
++	// an object of the character space keeps to a page (Linker::AddObject), so a block within
++	// one is translated once; a near pointer comes back as it is
++	if (space && space == FarCharSpace())
++		return space;
+ 	if (space)
+ 	{
+ 		Declaration* pt = (v.mType->mType == DT_TYPE_POINTER || v.mType->mType == DT_TYPE_ARRAY) ? v.mType->mBase : nullptr;
+@@ -374,7 +378,9 @@ int InterCodeGenerator::BuiltinFarSpace(Expression* exp, const ExValue& v, int64
+ // as a near pointer reads whatever RAM is at that address.
+ void InterCodeGenerator::CheckFarConversion(Expression* exp, int from, int to)
+ {
+-	if (from && from != to)
++	// a byte pointer leaving the character space (to a struct, a void *) is still told by its
++	// address wherever a byte pointer reaches it again; a typed space's into it is not
++	if (from && from != to && from != FarCharSpace())
+ 		mErrors->Error(exp->mLocation, EWARN_FAR_POINTER_CONVERSION, "Pointer into a far space converted to a pointer outside it");
+ }
+ 
+diff --git a/oscar64/Linker.cpp b/oscar64/Linker.cpp
+index f717b17..7002550 100644
+--- a/oscar64/Linker.cpp
++++ b/oscar64/Linker.cpp
+@@ -9,6 +9,18 @@ LinkerRegion::LinkerRegion(void)
+ 	  mSections(nullptr), mFreeChunks(FreeChunk{ 0, 0 } ), mLastObject(nullptr), mInlayObject(nullptr), mCartridgeBanks()
+ {}
+ 
++static int gFarCharSpace = 0;
++
++void SetFarCharSpace(int space)
++{
++	gFarCharSpace = space;
++}
++
++int FarCharSpace(void)
++{
++	return gFarCharSpace;
++}
++
+ LinkerSection::LinkerSection(void)
+ 	: mIdent(nullptr), mObjects(nullptr), mSections(nullptr), mStart(0), mEnd(0), mSize(0), mType(LST_NONE), mFlags(0), mFarSpace(0)
+ {}
+@@ -471,6 +483,10 @@ LinkerObject * Linker::AddObject(const Location& location, const Ident* ident, L
+ 	obj->mVariable = nullptr;
+ 	obj->mFlags = 0;
+ 	obj->mAlignment = alignment;
++	// a byte pointer's access translates the page the address is in, and a built-in copy or
++	// fill translates its start once, so an object of the character space keeps to a page
++	if (section && section->mFarSpace && section->mFarSpace == gFarCharSpace)
++		obj->mFlags |= LOBJF_NEVER_CROSS;
+ 	section->mObjects.Push(obj);
+ 	mObjects.Push(obj);
+ 	return obj;
+diff --git a/oscar64/Linker.h b/oscar64/Linker.h
+index da9b845..0f1402c 100644
+--- a/oscar64/Linker.h
++++ b/oscar64/Linker.h
+@@ -197,6 +197,11 @@ static const uint32 LSECF_PLACED = 0x00000002;
+ // call stubs, not through stubs in the caller's own section (a bank too full for them)
+ static const uint32 LSECF_RESIDENT_STUBS = 0x00000004;
+ 
++// #pragma farchars(n): far space n is the character space, which a byte through a pointer
++// reaches (Declaration::FarSpace), 0 if there is none
++void SetFarCharSpace(int space);
++int FarCharSpace(void);
++
+ class LinkerSection
+ {
+ public:
+diff --git a/oscar64/Parser.cpp b/oscar64/Parser.cpp
+index 1600220..b38ab71 100644
+--- a/oscar64/Parser.cpp
++++ b/oscar64/Parser.cpp
+@@ -5,6 +5,18 @@
+ #include "Constexpr.h"
+ #include "NumberSet.h"
+ 
++// #pragma strings(codesection, stringsection): string literals written while codesection is
++// the code section go to stringsection (the character space's, say), others stay with their code
++static ExpandingArray<LinkerSection*>	StringsFrom, StringsTo;
++
++static LinkerSection* StringSection(LinkerSection* code)
++{
++	for (int i = 0; i < StringsFrom.Size(); i++)
++		if (StringsFrom[i] == code)
++			return StringsTo[i];
++	return code;
++}
++
+ Parser::Parser(Errors* errors, Scanner* scanner, CompilationUnits* compilationUnits)
+ 	: mErrors(errors), mScanner(scanner), mCompilationUnits(compilationUnits), mParent(nullptr)
+ {
+@@ -7946,7 +7958,7 @@ Expression* Parser::ParseSimpleExpression(bool lhs, bool tid)
+ 		int	size = mScanner->mTokenStringSize;
+ 		dec->mSize = size + 1;
+ 		dec->mVarIndex = -1;
+-		dec->mSection = mCodeSection;
++		dec->mSection = StringSection(mCodeSection);
+ 		dec->mBase = new Declaration(mScanner->mLocation, DT_TYPE_ARRAY);
+ 		dec->mBase->mSize = dec->mSize;
+ 		dec->mBase->mBase = TheConstCharTypeDeclaration;
+@@ -15433,6 +15445,68 @@ void Parser::ParsePragma(void)
+ 			}
+ 			ConsumeToken(TK_CLOSE_PARENTHESIS);
+ 		}
++		else if (!strcmp(mScanner->mTokenIdent->mString, "farchars"))
++		{
++			// #pragma farchars(n): far space n is the character space, which every byte
++			// reached through a pointer may be in (the translation tells by the address);
++			// #pragma farchars(off) and (on): the functions defined from here use plain
++			// addresses for byte pointers, or the character space again
++			mScanner->NextToken();
++			ConsumeToken(TK_OPEN_PARENTHESIS);
++			if (mScanner->mToken == TK_IDENT && !strcmp(mScanner->mTokenIdent->mString, "off"))
++			{
++				mCompilerOptions |= COPT_FAR_CHARS_OFF;
++				mScanner->NextToken();
++			}
++			else if (mScanner->mToken == TK_IDENT && !strcmp(mScanner->mTokenIdent->mString, "on"))
++			{
++				mCompilerOptions &= ~COPT_FAR_CHARS_OFF;
++				mScanner->NextToken();
++			}
++			else
++			{
++				Expression* exp = ParseRExpression();
++				if (exp->mType == EX_CONSTANT && exp->mDecValue->mType == DT_CONST_INTEGER && exp->mDecValue->mInteger >= 1 && exp->mDecValue->mInteger <= 8)
++					SetFarCharSpace(int(exp->mDecValue->mInteger));
++				else
++					mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Far space number 1 to 8, off or on expected");
++			}
++			ConsumeToken(TK_CLOSE_PARENTHESIS);
++		}
++		else if (!strcmp(mScanner->mTokenIdent->mString, "strings"))
++		{
++			// #pragma strings(codesection, stringsection)
++			mScanner->NextToken();
++			ConsumeToken(TK_OPEN_PARENTHESIS);
++			LinkerSection* from = nullptr, * to = nullptr;
++			if (mScanner->mToken == TK_IDENT)
++			{
++				from = mCompilationUnits->mLinker->FindSection(mScanner->mTokenIdent);
++				mScanner->NextToken();
++			}
++			ConsumeToken(TK_COMMA);
++			if (mScanner->mToken == TK_IDENT)
++			{
++				to = mCompilationUnits->mLinker->FindSection(mScanner->mTokenIdent);
++				mScanner->NextToken();
++			}
++			if (from && to)
++			{
++				int i = 0;
++				while (i < StringsFrom.Size() && StringsFrom[i] != from)
++					i++;
++				if (i < StringsFrom.Size())
++					StringsTo[i] = to;
++				else
++				{
++					StringsFrom.Push(from);
++					StringsTo.Push(to);
++				}
++			}
++			else
++				mErrors->Error(mScanner->mLocation, EERR_PRAGMA_PARAMETER, "Two known sections expected");
++			ConsumeToken(TK_CLOSE_PARENTHESIS);
++		}
+ 		else if (!strcmp(mScanner->mTokenIdent->mString, "farsection"))
+ 		{
+ 			// #pragma farsection(section, n): the section's objects are in far space n, so
+-- 
+2.43.0
+
