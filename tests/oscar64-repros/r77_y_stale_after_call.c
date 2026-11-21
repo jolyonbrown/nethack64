@@ -11,8 +11,8 @@
  * index g(y) (`levl[x][y]` with computed coordinates, `mvitals[monsndx(ptr)]`).  The host
  * build cannot show it; the banked C64 game does not run yet.
  * Expect when fixed: small[idx(2)] reads 6 (exit 0).
- * Workaround: none in the source (too common a pattern): the compiler must be fixed (the
- * upstream fix into the pin).
+ * Workaround: none in the source (too common a pattern): the compiler must be fixed.  Fixed
+ * by pin commit 84 (upstream 9d39d74 backported, 2026-11-21).
  * FLAGS: -n -e
  */
 char small[3] = { 4, 5, 6 };

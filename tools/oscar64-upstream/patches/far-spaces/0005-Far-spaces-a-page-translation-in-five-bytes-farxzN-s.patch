@@ -1,8 +1,8 @@
-From a3436a13d186e7ee00d98ec61d623dbe31aa02de Mon Sep 17 00:00:00 2001
+From 6735e044b4a351673f7df9817a02e325e0c3061d Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Wed, 18 Nov 2026 03:45:00 +0000
-Subject: [PATCH 5/5] Far spaces: a page translation in five bytes (farxzN),
- single accesses by page
+Subject: [PATCH] Far spaces: a page translation in five bytes (farxzN), single
+ accesses by page
 
 An access alone within its far object now translates only the page, as a
 group does (an object keeps to a page), and keeps the field's offset in
@@ -82,7 +82,7 @@ index 1642561..a0bee7e 100644
  		if (mCompilationUnits->mRuntimeScope->Lookup(Ident::Unique("farpins")))
  			RegisterRuntime(loc, Ident::Unique("farpins"));
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index bec3948..3d3d8b2 100644
+index 6a0dd46..f158a04 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
 @@ -27319,7 +27319,30 @@ bool InterCodeBasicBlock::LowerFarAccesses(const ExpandingArray<FarGroup>& inher
@@ -118,7 +118,7 @@ index bec3948..3d3d8b2 100644
  					// through the group's translation, at the field's offset
  					op.mTemp = groups[g[k]].mXTemp;
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index 11ac205..001735c 100644
+index 2c894f7..2ca49a6 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
 @@ -895,7 +895,7 @@ bool NativeCodeInstruction::IsUsedResultInstructions(NumberSet& requiredTemps)

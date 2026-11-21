@@ -1,4 +1,4 @@
-From 351bf6dead4a870531fb39fc9dc2116d5ed2fdce Mon Sep 17 00:00:00 2001
+From d04072a049ec1539667e7266e14a71b7b1d7a481 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 20 Nov 2026 22:00:47 +0000
 Subject: [PATCH] Far default: #pragma fardefault(section) and #pragma

@@ -1,7 +1,7 @@
-From 8e515eedefbe38d774815b7eaed340dfbda6e22b Mon Sep 17 00:00:00 2001
+From c2ddfc5c13817eb511c04cb77048fe1e27bce4b3 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 17 Nov 2026 11:12:04 +0000
-Subject: [PATCH 2/5] Far spaces: offsets, provenance, built-ins, warning 2026,
+Subject: [PATCH] Far spaces: offsets, provenance, built-ins, warning 2026,
  bytecode error
 
 - farxoN: the address in A and X plus an offset under 256 in Y,
@@ -223,7 +223,7 @@ index 5823e25..3468465 100644
  	EERR_GENERIC = 3000,
  	EERR_FILE_NOT_FOUND,
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index dff6571..74bf651 100644
+index 770a6a8..ee5d446 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
 @@ -27037,7 +27037,7 @@ static int FarSpaceOfOperand(const InterOperand& op)
@@ -492,7 +492,7 @@ index c15bb1c..2c54852 100644
  			}
  		}
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index 1862d8f..c17e5c0 100644
+index 12c8e1b..9eb8f23 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
 @@ -13560,21 +13560,36 @@ void NativeCodeBasicBlock::UnaryOperator(InterCodeProcedure* proc, NativeCodePro

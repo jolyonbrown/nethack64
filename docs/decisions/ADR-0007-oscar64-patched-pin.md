@@ -560,3 +560,21 @@ commits' (1,187,381 B). The whole far game linked by the fork with these commits
 banks 6,588 B smaller, resident code 603 B bigger (bank call stubs), bank 5 519 B over until
 the plan was repaired (`docs/data/wholegame-far-2026-11-18.txt`). The far-spaces series is
 now five commits on these 83.
+
+Added on 2026-11-21 (commits 84-85; Jolyon: "You absolutely can add it to the pin"), an upstream
+fix: 84. upstream `9d39d74` ("Fix more assembler global aliasing", 2026-09-26), backported
+unchanged, r77 (compat #80): `NativeCodeBasicBlock::GlobalLoadStoreForwarding` took a register
+loaded from an address (`LDY ACCU+0`) for a copy of it across a `JSR` to a function that writes
+that address and leaves the register, so after `huge[idx(299)] = 1`, `small[idx(2)]` read
+`small[43]`; every optimisation level, native code. A call now forgets the copies of addresses it
+may change, and the intermediate code's assembler aliasing is made exact to match. Found
+writing the far-spaces fork's `fardefaulttest.c`; bisected over 182 upstream commits. 85.
+`autotest/callindexforwardtest.c`, which fails in all five native configurations on 83 commits.
+
+Results 2026-11-21 (85 commits; the patch files give tree 86e89ea, the installed compiler's).
+Autotest 1,621 emulations, all 0 (the new test in all ten configurations); corpus against 83
+commits: 1,097 of 1,110 identical, the others r77 and the new test (four configurations each),
+`bankcallstubtest.c` (four: the same bug, X kept across a `JSR`, which the test survived because
+the two values share a high byte) and `stripedarraytest.c` at -O0 (one reload fewer: an `INC` of
+byte +1 does not change byte +0), no status changes; repros 47 of 77 (r77 fixed); nethack64
+`.crt` and `.prg` byte-identical, `make test` 5/5.

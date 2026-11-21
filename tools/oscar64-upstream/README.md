@@ -63,7 +63,8 @@ Jolyon has read its explanation and said yes. Until then, branches stay local.
   of a resident function called from a bank goes into that bank, `run_bankstub.py
   --banked-proxies 2`; a ninth: `#pragma fardefault(section)` and `#pragma near(name, ...)`,
   `autotest/fardefaulttest.c`; a tenth, 2026-11-21: a far default object keeps to one page,
-  aligned to the power of two at or above its size, one larger than a page staying near.)
+  aligned to the power of two at or above its size, one larger than a page staying near. On
+  2026-11-21 the ten moved onto pin 85, which adds upstream's fix of r77.)
 - **Reproducible output.** v1.32.273 and the eight-commit pin read several
   members of their own data structures before anything has written them, so what
   they emit can depend on what the compiler's heap held: the install path, the

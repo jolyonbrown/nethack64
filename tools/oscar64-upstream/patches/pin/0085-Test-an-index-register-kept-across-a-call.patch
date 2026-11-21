@@ -1,0 +1,84 @@
+From 2fe5ef76f229e70f39874191c078d937f5db1f4d Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 21 Nov 2026 13:00:14 +0000
+Subject: [PATCH 85/85] Test an index register kept across a call
+
+Indexes that are results of small functions, int and char, after an indexed
+store whose index the next call's result replaces in ACCU; a word table; a
+loop. Fails at -n, -O0 to -O3 native before the fix, passes in all ten
+configurations after it.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat           |  3 +++
+ autotest/callindexforwardtest.c | 44 +++++++++++++++++++++++++++++++++
+ 2 files changed, 47 insertions(+)
+ create mode 100644 autotest/callindexforwardtest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 0ec7162..c72076d 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -462,6 +462,9 @@ rem @echo off
+ @call :test unionptroverloadtest.cpp
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test callindexforwardtest.c
++@if %errorlevel% neq 0 goto :error
++
+ @exit /b 0
+ 
+ :error
+diff --git a/autotest/callindexforwardtest.c b/autotest/callindexforwardtest.c
+new file mode 100644
+index 0000000..e469948
+--- /dev/null
++++ b/autotest/callindexforwardtest.c
+@@ -0,0 +1,44 @@
++// An index register loaded from a zero page result, kept across a call that writes that
++// result again: after huge[idx(299)] = 1 (LDY ACCU), small[idx(2)] must not reuse Y.
++#include <assert.h>
++
++char small[3] = { 4, 5, 6 };
++char huge[300];
++char mid[40];
++int words[10] = { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 };
++
++__noinline int idx(int i) { return i; }
++__noinline char cidx(char i) { return i; }
++__noinline unsigned char twice(unsigned char i) { return i + i; }
++
++int main(void)
++{
++	huge[idx(299)] = 1;
++	assert(small[idx(2)] == 6);
++
++	huge[idx(43)] = 2;
++	assert(small[idx(1)] == 5);
++	assert(huge[43] == 2 && huge[299] == 1);
++
++	mid[cidx(30)] = 7;
++	assert(small[cidx(0)] == 4);
++	assert(mid[30] == 7);
++
++	mid[twice(3)] = 8;
++	assert(small[twice(1)] == 6);
++	assert(mid[6] == 8);
++
++	words[idx(9)] = 99;
++	assert(words[idx(3)] == 13);
++	assert(words[9] == 99);
++
++	int s = 0;
++	for (int i = 0; i < 3; i++)
++	{
++		huge[idx(100 + i)] = i;
++		s += small[idx(i)];
++	}
++	assert(s == 15);
++
++	return 0;
++}
+-- 
+2.43.0
+

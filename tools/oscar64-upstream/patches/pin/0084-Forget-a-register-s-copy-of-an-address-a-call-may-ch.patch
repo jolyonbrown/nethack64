@@ -1,0 +1,57 @@
+From ef232db0b0e5bf49f0e94b88879ef190930a51db Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 21 Nov 2026 13:00:14 +0000
+Subject: [PATCH 84/85] Forget a register's copy of an address a call may
+ change
+
+GlobalLoadStoreForwarding kept "Y holds ACCU" (after LDY ACCU) across a JSR to
+a function that writes ACCU and leaves Y, so after huge[idx(299)] = 1 the next
+small[idx(2)] read small,y with the old index. A JSR now invalidates a copy of
+any address the call may change, as upstream 9d39d74 ("Fix more assembler
+global aliasing", 2026-09-26) does; its InterCode.cpp hunk, which counts inline
+assembler as using the static variables, comes with it. nethack64 repro r77.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/InterCode.cpp           | 2 +-
+ oscar64/NativeCodeGenerator.cpp | 8 ++++----
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index 9e41ddb..884e893 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -4702,7 +4702,7 @@ void InterInstruction::FilterStaticVarsUsage(const GrowingVariableArray& staticV
+ 			}
+ 		}
+ 	}
+-	else if (mCode == IC_COPY || mCode == IC_CALL || mCode == IC_CALL_NATIVE || mCode == IC_RETURN || mCode == IC_RETURN_STRUCT || mCode == IC_RETURN_VALUE || mCode == IC_STRCPY || mCode == IC_DISPATCH || mCode == IC_FILL)
++	else if (mCode == IC_COPY || mCode == IC_CALL || mCode == IC_ASSEMBLER || mCode == IC_CALL_NATIVE || mCode == IC_RETURN || mCode == IC_RETURN_STRUCT || mCode == IC_RETURN_VALUE || mCode == IC_STRCPY || mCode == IC_DISPATCH || mCode == IC_FILL)
+ 	{
+ 		requiredVars.OrNot(providedVars);
+ 	}
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 22fc61e..2f44156 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -19208,13 +19208,13 @@ bool NativeCodeBasicBlock::GlobalLoadStoreForwarding(bool zpage, const NativeCod
+ 					if (mXLSIns.mMode == ASMIM_ABSOLUTE_Y)
+ 						mXLSIns.mType = ASMIT_INV;
+ 				}
+-				if (ins.ChangesAddress())
++				if (ins.ChangesAddress() || ins.mType == ASMIT_JSR)
+ 				{
+-					if (mALSIns.mType != ASMIT_INV && mALSIns.MayBeSameAddress(ins))
++					if (mALSIns.mType != ASMIT_INV && mALSIns.MayBeChangedOnAddress(ins))
+ 						mALSIns.mType = ASMIT_INV;
+-					if (mXLSIns.mType != ASMIT_INV && mXLSIns.MayBeSameAddress(ins))
++					if (mXLSIns.mType != ASMIT_INV && mXLSIns.MayBeChangedOnAddress(ins))
+ 						mXLSIns.mType = ASMIT_INV;
+-					if (mYLSIns.mType != ASMIT_INV && mYLSIns.MayBeSameAddress(ins))
++					if (mYLSIns.mType != ASMIT_INV && mYLSIns.MayBeChangedOnAddress(ins))
+ 						mYLSIns.mType = ASMIT_INV;
+ 				}
+ 			}
+-- 
+2.43.0
+

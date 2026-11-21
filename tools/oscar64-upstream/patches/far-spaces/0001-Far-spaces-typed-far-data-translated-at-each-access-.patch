@@ -1,8 +1,7 @@
-From 712275c03f1aceeef5163c9b8661ccb499091b68 Mon Sep 17 00:00:00 2001
+From 30e8edb003f9a8ba3d81333f6b8cc36bda33b475 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 17 Nov 2026 10:49:38 +0000
-Subject: [PATCH 1/5] Far spaces: typed far data, translated at each access
- (WIP)
+Subject: [PATCH] Far spaces: typed far data, translated at each access (WIP)
 
 #pragma farspace(n, tag, ...) puts struct types in far space n, and
 #pragma farsection(section, n) puts a section's objects there. The
@@ -116,7 +115,7 @@ index 2dbc06a..53cd6a7 100644
  };
  
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index 9e41ddb..dff6571 100644
+index 884e893..770a6a8 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
 @@ -4346,7 +4346,7 @@ void ValueSet::UpdateValue(InterCodeBasicBlock * block, InterInstruction * ins,
@@ -525,7 +524,7 @@ index ce7cf0d..7945f2a 100644
  	LinkerSection(void);
  
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index 22fc61e..1862d8f 100644
+index 2f44156..12c8e1b 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
 @@ -13558,6 +13558,27 @@ void NativeCodeBasicBlock::UnaryOperator(InterCodeProcedure* proc, NativeCodePro

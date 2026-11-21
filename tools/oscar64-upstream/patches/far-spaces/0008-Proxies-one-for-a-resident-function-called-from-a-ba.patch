@@ -1,4 +1,4 @@
-From 8178a225ab7b239a0ff4ef8057d8aa51dfaad096 Mon Sep 17 00:00:00 2001
+From 2acdba3bdbd60204f1a5939c42174d123d40e505 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 20 Nov 2026 18:55:24 +0000
 Subject: [PATCH] Proxies: one for a resident function called from a bank goes
@@ -19,7 +19,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
  2 files changed, 21 insertions(+), 3 deletions(-)
 
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index 001735c..11ccadd 100644
+index 2ca49a6..a085666 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
 @@ -72912,6 +72912,20 @@ static inline bool isfparam(const NativeCodeInstruction & cins, const NativeCode

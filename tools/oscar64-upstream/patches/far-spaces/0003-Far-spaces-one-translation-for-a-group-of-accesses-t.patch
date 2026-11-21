@@ -1,8 +1,8 @@
-From 0dec55b8623785d6564f646ea3cba8e96cbf8ffa Mon Sep 17 00:00:00 2001
+From 6911c17fd354a1f489b940ea05864f09e71041af Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 17 Nov 2026 12:04:51 +0000
-Subject: [PATCH 3/5] Far spaces: one translation for a group of accesses to
- one object
+Subject: [PATCH] Far spaces: one translation for a group of accesses to one
+ object
 
 The front end records the size of the far struct object an access
 lies in. Within a block, accesses through one pointer temporary inside
@@ -52,7 +52,7 @@ index 8cd0df5..1642561 100644
  		// Optional: a program that names a bank call routine has its calls between
  		// cartridge banks go through it (Linker::InsertBankCalls)
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index 74bf651..73bb0c0 100644
+index ee5d446..306fab7 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
 @@ -4346,7 +4346,7 @@ void ValueSet::UpdateValue(InterCodeBasicBlock * block, InterInstruction * ins,
@@ -482,7 +482,7 @@ index c5855d3..9f17a1d 100644
  	ExValue TranslateExpression(Declaration * procType, InterCodeProcedure * proc, InterCodeBasicBlock*& block, Expression* exp, DestructStack*& destack, GotoNode*& gotos, const BranchTarget & breakBlock, const BranchTarget& continueBlock, InlineMapper * inlineMapper, ExValue * lrexp = nullptr);
  	void TranslateLogic(Declaration* procType, InterCodeProcedure* proc, InterCodeBasicBlock* block, InterCodeBasicBlock* tblock, InterCodeBasicBlock* fblock, Expression* exp, DestructStack*& destack, GotoNode*& gotos, InlineMapper* inlineMapper);
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index c17e5c0..11ac205 100644
+index 9eb8f23..2c894f7 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
 @@ -13566,7 +13566,8 @@ void NativeCodeBasicBlock::UnaryOperator(InterCodeProcedure* proc, NativeCodePro
