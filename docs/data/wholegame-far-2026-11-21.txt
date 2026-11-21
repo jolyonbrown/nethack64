@@ -70,3 +70,20 @@ stash slot 128 B"); nh_args (1 KB) and the name ring (8 x 48 B) as they were.
   intermediate code: 27033 direct calls; 0 cross a bank without a trampoline; 0 banked functions store to the bank register; 709 calls through pointers from banked code; 0 uses of a banked function's address
   banks: 116 used, 1814655 B in all; per bank min 8273, median 16155, max 16383 B
   left unplaced by the failed link: resident data 19255 B, banked native_code 78 B
+
+far33 (plan far31 plus "far_default": bankplan-2026-11-21-far33.json; the far-spaces fork's
+commit 10, build oscar64-far13): every other global of the files that include hack.h goes to
+far space 5 (bank 134), near only what nhnear.h names: the 86 globals the host trace touches
+every turn, the 321 whose address code hands on as a near pointer or that are char arrays
+(fardefault-trial-2026-11-20.txt), and the glue's variables (bankgen.py adds them); objects
+over a page stay near. One warning 2026, restore.c 808's, as before; warnings 2024 66, as far32.
+  resident code 20,694 B (+394, translations in resident code); resident data 37,850 B
+  (literals 11,718, frames 3,135, named 22,997, -2,964); resident in all 58,544 B (-2,570).
+  728 s, peak 12.8 GB.
+  listing nethack.error.asm: 3315 functions, 3109 in 116 banks, 206 resident; 55906 calls; 0 cross a bank without a trampoline
+  zero page and branches (check_listing.py): highest temporary $8f (m_move), 0 problems
+  intermediate code: 27032 direct calls; 0 cross a bank without a trampoline; 0 banked functions store to the bank register; 709 calls through pointers from banked code; 0 uses of a banked function's address
+  banks: 116 used, 1834311 B in all; per bank min 8273, median 16379, max 16384 B
+  left unplaced by the failed link: resident data 16685 B, banked data 921 B, banked native_code 17465 B
+Banked code grows by about 19.6 KB (the translations of the far accesses), so the plan needs
+repairing (planfix.py) before the next link: 17.5 KB of banked code did not fit far31's plan.

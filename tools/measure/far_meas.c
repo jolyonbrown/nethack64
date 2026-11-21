@@ -1,4 +1,4 @@
-/* far_meas.c - the translation routines of far spaces 1-4 for measure_oscar64.py with
+/* far_meas.c - the translation routines of far spaces 1-5 for measure_oscar64.py with
  * MEASURE_DEFS=-dNH_FAR_SPACES (T2.12): every page maps to itself, so a program measured
  * this way runs as the near one does; what the measurement wants is the code and the
  * compiler's warnings 2026.  MEASURE_EXTRA=tools/measure/far_meas.c. */
@@ -125,6 +125,36 @@ __asm farxz4
 		rts
 }
 #pragma runtime(farxz4, farxz4)
+
+/* far space 5: the globals a far default moves (c64conf.h, NH_FAR_DEFAULT) */
+__asm farxl5
+{
+		txa
+		rts
+}
+
+__asm farxo5
+{
+		sty nh_meas_xoff
+		clc
+		adc nh_meas_xoff
+		bcc done5
+		inx
+done5:	rts
+}
+
+#pragma runtime(farxl5, farxl5)
+#pragma runtime(farxo5, farxo5)
+
+__asm farxz5
+{
+		lda $00, x
+		sta __addr + 0
+		lda $01, x
+		sta __addr + 1
+		rts
+}
+#pragma runtime(farxz5, farxz5)
 
 /* the pin slots of the compiler's groups of accesses */
 unsigned char farpins[4];

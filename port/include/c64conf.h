@@ -133,4 +133,16 @@ extern int nh_fscanf(FILE *, const char *, ...);
 #define NH_FAR_GLOBS
 #endif
 
+#if defined(__OSCAR64C__) && defined(NH_FAR_SPACES) && defined(NH_FAR_DEFAULT)
+/* T2.12, a measurement: far space 5, bank 134 (REU 64 KB bank 17), holds every other
+ * global of the files that include hack.h, by default (#pragma fardefault at its end, the
+ * far-spaces fork's commits 9 and 10: each object keeps to a page, one larger than a page
+ * stays near); nhnear.h (bankgen.py, from the plan's "far_default") names what stays near:
+ * what code hands on as a near pointer, what a turn touches, and the glue's variables. */
+#pragma section(farmisc, 0)
+#pragma farsection(farmisc, 5)
+#pragma region(farmisc, 0x8000, 0x10000, , 134, { farmisc })
+#include "nhnear.h"
+#endif
+
 #endif /* C64CONF_H */

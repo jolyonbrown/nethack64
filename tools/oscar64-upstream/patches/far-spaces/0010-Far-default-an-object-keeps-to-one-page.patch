@@ -1,0 +1,175 @@
+From 1a176ef7b49535e484e57e3de2ec939982dd39d0 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 21 Nov 2026 12:53:50 +0000
+Subject: [PATCH] Far default: an object keeps to one page
+
+A far access translates the page of the address it starts at, and a group of
+accesses shares one translation, so a far object must not cross a page (as
+far tables do by padding). Linker::FarDefaultSection now aligns a variable it
+moves to the far default section to the power of two at or above its size,
+and leaves one larger than a page in its near section. The section is chosen
+before AddObject is called, so the raised alignment is the one used.
+
+autotest/fardefaulttest.c: objects of 3, 4, 7, 102 and 200 bytes keep to a
+page and hold their values; a 300-byte array stays near. The address checks go
+through a volatile: comparing a known object's address with a constant is
+folded, which made the existing near checks pass whatever the address. The
+odd3 read comes before the huge store, as the pin otherwise reads it at the
+store's index (upstream 9d39d74 fixes that). Commit 9's compiler fails the
+new checks; -n at -O0 to -O3 pass; make check 1,636 of 1,636.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/fardefaulttest.c      | 28 ++++++++++++++++++++++++++--
+ oscar64/InterCodeGenerator.cpp | 12 ++++++++----
+ oscar64/Linker.cpp             | 14 ++++++++++++--
+ oscar64/Linker.h               |  2 +-
+ 4 files changed, 47 insertions(+), 9 deletions(-)
+
+diff --git a/autotest/fardefaulttest.c b/autotest/fardefaulttest.c
+index 4b40ac4..1ebb01c 100644
+--- a/autotest/fardefaulttest.c
++++ b/autotest/fardefaulttest.c
+@@ -53,6 +53,13 @@ struct pt { char x; int y; } pts[3] = { { 1, 10 }, { 2, 20 }, { 3, 30 } };
+ char text[16] = "far text";
+ int keep = 9;			/* named near */
+ int hits;
++/* each keeps to one page: aligned to the power of two at or above its size */
++char odd3[3] = { 4, 5, 6 };
++struct big { char b[100]; int last; } bigs;
++long l1 = 0x12345678;
++char odd7[7];
++char huge[300];			/* larger than a page: near */
++char pad200[200] = { 1 };	/* so that unaligned, something would cross a page */
+ 
+ __noinline int tick(void)
+ {
+@@ -66,6 +73,11 @@ int after = 4;			/* after fardefault(): near */
+ 
+ __noinline int idx(int i) { return i; }
+ 
++/* an address through a volatile: Oscar64 folds a known object's address compared with a
++ * constant (nethack64's OSCAR64-COMPAT.md #79), which made the near checks always pass */
++volatile unsigned va;
++#define ADDR(x) (va = (unsigned)&x, va)
++
+ int main(void)
+ {
+ 	for (int i = 0; i < 256; i++)
+@@ -83,10 +95,22 @@ int main(void)
+ 	if (counter != 7 || table[30] != 7 || pts[2].x != 'z' || pts[2].y != 30) fails |= 2;
+ 	if (tick() != 101 || tick() != 102) fails |= 4;
+ 	/* the near ones are where near data is, and hold their values */
+-	if ((unsigned)&before >= 0x8000 || (unsigned)&after >= 0x8000 ||
+-		(unsigned)&keep >= 0x8000 || (unsigned)&hits >= 0x8000) fails |= 8;
++	if (ADDR(before) >= 0x8000 || ADDR(after) >= 0x8000 ||
++		ADDR(keep) >= 0x8000 || ADDR(hits) >= 0x8000 || ADDR(table) < 0x8000) fails |= 8;
+ 	hits = keep + before + after;
+ 	if (hits != 16) fails |= 16;
++	/* far objects of odd sizes keep to a page and work; a larger one is near */
++#define INPAGE(x) ((ADDR(x) & 0xff) + sizeof(x) <= 256 && ADDR(x) >= 0x8000)
++	if (!INPAGE(odd3) || !INPAGE(bigs) || !INPAGE(l1) || !INPAGE(odd7) || !INPAGE(text) ||
++		!INPAGE(table) || !INPAGE(pts) || !INPAGE(pad200)) fails |= 64;
++	if (ADDR(huge) >= 0x8000) fails |= 128;
++	/* odd3 is read before huge is stored: in the other order the pin reads it at the
++	 * index that store used (nethack64's tests/oscar64-repros/r77) */
++	if (odd3[idx(2)] != 6) fails |= 256;
++	bigs.last = 0x4321;
++	odd7[idx(6)] = 9;
++	huge[idx(299)] = pad200[idx(0)];
++	if (bigs.last != 0x4321 || l1 != 0x12345678 || odd7[6] != 9 || huge[299] != 1) fails |= 256;
+ 	/* the far copy holds what was stored, the fake addresses only garbage */
+ 	if (*(unsigned char *)0x8000 != 0xee) fails |= 32;
+ 	return fails;
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index 37ff5b9..895f636 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -869,7 +869,8 @@ void InterCodeGenerator::InitGlobalVariable(InterCodeModule * mod, Declaration*
+ 		InterVariable	*	var = new InterVariable();
+ 		var->mOffset = 0;
+ 		var->mSize = dec->mSize;
+-		var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection = mLinker->FarDefaultSection(dec->mIdent, dec->mSection, dec->mFarDefault), LOT_DATA, dec->mAlignment);
++		dec->mSection = mLinker->FarDefaultSection(dec->mIdent, dec->mSection, dec->mFarDefault, dec->mSize, dec->mAlignment);
++		var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection, LOT_DATA, dec->mAlignment);
+ 		var->mLinkerObject->mVariable = var;
+ 		var->mIdent = dec->mQualIdent;
+ 
+@@ -2530,7 +2531,8 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 					var->mIdent = dec->mQualIdent;
+ 					var->mOffset = 0;
+ 					var->mSize = dec->mSize;
+-					var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection = mLinker->FarDefaultSection(dec->mIdent, dec->mSection, dec->mFarDefault), LOT_DATA, dec->mAlignment);
++					dec->mSection = mLinker->FarDefaultSection(dec->mIdent, dec->mSection, dec->mFarDefault, dec->mSize, dec->mAlignment);
++					var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection, LOT_DATA, dec->mAlignment);
+ 					var->mLinkerObject->mVariable = var;
+ 
+ 					if (dec->mBase->mFlags & DTF_CONST)
+@@ -2569,7 +2571,8 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 					var->mSize = dec->mSize;
+ 					if (dec->mFlags & DTF_VAR_ALIASING)
+ 						var->mAliased = true;
+-					var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection = mLinker->FarDefaultSection(dec->mIdent, dec->mSection, dec->mFarDefault), LOT_DATA, dec->mAlignment);
++					dec->mSection = mLinker->FarDefaultSection(dec->mIdent, dec->mSection, dec->mFarDefault, dec->mSize, dec->mAlignment);
++					var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection, LOT_DATA, dec->mAlignment);
+ 					var->mLinkerObject->mVariable = var;
+ 					dec->mLinkerObject = var->mLinkerObject;
+ 					var->mIdent = dec->mQualIdent;
+@@ -6366,7 +6369,8 @@ void InterCodeGenerator::BuildInitializer(InterCodeModule * mod, uint8* dp, int
+ 				var->mSize = dec->mSize;
+ 				if (dec->mFlags & DTF_VAR_ALIASING)
+ 					var->mAliased = true;
+-				var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection = mLinker->FarDefaultSection(dec->mIdent, dec->mSection, dec->mFarDefault), LOT_DATA, dec->mAlignment);
++				dec->mSection = mLinker->FarDefaultSection(dec->mIdent, dec->mSection, dec->mFarDefault, dec->mSize, dec->mAlignment);
++				var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection, LOT_DATA, dec->mAlignment);
+ 				var->mLinkerObject->mVariable = var;
+ 				dec->mLinkerObject = var->mLinkerObject;
+ 				var->mLinkerObject->AddData(dec->mData, dec->mSize);
+diff --git a/oscar64/Linker.cpp b/oscar64/Linker.cpp
+index b461375..f717b17 100644
+--- a/oscar64/Linker.cpp
++++ b/oscar64/Linker.cpp
+@@ -561,8 +561,11 @@ void Linker::CheckDirectJumps(void)
+ // it, or -1 when it is not in exactly one region of exactly one bank (resident code,
+ // or a section placed in several banks).
+ // The section of a variable declared under #pragma fardefault: the far default section in
+-// place of the default data or bss section, unless #pragma near names it
+-LinkerSection* Linker::FarDefaultSection(const Ident* ident, LinkerSection* section, bool fardefault)
++// place of the default data or bss section, unless #pragma near names it.  A far access
++// translates the page of the address it starts at, and a group of accesses shares one
++// translation, so an object must keep to one page (as far tables do by padding): it is
++// aligned to the power of two at or above its size, and one larger than a page stays near.
++LinkerSection* Linker::FarDefaultSection(const Ident* ident, LinkerSection* section, bool fardefault, int size, int& alignment)
+ {
+ 	if (!fardefault || !mFarDefault || !section || !section->mIdent ||
+ 		(strcmp(section->mIdent->mString, "data") && strcmp(section->mIdent->mString, "bss")))
+@@ -570,6 +573,13 @@ LinkerSection* Linker::FarDefaultSection(const Ident* ident, LinkerSection* sect
+ 	for (int i = 0; i < mNearIdents.Size(); i++)
+ 		if (mNearIdents[i] == ident)
+ 			return section;
++	if (size > 256)
++		return section;
++	int	a = 1;
++	while (a < size)
++		a <<= 1;
++	if (alignment < a)
++		alignment = a;
+ 	return mFarDefault;
+ }
+ 
+diff --git a/oscar64/Linker.h b/oscar64/Linker.h
+index 2fb2fd6..da9b845 100644
+--- a/oscar64/Linker.h
++++ b/oscar64/Linker.h
+@@ -389,7 +389,7 @@ public:
+ 	// to the far default section
+ 	LinkerSection*					mFarDefault;
+ 	ExpandingArray<const Ident*>	mNearIdents;
+-	LinkerSection* FarDefaultSection(const Ident* ident, LinkerSection* section, bool fardefault);
++	LinkerSection* FarDefaultSection(const Ident* ident, LinkerSection* section, bool fardefault, int size, int& alignment);
+ 	GrowingArray<LinkerSection*>	mSections;
+ 	GrowingArray<LinkerObject*>		mObjects;
+ 	GrowingArray<LinkerOverlay*>	mOverlays;
+-- 
+2.43.0
+

@@ -725,7 +725,12 @@ window (2), a slice of code in every bank (3).
   named data, resident in all 61,618 B. The glue's stash slots next (far32): only strings in
   the bank window are stashed and none is longer than 102 B, so 128 B a slot, checked at each
   link by `build_c64.py --check-only`; 512 B, resident in all 61,114 B. `nh_args` (1 KB) waits
-  for a high-water mark from the running game. The whole-game build gives the linker `$0900-$7FFF`
+  for a high-water mark from the running game. The far default then (far33, the fork's
+  commit 10: an object keeps to a page, one over a page stays near; a plan's `"far_default"`,
+  from which bankgen.py writes `nhnear.h`, the names kept near with the glue's variables):
+  2,964 B of named data far, 394 B more resident code, resident in all 58,544 B; about
+  19.6 KB more banked code, so the plan needs repairing. Most of what is left near is
+  `char` data and what code reaches through near pointers: far characters' share. The whole-game build gives the linker `$0900-$7FFF`
   only: `$C000-$CBFF` (12 pages) and `$0400-$07FF` (4) are the 16 pages of a 4 KB far page
   cache.
 

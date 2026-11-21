@@ -355,5 +355,10 @@ nh_isok(int x, int y)
 #else
  #define CFDECLSPEC
 #endif
+
+#if defined(__OSCAR64C__) && defined(NH_FAR_DEFAULT)
+/* the rest of each file: its globals far, but those nhnear.h names (c64conf.h, T2.12) */
+#pragma fardefault(farmisc)
+#endif
  
 #endif /* HACK_H */

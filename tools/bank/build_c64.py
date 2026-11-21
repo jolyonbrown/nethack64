@@ -278,6 +278,8 @@ def main():
                          "relative to DIR) without compiling, e.g. to compile on a bigger machine")
     a = ap.parse_args()
     out = os.path.abspath(a.out)
+    # a plan's "far_default" (bankgen.py writes nhnear.h): -dNH_FAR_DEFAULT, with --far only
+    far_default = a.far and "far_default" in json.load(open(a.plan))
     prg = os.path.join(out, "nethack.prg")
     if not a.check_only:
         mo.CONFIG, mo.OUT, mo.DEFS = "c64", out, mo.CONFIGS["c64"]["defs"]
@@ -299,6 +301,7 @@ def main():
                             "--inc", os.path.join(out, "fakelibc"), "--cpp=-nostdinc",
                             "--cpp=-D__attribute__(x)=", "--report", os.path.join(out, "bankgen-report.json")] +
                            ["--cpp=" + c for c in cpp] + (["--cpp=-DNH_FAR_SPACES"] if a.far else []) +
+                           (["--cpp=-DNH_FAR_DEFAULT"] if far_default else []) +
                            (["--linker-stubs"] if a.linker_stubs else []) +
                            files, capture_output=True, text=True)
         if r.returncode:
@@ -316,7 +319,7 @@ def main():
             ["src/" + f for f in files] + [os.path.basename(h)] + mo.DEFS
         if a.far:
             shutil.copy(os.path.join(ROOT, "tools", "measure", "far_meas.c"), out)
-            args += ["-dNH_FAR_SPACES", "far_meas.c"]
+            args += ["-dNH_FAR_SPACES", "far_meas.c"] + (["-dNH_FAR_DEFAULT"] if far_default else [])
         if a.generate_only:
             open(os.path.join(out, "compile.args"), "w").write("\n".join(args) + "\n")
             print("generated: compile in %s with oscar64 $(cat compile.args)" % out)

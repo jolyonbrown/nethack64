@@ -73,6 +73,10 @@ def tokens(text, path):
             own = os.path.basename(m.group(2)) == base
             line = int(m.group(1))
             continue
+        if ln.lstrip().startswith("#"):
+            # a #pragma the preprocessor passes on (hack.h's fardefault) is no declaration's
+            line += 1
+            continue
         for t in TOKEN.findall(ln):
             out.append((t, line if own else 0))
         line += 1
@@ -255,6 +259,9 @@ KEEP_STATIC = re.compile(r"(?m)^(?:static|STATIC_VAR|STATIC_OVL)\s+(?:NEARDATA\s
                          r"([A-Za-z_]\w*)\s*(?:=[^;(]*)?;")
 LITERAL = re.compile(r'"(?:[^"\\\n]|\\.)*"')
 KEEP_SIZE = 128
+# a file-scope variable that nhbank.h defines (for nhnear.h)
+GLUE_VAR = re.compile(r"(?m)^(?:static\s+)?(?:volatile\s+)?(?:unsigned\s+)?(?:char|int|short|long|unsigned)\s+"
+                      r"(\w+)(?:\[[^\]]*\])*(?:\s*,\s*(\w+))?(?:\s*,\s*(\w+))?(?:\s*,\s*(\w+))?\s*;")
 
 
 def keep(raw, li, last, f, keep_extern, keep_static, banked, bufs, report, keep_sizes, kept_extern):
@@ -415,6 +422,10 @@ def main():
     # A buffer not named keeps KEEP_SIZE; an extern assigned nowhere gets none.
     keep_sizes = {k: (v[0] if isinstance(v, list) else v) for k, v in planj.get("keep", {}).items()}
     kept_extern = {}
+    # nhnear.h goes beside c64conf.h, which includes it; empty while the sources are read
+    near_h = os.path.join(a.inc[0], "nhnear.h") if a.inc else os.path.join(a.dir, "nhnear.h")
+    if planj.get("far_default") is not None:
+        open(near_h, "w").write("")
     # the slice (a plan's "slice": {"start": address, "functions": [...], "tables": [...]}):
     # code and read-only tables at start-$BFFF of every bank, the same bytes in each (one
     # Oscar64 region with all the banks), so that they are in view whichever bank is mapped
@@ -462,7 +473,7 @@ def main():
               "keep_globals": sorted(keep_extern), "linker_stubs": a.linker_stubs, "direct": 0,
               "cross_macros": 0, "caller_wrappers": 0, "result_wrappers": 0,
               "data_banked": 0, "data_left": {}, "slice_functions": [], "slice_tables": [],
-              "keep_exempt": 0, "keep_planned": set()}
+              "keep_exempt": 0, "keep_planned": set(), "keep_static_bufs": []}
     bank_of, sig_of = {}, {}
 
     renamed = set()      # banked functions that are renamed and get a trampoline
@@ -712,6 +723,7 @@ def main():
                     lines.append("#define NHBANK_DEFINE")
                 lines.append('#include "nhbank.h"')
                 lines += ["NH_KEEPBUF(static char %s[%d];)" % (n, size) for n, size in keep_bufs]
+                report["keep_static_bufs"] += [n for n, size in keep_bufs]
                 first = False
             lines.append("#pragma code(%s)" % ("nhbank_%d" % b if b is not None else "code"))
             lines += ["#undef %s" % n for n in sorted(defined_macros)]
@@ -815,8 +827,24 @@ def main():
         out += ["", "/* bankgen: trampolines */"] + tail + [""]
         open(path, "w", encoding="latin-1").write("\n".join(out))
 
-    open(os.path.join(a.dir, "nhbank.h"), "w").write(header(sorted(report["banks"]), kept_extern, a.linker_stubs,
-                                                          resident_glue, slice_start if slice_plan else None))
+    text = header(sorted(report["banks"]), kept_extern, a.linker_stubs, resident_glue,
+                  slice_start if slice_plan else None)
+    open(os.path.join(a.dir, "nhbank.h"), "w").write(text)
+    # a far default (a plan's "far_default": {"near": [...]}; c64conf.h, NH_FAR_DEFAULT): every
+    # other global of NetHack's files goes to far space 5, so what must stay near is named in
+    # nhnear.h: the plan's names (their address handed on as a near pointer, the compiler's
+    # warning 2026; or touched every turn) and every variable of the glue (read from
+    # assembler, volatile, or handed on as char *: none of it may be far)
+    far_default = planj.get("far_default")
+    if far_default is not None:
+        glue = {n for m in GLUE_VAR.findall(text) for n in m if n}
+        glue |= {"nh_keep_" + n for n in kept_extern} | set(report["keep_static_bufs"])
+        near = sorted(set(far_default.get("near", [])) | glue)
+        report["far_default_near"] = len(near)
+        lines = ["/* nhnear.h - written by bankgen.py: what the far default leaves near */"]
+        for i in range(0, len(near), 8):
+            lines.append("#pragma near(%s)" % ", ".join(near[i:i + 8]))
+        open(near_h, "w").write("\n".join(lines) + "\n")
     missing = (slice_funcs - set(report["slice_functions"])) | (slice_tables - set(report["slice_tables"]))
     if missing:
         sys.exit("bankgen: the slice names what no file defines: %s" % ", ".join(sorted(missing)))
