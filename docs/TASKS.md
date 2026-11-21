@@ -774,6 +774,11 @@ Add new tasks at the bottom of the right section.
       99.6 -> about 63 KB, code 31.4 -> 25.9 KB. The page cache traced at 8-64 pages: 4 KB costs
       about 125 ms a turn. Next: the cache size into the budget, the vision grids far, the
       hot set and libc out of resident code, then strings.
+- [ ] T2.13 The C128 platform (ADR-0003, amendment of 2026-11-21: the whole game runs first on
+      a C128 + Magic Desk 128 + REU in x128, the C64 build kept working): a `-tm=c128` build of
+      the banked game with its banks on a Magic Desk 128 image (16 KB at `$8000`, `$DE00`) and
+      the REU; the VDC for the 80 columns; the keyboard; 2 MHz; `make test` cases for it.
+      Evidence so far: `tests/spikes/c128.c`, `c128ef.c` (HARDWARE.md).
 
 ## Housekeeping
 

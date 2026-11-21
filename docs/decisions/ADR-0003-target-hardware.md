@@ -1,6 +1,6 @@
 # ADR-0003: Primary target EasyFlash + REU, with REU-only as the fallback design
 
-- Status: accepted (revisit after the Phase 2 banking spike)
+- Status: accepted (revisit after the Phase 2 banking spike); amended 2026-11-15 and 2026-11-21
 - Date: 2026-11-08 (confirms the Sept 2026 choice, adds caveats)
 - Deciders: Jolyon, Claude
 
@@ -45,12 +45,13 @@ So:
   keep the mechanisms that bring data and code into RAM (far data, overlays) independent of
   the REU behind them, so that a disk-backed experiment stays possible.
 
-## Proposed amendment 2026-11-21: the C128 first to a running game (pending Jolyon)
+## Amendment 2026-11-21: the C128 first to a running game
 
-Status: proposed. Jolyon asked whether to get the C128 running first and come back to the
-C64, or squeeze the C64 first; he approved the plan below ("That's a great plan - go
-ahead!") on the condition that a check of the C128's cartridge came first. This records
-that check and the proposal; it needs his yes before it changes the target.
+Status: accepted (Jolyon, 2026-11-21: "Ok go ahead this seems a sensible pragmatic approach
+to take"). He had asked whether to get the C128 running first and come back to the C64, or
+squeeze the C64 first; the plan below was approved ("That's a great plan - go ahead!") on
+the condition that a check of the C128's cartridge came first. This records that check and
+the decision.
 
 **Evidence.** The C64's near memory is about 20 KB short after the data steps; the C128's
 (about 46 KB in view less platform code, `tests/spikes/c128.c`) about 8 KB short, both
@@ -61,7 +62,7 @@ C128 mode, but a Magic Desk 128 cartridge (1 MB, 64 banks of 16 KB at `$8000-$BF
 register `$DE00`, the EasyFlash layout's window) is, with the REU beside it (HARDWARE.md,
 "A banked cartridge in C128 mode").
 
-**Proposal.**
+**Decision.**
 - Get the whole game running first on a C128 in VICE (x128): Magic Desk 128 for the first
   63 banks, as the EasyFlash holds them on the C64, the REU for the rest and the far data,
   the VDC for 80 columns, 2 MHz.

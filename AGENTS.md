@@ -8,8 +8,10 @@ Details live in `docs/`.
 
 The real NetHack 3.4.3, compiled from its own C source, running on a
 Commodore 64. Primary target: **EasyFlash cartridge + REU**, in VICE first (the Ultimate
-family / C64 Ultimate should run the same build by emulation). Next: a C128 conversion
-(ADR-0003). Stretch, but one to test: stock C64.
+family / C64 Ultimate should run the same build by emulation). On the way, the whole game
+runs first on a **C128 + Magic Desk 128 + REU** in VICE's x128, then the C64 is squeezed to
+fit (ADR-0003, amendment of 2026-11-21); the C64 build keeps working throughout. Stretch,
+but one to test: stock C64.
 We **port**, we do not rewrite: game logic stays NetHack's code. Our work is
 making it fit: compiler compatibility, banking, memory, I/O, an 80-column
 window port.

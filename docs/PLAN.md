@@ -110,7 +110,7 @@ Exit: FEATURES.md checklist ticked by scripted or manual play.
 ## Phase 6 — Distribution
 
 - [ ] One `.crt` (+ `.d64` for saves) with a README; credits and NetHack licence
-- [ ] Optional C128 VDC build; stock-C64 feasibility write-up
+- [ ] Both builds: the C128 (Magic Desk 128 + REU, the first to run the game, ADR-0003 2026-11-21) and the C64 (EasyFlash + REU); stock-C64 feasibility write-up
 
 ## Risks, in order
 
