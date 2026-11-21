@@ -1132,8 +1132,11 @@ extern char nh_name_ring[NH_NAME_SLOTS][NH_NAME_LEN];
 #ifdef NHBANK_DEFINE
 volatile unsigned char nh_bank;
 /* a string from a bank that is about to be unmapped: copied into one of a few
- * resident buffers, which callers reuse in turn */
-static char nh_stash_buf[4][256];
+ * resident buffers, which callers reuse in turn.  Only strings in the bank window are
+ * copied, and the largest literal a bank holds is 102 B (engrave.c's; far31's map), so a
+ * slot of NH_STASH_LEN holds any whole; build_c64.py --check-only checks it at each link */
+#define NH_STASH_LEN 128
+static char nh_stash_buf[4][NH_STASH_LEN];
 static unsigned char nh_stash_next;
 volatile unsigned nh_addr;
 static char nh_args[1024];
@@ -1145,7 +1148,7 @@ nh_stash(const char *s)
 	char *d = nh_stash_buf[nh_stash_next++ & 3];
 	int i;
 
-	for (i = 0; i < 255 && s[i]; i++)
+	for (i = 0; i < NH_STASH_LEN - 1 && s[i]; i++)
 		d[i] = s[i];
 	d[i] = 0;
 	return d;
@@ -1157,7 +1160,7 @@ nh_stash_arg(const char *s)
 	char *d;
 	unsigned n = 0;
 
-	while (n < 255 && s[n])
+	while (n < NH_STASH_LEN - 1 && s[n])
 		n++;
 	if (nh_args_top + n + 1 > sizeof(nh_args))
 		return nh_stash(s);		/* full: one of the four, as before */

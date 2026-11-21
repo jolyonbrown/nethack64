@@ -58,3 +58,15 @@ extern keeper assigned nowhere gets none (catmore, hname: the linker had dropped
   intermediate code: 27033 direct calls; 0 cross a bank without a trampoline; 0 banked functions store to the bank register; 709 calls through pointers from banked code; 0 uses of a banked function's address
   banks: 116 used, 1814655 B in all; per bank min 8273, median 16155, max 16383 B
   left unplaced by the failed link: resident data 19759 B, banked native_code 78 B
+
+far32 (plan far31, bankgen.py's stash slots 128 B, NH_STASH_LEN): every string the glue
+stashes is copied out of the bank window, and the largest literal a bank holds is 102 B
+(engrave.c; build_c64.py --check-only now checks it: "largest literal in a bank: 102 B, a
+stash slot 128 B"); nh_args (1 KB) and the name ring (8 x 48 B) as they were.
+  resident code 20,300 B; resident data 40,814 B (literals 11,718, frames 3,135, named 25,961);
+  resident in all 61,114 B (-504).  709 s, peak 12.8 GB.
+  listing nethack.error.asm: 3312 functions, 3119 in 116 banks, 193 resident; 57011 calls; 0 cross a bank without a trampoline
+  zero page and branches (check_listing.py): highest temporary $8f (m_move), 0 problems
+  intermediate code: 27033 direct calls; 0 cross a bank without a trampoline; 0 banked functions store to the bank register; 709 calls through pointers from banked code; 0 uses of a banked function's address
+  banks: 116 used, 1814655 B in all; per bank min 8273, median 16155, max 16383 B
+  left unplaced by the failed link: resident data 19255 B, banked native_code 78 B

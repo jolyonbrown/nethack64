@@ -142,6 +142,17 @@ def unplaced(mapfile):
     return out
 
 
+def longest_literal(mapfile):
+    """The largest anonymous data object (a literal) placed in a bank of an Oscar64 map."""
+    n = 0
+    for line in open(mapfile, errors="replace"):
+        m = OBJ.match(line)
+        if m and m.group(1) != "--" and m.group(4) == "*" and m.group(5) == "DATA" \
+                and m.group(6).startswith("nhbank_"):
+            n = max(n, int(m.group(3), 16) - int(m.group(2), 16))
+    return n
+
+
 def sizes(mapfile):
     """From an Oscar64 map: bytes per bank (code and its literals), resident code, and the
     trampolines (resident functions with a banked name__bN); the linker's bank call stubs
@@ -364,6 +375,16 @@ def main():
         if sizes.in_window:
             print("resident code inside the bank window $8000-$bfff: %d functions, e.g. %s" % (
                 len(sizes.in_window), ", ".join(sizes.in_window[:5])))
+        # the glue's stash slots (nhbank.h's NH_STASH_LEN) hold only strings copied out of
+        # the bank window, so the largest literal a bank holds has to fit one, NUL and all
+        hdr = os.path.join(os.path.dirname(mp), "src", "nhbank.h")
+        slot = re.search(r"#define NH_STASH_LEN (\d+)", open(hdr).read()) if os.path.exists(hdr) else None
+        if slot:
+            lit = longest_literal(mp)
+            print("largest literal in a bank: %d B, a stash slot %s B" % (lit, slot.group(1)))
+            if lit > int(slot.group(1)):
+                print("a literal in a bank is longer than a stash slot (NH_STASH_LEN in bankgen.py's header)")
+                bad = bad + [("NH_STASH_LEN", None, "literal of %d B" % lit, None)]
         left = unplaced(mp)
         if left:
             print("left unplaced by the failed link: " + ", ".join(

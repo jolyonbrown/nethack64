@@ -722,7 +722,10 @@ window (2), a slice of code in every bank (3).
   default, then far characters, then the RAM under I/O). The kept copies first (far31): a
   plan's `"keep"` sizes each keeper's buffer, with the evidence beside it, none where every
   value assigned is near or heap data, the longest literal where only literals are; 990 B of
-  named data, resident in all 61,618 B. The whole-game build gives the linker `$0900-$7FFF`
+  named data, resident in all 61,618 B. The glue's stash slots next (far32): only strings in
+  the bank window are stashed and none is longer than 102 B, so 128 B a slot, checked at each
+  link by `build_c64.py --check-only`; 512 B, resident in all 61,114 B. `nh_args` (1 KB) waits
+  for a high-water mark from the running game. The whole-game build gives the linker `$0900-$7FFF`
   only: `$C000-$CBFF` (12 pages) and `$0400-$07FF` (4) are the 16 pages of a 4 KB far page
   cache.
 
