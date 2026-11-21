@@ -399,6 +399,15 @@ def main():
     # "va_list_banked", reviewed by hand): theirs holds no string that may be a literal of the
     # caller's bank, only pointers to near data (sys/c64/c64scanf.c's sc_scan)
     va_list_banked = set(planj.get("va_list_banked", []))
+    # the slice (a plan's "slice": {"start": address, "functions": [...], "tables": [...]}):
+    # code and read-only tables at start-$BFFF of every bank, the same bytes in each (one
+    # Oscar64 region with all the banks), so that they are in view whichever bank is mapped
+    # and are called and read directly, as resident code is: for the rest of this script
+    # they are resident.  The banks end at start.
+    slice_plan = planj.get("slice") or {}
+    slice_start = int(str(slice_plan.get("start", "0xc000")), 0)
+    slice_funcs = set(slice_plan.get("functions", []))
+    slice_tables = set(slice_plan.get("tables", []))
     files = [os.path.basename(f) for f in a.files]
     if a.define_in not in files:
         sys.exit("%s (--define-in) must be one of the files" % a.define_in)
@@ -436,7 +445,7 @@ def main():
               "used_bare": [], "kept": 0, "kept_fields": [], "keep_unhandled": [], "noinline": [],
               "keep_globals": sorted(keep_extern), "linker_stubs": a.linker_stubs, "direct": 0,
               "cross_macros": 0, "caller_wrappers": 0, "result_wrappers": 0,
-              "data_banked": 0, "data_left": {}}
+              "data_banked": 0, "data_left": {}, "slice_functions": [], "slice_tables": []}
     bank_of, sig_of = {}, {}
 
     renamed = set()      # banked functions that are renamed and get a trampoline
@@ -636,6 +645,23 @@ def main():
                 ["#pragma code(nhbank_%d)" % b, "#pragma data(nhbank_%d)" % b])
             ends.setdefault(d["end"], []).extend(["#pragma code(code)", "#pragma data(data)"])
         for d in defs:
+            key = "%s:%s" % (f, d["name"])
+            if key in slice_funcs:
+                if key in bank_of:
+                    sys.exit("%s: in a bank and in the slice" % key)
+                begins.setdefault(insertion_line(raw, d["line"]), []).append("#pragma code(nhslice)")
+                ends.setdefault(d["end"], []).append("#pragma code(code)")
+                report["slice_functions"].append(key)
+        for d in data_info.get(f, []):
+            key = "%s:%s" % (f, d["name"])
+            if key in slice_tables:
+                if any(x is d for x, _ in data_bank.get(f, [])):
+                    sys.exit("%s: in a bank and in the slice" % key)
+                begins.setdefault(insertion_line(raw, d["line"]), []).extend(
+                    ["#pragma code(nhslice)", "#pragma data(nhslice)"])
+                ends.setdefault(d["end"], []).extend(["#pragma code(code)", "#pragma data(data)"])
+                report["slice_tables"].append(key)
+        for d in defs:
             b = bank_of.get("%s:%s" % (f, d["name"]))
             if "%s:%s" % (f, d["name"]) in noinline:
                 first_line = insertion_line(raw, d["line"])
@@ -772,7 +798,10 @@ def main():
         open(path, "w", encoding="latin-1").write("\n".join(out))
 
     open(os.path.join(a.dir, "nhbank.h"), "w").write(header(sorted(report["banks"]), keep_extern, a.linker_stubs,
-                                                          resident_glue))
+                                                          resident_glue, slice_start if slice_plan else None))
+    missing = (slice_funcs - set(report["slice_functions"])) | (slice_tables - set(report["slice_tables"]))
+    if missing:
+        sys.exit("bankgen: the slice names what no file defines: %s" % ", ".join(sorted(missing)))
     report["banks"] = sorted(report["banks"])
     if a.report:
         json.dump(report, open(a.report, "w"), indent=1, sort_keys=True)
@@ -897,12 +926,12 @@ __asm nh_map
 		bcs reu
 		sta $de00
 		lda nh_cartoff
-		beq on
+		beq ef
 		lda #0
 		sta nh_cartoff
 		lda #$87
 		sta $de02
-		lda #$37
+ef:		lda #$37			/* ROML too: the cartridge startup leaves $36 (tests/spikes/bankslice.c) */
 		sta $01
 on:		rts
 reu:	cmp nh_window
@@ -1006,7 +1035,7 @@ nh_setbank(unsigned char b)
 """
 
 
-def header(banks, keep_extern=(), linker_stubs=False, resident_glue=()):
+def header(banks, keep_extern=(), linker_stubs=False, resident_glue=(), slice_start=None):
     bufs_decl = "\n".join("extern char nh_keep_%s[%d];" % (n, KEEP_SIZE) for n in sorted(keep_extern))
     bufs_def = "\n".join("char nh_keep_%s[%d];" % (n, KEEP_SIZE) for n in sorted(keep_extern))
     if linker_stubs:
@@ -1014,8 +1043,16 @@ def header(banks, keep_extern=(), linker_stubs=False, resident_glue=()):
     setbank = ("/* through the bank call routine: an REU bank needs fetching (ADR-0008) */\n"
                "extern void nh_setbank(unsigned char b);\n#define NH_BANK(n) nh_setbank(n)"
                if linker_stubs else "#define NH_BANK(n) (nh_bank = (n), eflash.bank = (n))")
-    regions = "\n".join("#pragma section( nhbank_%d, %d )\n#pragma region( nhbank_%d_r, 0x8000, 0xc000, , %d, "
-                        "{ nhbank_%d } )" % (b, 4 if b in resident_glue else 0, b, b, b) for b in banks)
+    end = slice_start or 0xc000
+    regions = "\n".join("#pragma section( nhbank_%d, %d )\n#pragma region( nhbank_%d_r, 0x8000, 0x%04x, , %d, "
+                        "{ nhbank_%d } )" % (b, 4 if b in resident_glue else 0, b, end, b, b) for b in banks)
+    if slice_start:
+        # the slice: one region in every bank, so the linker writes its bytes into each;
+        # Linker::SectionBank() takes a section of several banks for resident code, so
+        # calls into it stay direct and calls out of it go through the resident stubs
+        regions += ("\n/* the slice: the same code and tables at $%04x-$BFFF of every bank */\n"
+                    "#pragma section( nhslice, 0 )\n#pragma region( nhslice_r, 0x%04x, 0xc000, , { %s }, "
+                    "{ nhslice } )" % (slice_start, slice_start, ", ".join(str(b) for b in banks)))
     return """/* nhbank.h - written by tools/bank/bankgen.py: the banks, the bank switch and the
  * string copy that its trampolines use (docs/BANKING-SPIKE.md). */
 #ifndef NHBANK_H

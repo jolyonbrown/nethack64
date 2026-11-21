@@ -31,7 +31,10 @@ int ungetc(int, FILE *);	/* Oscar64's stdio.h has none: the file layer's */
 #endif
 
 static FILE *sc_fp;		/* reading this file, or */
-static const char *sc_str;	/* this string */
+/* this string; unsigned char, not char, so that bankgen.py keeps no copy of what is
+ * assigned to it (NH_KEEP, 127 characters): the trampoline has copied it out of the
+ * caller's bank, and it is read only during the call */
+static const unsigned char *sc_str;
 static int sc_c;		/* the character looked at, EOF at the end */
 static char sc_have;		/* sc_c is looked at, not yet taken */
 
@@ -43,7 +46,7 @@ sc_peek(void)
 		if (sc_fp)
 			sc_c = fgetc(sc_fp);
 		else if (*sc_str)
-			sc_c = (unsigned char) *sc_str++;
+			sc_c = *sc_str++;
 		else
 			sc_c = EOF;
 	}
@@ -73,7 +76,7 @@ sc_scan(const char *fmt, const char *str, FILE *fp, va_list ap)
 	char f, eof = 0;
 
 	sc_fp = fp;
-	sc_str = str;
+	sc_str = (const unsigned char *) str;
 	sc_have = 0;
 	while ((f = *fmt++) != 0) {
 		char skip = 0, size = 0, neg = 0, any = 0;

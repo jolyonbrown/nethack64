@@ -64,12 +64,12 @@ __asm nh_map
 		bcs reu
 		sta $de00
 		lda nh_cartoff
-		beq on
+		beq ef
 		lda #0
 		sta nh_cartoff
 		lda #$87
 		sta $de02
-		lda #$37
+ef:		lda #$37			/* ROML too: the cartridge startup leaves $36 (tests/spikes/bankslice.c) */
 		sta $01
 on:		rts
 reu:	cmp nh_window

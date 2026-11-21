@@ -58,10 +58,12 @@ CONFIGS = {
     # mkstubs.py's gcc -E gets the same defines plus oscar64's predefines, so
     # both see one configuration.  Only errno.h is stubbed: files.c includes
     # it unconditionally; any other Unix header the C64 view reaches is an error.
+    # -dNOFLOAT (2026-11-21): Oscar64's printf without %f, which NetHack never formats; with
+    # it, sformat() and the float routines it calls are about 1.3 KB of resident code.
     "c64": dict(out="measure-c64", shim="c64meas-c64.h", stubs=["errno.h"],
                 cpp=["-DC64", "-Dregister=", "-D__OSCAR64C__=1", "-D__C64__=1", "-D__CBM__=1",
                      "-DOSCAR_TARGET_PRG=1"],
-                defs=["-dC64", "-dregister="]),
+                defs=["-dC64", "-dregister=", "-dNOFLOAT"]),
 }
 CONFIG = "unix"
 OUT = os.path.join(ROOT, "build", CONFIGS[CONFIG]["out"])

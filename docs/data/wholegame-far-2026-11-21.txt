@@ -32,3 +32,16 @@ Banked functions larger than 8 KB in far27 (lever 2's 8 KB window): seffects 14,
 readobjnam 12,857, hmon_hitmon 12,794, hitmu 11,811, dokick 11,631, mdamagem 11,113, domove
 10,915, moveloop 10,599, m_move 9,899, enlightenment 9,846, parseoptions 9,361, dochug 8,642,
 load_maze 8,371, dotrap 8,325, use_defensive 8,303, mintrap 8,199 (19 above 7,680, 40 above 5,000).
+
+far30 (plan far29 repaired, 2 moves, and warmed, 0 moves: bankplan-2026-11-21-far30.json):
+-dNOFLOAT (Oscar64's printf without %f, and the float routines it called), the bank call
+routine sets $01 = $37 for every EasyFlash bank, c64scanf.c's sc_str unsigned (no keep buffer).
+  resident code 20,286 B; resident data 42,316 B (literals 11,718, frames 3,135, named 27,463);
+  resident in all 62,602 B.  709 s, peak 12.8 GB; only warning 2026 restore.c 808.
+  listing nethack.asm: 3312 functions, 3119 in 116 banks, 193 resident; 57015 calls; 0 cross a bank without a trampoline
+  zero page and branches (check_listing.py): highest temporary $8f (m_move), 0 problems
+  intermediate code: 27040 direct calls; 0 cross a bank without a trampoline; 0 banked functions store to the bank register; 709 calls through pointers from banked code; 0 uses of a banked function's address
+  banks: 116 used, 1814063 B in all; per bank min 8273, median 16148, max 16383 B
+  left unplaced by the failed link: resident data 20743 B, banked native_code 48 B
+Banks over 14,336 B in far29: 106 of 116 (lever 3's slice); seffects' bank 108 16,369 B,
+readobjnam's 84 16,310 B, hmon_hitmon's 35 15,002 B.

@@ -683,7 +683,8 @@ window (2), a slice of code in every bank (3).
   not seen what `NH_FAR_SPACES` selects: `build_c64.py --far` now gives it the define);
   `panic()` formats its message and leaves the rest to a banked `panic_tail()`. Resident
   code 26,097 -> 22,271 B; resident in all 68,652 -> 64,755 B. Bank checks clean; 234 B of
-  banked code left for the next plan repair.
+  banked code left for the next plan repair. far30 adds `-dNOFLOAT` (Oscar64's printf
+  without `%f`, which NetHack never formats): resident code 20,286 B, in all 62,602 B.
 - *Lever 2, RAM under ROML*: the hardware does it (`docs/HARDWARE.md`, `tests/spikes/loram.c`):
   with `$01 = $36` in 16K mode, `$8000-$9FFF` is RAM while ROMH stays at `$A000`. But a
   window of 8 KB at `$A000` for every bank would leave 16 functions without a bank (they are
@@ -695,6 +696,28 @@ window (2), a slice of code in every bank (3).
   caller's ROML is hidden while it runs), so neither libc nor the message functions nor the
   glue qualify: what is left is the hot set (7.9 KB), called about 1,500 times a key from
   EasyFlash code through a stub, about 0.2 s a key. Not taken for now.
+- *Lever 3, a slice in every bank*: Oscar64 already has what it takes. A region may name
+  several banks (`#pragma region(r, start, end, , { 1, 2, 64 }, { s })`): the linker writes
+  its objects, relocated, into each bank's image, and `Linker::SectionBank()` takes such a
+  section for resident code, so a call into it from any bank is a direct `JSR`, a call out of
+  it goes through a resident stub, and the stub maps whichever bank was in. `bankgen.py`
+  takes a plan's `"slice": {"start", "functions", "tables"}`. `tests/spikes/bankslice.c`
+  (VICE, EasyFlash + REU): 8 checks pass, EasyFlash and REU callers, a call from the slice
+  into a bank and back to an EasyFlash or an REU caller, a slice table and literal read
+  from both, the same bytes in every bank. Bank 0 (the startup and the program's image) can
+  hold no slice, so the startup must map a code bank before slice code runs. Found on the
+  way: the cartridge's startup leaves `$01 = $36`, so ROML is hidden until the first call
+  into an REU bank comes back; the bank call routine now sets `$37` whenever it maps an
+  EasyFlash bank (+10 cycles a call, `run_bankreu.py`). What stops the slice is the banks
+  it would shrink: in far29, 106 of 116 banks hold more than 14 KB, and `seffects`' bank
+  (16,369 B with its literals) and `readobjnam`'s (16,310 B) cannot give up even 1 KB. A
+  bank left out of the slice would need its calls into the slice sent through stubs that
+  map a bank holding it, and resident code could then no longer call the slice directly
+  (a bank without it may be mapped: `seffects` -> `pline` -> slice), and a string or format
+  passed from such a bank would not be in view: the slice would be numeric code reached
+  through stubs, lever 2 again. It works without that only if the largest functions are
+  split in the source (`seffects`, `readobjnam`, then those over 12 KB with their literals
+  for a 4 KB slice), at about 150 KB of bank space for each KB of slice.
 
 ## Measured: zero page saves (2026-11-16, T1.49)
 
