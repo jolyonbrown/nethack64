@@ -156,6 +156,28 @@ two 8 KB halves, switches banks through `$DE00` and reads `$8000`, `$A000`, `$C0
   by VICE; its README names "Magic Desk 128 and Gmod2 (128)" as projects that "map only 16K
   at a time".
 
+### Bank calls on a C128 (2026-11-21, `tests/spikes/bankreu128.c`, `run_bankreu128.py`)
+
+bankreu.c's fourteen checks on a C128 in C128 mode (x128, Magic Desk 128 + 1 MB REU), all
+pass: the linker's bank call stubs (pin, `Linker::InsertBankCalls`) and the bank call routine
+unchanged, `nh_map` alone rewritten. A cartridge bank is `$DE00` written and the MMU set to
+`$3A` (external ROM at `$8000-$BFFF`, I/O in); an REU bank is the MMU at `$3E` (RAM there)
+and, if the window holds another bank, the 16 KB DMA, as on the C64. The program runs with
+the I/O in throughout and interrupts off (no KERNAL ROM, so no interrupt handler yet).
+
+| an `int (int, int)` call, cycles | C64 (EasyFlash) | C128 (Magic Desk 128) |
+|---|---|---|
+| into a cartridge bank | 309.7 | 330.2 |
+| into an REU bank already in the window | 361.4 | 362.2 |
+| into an REU bank, a 16 KB fetch | 16,832 | 17,720 |
+
+Both at 1 MHz, the C128's timed with CIA 2. The build is `-tm=c128 -tf=prg` with one
+`#pragma overlay( STEM_ovN, N )` per bank: Oscar64 writes each bank as `STEM_ovN.prg` in
+the program's directory, and `tools/bank/c128_images.py` makes the cartridge image (VICE's
+raw Magic Desk 128 format) and the REU image (`crt_split.py`'s layout) of them. (Oscar64's
+`-tf=crt` for the C128 writes an EasyFlash-style boot, the program LZ-compressed in bank 0,
+which a C128 in its own mode would not start.)
+
 ## Real hardware test checklist (when the time comes)
 
 - [ ] Ultimate (U2+/U64/C64U): `make CRT_SUBTYPE=1`, REU enabled 512 KB and
