@@ -37,6 +37,18 @@ TIMES = [
 ]
 
 
+def rom_args():
+    """Arch's VICE 3.7.1 package lacks some of x128's national ROMs (kernalfi,
+    chargen-325167-01): x128 will not start without them, so name the international ones
+    instead (2026-11-21)"""
+    rom = []
+    for opt in ("kernalde", "kernalfi", "kernalfr", "kernalit", "kernalno", "kernalse", "kernalch"):
+        rom += ["-" + opt, "kernal-318020-05.bin"]
+    for opt in ("chargde", "chargfr", "chargse", "chargch", "chargno"):
+        rom += ["-" + opt, "chargen-390059-01.bin"]
+    return rom
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.strip().split("\n")[0])
     ap.add_argument("--oscar64", default="oscar64")
@@ -50,14 +62,7 @@ def main():
     lbl = prg.rsplit(".", 1)[0] + ".lbl"
     done, result, val = rb.label(lbl, "spike_done"), rb.label(lbl, "spike_result"), rb.label(lbl, "spike_val")
     env = dict(os.environ, VICE="x128")
-    # Arch's VICE 3.7.1 package lacks some of x128's national ROMs (kernalfi, chargen-325167-01):
-    # x128 will not start without them, so name the international ones instead (2026-11-21)
-    rom = []
-    for opt in ("kernalde", "kernalfi", "kernalfr", "kernalit", "kernalno", "kernalse", "kernalch"):
-        rom += ["-" + opt, "kernal-318020-05.bin"]
-    for opt in ("chargde", "chargfr", "chargse", "chargch", "chargno"):
-        rom += ["-" + opt, "chargen-390059-01.bin"]
-    subprocess.run(rb.VICE + ["launch", "--prg", prg, "--reu", str(a.reu), "--headless", "--warp", "--"] + rom,
+    subprocess.run(rb.VICE + ["launch", "--prg", prg, "--reu", str(a.reu), "--headless", "--warp", "--"] + rom_args(),
                    check=True, capture_output=True, env=env)
     try:
         for _ in range(300):

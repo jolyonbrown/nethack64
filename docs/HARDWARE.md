@@ -127,6 +127,35 @@ Ticks are CIA 1 timer ticks, 1 MHz whatever the CPU's clock. VICE caveat: Arch's
 package lacks some of x128's national ROMs (`kernalfi`, `chargen-325167-01.bin`), and x128
 will not start without them; `run_c128.py` names the international ROMs in their place.
 
+### A banked cartridge in C128 mode (2026-11-21, `tests/spikes/c128ef.c`, `run_c128ef.py`)
+
+In C128 mode the cartridge port's GAME and EXROM lines do not map memory; the MMU's
+configuration register can put "external function ROM" at `$8000-$BFFF` (mid) and
+`$C000-$FFFF` (high), read from the cartridge port. The spike tags every byte of each bank's
+two 8 KB halves, switches banks through `$DE00` and reads `$8000`, `$A000`, `$C000` and
+`$E000` with the MMU at `$2A` (external mid and high, I/O in) and `$3A` (mid only).
+
+- **EasyFlash, VICE 3.7.1 x128:** the C128 starts in C128 mode with VICE's EasyFlash jumper
+  option on (`-easyflashjumper`: GAME and EXROM then read high in `$D505`, `$B7`); with it
+  off GAME reads low and the program never runs. In C128 mode every read of the external ROM
+  is open bus, in every bank and `$DE02` mode: x128 does not show a C64 cartridge as
+  external function ROM.
+- **Magic Desk 128, VICE 3.7.1 x128** (`-cartmd128`, a 1 MB raw image): every bank tested
+  (0, 1, 2, 31, 62, 63) reads its own bytes at `$8000-$BFFF`, the first 8 KB at `$8000`, the
+  second at `$A000`, with the MMU at `$2A` or `$3A`; `$C000-$FFFF` reads `$FF` (the cartridge
+  drives only the mid range). An REU round trip of 256 B with the cartridge banked in passes.
+  That is the C64 EasyFlash layout's window (16 KB at `$8000`, bank register `$DE00`).
+- **Real hardware, from documentation only** (not checked): the EasyFlash 1CR page
+  (freepascal.org/~daniel/easyflash, a redesign "100% functionally equivalent to the original
+  EasyFlash") says a C128 boots an EasyFlash in native mode when its ROM carries the C128
+  header, with "the ROML flash ROM ... mirrored two times in the C128's MIDROM region and the
+  ROMH flash ROM ... mirrored two times in the C128's HIROM region": 8 KB at `$8000` and 8 KB
+  at `$C000`, not 16 KB in one piece, and it does not say whether `$DE00` switches banks in
+  C128 mode. github.com/ytmytm/c128-magicdesk-external-rom is a buildable C128 cartridge,
+  512 KB (1 MB with two chips), 32 KB banks at `$8000-$FFFF` through `$DE00`, not emulated
+  by VICE; its README names "Magic Desk 128 and Gmod2 (128)" as projects that "map only 16K
+  at a time".
+
 ## Real hardware test checklist (when the time comes)
 
 - [ ] Ultimate (U2+/U64/C64U): `make CRT_SUBTYPE=1`, REU enabled 512 KB and

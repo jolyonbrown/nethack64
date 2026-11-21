@@ -44,3 +44,37 @@ So:
 - A stock C64, without expansions, stays a stretch, and one to try: where it costs little,
   keep the mechanisms that bring data and code into RAM (far data, overlays) independent of
   the REU behind them, so that a disk-backed experiment stays possible.
+
+## Proposed amendment 2026-11-21: the C128 first to a running game (pending Jolyon)
+
+Status: proposed. Jolyon asked whether to get the C128 running first and come back to the
+C64, or squeeze the C64 first; he approved the plan below ("That's a great plan - go
+ahead!") on the condition that a check of the C128's cartridge came first. This records
+that check and the proposal; it needs his yes before it changes the target.
+
+**Evidence.** The C64's near memory is about 20 KB short after the data steps; the C128's
+(about 46 KB in view less platform code, `tests/spikes/c128.c`) about 8 KB short, both
+rough (HARDWARE.md, "The C128, measured"). Almost every byte saved, whether by assembly in
+the resident runtime and glue or by packing near data, is saved on both: same CPU family, compiler,
+source and banking. Only the screen code differs. In VICE's x128 an EasyFlash is not seen in
+C128 mode, but a Magic Desk 128 cartridge (1 MB, 64 banks of 16 KB at `$8000-$BFFF`, bank
+register `$DE00`, the EasyFlash layout's window) is, with the REU beside it (HARDWARE.md,
+"A banked cartridge in C128 mode").
+
+**Proposal.**
+- Get the whole game running first on a C128 in VICE (x128): Magic Desk 128 for the first
+  63 banks, as the EasyFlash holds them on the C64, the REU for the rest and the far data,
+  the VDC for 80 columns, 2 MHz.
+- The C64 stays the goal: once the game runs, the C64's squeeze follows, guided by
+  profiles of real play (where assembly pays) and by same-seed comparisons with the host.
+- Keep the C64 build working throughout (`make test` stays green); the C128 is a second
+  platform layer, not a fork.
+- Game logic stays NetHack's C (ADR-0001). Assembly goes into our runtime and glue;
+  replacing a NetHack function needs its own ADR.
+
+**Open, for real hardware later.**
+- How an EasyFlash behaves in C128 mode: per its documentation, 8 KB mirrored at `$8000`
+  and 8 KB at `$C000`, so a different bank layout; switching through `$DE00` is not stated.
+- Whether the REU needs the CPU at 1 MHz during DMA on a real C128.
+- Which cartridge to build or buy: real Magic Desk 128 hardware is mentioned but not yet
+  found; ytmytm's 32 KB-bank C128 cartridge is buildable but not emulated.
