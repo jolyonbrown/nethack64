@@ -718,6 +718,13 @@ window (2), a slice of code in every bank (3).
   through stubs, lever 2 again. It works without that only if the largest functions are
   split in the source (`seffects`, `readobjnam`, then those over 12 KB with their literals
   for a 4 KB slice), at about 150 KB of bank space for each KB of slice.
+- *Then the data* (Jolyon, 2026-11-21: the glue's buffers and the kept copies, then the far
+  default, then far characters, then the RAM under I/O). The kept copies first (far31): a
+  plan's `"keep"` sizes each keeper's buffer, with the evidence beside it, none where every
+  value assigned is near or heap data, the longest literal where only literals are; 990 B of
+  named data, resident in all 61,618 B. The whole-game build gives the linker `$0900-$7FFF`
+  only: `$C000-$CBFF` (12 pages) and `$0400-$07FF` (4) are the 16 pages of a 4 KB far page
+  cache.
 
 ## Measured: zero page saves (2026-11-16, T1.49)
 

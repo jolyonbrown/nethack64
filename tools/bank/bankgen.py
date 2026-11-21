@@ -257,9 +257,11 @@ LITERAL = re.compile(r'"(?:[^"\\\n]|\\.)*"')
 KEEP_SIZE = 128
 
 
-def keep(raw, li, last, f, keep_extern, keep_static, banked, bufs, report):
+def keep(raw, li, last, f, keep_extern, keep_static, banked, bufs, report, keep_sizes, kept_extern):
     """Wrap the assignments to keeper variables that start on raw[li] in NH_KEEP; the
-    statement may end on a later line of the function (up to line `last`)."""
+    statement may end on a later line of the function (up to line `last`).  A plan's
+    "keep" sizes a variable's buffer (keep_sizes, by the buffer's name less "nh_keep_");
+    0 leaves its assignments alone."""
     line, n = raw[li], li + 1
     code = LITERAL.sub(lambda m: "\0" * len(m.group(0)), line)   # find `=` outside strings
     out, pos, tail = [], 0, None
@@ -289,8 +291,15 @@ def keep(raw, li, last, f, keep_extern, keep_static, banked, bufs, report):
             report["keep_unhandled"].append("%s:%d" % (f, n))
             continue
         buf = "nh_keep_" + name if name in keep_extern else "nh_keep_%s_%s" % (f[:-2], name)
-        if name not in keep_extern and (buf, KEEP_SIZE) not in bufs:
-            bufs.append((buf, KEEP_SIZE))
+        size = keep_sizes.get(buf[8:], KEEP_SIZE)
+        report["keep_planned"].add(buf[8:])
+        if not size:
+            report["keep_exempt"] += 1
+            continue
+        if name in keep_extern:
+            kept_extern[name] = size
+        elif (buf, size) not in bufs:
+            bufs.append((buf, size))
         if lj == li:
             out.append(line[pos:m.end()] + " NH_KEEP(%s, %s)" % (buf, line[m.end():end].strip()))
             pos = end
@@ -399,6 +408,13 @@ def main():
     # "va_list_banked", reviewed by hand): theirs holds no string that may be a literal of the
     # caller's bank, only pointers to near data (sys/c64/c64scanf.c's sc_scan)
     va_list_banked = set(planj.get("va_list_banked", []))
+    # the keepers' buffers (a plan's "keep": {"vision_cs_left": [0, "why"], ...}): the size
+    # of a buffer, by its name less "nh_keep_", with the evidence; 0 where no value assigned
+    # to the variable can be a string in a bank or in the glue's buffers (a pointer to near
+    # or heap data), the longest literal assigned and its NUL where those are all it holds.
+    # A buffer not named keeps KEEP_SIZE; an extern assigned nowhere gets none.
+    keep_sizes = {k: (v[0] if isinstance(v, list) else v) for k, v in planj.get("keep", {}).items()}
+    kept_extern = {}
     # the slice (a plan's "slice": {"start": address, "functions": [...], "tables": [...]}):
     # code and read-only tables at start-$BFFF of every bank, the same bytes in each (one
     # Oscar64 region with all the banks), so that they are in view whichever bank is mapped
@@ -445,7 +461,8 @@ def main():
               "used_bare": [], "kept": 0, "kept_fields": [], "keep_unhandled": [], "noinline": [],
               "keep_globals": sorted(keep_extern), "linker_stubs": a.linker_stubs, "direct": 0,
               "cross_macros": 0, "caller_wrappers": 0, "result_wrappers": 0,
-              "data_banked": 0, "data_left": {}, "slice_functions": [], "slice_tables": []}
+              "data_banked": 0, "data_left": {}, "slice_functions": [], "slice_tables": [],
+              "keep_exempt": 0, "keep_planned": set()}
     bank_of, sig_of = {}, {}
 
     renamed = set()      # banked functions that are renamed and get a trampoline
@@ -685,7 +702,8 @@ def main():
         for d in defs:
             banked = "%s:%s" % (f, d["name"]) in bank_of
             for li in range(d["brace"] - 1, d.get("end", d["brace"])):
-                keep(raw, li, d.get("end", d["brace"]), f, keep_extern, keep_static, banked, keep_bufs, report)
+                keep(raw, li, d.get("end", d["brace"]), f, keep_extern, keep_static, banked, keep_bufs, report,
+                     keep_sizes, kept_extern)
         for k, run in enumerate(runs):
             b = run["bank"]
             lines = []
@@ -797,11 +815,16 @@ def main():
         out += ["", "/* bankgen: trampolines */"] + tail + [""]
         open(path, "w", encoding="latin-1").write("\n".join(out))
 
-    open(os.path.join(a.dir, "nhbank.h"), "w").write(header(sorted(report["banks"]), keep_extern, a.linker_stubs,
+    open(os.path.join(a.dir, "nhbank.h"), "w").write(header(sorted(report["banks"]), kept_extern, a.linker_stubs,
                                                           resident_glue, slice_start if slice_plan else None))
     missing = (slice_funcs - set(report["slice_functions"])) | (slice_tables - set(report["slice_tables"]))
     if missing:
         sys.exit("bankgen: the slice names what no file defines: %s" % ", ".join(sorted(missing)))
+    missing = set(keep_sizes) - report["keep_planned"]
+    if missing:
+        sys.exit("bankgen: the plan's keep names no variable assigned: %s" % ", ".join(sorted(missing)))
+    report["keep_planned"] = sorted(report["keep_planned"])
+    report["keep_buffers"] = dict(sorted(kept_extern.items()))
     report["banks"] = sorted(report["banks"])
     if a.report:
         json.dump(report, open(a.report, "w"), indent=1, sort_keys=True)
@@ -1035,9 +1058,10 @@ nh_setbank(unsigned char b)
 """
 
 
-def header(banks, keep_extern=(), linker_stubs=False, resident_glue=(), slice_start=None):
-    bufs_decl = "\n".join("extern char nh_keep_%s[%d];" % (n, KEEP_SIZE) for n in sorted(keep_extern))
-    bufs_def = "\n".join("char nh_keep_%s[%d];" % (n, KEEP_SIZE) for n in sorted(keep_extern))
+def header(banks, keep_extern={}, linker_stubs=False, resident_glue=(), slice_start=None):
+    """keep_extern: the extern keepers assigned somewhere, with their buffers' sizes"""
+    bufs_decl = "\n".join("extern char nh_keep_%s[%d];" % (n, keep_extern[n]) for n in sorted(keep_extern))
+    bufs_def = "\n".join("char nh_keep_%s[%d];" % (n, keep_extern[n]) for n in sorted(keep_extern))
     if linker_stubs:
         bufs_def += "\n" + BANKCALL          # substituted, so no % escaping
     setbank = ("/* through the bank call routine: an REU bank needs fetching (ADR-0008) */\n"

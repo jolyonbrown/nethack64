@@ -45,3 +45,16 @@ routine sets $01 = $37 for every EasyFlash bank, c64scanf.c's sc_str unsigned (n
   left unplaced by the failed link: resident data 20743 B, banked native_code 48 B
 Banks over 14,336 B in far29: 106 of 116 (lever 3's slice); seffects' bank 108 16,369 B,
 readobjnam's 84 16,310 B, hmon_hitmon's 35 15,002 B.
+
+far31 (plan far30 plus "keep": bankplan-2026-11-21-far31.json): the keepers' buffers sized by
+the plan, with the evidence in it: none for vision.c's cs_left and cs_right, eat.c's eatmbuf,
+pline.c's you_buf, save_cm (never a string of a bank or of the glue); cmd.c's readchar_queue
+2 B, dokick.c's gate_str 22, do_wear.c's disrobing 10 (the longest literal assigned); an
+extern keeper assigned nowhere gets none (catmore, hname: the linker had dropped them already).
+  resident code 20,292 B; resident data 41,326 B (literals 11,718, frames 3,135, named 26,473);
+  resident in all 61,618 B (-984).  708 s, peak 12.8 GB.
+  listing nethack.error.asm: 3313 functions, 3120 in 116 banks, 193 resident; 57011 calls; 0 cross a bank without a trampoline
+  zero page and branches (check_listing.py): highest temporary $8f (m_move), 0 problems
+  intermediate code: 27033 direct calls; 0 cross a bank without a trampoline; 0 banked functions store to the bank register; 709 calls through pointers from banked code; 0 uses of a banked function's address
+  banks: 116 used, 1814655 B in all; per bank min 8273, median 16155, max 16383 B
+  left unplaced by the failed link: resident data 19759 B, banked native_code 78 B
