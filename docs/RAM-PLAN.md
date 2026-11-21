@@ -737,6 +737,48 @@ and trampolines). Most of what is left near is
   `char` data and what code reaches through near pointers: far characters' share. The whole-game build gives the linker `$0900-$7FFF`
   only: `$C000-$CBFF` (12 pages) and `$0400-$07FF` (4) are the 16 pages of a 4 KB far page
   cache.
+- *The RAM under I/O, a design* (2026-11-21; not built, for Jolyon). `$D000-$DFFF` is 4 KB
+  of RAM that the CPU sees only with `$01 = $34` or `$30`. In 16K cartridge mode both values
+  also hide the bank window and the KERNAL: everything is RAM.
+  - **What can live there:** data the VIC reads, since in VIC bank 3 the VIC always sees RAM
+    there, never I/O or the character ROM; and data that only resident code reads, inside a
+    bracket that switches I/O out.
+  - **Candidate: the 80-column screen's whole state.** It fits the 4 KB exactly (sizes from
+    `build/nethack.map`, today's `.prg`):
+
+    | Object | Bytes | Place |
+    |---|---|---|
+    | `s80_text`, the shadow | 2,000 | `$D000-$D7CF` |
+    | `s80_inv` | 250 | |
+    | `s80_rowofs` | 50 | up to `$D8FB` |
+    | `font4x8` | 768 | `$D900-$DBFF` |
+    | the colour matrix, moved from `$CC00` (VIC screen pointer 7) | 1,000 | `$DC00-$DFE7` |
+    | **In all** | **4,068** | |
+
+    Only `screen80.c` reads or writes any of it (and `src/main.c`'s Phase 0 self-test, which
+    stores `s80_text` in the REU and would change). Each `s80_*` entry point brackets its work
+    with `SEI`, the old `$01` saved, `$34`, then the old value back and `CLI`: about 20 cycles
+    a call. The cell renderer runs as it does now: it reads the font and the shadow and
+    writes the bitmap at `$E000`, which is RAM in that mode.
+  - **Saving:** 3,068 B of near data that the platform code would otherwise add (the shadow,
+    the flags, the font, the row offsets), plus `$CC00-$CFFF`. That gives 1 KB to the page
+    cache, which becomes `$C000-$CFFF` in one piece, or `$0400-$07FF` to near data: about
+    4.1 KB of the budget in all.
+  - **Risks:**
+    - An argument string may be a bank literal or, later, a far character. All-RAM mode
+      hides both, so `s80_puts()` copies its string (80 bytes at most) into a near buffer
+      before the bracket, or works a character at a time.
+    - The RESTORE key's NMI still arrives with interrupts masked. The vector at `$FFFA`,
+      RAM above the bitmap, must point at a resident handler that maps I/O itself, then
+      acknowledges CIA 2.
+    - The keyboard and any raster interrupt wait for one call at most.
+    - EasyFlash: `$DE00` and `$DE02` are RAM in that mode, so a write there doesn't switch
+      banks. No bank call inside a bracket, and the entry value of `$01` is restored (`$36`
+      or `$37`, ROML's state).
+    - The REU: its registers are invisible, so no DMA inside a bracket. The rule never to
+      read `$DF00` stands.
+    - To check in VICE first: the VIC reading the colour matrix at `$DC00` in bank 3, and
+      a bracket under a running keyboard interrupt.
 
 ## Measured: zero page saves (2026-11-16, T1.49)
 
