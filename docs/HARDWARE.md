@@ -102,6 +102,31 @@ The VIC-II has 40x25 characters; NetHack wants an 80x21 map plus 3 lines.
 C128 alternative: the VDC gives a real 80x25 text mode with per-character
 attributes (Oscar64 `<c128/vdc.h>`), at 2 MHz.
 
+## The C128, measured (2026-11-21, `tests/spikes/c128.c`, `run_c128.py`; VICE 3.7.1 x128, 512 KB REU)
+
+A spike for the hardware discussion (T2.12: the C64's near memory is about 33 KB short).
+Oscar64's C128 target (`-tm=c128`, the pin) runs with the MMU at `$3F`, bank 0 with RAM
+everywhere, no ROM and no I/O; code sets `$3E` around each chip access. All seven checks pass:
+
+- **RAM in view:** `$0400-$1BFF`, `$D000-$DFFF` (under the I/O, which `$3E` brings back
+  without touching the RAM) and `$E000-$EFFF` (no KERNAL ROM) are RAM. With the program at
+  `$1D00`, bank 0 is RAM from `$0400` to `$FBFF`, about 62 KB. `$FC00-$FEFF` is the common
+  RAM that `<c128/bank1.h>` uses, and `$FF00` is the MMU. Less a 16 KB code window, that
+  leaves about 46 KB for resident code and data, against the C64's 34 KB. Nothing goes on the
+  80-column screen: the VDC has its own RAM. If the KERNAL is ever called (disk saves), its
+  workspace below `$1C00` must be given back for the call.
+- **Bank 1:** it holds other bytes at the same address. `bnk1_readm` copies 256 B in 9,252
+  timer ticks (36 a byte; Oscar64's C routine switches the MMU for every byte).
+- **REU:** works from bank 0. 16 KB DMA in 17,532 ticks at 1 MHz (1.07 a byte), 16,438 with
+  the CPU at 2 MHz. (On a real C128 the REU may need the CPU at 1 MHz during DMA; not checked.)
+- **VDC:** bytes written to its RAM read back; a screen's 2,000 bytes take 12,669 ticks
+  (about 13 ms, 6.3 a byte, through its register port).
+- **2 MHz** (`$D030` bit 0): a loop takes 11,479 ticks against 23,419, 2.04 times faster.
+
+Ticks are CIA 1 timer ticks, 1 MHz whatever the CPU's clock. VICE caveat: Arch's VICE 3.7.1
+package lacks some of x128's national ROMs (`kernalfi`, `chargen-325167-01.bin`), and x128
+will not start without them; `run_c128.py` names the international ROMs in their place.
+
 ## Real hardware test checklist (when the time comes)
 
 - [ ] Ultimate (U2+/U64/C64U): `make CRT_SUBTYPE=1`, REU enabled 512 KB and
