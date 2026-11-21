@@ -1,6 +1,7 @@
 # ADR-0010: Far characters: byte pointers tagged by address range
 
-- Status: proposed; on hold after review (2026-11-20); revised 2026-11-21 (below), pending Jolyon
+- Status: proposed; on hold after review (2026-11-20); revised 2026-11-21 (below), pending Jolyon;
+  laid out for the C128 and step 2's checks done, 2026-11-21
 - Date: 2026-11-20
 - Deciders: Jolyon (+ Claude Code, which proposed it; Jolyon agreed to the direction:
   "I agree with your suggestion", 2026-11-20, after options A, B and C in RAM-PLAN.md)
@@ -255,18 +256,89 @@ sources):
 This nets less than the ledger's "up to about 18 KB" (RAM-PLAN.md): about 13-16 KB with
 point 1.
 
-### On a C128
+### On a C128 (2026-11-21: laid out and spiked)
 
-This is a note, not a choice: the C128 is being spiked as a possible target.
-- The second 64 KB bank is reachable through the MMU, so the character space could be bank 1
-  itself. No page cache, no page-straddling copies.
-  - A byte access becomes a call of a stub in common RAM that switches the configuration
-    (`$FF00`) around one `LDA (zp),y` or `STA (zp),y`: about 20-25 cycles, at 2 MHz in
-    80-column mode.
-  - Block copies could use the same stub in a loop, or the REU.
-- The tag stays as it is, a range of 16-bit values no near `char *` takes.
-  - Which range depends on the C128 layout: with the 80-column chip's own RAM there is no
-    bitmap at `$E000`, so the range could be placed where it doesn't meet the name spaces.
-  - The names, and the typed spaces, could live in bank 1 too.
-- With about 10 KB more near RAM (the spike will say how much), far characters might only
-  need to take the literals and the cold buffers, or the accessor route might do.
+The C128 runs the game first (ADR-0003, amendment of 2026-11-21), so far characters are laid
+out for it first. The compiler's side is the same on both machines. Only the runtime behind
+the far path differs.
+
+- **The character space is RAM bank 1**, at the same addresses: a byte pointer from `$C100` to
+  `$FBFF` (15,104 B) reads and writes bank 1 there. That holds the 11.7 KB of literals and about
+  3.4 KB of the cold buffers, 0.5 KB less than the C64's range. No page cache and no page tables. A copy
+  can't straddle anything, so the review's points on frames, eviction and chunked copies are
+  the C64's alone.
+- **Bank 0 keeps only code from `$C000` up** (the C128 link's regions `$C000-$CFFF` and
+  `$E000-$FBFF`, `docs/data/wholegame-c128-2026-11-21.txt`). No `char *` points at code, so
+  the range costs no near RAM.
+  - The test of the base's high byte stays `>= $C0`, for the reason given under "The effective
+    address".
+  - The C64 bitmap at `$E000` doesn't exist on the C128 (the 80-column chip has its own RAM).
+- **The stubs live in the top 1 KB, made common to both banks** (`$FC00-$FFFF`, RCR bit 3, as
+  Oscar64's `c128/bank1.h` does). An access saves `$FF00`, writes `$FF02` (which loads PCR B:
+  bank 1, all RAM), makes the one access and stores the old value back.
+  - It keeps whatever configuration it found: the cartridge's `$3A`, all RAM with or without
+    the I/O.
+  - Zero page and the stack stay in bank 0 (the MMU's P0 and P1 registers), so the pointer in
+    zero page works from either bank.
+  - An NMI during the access finds bank 0's vectors, in the common 1 KB.
+- **The names stay where they are.** The ambiguity rule above (a name field holds a name, a
+  near pointer or a character-space pointer below `$E000`) holds unchanged.
+- **Which code gets the test.** NetHack's code and our window port, which takes NetHack's
+  strings, get it. Only the hardware layer, under `#pragma farchars(off)`, takes near pointers
+  alone.
+
+### Step 2's checks (2026-11-21)
+
+Both checks the review asked for before building, done on the C128 layout
+(`docs/data/farchar-checks-2026-11-21.txt`).
+
+**The spike** (`tests/spikes/farchar128.c`, `run_farchar128.py`, x128 in C128 mode): 7 of 7.
+- Every byte of `$C100-$FBFF` is written in bank 1 and reads back.
+- Code compiled at `$C1xx` in bank 0 runs and reads bank 1's bytes at its own addresses.
+  Bank 0 still holds the code.
+- The stub puts back `$3E`, `$3A` and `$3F` as it found them.
+- A string copy far to near runs across `$CFFF/$D000`, and writes to bank 1 under the I/O leave
+  the VIC alone.
+- The hand-written test of the compiler's shape reads near data near and far data far.
+
+Costs at 1 MHz, a byte access in a loop (CIA cycles, the VIC's bad lines included):
+
+| Access | Cycles | More than a plain `LDA (zp),y` |
+|---|---|---|
+| plain | 10.4-10.7 | |
+| tested, near | 18.4-18.5 | 7.7-8.2 |
+| tested, far (a call of the stub) | 48 | about 37.5 |
+| a string copied far to near, by a copying stub | 27.5-28.8 a byte | |
+
+The same address with different bytes in the character space and a typed space is the
+compiler's test to make (its autotest): a typed space's pointer never reaches the byte test.
+
+**The speed of object names and messages.** Measured on the host game, as an upper bound:
+`tools/measure/speed/fcbytes.py` counts the byte loads and stores the game's own code
+executes inside each function's calls (callgrind, one game a function, 146 commands, 91 of
+them inventory commands).
+- The x86 operand's shape stands in for the 6502's: through a pointer with no displacement or
+  an index (`*p`, `p[i]`, but also an indexed global array, which the 6502 reaches directly and
+  never tests), or with a constant displacement (mostly struct fields, which don't take the
+  byte test).
+- `xname()`: 3.6 and 8.4 such accesses a call. `doname()`, with the `xname()` it calls: 12.1
+  and 23.8. So at most 36 tests, about 290 cycles.
+- What the host does in libc is C on Oscar64 (`strncmp`, `strlen`, `strcat`, `strchr`,
+  `strncpy` and `sprintf`'s formatter; only `strcpy`, `strcmp`, `memcpy` and `memset` are
+  assembler), so it is tested per byte. A `doname()` makes 9.1 `strncmp`, 1.8 `strcat`, 1.2
+  `sprintf`, 1.1 `strlen` and 1.1 `strchr` calls over strings of 10-40 characters: about
+  200-250 tests, 1,600-2,000 cycles.
+- The object's name is a table literal, so it is read far: about 20 characters at 30 cycles
+  more, about 600.
+- **About 3,000 cycles more for each `doname()`, 3 ms at 1 MHz** (1.5 ms at the C128's 2 MHz).
+  Its own cost is not measured yet: 470 host instructions a call at 9.6 cycles each, plus
+  Oscar64's libc, would be roughly 10,000-15,000 cycles. Against that, `doname()` would be
+  20-30% slower.
+- **A message**: the engine's own part of `pline()` is small (`vpline`, `update_topl` and
+  `eos`, about 11 such accesses a call). The host's `pline()` time is mostly the tty window
+  port, which our port replaces. Oscar64's `vsprintf` and our window port's copy add about
+  2-3 tests a character, and a resident caller's format string is read far. That makes about
+  2,000 cycles, **2 ms at 1 MHz, for a message of 40 characters**.
+- A turn is 1-1.8 s at 1 MHz (RAM-PLAN.md, "the estimate"), so names and messages cost a few
+  thousandths of it. Even an inventory of 30 items costs about 90 ms more.
+- **The speed doesn't decide against the range tag; the size is its real cost.**

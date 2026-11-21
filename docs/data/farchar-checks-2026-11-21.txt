@@ -1,0 +1,69 @@
+Far characters, step 2's checks (ADR-0010), 2026-11-21
+
+1. The C128 spike: tests/spikes/run_farchar128.py (the oscar64 pin, VICE 3.7.1 x128, C128 mode at 1 MHz;
+   CIA 2 cycles, so the VIC's bad lines are included and the figures move by a few per cent)
+  pass    every byte of $C100-$FBFF written in bank 1 reads back
+  pass    bank-0 code at $C1xx runs and reads bank 1 at its own addresses
+  pass    bank 0 still holds that code (not the pattern)
+  pass    the stub puts the MMU back as it found it ($3E, $3A, $3F)
+  pass    a string copy far to near across $CFFF/$D000
+  pass    writes to bank 1 under the I/O leave the VIC alone
+  pass    the tested path: near reads near, far writes land in bank 1
+cycles at 1 MHz, a byte access (256, loop included): plain 10.7; tested, near 18.4 (+7.7); tested, far 48.1 (+37.4); tested far write 57.7
+a 31-character string copied far to near: 922 cycles (28.8 a byte); c1_own_sum(): 5254 cycles
+
+2. Byte accesses in the host game (tools/measure/speed/fcbytes.py): the host build of port/
+   (tools/host-build.sh, gcc -O -g), played by tools/profile_play.py --install DIR --wide
+   --keys 400 --seed 64 under valgrind --tool=callgrind --dump-instr=yes
+   --toggle-collect=FUNCTION, one game for each function; the game stopped at a prompt
+   after 146 commands (91 of them inventory commands), all three games the same.
+xname: 50 calls; 226 instructions a call in the game's own code, 369 in libc
+  byte accesses through a pointer: no displacement, or an index       3.6 a call
+  byte accesses through a pointer: a constant displacement            8.4 a call
+  byte accesses on the stack or a global                              0.0 a call
+  libc calls a call: strncmp 5.2, strcmp 1.8, strcat 0.5, strcpy 0.3, __sprintf_chk 0.3, strchr 0.1, strlen 0.0
+  function               instructions  walking   fields   (a call of xname)
+  xname                          98.3      1.5      5.2
+  makeplural                     46.1      0.5      0.1
+  strncmpi                       37.3      1.0      1.0
+  nextobuf                       18.7      0.0      0.0
+  lowc                           14.3      0.0      0.0
+  obj_is_pname                    9.0      0.0      2.0
+  eos                             1.7      0.5      0.0
+  letter                          0.4      0.0      0.0
+doname: 37 calls; 470 instructions a call in the game's own code, 1251 in libc
+  byte accesses through a pointer: no displacement, or an index      12.1 a call
+  byte accesses through a pointer: a constant displacement           23.8 a call
+  byte accesses on the stack or a global                              2.0 a call
+  libc calls a call: strncmp 9.1, strcmp 2.5, __strcat_chk 1.3, __sprintf_chk 1.2, strchr 1.1, strlen 1.1, strncpy 1.0, strcat 0.5, __strcpy_chk 0.5, strcpy 0.4
+  function               instructions  walking   fields   (a call of doname)
+  doname                        122.6      1.1     11.2
+  xname                          97.9      1.5      5.1
+  makeplural                     62.3      0.6      0.2
+  strncmpi                       37.5      1.0      1.0
+  add_erosion_words              25.3      0.0      1.4
+  eos                            19.3      6.1      0.0
+  strprepend                     19.0      0.0      0.0
+  nextobuf                       19.0      0.0      0.0
+  obj_is_pname                   17.5      0.0      3.9
+  lowc                           14.4      0.0      0.0
+  the_unique_obj                 14.2      0.9      0.9
+  sitoa                           6.5      0.0      0.0
+pline: 451 calls; 3487 instructions a call in the game's own code, 8616 in libc
+  byte accesses through a pointer: no displacement, or an index     189.0 a call
+  byte accesses through a pointer: a constant displacement          158.9 a call
+  byte accesses on the stack or a global                             18.4 a call
+  libc calls a call: putc 96.9, tputs 3.3, strlen 2.3, tgoto 1.3, strncpy 1.1, fflush 1.1, strchr 1.1, strcpy 0.9, __vsprintf_chk 0.8, __sprintf_chk 0.7
+  function               instructions  walking   fields   (a call of pline)
+  topl_putsym                  1422.4      0.0    125.5
+  flush_screen                  505.0     84.3      0.0
+  xputc                         384.3      0.0      0.0
+  putsyms                       259.4     42.9      0.0
+  tty_putstr                    164.3      9.8     13.1
+  clear_cs_rows                 120.8     29.8      0.0
+  tty_curs                      105.5      0.0      9.7
+  update_topl                    72.6      1.0      0.1
+  vpline                         46.6      1.0      0.0
+  tty_display_nhwindow           46.0      0.0      2.0
+  vision_recalc                  40.1      5.1      1.2
+  eos                            28.5      9.0      0.0

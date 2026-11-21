@@ -781,9 +781,13 @@ Add new tasks at the bottom of the right section.
       Evidence so far: `tests/spikes/c128.c`, `c128ef.c` (HARDWARE.md). 2026-11-21: bank calls
       on a C128, `bankreu128.c` 14/14 (`tools/bank/c128_images.py`); `bankgen.py`/`build_c64.py
       --target c128`; the far36 plan links for the C128, every bank placed, 18.6 KB of resident
-      data over 36.6 KB of regions (`docs/data/wholegame-c128-2026-11-21.txt`). Next: far
-      characters laid out for the C128 (ADR-0010), the I/O out by default (+4 KB), `$0400-$1BFF`
-      (+6 KB).
+      data over 36.6 KB of regions (`docs/data/wholegame-c128-2026-11-21.txt`). Far characters
+      laid out for the C128 (ADR-0010): the character space in RAM bank 1 at `$C100-$FBFF`,
+      under bank 0's code; `tests/spikes/farchar128.c` 7/7; the speed of `doname()` and of a
+      message (`tools/measure/speed/fcbytes.py`, `docs/data/farchar-checks-2026-11-21.txt`):
+      about 3 ms and 2 ms more at 1 MHz. Next: the range tag in the far fork (`#pragma
+      farchars`, the inline test, the C128 runtime), the I/O out by default (+4 KB),
+      `$0400-$1BFF` (+6 KB).
 
 ## Housekeeping
 
