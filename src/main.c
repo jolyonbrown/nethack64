@@ -75,8 +75,12 @@ static void draw_status(void)
 {
 	s80_puts_at(0, 22, "Agent the Stripling      St:16 Dx:14 Co:17 In:9 Wi:10 Ch:8  Neutral");
 	s80_puts_at(0, 23, "Dlvl:1 $:0 HP:14(14) Pw:1(1) AC:6 Xp:1/0 T:1");
+#ifdef __C128__
+	sprintf(msg, "REU: %u x 64KB   C128, 80 columns on the VDC   oscar64", reu_banks);
+#else
 	sprintf(msg, "REU: %u x 64KB   cart: %s   80x25 soft text   oscar64",
 		reu_banks, sys_on_easyflash() ? "EasyFlash" : "none (prg)");
+#endif
 	s80_puts_at(0, 24, msg);
 }
 
@@ -251,6 +255,10 @@ int main(void)
 	while (handle_key(sys_waitkey()))
 		;
 
+#ifdef __C128__
+	/* the C128 runs with all RAM mapped (sys128.c): the ROMs back for the reset vector */
+	*(volatile char *)0xff00 = 0x00;
+#endif
 	__asm {
 		jmp ($fffc)
 	}

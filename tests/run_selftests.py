@@ -32,7 +32,17 @@ CASES = [
     ("ef",             "test-ef.crt",    "crt", 0),
     ("ef-reu512",      "test-ef.crt",    "crt", 512),
     ("ef-reu16m",      "test-ef.crt",    "crt", 16384),
+    # the C128 in its own mode (T2.13): x128, the VDC's 80 columns, no KERNAL
+    ("c128-reu512",    "test128.prg",    "c128", 512),
 ]
+
+# Arch's VICE 3.7.1 package lacks some of x128's national ROMs, without which x128 will
+# not start: name the international ones (as tests/spikes/run_c128.py does)
+X128_ROMS = []
+for _opt in ("kernalde", "kernalfi", "kernalfr", "kernalit", "kernalno", "kernalse", "kernalch"):
+    X128_ROMS += ["-" + _opt, "kernal-318020-05.bin"]
+for _opt in ("chargde", "chargfr", "chargse", "chargch", "chargno"):
+    X128_ROMS += ["-" + _opt, "chargen-390059-01.bin"]
 
 FAILS = {1: "timeout (limitcycles reached)", 2: "walk", 3: "wall blocking",
          4: "REU DMA", 5: "REU restore mismatch", 6: "lrand48 differs from glibc",
@@ -42,8 +52,11 @@ FAILS = {1: "timeout (limitcycles reached)", 2: "walk", 3: "wall blocking",
 def run_case(name, image, kind, reu):
     path = os.path.join(BUILD, image)
     shot = os.path.abspath(os.path.join(BUILD, "test-%s.png" % name))
-    args = [VICE, "-default", "-warp", "+sound", "-debugcart",
+    vice = os.environ.get("VICE128", "x128") if kind == "c128" else VICE
+    args = [vice, "-default", "-warp", "+sound", "-debugcart",
             "-limitcycles", CYCLES, "-exitscreenshot", shot]
+    if kind == "c128":
+        args += X128_ROMS
     if reu:
         args += ["-reu", "-reusize", str(reu)]
     if kind == "crt":
@@ -60,7 +73,7 @@ def run_case(name, image, kind, reu):
 
 
 def main():
-    if not shutil.which(VICE):
+    if not shutil.which(VICE) or not shutil.which(os.environ.get("VICE128", "x128")):
         sys.exit("VICE (%s) not found; see docs/TOOLCHAIN.md" % VICE)
     failed = 0
     for name, image, kind, reu in CASES:

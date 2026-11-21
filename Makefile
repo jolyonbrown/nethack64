@@ -2,6 +2,7 @@
 #
 #   make            EasyFlash cartridge  -> build/nethack-ef.crt   (primary target)
 #   make prg        plain C64 program    -> build/nethack.prg      (quick iteration)
+#   make prg128     the C128 build (VDC) -> build/nethack128.prg   (T2.13)
 #   make run        build the cart and launch VICE with a 2 MB REU (ADR-0008: 2 MB minimum)
 #   make run-prg    same for the .prg
 #   make test       headless self-tests in VICE (AUTOTEST builds, debug cartridge)
@@ -26,8 +27,11 @@ CRT_SUBTYPE ?= 0
 
 BUILD    := build
 GEN      := $(BUILD)/gen
-SRCS     := src/main.c src/hal/sys.c src/hal/screen80.c src/hal/rng.c
+SRCS     := src/main.c src/hal/sys.c src/hal/reuprobe.c src/hal/screen80.c src/hal/rng.c
 HDRS     := $(wildcard src/*.h src/hal/*.h) $(GEN)/font4x8.h
+# the C128 in its own mode (T2.13): the VDC for the 80 columns, no KERNAL
+SRCS128  := src/main.c src/hal/sys128.c src/hal/reuprobe.c src/hal/vdc80.c src/hal/rng.c
+HDRS128  := $(wildcard src/*.h src/hal/*.h) $(GEN)/fontvdc.h
 
 # -Os: code density matters more than speed for this project (see docs/ARCHITECTURE.md)
 # -xb: the program never returns to BASIC (main ends in a reset), so with the pin's -Ot
@@ -39,7 +43,7 @@ OSC      := $(OSCAR64) $(OSCFLAGS) -i=src -i=$(GEN)
 CRT      := $(BUILD)/nethack-ef.crt
 PRG      := $(BUILD)/nethack.prg
 
-.PHONY: all ef prg run run-prg test repros font upstream port-tree memmap clean help
+.PHONY: all ef prg prg128 run run-prg test repros font upstream port-tree memmap clean help
 
 all: ef
 
@@ -53,7 +57,11 @@ $(GEN)/font4x8.h: tools/mkfont4x8.py
 	@mkdir -p $(GEN)
 	$(PYTHON) tools/mkfont4x8.py $@
 
-font: $(GEN)/font4x8.h
+$(GEN)/fontvdc.h: tools/mkfont4x8.py
+	@mkdir -p $(GEN)
+	$(PYTHON) tools/mkfont4x8.py --vdc $@
+
+font: $(GEN)/font4x8.h $(GEN)/fontvdc.h
 
 # -tf=crt : EasyFlash image; bank 0 is copied to RAM at boot (oscar64 "main" region)
 # the header name/sub-type are then set by tools/crtinfo.py (CRT format 1.1)
@@ -66,6 +74,13 @@ $(PRG): $(SRCS) $(HDRS)
 	@mkdir -p $(BUILD)
 	$(OSC) -o=$@ $(SRCS)
 
+PRG128   := $(BUILD)/nethack128.prg
+prg128: $(PRG128)
+
+$(PRG128): $(SRCS128) $(HDRS128)
+	@mkdir -p $(BUILD)
+	$(OSC) -tm=c128 -o=$@ $(SRCS128)
+
 # ---- self-test builds ----------------------------------------------------
 $(BUILD)/test-ef.crt: $(SRCS) $(HDRS)
 	@mkdir -p $(BUILD)
@@ -75,7 +90,11 @@ $(BUILD)/test.prg: $(SRCS) $(HDRS)
 	@mkdir -p $(BUILD)
 	$(OSC) -dAUTOTEST -o=$@ $(SRCS)
 
-test: $(BUILD)/test.prg $(BUILD)/test-ef.crt
+$(BUILD)/test128.prg: $(SRCS128) $(HDRS128)
+	@mkdir -p $(BUILD)
+	$(OSC) -dAUTOTEST -tm=c128 -o=$@ $(SRCS128)
+
+test: $(BUILD)/test.prg $(BUILD)/test-ef.crt $(BUILD)/test128.prg
 	VICE=$(VICE) $(PYTHON) tests/run_selftests.py $(BUILD)
 
 repros:

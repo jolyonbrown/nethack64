@@ -792,6 +792,10 @@ Add new tasks at the bottom of the right section.
       miscompile of list walks (COMPAT row 81, r78), fixed in the fork's commit 12. Next: the
       C128 whole-game link with far characters on the desktop; the pin fix (Jolyon); the farxz
       form's lost carry; the I/O out by default (+4 KB), `$0400-$1BFF` (+6 KB).
+      2026-11-22: the C128 hardware layer for Phase 0's demo, `make prg128`: `src/hal/vdc80.c`
+      (screen80.h on the VDC, the project's font doubled, `tools/mkfont4x8.py --vdc`),
+      `src/hal/sys128.c` (no KERNAL: keys from its buffer, which VICE feeds, and from the
+      matrix), `reuprobe.c` shared; `make test` 6/6 with the new `c128-reu512` case (x128).
 
 ## Housekeeping
 
