@@ -84,6 +84,9 @@ def setup():
     for d in ("src", "inc"):
         shutil.copytree(os.path.join(ROOT, "port", "src" if d == "src" else "include"),
                         os.path.join(OUT, d))
+    # the C64 platform's own C files (sys/c64), compiled with the game's
+    for f in sorted(glob.glob(os.path.join(ROOT, "port", "sys", "c64", "*.c"))):
+        shutil.copy(f, os.path.join(OUT, "src"))
     stubs = CONFIGS[CONFIG]["stubs"]
     if stubs is None:
         shutil.copytree(os.path.join(HERE, "stub"), os.path.join(OUT, "stub"))

@@ -669,6 +669,33 @@ on as a near pointer, and 3 KB are touched every turn. The bulk left is strings 
 data, read through `char *`: far strings in the compiler come next (Jolyon agreed), and the
 far default after them.
 
+**The ledger and the levers** (2026-11-21, `docs/data/wholegame-far-2026-11-21.txt`). Far
+strings as ADR-0010 proposed them cap at about 16 KB (its review), so the resident side was
+counted whole: far27 keeps 68.7 KB (42.6 KB data, 26.1 KB code) against about 25 KB, with the
+platform code still to come. Jolyon chose the order: code trims (1), the 8 KB under the
+window (2), a slice of code in every bank (3).
+- *Lever 1, the trims* (far29, plan far27 warmed plus 13 placements): NetHack's six scanf
+  calls go to `port/sys/c64/c64scanf.c` (integers, characters, strings and scan sets;
+  `tests/scanf/`, against glibc on the host and under Oscar64), whose worker is banked
+  (a plan's `va_list_banked`: its `va_list` holds only pointers to near variables), instead
+  of Oscar64's `fpscanf` and the float routines it brings (3.2 KB); the far I/O helpers,
+  `clear_cs_rows()`, `clear_glyph_buffer()` and `hack_artifacts()` in banks (bankgen.py had
+  not seen what `NH_FAR_SPACES` selects: `build_c64.py --far` now gives it the define);
+  `panic()` formats its message and leaves the rest to a banked `panic_tail()`. Resident
+  code 26,097 -> 22,271 B; resident in all 68,652 -> 64,755 B. Bank checks clean; 234 B of
+  banked code left for the next plan repair.
+- *Lever 2, RAM under ROML*: the hardware does it (`docs/HARDWARE.md`, `tests/spikes/loram.c`):
+  with `$01 = $36` in 16K mode, `$8000-$9FFF` is RAM while ROMH stays at `$A000`. But a
+  window of 8 KB at `$A000` for every bank would leave 16 functions without a bank (they are
+  larger: `seffects` 14.2 KB, `readobjnam` 12.9, `hmon_hitmon` 12.8, `hitmu`, `dokick`,
+  `mdamagem`, `domove`, `moveloop`, `m_move`, `enlightenment`, `parseoptions`, `dochug`,
+  `load_maze`, `dotrap`, `use_defensive`, `mintrap`), and keeping 16 KB banks makes the RAM
+  there hidden whenever an EasyFlash bank runs and overwritten whenever an REU bank does.
+  Code there may then take no string that can be a literal of its caller's bank (the
+  caller's ROML is hidden while it runs), so neither libc nor the message functions nor the
+  glue qualify: what is left is the hot set (7.9 KB), called about 1,500 times a key from
+  EasyFlash code through a stub, about 0.2 s a key. Not taken for now.
+
 ## Measured: zero page saves (2026-11-16, T1.49)
 
 After the padding (ADR-0009 point 5), what is left of Oscar64's multiply routine is small: 0.2%

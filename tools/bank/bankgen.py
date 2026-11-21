@@ -340,7 +340,10 @@ def insertion_line(raw, line):
         return code.strip()
 
     def decl_part(code):
-        return code and not code.startswith(("*", "#", "//")) and not code.endswith((";", "}", "{", "*/"))
+        # a macro invocation alone on its line (decl.c's `NH_FARW(2)`) is a definition of
+        # its own, not the return type of the next
+        return code and not code.startswith(("*", "#", "//")) and not code.endswith((";", "}", "{", "*/")) \
+            and not re.match(r"[A-Z][A-Z0-9_]*\s*\([^()]*\)$", code)
 
     i = line - 1
     while i > 0:
@@ -392,6 +395,10 @@ def main():
     # through the resident stubs (section flag 4, the far-spaces fork) and their string calls
     # through the resident trampolines, as before the glue moved into the banks
     resident_glue = set(planj.get("resident_glue", []))
+    # functions taking a va_list that may go into a bank all the same (a plan's
+    # "va_list_banked", reviewed by hand): theirs holds no string that may be a literal of the
+    # caller's bank, only pointers to near data (sys/c64/c64scanf.c's sc_scan)
+    va_list_banked = set(planj.get("va_list_banked", []))
     files = [os.path.basename(f) for f in a.files]
     if a.define_in not in files:
         sys.exit("%s (--define-in) must be one of the files" % a.define_in)
@@ -445,7 +452,7 @@ def main():
             why = "declarator"
         elif s[2]:
             why = "variadic"
-        elif any("va_list" in p[0] for p in s[1]):
+        elif any("va_list" in p[0] for p in s[1]) and key not in va_list_banked:
             # it formats `%s` arguments, which may be literals of its caller's bank: resident,
             # it does so with that bank still mapped (vpline, vraw_printf)
             why = "va_list"

@@ -1,0 +1,34 @@
+# The whole far game, the resident side (T2.12), 2026-11-21 (desktop).  Sources from
+# tools/bank/build_c64.py --linker-stubs --main real --far --generate-only (--far: bankgen.py
+# sees -DNH_FAR_SPACES too, and far_meas.c is added as before by hand); compiler oscar64-far11
+# (far-spaces fork 8178a22, as far27).  Links exit 20 (resident side).  Resident data counts
+# each static frame once (their union); literals are the anonymous objects of resident code.
+
+                         far27                 far29
+plan                     far26 warmed          far27 warmed + 13 placements (bankplan-2026-11-21-far29.json)
+change                   (2026-11-20)          lever 1: c64scanf.c (worker in bank 39), the far
+                                               I/O helpers, clear_cs_rows, clear_glyph_buffer
+                                               (bank 34), hack_artifacts (22), panic_tail (29)
+resident code            26,097 B              22,271 B
+resident data            42,555 B              42,484 B
+  literals               11,896 B              11,718 B
+  static frames           3,147 B               3,147 B
+  named objects          27,512 B              27,619 B
+resident in all          68,652 B              64,755 B
+banked left unplaced     -                     234 B (for the next plan repair)
+checks                   0 calls across a bank without a trampoline, highest temporary $8f,
+                         check_listing 0 problems; the only warning 2026 restore.c 808 (a near
+                         local, as before)
+
+far29 build: 706 s, peak 12.8 GB (memlog-a.py).  build_c64.py --check-only:
+  listing nethack.asm: 3319 functions, 3119 in 116 banks, 200 resident; 56578 calls; 0 cross a bank without a trampoline
+  zero page and branches (check_listing.py): highest temporary $8f (m_move), 0 problems
+  intermediate code: 27038 direct calls; 0 cross a bank without a trampoline; 0 banked functions store to the bank register; 709 calls through pointers from banked code; 0 uses of a banked function's address
+  banks: 116 used, 1813891 B in all; per bank min 8273, median 16148, max 16383 B
+  resident code: 22271 B, of which 24 trampolines, 1815 B (75.6 B each), and 257 bank call stubs, 1542 B
+  left unplaced by the failed link: resident data 22884 B, banked native_code 234 B
+
+Banked functions larger than 8 KB in far27 (lever 2's 8 KB window): seffects 14,240,
+readobjnam 12,857, hmon_hitmon 12,794, hitmu 11,811, dokick 11,631, mdamagem 11,113, domove
+10,915, moveloop 10,599, m_move 9,899, enlightenment 9,846, parseoptions 9,361, dochug 8,642,
+load_maze 8,371, dotrap 8,325, use_defensive 8,303, mintrap 8,199 (19 above 7,680, 40 above 5,000).

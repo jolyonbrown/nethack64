@@ -28,6 +28,7 @@ extern void qsort(void *, unsigned, unsigned, int (*)(const void *, const void *
 extern int fseek(FILE *, long, int);
 extern long ftell(FILE *);
 extern void rewind(FILE *);
+extern int ungetc(int, FILE *);	/* sys/c64/c64scanf.c; Oscar64 has none */
 /* a function, not a variable, so that mkstubs.py stubs it; still an lvalue */
 extern int *c64m_errno(void);
 #define errno (*c64m_errno())

@@ -259,6 +259,9 @@ def main():
                          "what it takes the address of is called through pointers")
     ap.add_argument("--linker-stubs", action="store_true",
                     help="the compiler's linker inserts the bank switches (see above)")
+    ap.add_argument("--far", action="store_true",
+                    help="the far spaces (T2.11-T2.12, ADR-0009): -dNH_FAR_SPACES for the compile and "
+                         "for bankgen.py's view of the sources, and tools/measure/far_meas.c's runtime")
     ap.add_argument("--generate-only", action="store_true",
                     help="write the rewritten sources and compile.args (the compile's arguments, "
                          "relative to DIR) without compiling, e.g. to compile on a bigger machine")
@@ -284,7 +287,8 @@ def main():
                             "--inc", os.path.join(out, "inc"), "--inc", os.path.join(out, "stub"),
                             "--inc", os.path.join(out, "fakelibc"), "--cpp=-nostdinc",
                             "--cpp=-D__attribute__(x)=", "--report", os.path.join(out, "bankgen-report.json")] +
-                           ["--cpp=" + c for c in cpp] + (["--linker-stubs"] if a.linker_stubs else []) +
+                           ["--cpp=" + c for c in cpp] + (["--cpp=-DNH_FAR_SPACES"] if a.far else []) +
+                           (["--linker-stubs"] if a.linker_stubs else []) +
                            files, capture_output=True, text=True)
         if r.returncode:
             sys.exit("bankgen.py failed:\n" + r.stdout + r.stderr)
@@ -299,6 +303,9 @@ def main():
         # (the pin's -Ot, part of -Os, then saves less in the game's functions)
         args = ["-rmp", "-Os", "-xb", "-i=inc", "-i=stub", "-i=src", "-o=nethack.prg"] + \
             ["src/" + f for f in files] + [os.path.basename(h)] + mo.DEFS
+        if a.far:
+            shutil.copy(os.path.join(ROOT, "tools", "measure", "far_meas.c"), out)
+            args += ["-dNH_FAR_SPACES", "far_meas.c"]
         if a.generate_only:
             open(os.path.join(out, "compile.args"), "w").write("\n".join(args) + "\n")
             print("generated: compile in %s with oscar64 $(cat compile.args)" % out)

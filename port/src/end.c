@@ -39,6 +39,7 @@ STATIC_DCL void FDECL(get_valuables, (struct obj_s *));
 STATIC_DCL void FDECL(sort_valuables, (struct valuable_data *,int));
 STATIC_DCL void FDECL(artifact_score, (struct obj_s *,BOOLEAN_P,winid));
 STATIC_DCL void FDECL(savelife, (int));
+STATIC_DCL void FDECL(panic_tail, (const char *));
 STATIC_DCL void FDECL(list_vanquished, (CHAR_P,BOOLEAN_P));
 STATIC_DCL void FDECL(list_genocided, (CHAR_P,BOOLEAN_P));
 STATIC_DCL boolean FDECL(should_query_disclose_option, (int,char *));
@@ -247,12 +248,25 @@ done_in_by(struct monst_s *mtmp)
 /*VARARGS1*/
 void
 panic VA_DECL(const char *, str)
+	char buf[BUFSZ];
 	VA_START(str);
 	VA_INIT(str, char *);
 
 	if (program_state.panicking++)
 	    NH_abort();	/* avoid loops - this should never happen*/
 
+	/* the C64 port: the message is formatted here, the rest done by panic_tail(), so that
+	 * only this part of panic has to stay in resident memory (a function with `...` does,
+	 * T2.12).  The same output, except that the arguments are read before dosave0() and
+	 * not after it, which frees the objects and monsters they may point into. */
+	Vsprintf(buf,str,VA_ARGS);
+	VA_END();
+	panic_tail(buf);
+}
+
+STATIC_OVL void
+panic_tail(const char *buf)
+{
 	if (iflags.window_inited) {
 	    raw_print("\r\nOops...");
 	    wait_synch();	/* make sure all pending output gets flushed */
@@ -288,12 +302,8 @@ panic VA_DECL(const char *, str)
 	    (void) dosave0();
 	}
 #endif
-	{
-	    char buf[BUFSZ];
-	    Vsprintf(buf,str,VA_ARGS);
-	    raw_print(buf);
-	    paniclog("panic", buf);
-	}
+	raw_print(buf);
+	paniclog("panic", buf);
 #ifdef WIN32
 	interject(INTERJECT_PANIC);
 #endif
@@ -301,7 +311,6 @@ panic VA_DECL(const char *, str)
 	if (wizard)
 	    NH_abort();	/* generate core dump */
 #endif
-	VA_END();
 	done(PANICKED);
 }
 

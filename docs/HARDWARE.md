@@ -26,6 +26,13 @@ the `.crt` (`-easyflashcrtwrite`). Oscar64's image has no EAPI (VICE logs
 "EAPI not found"), so saving to flash would need EAPI added — disk or REU
 are simpler for saves.
 
+**RAM under ROML** (2026-11-21, `tests/spikes/loram.c`, `run_loram.py`; VICE, EasyFlash): in
+16K mode with LORAM clear (`$01 = $36`) the PLA maps RAM at `$8000-$9FFF` and keeps ROMH at
+`$A000-$BFFF`; with `$37` ROML is back and the RAM under it kept. A write to `$8000-$9FFF`
+with ROML mapped reaches that RAM, and code copied there runs while ROMH is mapped. To
+check on a real EasyFlash 3: that such a write leaves the flash alone (the flash takes
+commands only as its unlock sequences, but that is the datasheet, not a test).
+
 ## The `$DF00` problem (EasyFlash + REU) — read this before touching I/O2
 
 - REU registers live at `$DF00-$DF0A` (mirrored through the page). EasyFlash's

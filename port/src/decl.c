@@ -166,7 +166,8 @@ dlevel_t level;		/* level map */
 /* rm.h: block moves of far data through a near buffer (T2.12) */
 static unsigned char nh_farbuf[64];
 
-#define NH_FARIO(sp) \
+/* one function a line, so that bankgen.py can put each in a bank of its own */
+#define NH_FARW(sp) \
 void nh_farbwrite##sp(int fd, const struct nh_fb##sp *s, unsigned n) \
 { \
 	while (n) { \
@@ -175,7 +176,8 @@ void nh_farbwrite##sp(int fd, const struct nh_fb##sp *s, unsigned n) \
 		bwrite(fd, (genericptr_t) nh_farbuf, k); \
 		s += k; n -= k; \
 	} \
-} \
+}
+#define NH_FARR(sp) \
 void nh_farmread##sp(int fd, struct nh_fb##sp *d, unsigned n) \
 { \
 	while (n) { \
@@ -187,10 +189,13 @@ void nh_farmread##sp(int fd, struct nh_fb##sp *d, unsigned n) \
 		d += k; n -= k; \
 	} \
 }
-NH_FARIO(2)
-NH_FARIO(3)
+NH_FARW(2)
+NH_FARR(2)
+NH_FARW(3)
+NH_FARR(3)
 #ifdef NH_FAR_GLOBS
-NH_FARIO(4)
+NH_FARW(4)
+NH_FARR(4)
 
 void
 nh_farfill4(struct nh_fb4 *d, int c, unsigned n)

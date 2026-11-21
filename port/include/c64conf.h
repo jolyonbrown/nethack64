@@ -110,6 +110,16 @@ extern void srand48(long);
 extern void VDECL(error, (const char *,...)) PRINTF_F(1,2);
 extern void FDECL(regularize, (char *));
 
+#ifdef __OSCAR64C__
+/* Oscar64's scanf family parses floats too: with the float routines that is 3.2 KB of
+ * resident code for NetHack's few integer and string reads (T2.12).  sys/c64/c64scanf.c
+ * has what those use; makedefs, a host program, keeps the C library's. */
+#define sscanf	nh_sscanf
+#define fscanf	nh_fscanf
+extern int nh_sscanf(const char *, const char *, ...);
+extern int nh_fscanf(FILE *, const char *, ...);
+#endif
+
 #if defined(__OSCAR64C__) && defined(NH_FAR_SPACES)
 /* T2.12, a measurement, not yet the build's: far space 4 holds globals of struct types
  * reached through pointers or by index from many banks (the rooms, the monster
