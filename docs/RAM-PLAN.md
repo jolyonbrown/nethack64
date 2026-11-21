@@ -729,7 +729,11 @@ window (2), a slice of code in every bank (3).
   commit 10: an object keeps to a page, one over a page stays near; a plan's `"far_default"`,
   from which bankgen.py writes `nhnear.h`, the names kept near with the glue's variables):
   2,964 B of named data far, 394 B more resident code, resident in all 58,544 B; about
-  19.6 KB more banked code, so the plan needs repairing. Most of what is left near is
+  19.6 KB more banked code, so the plan needs repairing. Repaired in three links (far34-36,
+planfix.py, banks 122 and 125-127 opened), with `seffects` split (its `SCR_EARTH` case moved
+out unchanged into `scr_earth()`, bank 94: far data had made it 16,841 B with its literals,
+more than a bank): every banked object placed, resident in all 58,286 B (258 B fewer stubs
+and trampolines). Most of what is left near is
   `char` data and what code reaches through near pointers: far characters' share. The whole-game build gives the linker `$0900-$7FFF`
   only: `$C000-$CBFF` (12 pages) and `$0400-$07FF` (4) are the 16 pages of a 4 KB far page
   cache.

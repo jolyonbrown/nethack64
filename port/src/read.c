@@ -32,6 +32,7 @@ static void FDECL(randomize,(int *, int));
 static void FDECL(forget_single_object, (int));
 static void FDECL(forget, (int));
 static void FDECL(maybe_tame, (struct monst_s *,struct obj_s *));
+static void FDECL(scr_earth, (struct obj_s *,BOOLEAN_P));
 
 STATIC_PTR void FDECL(set_lit, (int,int,genericptr_t));
 
@@ -626,6 +627,127 @@ maybe_tame(struct monst_s *mtmp, struct obj_s *sobj)
 	}
 }
 
+/* T2.12: SCR_EARTH's case of seffects(), moved out unchanged (its one break, which left
+ * the switch, returns), because far data made seffects bigger than a cartridge bank. */
+static void
+scr_earth(struct obj_s *sobj, boolean confused)
+{
+	    /* TODO: handle steeds */
+	    if (
+#ifdef REINCARNATION
+		!Is_rogue_level(&u.uz) && 
+#endif
+	    	 (!In_endgame(&u.uz) || Is_earthlevel(&u.uz))) {
+	    	register int x, y;
+
+	    	/* Identify the scroll */
+	    	pline_The("%s rumbles %s you!", ceiling(u.ux,u.uy),
+	    			sobj->blessed ? "around" : "above");
+	    	known = 1;
+	    	if (In_sokoban(&u.uz))
+	    	    change_luck(-1);	/* Sokoban guilt */
+
+	    	/* Loop through the surrounding squares */
+	    	if (!sobj->cursed) for (x = u.ux-1; x <= u.ux+1; x++) {
+	    	    for (y = u.uy-1; y <= u.uy+1; y++) {
+
+	    	    	/* Is this a suitable spot? */
+	    	    	if (isok(x, y) && !closed_door(x, y) &&
+	    	    			!IS_ROCK(levl[x][y].typ) &&
+	    	    			!IS_AIR(levl[x][y].typ) &&
+					(x != u.ux || y != u.uy)) {
+			    register struct obj_s *otmp2;
+			    register struct monst_s *mtmp;
+
+	    	    	    /* Make the object(s) */
+	    	    	    otmp2 = mksobj(confused ? ROCK : BOULDER,
+	    	    	    		FALSE, FALSE);
+	    	    	    if (!otmp2) continue;  /* Shouldn't happen */
+	    	    	    otmp2->quan = confused ? rn1(5,2) : 1;
+	    	    	    otmp2->owt = weight(otmp2);
+
+	    	    	    /* Find the monster here (won't be player) */
+	    	    	    mtmp = m_at(x, y);
+	    	    	    if (mtmp && !amorphous(mtmp->data) &&
+	    	    	    		!passes_walls(mtmp->data) &&
+	    	    	    		!noncorporeal(mtmp->data) &&
+	    	    	    		!unsolid(mtmp->data)) {
+				struct obj_s *helmet = which_armor(mtmp, W_ARMH);
+				int mdmg;
+
+				if (cansee(mtmp->mx, mtmp->my)) {
+				    pline("%s is hit by %s!", Monnam(mtmp),
+	    	    	    			doname(otmp2));
+				    if (mtmp->minvis && !canspotmon(mtmp))
+					map_invisible(mtmp->mx, mtmp->my);
+				}
+	    	    	    	mdmg = dmgval(otmp2, mtmp) * otmp2->quan;
+				if (helmet) {
+				    if(is_metallic(helmet)) {
+					if (canspotmon(mtmp))
+					    pline("Fortunately, %s is wearing a hard helmet.", mon_nam(mtmp));
+					else if (flags.soundok)
+					    You_hear("a clanging sound.");
+					if (mdmg > 2) mdmg = 2;
+				    } else {
+					if (canspotmon(mtmp))
+					    pline("%s's %s does not protect %s.",
+						Monnam(mtmp), xname(helmet),
+						mhim(mtmp));
+				    }
+				}
+	    	    	    	mtmp->mhp -= mdmg;
+	    	    	    	if (mtmp->mhp <= 0)
+	    	    	    	    xkilled(mtmp, 1);
+	    	    	    }
+	    	    	    /* Drop the rock/boulder to the floor */
+	    	    	    if (!flooreffects(otmp2, x, y, "fall")) {
+	    	    	    	place_object(otmp2, x, y);
+	    	    	    	stackobj(otmp2);
+	    	    	    	newsym(x, y);  /* map the rock */
+	    	    	    }
+	    	    	}
+		    }
+		}
+		/* Attack the player */
+		if (!sobj->blessed) {
+		    int dmg;
+		    struct obj_s *otmp2;
+
+		    /* Okay, _you_ write this without repeating the code */
+		    otmp2 = mksobj(confused ? ROCK : BOULDER,
+				FALSE, FALSE);
+		    if (!otmp2) return;
+		    otmp2->quan = confused ? rn1(5,2) : 1;
+		    otmp2->owt = weight(otmp2);
+		    if (!amorphous(youmonst.data) &&
+				!Passes_walls &&
+				!noncorporeal(youmonst.data) &&
+				!unsolid(youmonst.data)) {
+			You("are hit by %s!", doname(otmp2));
+			dmg = dmgval(otmp2, &youmonst) * otmp2->quan;
+			if (uarmh && !sobj->cursed) {
+			    if(is_metallic(uarmh)) {
+				pline("Fortunately, you are wearing a hard helmet.");
+				if (dmg > 2) dmg = 2;
+			    } else if (flags.verbose) {
+				Your("%s does not protect you.",
+						xname(uarmh));
+			    }
+			}
+		    } else
+			dmg = 0;
+		    /* Must be before the losehp(), for bones files */
+		    if (!flooreffects(otmp2, u.ux, u.uy, "fall")) {
+			place_object(otmp2, u.ux, u.uy);
+			stackobj(otmp2);
+			newsym(u.ux, u.uy);
+		    }
+		    if (dmg) losehp(dmg, "scroll of earth", KILLED_BY_AN);
+		}
+	    }
+}
+
 int
 seffects(struct obj_s *sobj)
 {
@@ -1134,120 +1256,7 @@ seffects(struct obj_s *sobj)
 							SCROLL_CLASS, EXPL_FIERY);
 		return(1);
 	case SCR_EARTH:
-	    /* TODO: handle steeds */
-	    if (
-#ifdef REINCARNATION
-		!Is_rogue_level(&u.uz) && 
-#endif
-	    	 (!In_endgame(&u.uz) || Is_earthlevel(&u.uz))) {
-	    	register int x, y;
-
-	    	/* Identify the scroll */
-	    	pline_The("%s rumbles %s you!", ceiling(u.ux,u.uy),
-	    			sobj->blessed ? "around" : "above");
-	    	known = 1;
-	    	if (In_sokoban(&u.uz))
-	    	    change_luck(-1);	/* Sokoban guilt */
-
-	    	/* Loop through the surrounding squares */
-	    	if (!sobj->cursed) for (x = u.ux-1; x <= u.ux+1; x++) {
-	    	    for (y = u.uy-1; y <= u.uy+1; y++) {
-
-	    	    	/* Is this a suitable spot? */
-	    	    	if (isok(x, y) && !closed_door(x, y) &&
-	    	    			!IS_ROCK(levl[x][y].typ) &&
-	    	    			!IS_AIR(levl[x][y].typ) &&
-					(x != u.ux || y != u.uy)) {
-			    register struct obj_s *otmp2;
-			    register struct monst_s *mtmp;
-
-	    	    	    /* Make the object(s) */
-	    	    	    otmp2 = mksobj(confused ? ROCK : BOULDER,
-	    	    	    		FALSE, FALSE);
-	    	    	    if (!otmp2) continue;  /* Shouldn't happen */
-	    	    	    otmp2->quan = confused ? rn1(5,2) : 1;
-	    	    	    otmp2->owt = weight(otmp2);
-
-	    	    	    /* Find the monster here (won't be player) */
-	    	    	    mtmp = m_at(x, y);
-	    	    	    if (mtmp && !amorphous(mtmp->data) &&
-	    	    	    		!passes_walls(mtmp->data) &&
-	    	    	    		!noncorporeal(mtmp->data) &&
-	    	    	    		!unsolid(mtmp->data)) {
-				struct obj_s *helmet = which_armor(mtmp, W_ARMH);
-				int mdmg;
-
-				if (cansee(mtmp->mx, mtmp->my)) {
-				    pline("%s is hit by %s!", Monnam(mtmp),
-	    	    	    			doname(otmp2));
-				    if (mtmp->minvis && !canspotmon(mtmp))
-					map_invisible(mtmp->mx, mtmp->my);
-				}
-	    	    	    	mdmg = dmgval(otmp2, mtmp) * otmp2->quan;
-				if (helmet) {
-				    if(is_metallic(helmet)) {
-					if (canspotmon(mtmp))
-					    pline("Fortunately, %s is wearing a hard helmet.", mon_nam(mtmp));
-					else if (flags.soundok)
-					    You_hear("a clanging sound.");
-					if (mdmg > 2) mdmg = 2;
-				    } else {
-					if (canspotmon(mtmp))
-					    pline("%s's %s does not protect %s.",
-						Monnam(mtmp), xname(helmet),
-						mhim(mtmp));
-				    }
-				}
-	    	    	    	mtmp->mhp -= mdmg;
-	    	    	    	if (mtmp->mhp <= 0)
-	    	    	    	    xkilled(mtmp, 1);
-	    	    	    }
-	    	    	    /* Drop the rock/boulder to the floor */
-	    	    	    if (!flooreffects(otmp2, x, y, "fall")) {
-	    	    	    	place_object(otmp2, x, y);
-	    	    	    	stackobj(otmp2);
-	    	    	    	newsym(x, y);  /* map the rock */
-	    	    	    }
-	    	    	}
-		    }
-		}
-		/* Attack the player */
-		if (!sobj->blessed) {
-		    int dmg;
-		    struct obj_s *otmp2;
-
-		    /* Okay, _you_ write this without repeating the code */
-		    otmp2 = mksobj(confused ? ROCK : BOULDER,
-				FALSE, FALSE);
-		    if (!otmp2) break;
-		    otmp2->quan = confused ? rn1(5,2) : 1;
-		    otmp2->owt = weight(otmp2);
-		    if (!amorphous(youmonst.data) &&
-				!Passes_walls &&
-				!noncorporeal(youmonst.data) &&
-				!unsolid(youmonst.data)) {
-			You("are hit by %s!", doname(otmp2));
-			dmg = dmgval(otmp2, &youmonst) * otmp2->quan;
-			if (uarmh && !sobj->cursed) {
-			    if(is_metallic(uarmh)) {
-				pline("Fortunately, you are wearing a hard helmet.");
-				if (dmg > 2) dmg = 2;
-			    } else if (flags.verbose) {
-				Your("%s does not protect you.",
-						xname(uarmh));
-			    }
-			}
-		    } else
-			dmg = 0;
-		    /* Must be before the losehp(), for bones files */
-		    if (!flooreffects(otmp2, u.ux, u.uy, "fall")) {
-			place_object(otmp2, u.ux, u.uy);
-			stackobj(otmp2);
-			newsym(u.ux, u.uy);
-		    }
-		    if (dmg) losehp(dmg, "scroll of earth", KILLED_BY_AN);
-		}
-	    }
+	    scr_earth(sobj, confused);
 	    break;
 	case SCR_PUNISHMENT:
 		known = TRUE;

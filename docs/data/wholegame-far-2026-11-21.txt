@@ -87,3 +87,26 @@ over a page stay near. One warning 2026, restore.c 808's, as before; warnings 20
   left unplaced by the failed link: resident data 16685 B, banked data 921 B, banked native_code 17465 B
 Banked code grows by about 19.6 KB (the translations of the far accesses), so the plan needs
 repairing (planfix.py) before the next link: 17.5 KB of banked code did not fit far31's plan.
+
+far34 (plan far33 repaired: planfix.py --glue, 234 functions out of 64 banks into 122 and
+125-127; read.c's SCR_EARTH case moved out of seffects() unchanged into scr_earth(), bank 94,
+"noinline"; the far-spaces fork on pin 85, build oscar64-far14): seffects 16,841 -> 12,088 B
+with its literals, scr_earth 4,875 B.  Warnings 2024 66, 2026 one (restore.c 808), as far33.
+  resident code 20,436 B (-258: 2 trampolines and 12 bank call stubs fewer); resident data
+  37,850 B as far33; resident in all 58,286 B.  730 s, peak 12.7 GB.
+  listing nethack.error.asm: 3323 functions, 3129 in 119 banks, 194 resident; 59094 calls; 0 cross a bank without a trampoline
+  zero page and branches (check_listing.py): highest temporary $8f (m_move), 0 problems
+  banks: 119 used, 1851250 B in all; per bank min 5260, median 16032, max 16384 B
+  left unplaced by the failed link: resident data 16427 B, banked data 303 B, banked native_code 3025 B
+
+far35 (plan far34 repaired again: 73 functions out of 11 banks): resident as far34, 58,286 B.
+Warnings as far34.  732 s, peak 12.7 GB.
+  banks: 119 used, 1854508 B in all; per bank min 5260, median 16127, max 16384 B
+  left unplaced by the failed link: resident data 16427 B, banked native_code 300 B
+
+far36 (plan far35 repaired: planfix.py --glue --slack 512, 4 functions out of bank 95;
+bankplan-2026-11-21-far36.json): every banked object placed.  Warnings as far34.
+  resident in all 58,286 B (code 20,436, data 37,850), as far34.  730 s, peak 12.7 GB.
+  intermediate code: 27073 direct calls; 0 cross a bank without a trampoline; 0 banked functions store to the bank register; 709 calls through pointers from banked code; 0 uses of a banked function's address
+  banks: 119 used, 1854897 B in all; per bank min 5260, median 16127, max 16384 B
+  left unplaced by the failed link: resident data 16427 B
