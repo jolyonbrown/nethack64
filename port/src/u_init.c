@@ -11,6 +11,11 @@ struct trobj {
 	Bitfield(trquan,6);
 	Bitfield(trbless,2);
 };
+#ifdef NH_FAR_MISC
+/* T3.2: a far type of space 5 (c64conf.h), as the far default puts these small tables there:
+ * ini_inv() walks them through a struct trobj * and writes trquan through it */
+#pragma farspace(5, trobj)
+#endif
 
 STATIC_DCL void FDECL(ini_inv, (struct trobj *));
 STATIC_DCL void FDECL(knows_object,(int));
