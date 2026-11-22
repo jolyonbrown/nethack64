@@ -54,6 +54,8 @@ STATIC_OVL struct Jitem Japanese_items[] = {
 #endif /* OVLB */
 
 STATIC_DCL const char *FDECL(Japanese_item_name,(int i));
+STATIC_DCL struct obj_s *FDECL(readobjnam_finish, (struct obj_s *,int,int,int,int,int,int,
+					int,int,int,const char *,int,int));
 
 #ifdef OVL1
 
@@ -2596,6 +2598,17 @@ typfnd:
 	if (isinvisible) otmp->oinvis = 1;
 #endif
 
+	return readobjnam_finish(otmp, typ, (int) oclass, rechrg, eroded, eroded2, erodeproof,
+				 ispoisoned, isgreased, isdiluted, name, halfeaten, very);
+}
+
+/* the end of readobjnam(), split off (T2.13: a behaviour-preserving split, so that
+ * readobjnam() fits a 16 KB code bank on the C128; its locals passed by value) */
+STATIC_OVL struct obj_s *
+readobjnam_finish(struct obj_s *otmp, int typ, int oclass, int rechrg, int eroded,
+		  int eroded2, int erodeproof, int ispoisoned, int isgreased,
+		  int isdiluted, const char *name, int halfeaten, int very)
+{
 	/* set eroded */
 	if (is_damageable(otmp) || otmp->otyp == CRYSKNIFE) {
 	    if (eroded && (is_flammable(otmp) || is_rustprone(otmp)))
