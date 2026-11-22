@@ -804,7 +804,11 @@ Add new tasks at the bottom of the right section.
       step (`bankgen.py`: the code regions above the window first, the glue's buffers at
       `$0400-$0AFF` and `$1B00-$1BFF`, a plan's `char_space`; planfix for C128 sizes;
       resident functions called from one bank moved into it), in
-      `docs/data/wholegame-c128-fit-2026-11-22.txt`.
+      `docs/data/wholegame-c128-fit-2026-11-22.txt`. 2026-11-22 (night): more near data far
+      (option tables, grownups, doors, artilist, shtypes), the plan repaired (planfix, REU banks
+      added, warmplan: 11 REU copies a key), readobjnam() split: fc13 links, every object
+      placed (heap 1,144 B, 4 KB stack). First boot in x128 stops at once (BRK near `$0007`).
+      Next: that crash, then the boot.
 - [ ] T2.14 The heap far (ADR-0009 point 7: "`mons[]`, `objects[]` and the heap first"). The
       C128's fc3 link leaves the resident side 2 KB over with no heap, and the near heap peaks
       at 11-24 KB in C64 bytes in host games (`docs/data/heap-peak-2026-11-22.txt`: up to 201
@@ -822,8 +826,8 @@ Add new tasks at the bottom of the right section.
       `nh_farbwrite7/8`), the corpse's monster through a near copy, list walks without
       pointers into far blocks, `askchain()`'s proxy, the shopkeeper's strings and the
       extensions' d_levels; `bill_x` and `fakecorridor` padded (static_assert);
-      `build_c64.py --far-heap`. Next: the C128 link with it (fc5), then the resident side's
-      last KBs and a boot in x128.
+      `build_c64.py --far-heap`. Linked in fc13 (T2.13); the quest index far too. Its
+      translations grew banked code by about 60 KB (more banks).
 
 ## Phase 3 — first light
 
