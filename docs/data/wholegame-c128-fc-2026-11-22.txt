@@ -1,0 +1,27 @@
+The whole game linked for a C128 with far characters (T2.13, ADR-0010), 2026-11-22.
+
+Build: tools/bank/build_c64.py --far --far-chars --far-runtime --io-out --target c128
+--generate-only (build/bank-c128-fc), compiled on the desktop (31 GB) with the far-spaces
+fork at 887e4bd (pin 87 + 13 far commits), -rmp -Os -xb -tm=c128 -v2.
+First run, fork 158f1dd: SIGSEGV after 628 s in Linker::CheckDirectJumps (r79, COMPAT #82).
+Second run: 746 s, peak 12.7 GB, exit 20 (617 objects not placed).
+
+Resident side (bank 0 below $8000, and $C000-$FBFF for code with the I/O out):
+  nhio        $1D00-$2162   1,122 B  (the bank call routine and the far runtime)
+  code        $2162-$75D4  21,618 B  (22,517 B native code in all; largest: sformat 1,140,
+                                       set_apparxy 761, show_glyph 758, were_change 689,
+                                       can_ooze 631, fopen 489, flush_screen 410, vpline 401)
+  data        placed 2,604 B, not placed 269 objects, 9,175 B
+  bss         not placed 144 objects, 11,870 B (largest: objnam.c bufs 3,072, nh_args 1,024,
+              dungeons 768, nh_stash_buf 512, toplines 300, and some 20 char buffers of
+              256 B: outbuf, msgbuf (2), li, inbuf, buf (2), altbuf, killer_buf ...)
+  nh_c128_hi  $C000-$FBFF   0 B used of 15,360: the linker fills `main` with code first, so
+              the code never reached the region meant for it (bankgen.py's region order)
+  nh_c128_lowr $0B00-$1AFF  the far runtime's 16 cache frames, 4,096 B (placed)
+  Demand 46,389 B (nhio + code + data + bss) against 40,704 B ($1D00-$7FFF and
+  $C000-$FBFF): 5,685 B short before the heap and the stack.
+
+Banks: 16 sections over, 3,169 B in nhbank_34 (one function), the rest 18-197 B each
+(nhbank_88 197, nhbank_6 174, nhbank_57 156, nhbank_39 138, nhbank_22 120 ...): the plan
+was cut for the C64's code sizes, and far characters make code 6-13% larger (ADR-0010).
+Far sections all placed (farchars $C100-$FBFF: 11,741 B of 15,104).
