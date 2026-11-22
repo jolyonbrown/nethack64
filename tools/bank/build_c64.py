@@ -264,10 +264,17 @@ def main():
     ap.add_argument("--plan", required=True)
     ap.add_argument("--out", default=os.path.join(ROOT, "build", "bank-c64"))
     ap.add_argument("--check-only", action="store_true", help="only check an earlier build's listing")
-    ap.add_argument("--main", choices=("table", "real"), default="table",
+    ap.add_argument("--main", choices=("table", "real", "port"), default="table",
                     help="table: the harness's main() referring to every function; real: the game's "
                          "own (newgame(); moveloop();), so only what it reaches is compiled and only "
-                         "what it takes the address of is called through pointers")
+                         "what it takes the address of is called through pointers; port: the bootable "
+                         "build, sys/c64/c64main.c's main() and c64sys.c's system layer (NH_PORT_MAIN, "
+                         "NH_PORT_SYS; T3.2), with --hal")
+    ap.add_argument("--hal", choices=("c128",), default=None,
+                    help="link the hardware layer from src/hal (with --main port): c128: sys128.c, "
+                         "vdc80.c, rng.c, built with HAL_IO_OUT (the MMU at $3B, the I/O switched in "
+                         "around each access) and S80_NO_SHADOW (no s80_text[]: tools/vice.py "
+                         "screen --vdc reads the VDC)")
     ap.add_argument("--linker-stubs", action="store_true",
                     help="the compiler's linker inserts the bank switches (see above)")
     ap.add_argument("--far", action="store_true",
@@ -279,6 +286,9 @@ def main():
     ap.add_argument("--far-chars", action="store_true",
                     help="far characters (ADR-0010; with --far): -dNH_FAR_CHARS and the library's "
                          "-dOSCAR_FARCHARS for the compile, bankgen.py --far-chars, far_meas.c's space 6")
+    ap.add_argument("--frames", type=int, default=None,
+                    help="the far runtime's page cache in frames (farrt.py's default 16); on the "
+                         "C128 the frames and the page tables share $0B00-$1AFF, so at most 12")
     ap.add_argument("--far-heap", action="store_true",
                     help="the heap far (T2.14; with --far): -dNH_FAR_HEAP for the compile and for "
                          "bankgen.py's view, monsters in far space 7 and objects in far space 8 "
@@ -300,13 +310,33 @@ def main():
         sys.exit("--far-chars, --far-runtime and --far-heap need --far")
     if a.io_out and a.target != "c128":
         sys.exit("--io-out is for --target c128")
+    if (a.main == "port") != (a.hal is not None):
+        sys.exit("--main port and --hal go together")
+    if a.hal == "c128" and not (a.target == "c128" and a.io_out):
+        sys.exit("--hal c128 needs --target c128 --io-out")
+    port_defs = ["NH_PORT_MAIN", "NH_PORT_SYS", "HAL_IO_OUT", "S80_NO_SHADOW"] if a.main == "port" else []
     prg = os.path.join(out, "nethack.prg")
     if not a.check_only:
         mo.CONFIG, mo.OUT, mo.DEFS = "c64", out, mo.CONFIGS["c64"]["defs"]
         mo.setup()
         src = os.path.join(out, "src")
+        if a.hal == "c128":
+            # the hardware layer, compiled (and banked) with the game; its headers, the VDC
+            # font (make font) and, for gcc -E, Oscar64's c64/types.h, which sys.h includes
+            hal = os.path.join(ROOT, "src", "hal")
+            for f in ("sys128.c", "vdc80.c", "rng.c"):
+                shutil.copy(os.path.join(hal, f), src)
+            for f in ("sys.h", "screen80.h", "rng.h", "io128.h"):
+                shutil.copy(os.path.join(hal, f), os.path.join(out, "inc"))
+            font = os.path.join(ROOT, "build", "gen", "fontvdc.h")
+            if not os.path.exists(font):
+                sys.exit("no build/gen/fontvdc.h: make font first")
+            shutil.copy(font, os.path.join(out, "inc"))
+            osc_inc = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(mo.OSCAR64))), "include")
+            os.makedirs(os.path.join(out, "fakelibc", "c64"), exist_ok=True)
+            shutil.copy(os.path.join(osc_inc, "c64", "types.h"), os.path.join(out, "fakelibc", "c64"))
         files = sorted(f for f in os.listdir(src) if f.endswith(".c"))
-        cpp = mo.CONFIGS["c64"]["cpp"]
+        cpp = mo.CONFIGS["c64"]["cpp"] + ["-D" + d for d in port_defs]
         env = dict(os.environ, MKSTUBS_DEFS=" ".join(cpp))
         h = os.path.join(out, "h_all.c")
         r = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "measure", "mkstubs.py"),
@@ -331,22 +361,25 @@ def main():
         if r.returncode:
             sys.exit("bankgen.py failed:\n" + r.stdout + r.stderr)
         print(r.stdout.strip())
-        if a.main == "real":
+        if a.main in ("real", "port"):
             text = open(h).read()
             stubs = text[:text.index("void *nh_refs[] = {")]
             h = os.path.join(out, "h_real.c")
-            open(h, "w").write(stubs + "/* the game's own entry, as sys/unix/unixmain.c makes it */\n"
-                               "int main(void) { newgame(); moveloop(); return 0; }\n")
+            open(h, "w").write(stubs + ("/* the game's own entry, as sys/unix/unixmain.c makes it */\n"
+                                        "int main(void) { newgame(); moveloop(); return 0; }\n"
+                                        if a.main == "real" else
+                                        "/* main() is sys/c64/c64main.c's (NH_PORT_MAIN) */\n"))
         # -xb: the game never returns to BASIC, so main need not keep BASIC's zero page
         # (the pin's -Ot, part of -Os, then saves less in the game's functions)
         args = ["-rmp", "-Os", "-xb"] + (["-tm=c128"] if a.target == "c128" else []) + \
             ["-i=inc", "-i=stub", "-i=src", "-o=nethack.prg"] + \
-            ["src/" + f for f in files] + [os.path.basename(h)] + mo.DEFS
+            ["src/" + f for f in files] + [os.path.basename(h)] + mo.DEFS + ["-d" + d for d in port_defs]
         if a.far and a.far_runtime:
             r = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "bank", "farrt.py"),
                                 "--out", os.path.join(out, "nh_farrt.c"), "--target", a.target,
                                 "--from-headers", os.path.join(out, "inc")] +
                                (["--frames-section", "nh_c128_low"] if a.target == "c128" else []) +
+                               (["--frames", str(a.frames)] if a.frames else []) +
                                (["--code-section", "nhio"] if a.io_out else []) +
                                ([] if far_default else ["--drop", "5"]) + ([] if a.far_chars else ["--drop", "6"]) +
                                ([] if a.far_heap else ["--drop", "7", "--drop", "8"]),

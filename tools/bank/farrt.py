@@ -166,7 +166,8 @@ def main():
                     help="put the runtime's code in this section (bankgen.py --io-out's nhio, below "
                          "$8000: the fault handler switches the I/O in)")
     ap.add_argument("--frames-section", metavar="NAME",
-                    help="put the cache's frames in this bss section (bankgen.py's nh_c128_low)")
+                    help="put the cache's frames and the page tables in this bss section (bankgen.py's "
+                         "nh_c128_low)")
     ap.add_argument("--drop", type=int, action="append", default=[], metavar="N",
                     help="leave space N out (--from-headers reads the pragmas without the "
                          "preprocessor, so a space whose #if is off is found too)")
@@ -206,11 +207,12 @@ def main():
     out = ["""/* nh_farrt.c - the far runtime, written by tools/bank/farrt.py (%(args)s).
  * Spaces %(spaces)s; %(frames)d frames of cache; %(target)s. */
 
-/* one entry a far page from $80 for each space: its RAM page, 0 when it is not in RAM */
-unsigned char nh_tlb[%(ntlb)d];
+/* one entry a far page from $80 for each space: its RAM page, 0 when it is not in RAM;
+   with the frames in their own section (the C128's low RAM), there too */
+%(fsec)sunsigned char nh_tlb[%(ntlb)d];
 #pragma align(nh_tlb, 256)
 /* the cache's frames, and the space (0: free) and page each holds */
-%(fsec)schar nh_frames[%(frames)d * 256];
+char nh_frames[%(frames)d * 256];
 #pragma align(nh_frames, 256)
 %(fsecend)s
 unsigned char nh_frame_space[%(frames)d], nh_frame_page[%(frames)d];
@@ -222,6 +224,19 @@ volatile unsigned char nh_rpage;
 /* the pages of the compiler's groups of accesses: not evicted while pinned here */
 unsigned char farpins[4];
 #pragma runtime(farpins, farpins)
+
+/* before the first far access: no page in RAM, every frame free (the page tables may be in a
+   section that the start-up code does not clear, the C128's low RAM) */
+void nh_far_init(void)
+{
+	unsigned i;
+
+	for (i = 0; i < sizeof(nh_tlb); i++)
+		nh_tlb[i] = 0;
+	for (i = 0; i < %(frames)d; i++)
+		nh_frame_space[i] = 0;
+	nh_clock = 0;
+}
 
 /* by space number: its table less $80, as a low byte and a page offset from nh_tlb's
    page, and its REU bank */

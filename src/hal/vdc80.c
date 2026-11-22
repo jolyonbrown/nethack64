@@ -12,13 +12,22 @@
  * Colour is per character here (the C64's is per pair of columns); screen80.h's C64 colour
  * numbers are mapped to the VDC's RGBI ones. Reverse video is the attribute's bit 6.
  * Every register access waits for the VDC's ready bit (bit 7 of $D600), and the I/O must
- * be in (the MMU at $3E or $3A).
+ * be in (the MMU at $3E or $3A): built with HAL_IO_OUT (the banked game, whose MMU is at
+ * $3B) each function switches it in and back (io128.h).
+ * Built with S80_NO_SHADOW (the game, whose main RAM is short) there is no s80_text[]: the
+ * screen is only in the VDC's RAM, which tools/vice.py reads through the VDC's registers.
  */
 #include "screen80.h"
 #include "fontvdc.h"
+#include "io128.h"
 #include <string.h>
 
+#ifndef S80_NO_SHADOW
 char s80_text[S80_ROWS * S80_COLS];
+#define SHADOW(stmt)	stmt
+#else
+#define SHADOW(stmt)
+#endif
 char s80_cx, s80_cy;
 
 #define VDC_REG		(*(volatile char *)0xd600)
@@ -95,6 +104,7 @@ static void vdc_copy(unsigned dst, unsigned src, unsigned n)
 
 void s80_init(char fg, char bg)
 {
+	IO_IN();
 	vdc_wr(12, VDC_SCREEN >> 8);			/* display start */
 	vdc_wr(13, VDC_SCREEN & 0xff);
 	vdc_wr(20, VDC_ATTR >> 8);			/* attribute start */
@@ -116,33 +126,41 @@ void s80_init(char fg, char bg)
 	attr_fg = rgbi[fg & 15];
 	vdc_wr(26, (attr_fg << 4) | rgbi[bg & 15]);	/* foreground (unused with attributes), background */
 	s80_clear();
+	IO_OUT();
 }
 
 void s80_clear(void)
 {
+	IO_IN();
 	vdc_fill(VDC_SCREEN, ' ', S80_ROWS * S80_COLS);
 	vdc_fill(VDC_ATTR, attr_fg, S80_ROWS * S80_COLS);
-	memset(s80_text, ' ', sizeof(s80_text));
+	IO_OUT();
+	SHADOW(memset(s80_text, ' ', S80_ROWS * S80_COLS));
 	s80_cx = s80_cy = 0;
 }
 
 void s80_putc_at(char x, char y, char c)
 {
 	unsigned i = (unsigned)y * S80_COLS + x;
-	s80_text[i] = c;
+	SHADOW(s80_text[i] = c);
+	IO_IN();
 	vdc_at(VDC_SCREEN + i);
 	vdc_wr(31, c);
+	IO_OUT();
 }
 
 void s80_puts_at(char x, char y, const char *s)
 {
 	unsigned i = (unsigned)y * S80_COLS + x;
+	IO_IN();
 	vdc_at(VDC_SCREEN + i);
 	while (*s && i < S80_ROWS * S80_COLS)
 	{
-		s80_text[i++] = *s;
+		SHADOW(s80_text[i] = *s);
+		i++;
 		vdc_wr(31, *s++);
 	}
+	IO_OUT();
 }
 
 void s80_gotoxy(char x, char y)
@@ -153,12 +171,14 @@ void s80_gotoxy(char x, char y)
 
 static void scroll(void)
 {
+	IO_IN();
 	vdc_copy(VDC_SCREEN, VDC_SCREEN + S80_COLS, (S80_ROWS - 1) * S80_COLS);
 	vdc_copy(VDC_ATTR, VDC_ATTR + S80_COLS, (S80_ROWS - 1) * S80_COLS);
 	vdc_fill(VDC_SCREEN + (S80_ROWS - 1) * S80_COLS, ' ', S80_COLS);
 	vdc_fill(VDC_ATTR + (S80_ROWS - 1) * S80_COLS, attr_fg, S80_COLS);
-	memmove(s80_text, s80_text + S80_COLS, (S80_ROWS - 1) * S80_COLS);
-	memset(s80_text + (S80_ROWS - 1) * S80_COLS, ' ', S80_COLS);
+	IO_OUT();
+	SHADOW(memmove(s80_text, s80_text + S80_COLS, (S80_ROWS - 1) * S80_COLS));
+	SHADOW(memset(s80_text + (S80_ROWS - 1) * S80_COLS, ' ', S80_COLS));
 }
 
 static void newline(void)
@@ -193,23 +213,31 @@ void s80_clear_eol(void)
 {
 	unsigned i = (unsigned)s80_cy * S80_COLS + s80_cx;
 	char n = S80_COLS - s80_cx;
-	memset(s80_text + i, ' ', n);
+	SHADOW(memset(s80_text + i, ' ', n));
+	IO_IN();
 	vdc_fill(VDC_SCREEN + i, ' ', n);
+	IO_OUT();
 }
 
 void s80_color_cells(char x, char y, char w, char fg)
 {
 	if (w)
+	{
+		IO_IN();
 		vdc_fill(VDC_ATTR + (unsigned)y * S80_COLS + x, rgbi[fg & 15], w);
+		IO_OUT();
+	}
 }
 
 void s80_invert(char x, char y)
 {
 	unsigned a = VDC_ATTR + (unsigned)y * S80_COLS + x;
+	IO_IN();
 	vdc_at(a);
 	char v = vdc_rd(31);
 	vdc_at(a);
 	vdc_wr(31, v ^ ATTR_REVERSE);
+	IO_OUT();
 }
 
 void s80_putca(char x, char y, char c, char attr)
@@ -217,9 +245,11 @@ void s80_putca(char x, char y, char c, char attr)
 	if (x >= S80_COLS || y >= S80_ROWS)
 		return;
 	unsigned i = (unsigned)y * S80_COLS + x;
-	s80_text[i] = c;
+	SHADOW(s80_text[i] = c);
+	IO_IN();
 	vdc_at(VDC_SCREEN + i);
 	vdc_wr(31, c);
 	vdc_at(VDC_ATTR + i);
 	vdc_wr(31, rgbi[attr & 15] | (attr & S80_REVERSE ? ATTR_REVERSE : 0));
+	IO_OUT();
 }

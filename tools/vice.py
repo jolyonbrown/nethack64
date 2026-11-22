@@ -22,6 +22,7 @@ Quick reference
   vice.py keys "lljjh"            # typed into the KERNAL keyboard buffer
   vice.py screen                  # 80x25 text from s80_text (default .lbl: newest in build/)
   vice.py screen --text40         # 40x25 text from $0400
+  vice.py screen --vdc            # 80x25 text from the C128's VDC RAM (the banked game)
   vice.py screenshot out.png
   vice.py mem 0xc000 64           # hex dump
   vice.py sym s80_text            # address of a label
@@ -50,6 +51,7 @@ CMD_CHECKPOINT_SET = 0x12
 CMD_REGISTERS_GET = 0x31
 CMD_KEYBOARD_FEED = 0x72
 CMD_PING = 0x81
+CMD_BANKS_AVAILABLE = 0x82
 CMD_REGISTERS_AVAILABLE = 0x83
 CMD_DISPLAY_GET = 0x84
 CMD_VICE_INFO = 0x85
@@ -134,6 +136,44 @@ class Vice:
             out += rb[2:2 + (ml or 0x10000)]
             start += n
             length -= n
+        return out
+
+    def bank_id(self, name):
+        """The monitor's number for a memory bank by name ("io", "ram1"...), or None."""
+        _, rb = self.cmd(CMD_BANKS_AVAILABLE)
+        (count,) = struct.unpack("<H", rb[:2])
+        p = 2
+        for _ in range(count):
+            size = rb[p]
+            (bid,) = struct.unpack("<H", rb[p + 1:p + 3])
+            nlen = rb[p + 3]
+            if rb[p + 4:p + 4 + nlen].decode() == name:
+                return bid
+            p += size + 1
+        return None
+
+    def vdc_read(self, addr, length):
+        """length bytes of the C128's VDC RAM from addr, through $D600/$D601 in the I/O bank
+        (whatever the MMU shows the CPU); the VDC's update address is put back afterwards."""
+        io = self.bank_id("io")
+        if io is None:
+            raise ViceError("no I/O bank (not x128?)")
+
+        def wr(r, val):
+            self.mem_set(0xD600, [r], bank=io)
+            self.mem_set(0xD601, [val], bank=io)
+
+        def rd(r):
+            self.mem_set(0xD600, [r], bank=io)
+            return self.mem_get(0xD601, 1, side_effects=True, bank=io)[0]
+
+        hi, lo = rd(18), rd(19)
+        wr(18, addr >> 8)
+        wr(19, addr & 0xFF)
+        self.mem_set(0xD600, [31], bank=io)
+        out = bytes(self.mem_get(0xD601, 1, side_effects=True, bank=io)[0] for _ in range(length))
+        wr(18, hi)
+        wr(19, lo)
         return out
 
     def mem_set(self, start, data, bank=0):
@@ -345,6 +385,12 @@ def cmd_launch(a):
 
 
 def screen_text(v, a):
+    if a.vdc:
+        # the C128's 80 columns, from the VDC's screen at $0000 (src/hal/vdc80.c), for a build
+        # with no s80_text[] shadow (S80_NO_SHADOW, the banked game)
+        data = v.vdc_read(0x0000, a.cols * a.rows)
+        return ["".join(chr(b) if 32 <= b < 127 else "?" for b in data[r * a.cols:(r + 1) * a.cols])
+                for r in range(a.rows)]
     if a.text40:
         data = v.mem_get(0x0400, 1000)
         rows = ["".join(screencode_to_ascii(b) for b in data[r * 40:(r + 1) * 40]) for r in range(25)]
@@ -390,6 +436,8 @@ def main():
         p.add_argument("--lbl"); p.add_argument("--label", default="s80_text")
         p.add_argument("--cols", type=int, default=80); p.add_argument("--rows", type=int, default=25)
         p.add_argument("--text40", action="store_true")
+        p.add_argument("--vdc", action="store_true",
+                       help="read the C128's VDC screen RAM (a build without the s80_text shadow)")
         if name == "wait-text":
             p.add_argument("text"); p.add_argument("--timeout", type=float, default=20)
     p = sub.add_parser("screenshot"); p.add_argument("out")

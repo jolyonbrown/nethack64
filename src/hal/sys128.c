@@ -9,8 +9,11 @@
  * - a scan of the keyboard matrix through CIA 1, the 64 keys the C64 has (the C128's extra
  *   keys, on $D02F's lines, are not read yet), a key counted when it goes down.
  * sys_reu_banks() is reuprobe.c's. The debug cartridge's $D7FF is VICE's in C128 mode too.
+ * Built with HAL_IO_OUT (the banked game) it leaves the MMU as it finds it and switches the
+ * I/O in only around the CIA and $D7FF (io128.h).
  */
 #include "sys.h"
+#include "io128.h"
 
 #define CIA1_PRA	(*(volatile char *)0xdc00)
 #define CIA1_PRB	(*(volatile char *)0xdc01)
@@ -23,9 +26,13 @@
 void sys_init(void)
 {
 	__asm { sei }
+#ifndef HAL_IO_OUT
 	*(volatile char *)0xff00 = 0x3e;	/* bank 0, all RAM, I/O in */
+#endif
+	IO_IN();							/* the game: the MMU as the bank glue set it */
 	CIA1_DDRA = 0xff;					/* columns out */
 	CIA1_DDRB = 0x00;					/* rows in */
+	IO_OUT();
 }
 
 /* PETSCII from the buffer: as sys.c's table (cursor keys as vi-keys, RETURN as '\n') */
@@ -76,12 +83,14 @@ static char scan(void)
 {
 	char down[8], shift = 0, ctrl = 0, hit = 0xff;
 
+	IO_IN();
 	for (char i = 0; i < 8; i++)
 	{
 		CIA1_PRA = ~(1 << i);
 		down[i] = ~CIA1_PRB;
 	}
 	CIA1_PRA = 0xff;
+	IO_OUT();
 	if (down[1] & 0x80 || down[6] & 0x10)
 		shift = 1;
 	if (down[7] & 0x04)
@@ -135,6 +144,7 @@ bool sys_on_easyflash(void)
 
 void sys_debug_exit(char code)
 {
+	IO_IN();
 	*(volatile char *)0xd7ff = code;
 	for (;;)
 		;

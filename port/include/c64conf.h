@@ -139,6 +139,50 @@ extern int fflush(FILE *);
 extern void perror(const char *);
 #endif
 
+#if defined(__OSCAR64C__) && defined(NH_PORT_SYS)
+/* T3.2, the bootable build (build_c64.py --main port): Oscar64's stdio reaches files and the
+ * screen through the KERNAL, which the banked game keeps mapped out, so the game's stdio
+ * calls go to sys/c64/c64sys.c instead (its files fail for now; the console is the 80-column
+ * screen). fseek(), ftell(), rewind(), ungetc(), fflush() and perror(), which Oscar64 lacks,
+ * are c64sys.c's under their own names. */
+#define fopen	nh_fopen
+#define freopen	nh_freopen
+#define fclose	nh_fclose
+#define fgetc	nh_fgetc
+#undef getc
+#define getc	nh_fgetc
+#define fgets	nh_fgets
+#define feof	nh_feof
+#define fread	nh_fread
+#define fwrite	nh_fwrite
+#define fputc	nh_fputc
+#undef putc
+#define putc	nh_fputc
+#define fputs	nh_fputs
+#define fprintf	nh_fprintf
+#define printf	nh_printf
+#define putchar	nh_putchar
+#define puts	nh_puts
+#define getchar	nh_getchar
+#define setbuf	nh_setbuf
+extern FILE *nh_fopen(const char *, const char *);
+extern FILE *nh_freopen(const char *, const char *, FILE *);
+extern int nh_fclose(FILE *);
+extern int nh_fgetc(FILE *);
+extern char *nh_fgets(char *, int, FILE *);
+extern int nh_feof(FILE *);
+extern unsigned nh_fread(void *, unsigned, unsigned, FILE *);
+extern unsigned nh_fwrite(const void *, unsigned, unsigned, FILE *);
+extern int nh_fputc(int, FILE *);
+extern int nh_fputs(const char *, FILE *);
+extern int nh_fprintf(FILE *, const char *, ...);
+extern int nh_printf(const char *, ...);
+extern int nh_putchar(int);
+extern int nh_puts(const char *);
+extern int nh_getchar(void);
+extern void nh_setbuf(FILE *, char *);
+#endif
+
 #if defined(__OSCAR64C__) && defined(NH_FAR_SPACES)
 /* T2.12, a measurement, not yet the build's: far space 4 holds globals of struct types
  * reached through pointers or by index from many banks (the rooms, the monster
