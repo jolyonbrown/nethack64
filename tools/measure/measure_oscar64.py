@@ -96,6 +96,7 @@ def setup():
         for f in ("wintty.c", "topl.c", "getline.c"):
             shutil.copy(os.path.join(ROOT, "port", "win", "tty", f), os.path.join(OUT, "src"))
         shutil.copy(os.path.join(ROOT, "src", "hal", "screen80.h"), os.path.join(OUT, "inc"))
+        shutil.copy(os.path.join(ROOT, "src", "hal", "io128.h"), os.path.join(OUT, "inc"))	# c64sys.c's
     stubs = CONFIGS[CONFIG]["stubs"]
     if stubs is None:
         shutil.copytree(os.path.join(HERE, "stub"), os.path.join(OUT, "stub"))

@@ -32,6 +32,8 @@ def main():
     ap.add_argument("reu_out")
     ap.add_argument("--first", type=int, default=64, help="first bank that goes to the REU")
     ap.add_argument("--reu-kb", type=int, default=2048, help="pad the REU image to this size")
+    ap.add_argument("--disk", help="the RAM disk's image (tools/data/reudisk.py), put at the REU's "
+                    "2 MB (sys/c64/c64sys.c's NH_DISK; needs --reu-kb 4096)")
     a = ap.parse_args()
     cart = bytearray(64 * BANK)
     reu = bytearray(a.reu_kb * 1024)
@@ -70,6 +72,13 @@ def main():
                 used_reu[page] = b
             reu[o:o + len(body)] = body
             banks_r.append(b)
+    if a.disk:
+        disk = open(a.disk, "rb").read()
+        if 0x200000 + len(disk) > len(reu):
+            sys.exit("the disk does not fit a %d KB REU from 2 MB" % a.reu_kb)
+        if any(p >= 0x2000 for p in used_reu):
+            sys.exit("the banks reach the disk at 2 MB")
+        reu[0x200000:0x200000 + len(disk)] = disk
     open(a.md128_out, "wb").write(bytes(cart))
     open(a.reu_out, "wb").write(bytes(reu))
     print("%s: %d cartridge bank(s); %s: %d REU bank(s)" % (os.path.basename(a.md128_out), len(banks_c),
