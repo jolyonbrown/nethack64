@@ -15,17 +15,27 @@
 extern void sys_init(void);		/* src/hal/sys128.c */
 extern void nh_far_init(void);		/* the far runtime (tools/bank/farrt.py) */
 
+void nh_c64_start(void);
+
+/* main() is resident, and Oscar64 inlines a function called once into a caller in the same
+ * section: so the start is a function of its own, which the plan banks */
 int
 main(void)
+{
+	sys_init();
+	nh_far_init();
+	nh_c64_start();
+	return 0;
+}
+
+void
+nh_c64_start(void)
 {
 	int argc = 1;
 	/* a named array: a literal would be in the character space, which a near char * table
 	 * cannot hold (ADR-0010) */
 	static char arg0[] = "nethack";
 	static char *argv[] = { arg0, (char *) 0 };
-
-	sys_init();
-	nh_far_init();
 
 	hname = "NetHack";
 	hackpid = 1;
@@ -55,7 +65,6 @@ main(void)
 	read_engr_at(u.ux, u.uy);
 
 	moveloop();
-	return 0;
 }
 
 #endif /* __OSCAR64C__ && NH_PORT_MAIN */
