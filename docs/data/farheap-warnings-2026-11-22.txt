@@ -30,6 +30,11 @@ By kind (the first pattern that matches a line, the specific calls first):
 (The first count of this file, "about 90 harmless", had put the block I/O lines with the
 round trips; this one matches the specific calls first.)
 
+After the rewrites (2026-11-22, later; commits 316a111 and 69f9253, the same measurement
+over all 115 files): 72 warnings, 71 of them the harmless round trips above and the 72nd the
+baseline's own (restore.c's mread of a far level square, there with spaces 1-6 alone).
+Every file compiles (69 ok, 46 too big to run alone).
+
 Seen on the way: a store through a constant far pointer, (struct mon *) 0x8010, is compiled
 as an absolute address without translation (the fork); NetHack has no such store (its only
 constant heap pointers are null and shk.c's (struct bill_x *) -1000 sentinel, compared only).

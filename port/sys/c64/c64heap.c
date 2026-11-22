@@ -60,6 +60,9 @@ struct nh_heap {
 	unsigned lost;			/* pages of large blocks freed with the run list full */
 };
 
+#ifdef NH_FAR_DEFAULT
+#pragma near(nh_heaps)		/* reached through a pointer (T2.14) */
+#endif
 static struct nh_heap nh_heaps[2];	/* space 7, space 8 */
 
 static unsigned

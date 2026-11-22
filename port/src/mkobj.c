@@ -1000,6 +1000,15 @@ save_mtraits(struct obj_s *obj, struct monst_s *mtmp)
 	return otmp;
 }
 
+#ifdef NH_FAR_HEAP_SPACES
+/* get_mtraits()'s near copy of a corpse's monster (T2.14): near, since a monster pointer
+ * to it must be below $8000, so the far default must leave it there */
+#ifdef NH_FAR_DEFAULT
+#pragma near(nh_mtraits)	/* before it, as nhnear.h's names come first */
+#endif
+static struct monst_s nh_mtraits;
+#endif
+
 /* returns a pointer to a new monst structure based on
  * the one contained within the obj.
  */
@@ -1011,9 +1020,8 @@ get_mtraits(struct obj_s *obj, boolean copyof)
 
 #ifdef NH_FAR_HEAP_SPACES
 	/* the monster's copy is in the objects' far space (T2.14): its struct read into a
-	   near one, which a caller that does not copy gets (pray.c reads mtame) */
-	static struct monst_s nh_mtraits;
-
+	   near one (nh_mtraits, above), which a caller that does not copy gets (pray.c
+	   reads mtame) */
 	if (obj->oxlth && obj->oattached == OATTACHED_MONST) {
 		NH_HCOPY(&nh_mtraits, 0, NH_OEXTRAADDR(obj), 8, sizeof(nh_mtraits));
 		mtmp = &nh_mtraits;

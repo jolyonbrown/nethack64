@@ -222,6 +222,12 @@ nh_farfill7(struct nh_fb7 *d, int c, unsigned n)
 	while (n--) (d++)->b = (unsigned char) c;
 }
 
+#ifdef NH_FAR_DEFAULT
+/* T2.14: these are reached through near pointers (a name's copy as a char *, the chain
+ * proxy and the d_level as pointers), so the far default must leave them near; the
+ * pragma comes before them, as nhnear.h's names do */
+#pragma near(nh_hname_ring, nh_chain_proxy, nh_chain_cont, nh_dltmp)
+#endif
 /* a monster's or an object's name (NAME(), ONAME()): its n bytes at address a of space sp
  * copied into the next of four near buffers, NUL-ended; a name is at most PL_PSIZ */
 static char nh_hname_ring[4][PL_PSIZ + 1];

@@ -814,7 +814,16 @@ Add new tasks at the bottom of the right section.
       does; `struct bill_x` and `struct fakecorridor` padded so that no entry crosses a page;
       what stays near (windows, message history, quest index, about 3 KB). 2026-11-22: the
       spaces declared for measurement (`far_meas.c` spaces 7-8; `measure_oscar64.py` now
-      gives `mkstubs.py` the `MEASURE_DEFS`), warnings 2026 being counted.
+      gives `mkstubs.py` the `MEASURE_DEFS`): 202 warnings 2026, 72 of them harmless
+      (`docs/data/farheap-warnings-2026-11-22.txt`). 2026-11-22 (later): built, under
+      `NH_FAR_HEAP` (host code unchanged at every site): `sys/c64/c64heap.c` (slabs of
+      8-byte classes, larger blocks on whole pages), names through a ring of copies and
+      setters, block copies and file transfers a byte at a time (`nh_farmove()`,
+      `nh_farbwrite7/8`), the corpse's monster through a near copy, list walks without
+      pointers into far blocks, `askchain()`'s proxy, the shopkeeper's strings and the
+      extensions' d_levels; `bill_x` and `fakecorridor` padded (static_assert);
+      `build_c64.py --far-heap`. Next: the C128 link with it (fc5), then the resident side's
+      last KBs and a boot in x128.
 
 ## Phase 3 — first light
 
