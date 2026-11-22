@@ -1,0 +1,231 @@
+Warnings 2026 with the heap far (T2.14, 2026-11-22): tools/measure/measure_oscar64.py --config c64,
+MEASURE_DEFS="-dNH_FAR_SPACES -dNH_FAR_HEAP", MEASURE_EXTRA=tools/measure/far_meas.c, the
+far-spaces fork at 34ee85e (commit 14). Monsters and their extensions in far space 7, objects
+in far space 8 (c64conf.h). 202 warnings in 32 game files (the stub harness's own left out).
+
+By kind:
+- about 90: a far pointer cast to genericptr_t and kept, compared or cast back (timers,
+  light sources, fmt_ptr, the FIG_TRANSFORM and HATCH_EGG timers, region callbacks). Harmless:
+  the cast keeps the far address (checked 2026-11-22 with a runtime that maps far page $80 to
+  another RAM page: the store translates, the void * holds $8010, the cast back reads the
+  value; -O0, -O2, -Os). Only a dereference of such a void * as near memory would be wrong.
+- 59: NAME() and ONAME(), a char * into the block (9 of them write: christening, copies).
+- about 25: char arrays and d_levels in the extensions read in place: ESHK()->customer and
+  ->shknam (strncmp, strncpy), &ESHK()->shoplevel, &EGD()->gdlevel, &EPRI()->shrlevel passed
+  to on_level() and assign_level().
+- 14: pointers to fields of a far object: &obj->ocontainer->cobj and &obj->ocarry->minvent
+  (extract_nobj), &(*mtmp)->nmon, &mdef->minvent, &otmp->nobj (list walks by pointer to
+  pointer), &mtmp->mtrack[0].
+- 5: a monster inside an object ((struct monst_s *) obj->oextra: a corpse's or statue's
+  attached monster, OATTACHED_MONST): monster data in the objects' space, to copy between
+  spaces.
+- 4: free() and dealloc_monst(): the allocators.
+- 2: memcpy of a whole block (mkobj.c's realloc_obj, the attached monster), 1 mread.
+
+Seen on the way: a store through a constant far pointer, (struct mon *) 0x8010, is compiled
+as an absolute address without translation (the fork); NetHack has no such store (its only
+constant heap pointers are null and shk.c's (struct bill_x *) -1000 sentinel, compared only).
+
+The list, one warning a line:
+apply.c:1595: FIG_TRANSFORM, (genericptr_t)figurine);
+apply.c:1717: (void) stop_timer(FIG_TRANSFORM, (genericptr_t)obj);
+bones.c:66: (restore && (exist_artifact(otmp->otyp, ONAME(otmp))
+bones.c:66: (restore && (exist_artifact(otmp->otyp, ONAME(otmp))
+bones.c:70: *ONAME(otmp) = '\0';
+bones.c:72: artifact_exists(otmp,ONAME(otmp),TRUE);
+bones.c:72: artifact_exists(otmp,ONAME(otmp),TRUE);
+dig.c:1312: TIMER_OBJECT, ROT_ORGANIC, (genericptr_t)otmp);
+dig.c:1349: (void) stop_timer(ROT_ORGANIC, (genericptr_t)otmp);
+do_name.c:204: if (lth) Strcpy(NAME(mtmp), name);
+do_name.c:204: if (lth) Strcpy(NAME(mtmp), name);
+do_name.c:209: (void) memcpy((genericptr_t)mtmp2->mextra,
+do_name.c:210: (genericptr_t)mtmp->mextra, mtmp->mxlth);
+do_name.c:212: if (lth) Strcpy(NAME(mtmp2), name);
+do_name.c:212: if (lth) Strcpy(NAME(mtmp2), name);
+do_name.c:337: (void) memcpy((genericptr_t)otmp->oextra, oextra_src,
+do_name.c:354: Strcpy(ONAME(otmp), name);
+do_name.c:354: Strcpy(ONAME(otmp), name);
+do_name.c:414: if (lth) Strcpy(ONAME(obj), name);
+do_name.c:414: if (lth) Strcpy(ONAME(obj), name);
+do_name.c:417: (genericptr_t)obj->oextra, lth, name);
+do_name.c:681: char *name = NAME(mtmp);
+do_name.c:681: char *name = NAME(mtmp);
+dog.c:110: mtmp = christen_monst(mtmp, ONAME(otmp));
+dog.c:110: mtmp = christen_monst(mtmp, ONAME(otmp));
+dog.c:805: if (mtmp->mnamelth) Strcpy(NAME(mtmp2), NAME(mtmp));
+dog.c:805: if (mtmp->mnamelth) Strcpy(NAME(mtmp2), NAME(mtmp));
+dokick.c:1235: (void) strncpy(ESHK(shkp)->customer,
+dothrow.c:664: (void) walk_path(&mc, &cc, mhurtle_step, (genericptr_t)mon);
+end.c:208: if (mtmp->mnamelth) Sprintf(eos(buf), " of %s", NAME(mtmp));
+end.c:221: Sprintf(eos(buf), " called %s", NAME(mtmp));
+invent.c:181: otmp = *potmp = oname(otmp, ONAME(obj));
+invent.c:181: otmp = *potmp = oname(otmp, ONAME(obj));
+invent.c:2333: strncmp(ONAME(obj), ONAME(otmp), (int)obj->onamelth)))
+invent.c:2333: strncmp(ONAME(obj), ONAME(otmp), (int)obj->onamelth)))
+invent.c:516: (void) stop_timer(FIG_TRANSFORM, (genericptr_t) obj);
+light.c:306: ls->id = (genericptr_t) find_oid(nid);
+light.c:309: ls->id = (genericptr_t) find_mid(nid, FM_EVERYWHERE);
+light.c:407: if (ls->type == LS_OBJECT && ls->id == (genericptr_t) src)
+light.c:408: ls->id = (genericptr_t) dest;
+light.c:479: if (ls->type == LS_OBJECT && ls->id == (genericptr_t) src) {
+light.c:493: new_ls->id = (genericptr_t) dest;
+light.c:511: if (ls->type == LS_OBJECT && ls->id == (genericptr_t) dest) {
+mail.c:396: *(ONAME(obj) + namelth) = '\0';
+makemon.c:719: LS_MONSTER, (genericptr_t)m2);
+makemon.c:722: m2 = christen_monst(m2, NAME(mon));
+makemon.c:722: m2 = christen_monst(m2, NAME(mon));
+makemon.c:743: if (m2->mnamelth) Strcpy(NAME(m3), NAME(m2));
+makemon.c:743: if (m2->mnamelth) Strcpy(NAME(m3), NAME(m2));
+makemon.c:888: (void)memset((genericptr_t)mtmp->mextra, 0, xlth);
+makemon.c:982: LS_MONSTER, (genericptr_t)mtmp);
+mkmaze.c:970: cons->list = (genericptr_t) olist;
+mkmaze.c:982: cons->list = (genericptr_t) mon;
+mkobj.c:1000: (genericptr_t)mtmp, lth);
+mkobj.c:1170: tleft = stop_timer(action, (genericptr_t)otmp);
+mkobj.c:1173: tleft = stop_timer(action, (genericptr_t)otmp);
+mkobj.c:1196: tleft = stop_timer(action, (genericptr_t)otmp);
+mkobj.c:1199: tleft = stop_timer(action, (genericptr_t)otmp);
+mkobj.c:1219: (void) start_timer(tleft, TIMER_OBJECT, action, (genericptr_t)otmp);
+mkobj.c:1288: extract_nobj(obj, &obj->ocontainer->cobj);
+mkobj.c:1295: extract_nobj(obj, &obj->ocarry->minvent);
+mkobj.c:1475: del_light_source(LS_OBJECT, (genericptr_t) obj);
+mkobj.c:1479: free((genericptr_t) obj);
+mkobj.c:1497: fmt_ptr((genericptr_t)obj, obj_address),
+mkobj.c:1510: fmt_ptr((genericptr_t)obj, obj_address),
+mkobj.c:1519: fmt_ptr((genericptr_t)obj, obj_address),
+mkobj.c:1529: fmt_ptr((genericptr_t)obj, obj_address),
+mkobj.c:1539: fmt_ptr((genericptr_t)obj, obj_address),
+mkobj.c:1549: fmt_ptr((genericptr_t)obj, obj_address),
+mkobj.c:1555: fmt_ptr((genericptr_t)obj, obj_address),
+mkobj.c:1565: fmt_ptr((genericptr_t)obj, obj_address),
+mkobj.c:1570: fmt_ptr((genericptr_t)obj, obj_address),
+mkobj.c:1572: fmt_ptr((genericptr_t)mon, mon_address),
+mkobj.c:159: (void) stop_timer(ROT_CORPSE, (genericptr_t)otmp);
+mkobj.c:160: (void) stop_timer(REVIVE_MON, (genericptr_t)otmp);
+mkobj.c:1601: fmt_ptr((genericptr_t)obj, obj1_address),
+mkobj.c:1605: fmt_ptr((genericptr_t)obj, obj1_address),
+mkobj.c:1606: fmt_ptr((genericptr_t)container, obj2_address));
+mkobj.c:242: (void)memcpy((genericptr_t)otmp->oextra, (genericptr_t)obj->oextra,
+mkobj.c:242: (void)memcpy((genericptr_t)otmp->oextra, (genericptr_t)obj->oextra,
+mkobj.c:245: (void)strncpy(ONAME(otmp), ONAME(obj), (int)obj->onamelth);
+mkobj.c:245: (void)strncpy(ONAME(otmp), ONAME(obj), (int)obj->onamelth);
+mkobj.c:278: extract_nobj(obj, &obj->ocontainer->cobj);
+mkobj.c:284: extract_nobj(obj, &obj->ocarry->minvent);
+mkobj.c:342: (void)memcpy((genericptr_t)dummy->oextra,
+mkobj.c:343: (genericptr_t)otmp->oextra, otmp->oxlth);
+mkobj.c:345: (void)strncpy(ONAME(dummy), ONAME(otmp), (int)otmp->onamelth);
+mkobj.c:345: (void)strncpy(ONAME(dummy), ONAME(otmp), (int)otmp->onamelth);
+mkobj.c:679: (void) start_timer(when, TIMER_OBJECT, action, (genericptr_t)body);
+mkobj.c:695: (void) stop_timer(FIG_TRANSFORM, (genericptr_t) otmp);
+mkobj.c:746: (void) stop_timer(FIG_TRANSFORM, (genericptr_t) otmp);
+mkobj.c:947: namelth = obj->onamelth ? strlen(ONAME(obj)) + 1 : 0;
+mkobj.c:947: namelth = obj->onamelth ? strlen(ONAME(obj)) + 1 : 0;
+mkobj.c:949: otmp = realloc_obj(obj, lth, (genericptr_t) &mid, namelth, ONAME(obj));
+mkobj.c:949: otmp = realloc_obj(obj, lth, (genericptr_t) &mid, namelth, ONAME(obj));
+mkobj.c:953: (void) memcpy((genericptr_t)otmp->oextra, (genericptr_t)&mid,
+mkobj.c:967: namelth = obj->onamelth ? strlen(ONAME(obj)) + 1 : 0;
+mkobj.c:967: namelth = obj->onamelth ? strlen(ONAME(obj)) + 1 : 0;
+mkobj.c:968: otmp = realloc_obj(obj, lth, (genericptr_t) mtmp, namelth, ONAME(obj));
+mkobj.c:968: otmp = realloc_obj(obj, lth, (genericptr_t) mtmp, namelth, ONAME(obj));
+mkobj.c:968: otmp = realloc_obj(obj, lth, (genericptr_t) mtmp, namelth, ONAME(obj));
+mkobj.c:970: struct monst_s *mtmp2 = (struct monst_s *)otmp->oextra;
+mkobj.c:993: mtmp = (struct monst_s *)obj->oextra;
+mkobj.c:993: mtmp = (struct monst_s *)obj->oextra;
+mkobj.c:999: (void) memcpy((genericptr_t)mnew,
+mon.c:1240: dealloc_monst(freetmp);
+mon.c:1243: mtmp = &(*mtmp)->nmon;
+mon.c:1288: LS_MONSTER, (genericptr_t)mtmp2);
+mon.c:1290: del_light_source(LS_MONSTER, (genericptr_t)mtmp);
+mon.c:1301: dealloc_monst(mtmp);
+mon.c:1334: del_light_source(LS_MONSTER, (genericptr_t)mtmp);
+mon.c:1624: if (mdef->mnamelth) otmp = oname(otmp, NAME(mdef));
+mon.c:1624: if (mdef->mnamelth) otmp = oname(otmp, NAME(mdef));
+mon.c:2391: char *p = index(NAME(mtmp), ' ');
+mon.c:2391: char *p = index(NAME(mtmp), ' ');
+mon.c:2394: mtmp->mnamelth = p - NAME(mtmp) + 1;
+mon.c:2438: del_light_source(LS_MONSTER, (genericptr_t)mtmp);
+mon.c:2441: LS_MONSTER, (genericptr_t)mtmp);
+mon.c:299: obj = oname(obj, NAME(mtmp));
+mon.c:299: obj = oname(obj, NAME(mtmp));
+monmove.c:913: mtrk = &mtmp->mtrack[0];
+mplayer.c:53: if(!strncmp(developers[i], NAME(mtmp),
+mplayer.c:53: if(!strncmp(developers[i], NAME(mtmp),
+objnam.c:2666: artifact_exists(otmp, ONAME(otmp), FALSE);
+objnam.c:2666: artifact_exists(otmp, ONAME(otmp), FALSE);
+objnam.c:469: Strcat(buf, ONAME(obj));
+objnam.c:469: Strcat(buf, ONAME(obj));
+pickup.c:1847: long rot_alarm = stop_timer(ROT_CORPSE, (genericptr_t)obj);
+pickup.c:1848: (void) stop_timer(REVIVE_MON, (genericptr_t)obj);
+pickup.c:2155: if (askchain((struct obj_s **)&current_container->cobj,
+priest.c:137: on_level(&(EPRI(priest)->shrlevel), &u.uz)));
+priest.c:203: assign_level(&(EPRI(priest)->shrlevel), lvl);
+priest.c:689: if (!DEADMONSTER(mtmp) && mtmp->ispriest && !on_level(&(EPRI(mtmp)->shrlevel), &u.uz))
+priest.c:700: assign_level(&(EPRI(mtmp)->shrlevel), &u.uz);
+region.c:385: (*callbacks[f_indx])(regions[i], mtmp)) {
+region.c:460: if (!(*callbacks[f_indx])(regions[i], mon))
+region.c:466: if (!(*callbacks[f_indx])(regions[i], mon))
+region.c:478: (void) (*callbacks[f_indx])(regions[i], mon);
+region.c:487: (void) (*callbacks[f_indx])(regions[i], mon);
+restore.c:202: mread(fd, (genericptr_t) otmp,
+restore.c:256: mread(fd, (genericptr_t) mtmp, (unsigned) xl + sizeof(struct monst_s));
+restore.c:751: mread(fd, (genericptr_t)&r, sizeof(struct rm_s));
+restore.c:968: struct monst_s *mtmp = (struct monst_s *)otmp->oextra;
+restore.c:974: (void) memcpy((genericptr_t)&oldid, (genericptr_t)otmp->oextra,
+restore.c:977: (void) memcpy((genericptr_t)otmp->oextra, (genericptr_t)&nid,
+save.c:846: bwrite(fd, (genericptr_t) otmp, xl + sizeof(struct obj_s));
+save.c:880: bwrite(fd, (genericptr_t) mtmp, xl + sizeof(struct monst_s));
+save.c:885: dealloc_monst(mtmp);
+shk.c:1270: if (strncmp(eshkp->customer, plname, PL_NSIZ) || rn2(3))
+shk.c:1573: if(!on_level(&(ESHK(mtmp)->shoplevel), &u.uz))
+shk.c:1674: strncmp(eshkp->customer, plname, PL_NSIZ) ?
+shk.c:173: return(ESHK(mtmp)->shknam);
+shk.c:187: if (on_level(&eshk->shoplevel, &u.uz)) {
+shk.c:213: if (on_level(&(ESHK(shkp)->shoplevel), &u.uz))
+shk.c:239: assign_level(&eshkp->shoplevel, &u.uz);
+shk.c:240: if (ANGRY(shkp) && strncmpi(eshkp->customer, plname, PL_NSIZ))
+shk.c:3134: if(strncmp(eshkp->customer, plname, PL_NSIZ)) {
+shk.c:3419: (void) strncpy(ESHK(shkp)->customer,plname,PL_NSIZ);
+shk.c:3664: if (strncmp(eshk->customer, plname, PL_NSIZ)) {
+shk.c:516: strncmpi(eshkp->customer, plname, PL_NSIZ)) {
+shk.c:520: (void) strncpy(eshkp->customer,plname,PL_NSIZ);
+shk.c:687: on_level(&(ESHK(mtmp)->shoplevel), &u.uz));
+shk.c:945: if (on_level(&eshkp->shoplevel, &u.uz)) {
+shk.c:956: migrate_to_level(shkp, ledger_no(&eshkp->shoplevel),
+shk.c:957: MIGR_APPROX_XY, &eshkp->shd);
+shk.c:978: (void) strncpy(ESHK(shkp)->customer, plname, PL_NSIZ);
+shknam.c:320: if (strcmp(ESHK(mtmp)->shknam, shname)) continue;
+shknam.c:326: (void) strncpy(ESHK(shk)->shknam, shname, PL_NSIZ);
+shknam.c:394: assign_level(&(ESHK(shk)->shoplevel), &u.uz);
+timeout.c:1093: BURN_OBJECT, (genericptr_t)obj)) {
+timeout.c:1110: new_light_source(x, y, radius, LS_OBJECT, (genericptr_t) obj);
+timeout.c:1133: del_light_source(LS_OBJECT, (genericptr_t)obj);
+timeout.c:1137: } else if (!stop_timer(BURN_OBJECT, (genericptr_t) obj))
+timeout.c:1382: fmt_ptr((genericptr_t)obj, obj_address), curr->tid);
+timeout.c:1479: if (curr->kind == TIMER_OBJECT && curr->arg == (genericptr_t)src) {
+timeout.c:1480: curr->arg = (genericptr_t) dest;
+timeout.c:1500: if (curr->kind == TIMER_OBJECT && curr->arg == (genericptr_t)src) {
+timeout.c:1502: curr->func_index, (genericptr_t)dest);
+timeout.c:1519: if (curr->kind == TIMER_OBJECT && curr->arg == (genericptr_t)obj) {
+timeout.c:1798: curr->arg = (genericptr_t) find_oid(nid);
+timeout.c:383: (void) stop_timer(HATCH_EGG, (genericptr_t) egg);
+timeout.c:395: HATCH_EGG, (genericptr_t)egg);
+timeout.c:405: (void) stop_timer(HATCH_EGG, (genericptr_t) egg);
+timeout.c:563: (void) stop_timer(HATCH_EGG, (genericptr_t)egg);
+timeout.c:565: HATCH_EGG, (genericptr_t)egg);
+timeout.c:596: (void) stop_timer(FIG_TRANSFORM, (genericptr_t) figurine);
+timeout.c:604: FIG_TRANSFORM, (genericptr_t)figurine);
+trap.c:469: mon = christen_monst(mon, ONAME(statue));
+trap.c:469: mon = christen_monst(mon, ONAME(statue));
+trap.c:553: struct monst_s *mtmp = (struct monst_s *)objchn->oextra;
+uhitm.c:1186: minvent_ptr = &mdef->minvent;
+uhitm.c:1194: minvent_ptr = &otmp->nobj;
+vault.c:103: if(mtmp->isgd && !DEADMONSTER(mtmp) && on_level(&(EGD(mtmp)->gdlevel), &u.uz))
+vault.c:226: assign_level(&(EGD(guard)->gdlevel), &u.uz);
+vault.c:27: if (!on_level(&(EGD(grd)->gdlevel), &u.uz)) return TRUE;
+vault.c:448: if(!on_level(&(egrd->gdlevel), &u.uz)) return(-1);
+wield.c:715: if (amount < 0 && uwep->oartifact && restrict_name(uwep, ONAME(uwep))) {
+wield.c:715: if (amount < 0 && uwep->oartifact && restrict_name(uwep, ONAME(uwep))) {
+wizard.c:492: mmtmp = &mtmp->nmon;
+zap.c:636: (genericptr_t)obj->oextra, sizeof(m_id));
+zap.c:655: mtmp = christen_monst(mtmp, ONAME(obj));
+zap.c:655: mtmp = christen_monst(mtmp, ONAME(obj));
