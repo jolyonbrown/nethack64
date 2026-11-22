@@ -1,0 +1,71 @@
+From 158f1dd2ff7e6c3c6ecef812bde7a1593a469992 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sat, 21 Nov 2026 23:55:14 +0000
+Subject: [PATCH] Loops: a runtime call's zero page operand counts as read
+
+RemoveSimpleLoopUnusedIndex() drops a store to zero page in a one-block loop
+when nothing in the loop or after it reads that byte. At a JSR it counted the
+runtime's own registers (ACCU, WORK, ADDR) but not the operand a call with
+NCIF_USE_ZP_32_X reads through X. With the far spaces' farxzN (a far pointer's
+translation, 16-bit operand), `while (s[n]) n++` stepped the pointer by
+`INC P0` alone: the carry into P1 was dropped as unused, so a string over a page
+was read round its first page. Upstream's 32-bit routines use the same flag, but
+no loop of 32-bit arithmetic tried (multiply, divide, modulo, shifts) reaches the
+pass in that shape: the pin gives right results there.
+
+autotest/farcharstest.c: a near string of 399 bytes over pages through a byte
+pointer, 15 of 15 variants (it hung with farxz6 before).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ autotest/farcharstest.c         | 8 ++++++++
+ oscar64/NativeCodeGenerator.cpp | 7 +++++++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/autotest/farcharstest.c b/autotest/farcharstest.c
+index 9aa36da..be553ec 100644
+--- a/autotest/farcharstest.c
++++ b/autotest/farcharstest.c
+@@ -107,6 +107,7 @@ struct thing { char kind; char name[8]; int n; };
+ struct thing things[2] = { { 'x', "near", 1 }, { 'y', "also", 2 } };
+ 
+ char nearbuf[64];
++char longbuf[600];
+ 
+ __noinline int mylen(const char * s)
+ {
+@@ -226,6 +227,13 @@ int main(void)
+ 	if (nearbuf[4] != 'a' || fbuf[2] != 'z' || fbuf[3] != 'r' || raw(fbuf) != (char)0xee) fails |= 32768;
+ #endif
+ 
++	/* a near string over pages through a byte pointer: the loop's pointer keeps its carry
++	 * into the high byte (with farxz6, RemoveSimpleLoopUnusedIndex once dropped it) */
++	for (int i = 0; i < 599; i++)
++		longbuf[i] = 'x';
++	longbuf[599] = 0;
++	if (mylen(longbuf + 200) != 399 || mylen(longbuf + idx(17)) != 582) fails |= 2;
++
+ 	/* a volatile byte is hardware's: not translated */
+ 	if (*(volatile char *)(char *)0xc100 != (char)0xee) fails |= 4096;
+ 
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index a085666..2f247ee 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -48383,6 +48383,13 @@ bool NativeCodeBasicBlock::RemoveSimpleLoopUnusedIndex(void)
+ 				}
+ 				else if (ins.mType == ASMIT_JSR)
+ 				{
++					// a runtime routine that takes the zero page address of its operand in X
++					// (32-bit arithmetic, a far translation) reads that operand
++					if (ins.mFlags & NCIF_USE_ZP_32_X)
++					{
++						for (int i = 0; i < ins.ZpParamSize(); i++)
++							required += ins.mParam + i;
++					}
+ 					required += BC_REG_ADDR + 0;
+ 					required += BC_REG_ADDR + 1;
+ 					for (int i = 0; i < 4; i++)
+-- 
+2.43.0
+

@@ -5,7 +5,7 @@ make its Magic Desk 128 and REU images (tools/bank/c128_images.py), run it in he
 in C128 mode and report its checks of calls into cartridge and REU banks, and what such
 calls cost (T2.13, ADR-0003 2026-11-21).
 
-usage: tests/spikes/run_bankreu128.py [--oscar64 PATH]   (needs x128, xvfb-run; port 6502)
+usage: tests/spikes/run_bankreu128.py [--oscar64 PATH] [--io-out]   (needs x128, xvfb-run; port 6502)
 
 Exit status 0 when every check passes.
 """
@@ -29,12 +29,15 @@ CHECKS = run_bankreu.CHECKS[:12] + ["the cartridge in again after REU calls (the
 def main():
     ap = argparse.ArgumentParser(description=__doc__.strip().split("\n")[0])
     ap.add_argument("--oscar64", default="oscar64")
+    ap.add_argument("--io-out", action="store_true",
+                    help="-dIO_OUT: the bank call routine leaves the I/O out (bankgen.py --io-out)")
     a = ap.parse_args()
     os.makedirs(rb.OUT, exist_ok=True)
     prg = os.path.join(rb.OUT, "bankreu128.prg")
     cart = os.path.join(rb.OUT, "bankreu128.md128")
     reu = os.path.join(rb.OUT, "bankreu128.reu")
-    r = subprocess.run([a.oscar64, "-Os", "-g", "-tm=c128", "-tf=prg", "-o=" + prg, SRC], capture_output=True, text=True)
+    r = subprocess.run([a.oscar64, "-Os", "-g", "-tm=c128", "-tf=prg"] + (["-dIO_OUT"] if a.io_out else []) +
+                       ["-o=" + prg, SRC], capture_output=True, text=True)
     if r.returncode:
         sys.exit("build failed:\n%s" % (r.stdout + r.stderr))
     subprocess.run([sys.executable, IMAGES, prg, cart, reu, "--reu-kb", "1024"], check=True)

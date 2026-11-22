@@ -4,8 +4,14 @@
 page cache they share, the fault handler that pages from the REU, and nh_farcopy() for the
 far names (ADR-0009, ADR-0010; T2.13).
 
-usage: tools/bank/farrt.py --out FILE.c [--target c64|c128] [--frames N]
-                           --space N:LO:HI:REUBANK [--space ...] [--chars N]
+usage: tools/bank/farrt.py --out FILE.c [--target c64|c128] [--frames N] [--no-xz]
+                           (--space N:LO:HI:REUBANK [--space ...] [--chars N] | --from-headers DIR...)
+
+--from-headers reads the spaces from the headers' own pragmas, as the whole-game build has
+them (c64conf.h, permonst.h, objclass.h, rm.h): `#pragma farsection(sec, n)` names a space's
+section, `#pragma region(name, lo, hi, , bank, { ... })` the pages and bank of every region in
+that section's bank (a space's names are a plain section beside its data), and
+`#pragma farchars(n)` the character space.
 
 Each --space is a far space N whose pages LO to HI (hex) are far, kept in REU bank REUBANK
 (hex: REU address REUBANK:pp00 for page pp; tools/bank/c128_images.py puts the space's
@@ -22,7 +28,45 @@ REU's registers need the I/O in, so the handler switches it in around the DMA an
 the MMU back as it was. The REU's registers are only written (AGENTS.md).
 """
 import argparse
+import os
+import re
 import sys
+
+
+def from_headers(dirs):
+    """[(n, lo, hi, reubank)] and the character space's number, from the headers"""
+    farsec, regions, chars = {}, [], 0
+    for d in dirs:
+        for root, _, names in os.walk(d):
+            for name in sorted(names):
+                if not name.endswith(".h"):
+                    continue
+                text = open(os.path.join(root, name), encoding="latin-1").read()
+                for m in re.finditer(r"#pragma\s+farsection\s*\(\s*(\w+)\s*,\s*(\d+)\s*\)", text):
+                    farsec[m.group(1)] = int(m.group(2))
+                for m in re.finditer(r"#pragma\s+region\s*\(\s*(\w+)\s*,\s*(0x[0-9a-fA-F]+|\d+)\s*,\s*"
+                                     r"(0x[0-9a-fA-F]+|\d+)\s*,\s*,\s*(\d+)\s*,\s*\{([^}]*)\}", text):
+                    regions.append((int(m.group(2), 0), int(m.group(3), 0), int(m.group(4)),
+                                    [x.strip() for x in m.group(5).split(",") if x.strip()]))
+                m = re.search(r"#pragma\s+farchars\s*\(\s*(\d+)\s*\)", text)
+                if m:
+                    chars = int(m.group(1))
+    spaces = {}
+    for sec, n in farsec.items():
+        banks = {b for lo, hi, b, secs in regions if sec in secs}
+        if len(banks) != 1:
+            sys.exit("far section %s: in %d banks" % (sec, len(banks)))
+        bank = banks.pop()
+        off = (bank - 64) * 0x4000 - 0x8000
+        if bank < 64 or off < 0 or off & 0xffff:
+            sys.exit("far section %s: bank %d is not at a 64 KB boundary of the REU less $8000 "
+                     "((bank - 64) mod 4 must be 2)" % (sec, bank))
+        pages = [(lo >> 8, (hi - 1) >> 8) for lo, hi, b, _ in regions if b == bank]
+        lo, hi = min(p[0] for p in pages), max(p[1] for p in pages)
+        if n in spaces and spaces[n] != (lo, hi, off >> 16):
+            sys.exit("far space %d: two banks" % n)
+        spaces[n] = (lo, hi, off >> 16)
+    return sorted((n, lo, hi, b) for n, (lo, hi, b) in spaces.items()), chars
 
 
 def space_code(n, lo, hi, off, chars, xz=False):
@@ -79,10 +123,9 @@ onear%(n)d:	rts
 #pragma runtime(farxo%(n)d, farxo%(n)d)
 
 /* %(what)s: the pointer at zero page address X to its RAM address in ADDR, the page in A
-   too, Y kept. Not given to the compiler (--xz does): with it, a pointer stepped in a loop
-   loses the carry into its high byte (the far-spaces fork, 2026-11-21: "INC P0" alone before
-   the call; docs/OSCAR64-COMPAT.md), so the compiler uses farxl%(n)d and farxo%(n)d; the
-   library's string routines call it through farxzc */
+   too, Y kept: the compiler's five-byte call for a page (the far-spaces fork's commit 13
+   fixed a loop pass that lost the pointer's carry with it), and the library's string
+   routines' through farxzc */
 __asm nh_farxz%(n)d
 {
 		lda $00, x
@@ -117,15 +160,33 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--target", choices=("c64", "c128"), default="c128")
     ap.add_argument("--frames", type=int, default=16)
-    ap.add_argument("--space", action="append", required=True, metavar="N:LO:HI:REUBANK")
+    ap.add_argument("--space", action="append", default=[], metavar="N:LO:HI:REUBANK")
+    ap.add_argument("--from-headers", nargs="+", metavar="DIR")
+    ap.add_argument("--code-section", metavar="NAME",
+                    help="put the runtime's code in this section (bankgen.py --io-out's nhio, below "
+                         "$8000: the fault handler switches the I/O in)")
+    ap.add_argument("--frames-section", metavar="NAME",
+                    help="put the cache's frames in this bss section (bankgen.py's nh_c128_low)")
+    ap.add_argument("--drop", type=int, action="append", default=[], metavar="N",
+                    help="leave space N out (--from-headers reads the pragmas without the "
+                         "preprocessor, so a space whose #if is off is found too)")
     ap.add_argument("--chars", type=int, default=0, help="the character space's number")
-    ap.add_argument("--xz", action="store_true",
-                    help="give the compiler farxzN too (shorter calls; see nh_farxzN's comment)")
+    ap.add_argument("--no-xz", action="store_true",
+                    help="keep farxzN from the compiler, which then calls farxlN (11 bytes, not 5): "
+                         "for a compiler before the far-spaces fork's commit 13")
     a = ap.parse_args()
     spaces = []
     for s in a.space:
         n, lo, hi, bank = s.split(":")
         spaces.append((int(n), int(lo, 16), int(hi, 16), int(bank, 16)))
+    if a.from_headers:
+        spaces, chars = from_headers(a.from_headers)
+        spaces = [s for s in spaces if s[0] not in a.drop]
+        a.chars = a.chars or (chars if chars not in a.drop else 0)
+        print("far spaces: " + ", ".join("%d pages $%02x-$%02x REU bank $%02x" % s for s in spaces) +
+              ("; characters: %d" % a.chars if a.chars else ""))
+    if not spaces:
+        sys.exit("no far spaces (--space or --from-headers)")
     spaces.sort()
     if any(lo < 0x80 for _, lo, _, _ in spaces):
         sys.exit("far pages start at $80 (the tables hold pages $80-$FF)")
@@ -149,8 +210,9 @@ def main():
 unsigned char nh_tlb[%(ntlb)d];
 #pragma align(nh_tlb, 256)
 /* the cache's frames, and the space (0: free) and page each holds */
-char nh_frames[%(frames)d * 256];
+%(fsec)schar nh_frames[%(frames)d * 256];
 #pragma align(nh_frames, 256)
+%(fsecend)s
 unsigned char nh_frame_space[%(frames)d], nh_frame_page[%(frames)d];
 unsigned char nh_clock, farlast, nh_fy, nh_fx, nh_fpage, nh_fspace, nh_xoff, nh_xlo;
 /* volatile: only the assembler writes them, so C would read their first values */
@@ -281,9 +343,13 @@ set:	sta $ffff, x
 }
 """ % dict(args=" ".join(sys.argv[1:]), spaces=", ".join(str(s[0]) for s in spaces), frames=a.frames,
            target=a.target, ntlb=128 * len(spaces), nsp=top + 1, tlb_lo=tlb_lo, tlb_hi=tlb_hi, reu=reu,
-           io_in=io_in, io_out=io_out)]
+           io_in=io_in, io_out=io_out,
+           fsec="#pragma bss( %s )\n" % a.frames_section if a.frames_section else "",
+           fsecend="#pragma bss( bss )\n" if a.frames_section else "")]
+    if a.code_section:
+        out.insert(0, "#pragma code( %s )\n" % a.code_section)
     for n, lo, hi, _ in spaces:
-        out.append(space_code(n, lo, hi, offs[n], n == a.chars, a.xz))
+        out.append(space_code(n, lo, hi, offs[n], n == a.chars, not a.no_xz))
     out.append("""
 /* the far translation of page X of space A (any space): its RAM page in A, Y kept */
 __asm nh_far_page
@@ -341,6 +407,8 @@ void farxzc(void)
 	__asm { jmp nh_farxz%d }
 }
 """ % a.chars)
+    if a.code_section:
+        out.append("\n#pragma code( code )\n")
     open(a.out, "w").write("".join(out))
 
 

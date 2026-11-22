@@ -386,9 +386,17 @@ the C128 in x128 (`docs/data/farrt-c128-2026-11-21.txt`). How it differs from th
 - **Speed and size.** A far byte in the cache costs about 11.6 cycles more than a tested near
   one in the spike's loop.
   - Per-file code grows 6-13% in string-heavy files (`pline.c`, `hacklib.c`), as estimated.
-  - Both use the page form (`farxlN`, 11 bytes a site). The five-byte `farxzN` loses a
-    pointer's carry in a loop: `while (s[n]) n++` becomes `INC P0` alone before the call. That
-    is a fork bug, still open; `farrt.py` gives the compiler `farxzN` only with `--xz`.
+  - The five-byte `farxzN` lost a pointer's carry in a loop (`while (s[n]) n++` became `INC P0`
+    alone before the call): `RemoveSimpleLoopUnusedIndex()` didn't count the zero-page operand
+    of such a call as read. Fixed in the fork's commit 13 (the page form, `farxlN`, is 11
+    bytes a site). `farrt.py` gives the compiler `farxzN` again; `--no-xz` leaves it out.
+  - The whole game: `build_c64.py --far-runtime` writes the runtime from the headers' own
+    pragmas (`farrt.py --from-headers`, six spaces) in place of `far_meas.c`. With
+    `--target c128` the 4 KB of cache frames go to `$0B00-$1AFF` (low RAM that the KERNAL's
+    disk routines leave alone, as bss: they need no clearing). `--io-out` leaves the I/O out by
+    default (`bankgen.py --io-out`, `tests/spikes/bankreu128.c -dIO_OUT` 14/14), so one code
+    region runs `$C000-$FBFF`. The bank call routine and the runtime, which switch the I/O in,
+    stay below `$8000` (section `nhio`).
 - **Found on the way:** an upstream optimiser bug that reads a field from the next object of a
   list (`docs/OSCAR64-COMPAT.md` row 81, r78), fixed in the fork's commit 12 and proposed for
   the pin.

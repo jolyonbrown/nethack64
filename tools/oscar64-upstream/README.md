@@ -69,7 +69,10 @@ Jolyon has read its explanation and said yes. Until then, branches stay local.
   `autotest/farcharstest.c`, with `-dOSCAR_FARCHARS` for the library's assembler string
   routines. A twelfth fixes r78, which is not far-specific: two loads through one pointer
   sorted by offset even when the second loads the pointer; `autotest/loadordertest.c`.
-  Proposed for the pin too: it applies there as it is.)
+  Proposed for the pin too: it applies there as it is. A thirteenth: a loop pass counts the
+  zero-page operand of a runtime call (`farxzN`) as read, so a far pointer stepped in a loop
+  keeps its carry; `autotest/farcharstest.c`'s page-crossing string. Upstream has the same
+  pass, but its 32-bit calls don't reach it in a one-block loop that was tried.)
 - **Reproducible output.** v1.32.273 and the eight-commit pin read several
   members of their own data structures before anything has written them, so what
   they emit can depend on what the compiler's heap held: the install path, the

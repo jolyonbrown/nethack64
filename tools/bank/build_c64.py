@@ -279,6 +279,12 @@ def main():
     ap.add_argument("--far-chars", action="store_true",
                     help="far characters (ADR-0010; with --far): -dNH_FAR_CHARS and the library's "
                          "-dOSCAR_FARCHARS for the compile, bankgen.py --far-chars, far_meas.c's space 6")
+    ap.add_argument("--io-out", action="store_true",
+                    help="with --target c128: the I/O out by default (bankgen.py --io-out), the far "
+                         "runtime in section nhio")
+    ap.add_argument("--far-runtime", action="store_true",
+                    help="the far runtime that pages from the REU (tools/bank/farrt.py, its spaces read "
+                         "from the headers) in place of far_meas.c's identity stand-in (with --far)")
     ap.add_argument("--generate-only", action="store_true",
                     help="write the rewritten sources and compile.args (the compile's arguments, "
                          "relative to DIR) without compiling, e.g. to compile on a bigger machine")
@@ -286,8 +292,10 @@ def main():
     out = os.path.abspath(a.out)
     # a plan's "far_default" (bankgen.py writes nhnear.h): -dNH_FAR_DEFAULT, with --far only
     far_default = a.far and "far_default" in json.load(open(a.plan))
-    if a.far_chars and not a.far:
-        sys.exit("--far-chars needs --far")
+    if (a.far_chars or a.far_runtime) and not a.far:
+        sys.exit("--far-chars and --far-runtime need --far")
+    if a.io_out and a.target != "c128":
+        sys.exit("--io-out is for --target c128")
     prg = os.path.join(out, "nethack.prg")
     if not a.check_only:
         mo.CONFIG, mo.OUT, mo.DEFS = "c64", out, mo.CONFIGS["c64"]["defs"]
@@ -311,6 +319,7 @@ def main():
                            ["--cpp=" + c for c in cpp] + (["--cpp=-DNH_FAR_SPACES"] if a.far else []) +
                            (["--cpp=-DNH_FAR_DEFAULT"] if far_default else []) +
                            (["--cpp=-DNH_FAR_CHARS", "--far-chars"] if a.far_chars else []) +
+                           (["--io-out"] if a.io_out else []) +
                            (["--linker-stubs"] if a.linker_stubs else []) +
                            (["--target", "c128"] if a.target == "c128" else []) +
                            files, capture_output=True, text=True)
@@ -328,9 +337,23 @@ def main():
         args = ["-rmp", "-Os", "-xb"] + (["-tm=c128"] if a.target == "c128" else []) + \
             ["-i=inc", "-i=stub", "-i=src", "-o=nethack.prg"] + \
             ["src/" + f for f in files] + [os.path.basename(h)] + mo.DEFS
-        if a.far:
+        if a.far and a.far_runtime:
+            r = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "bank", "farrt.py"),
+                                "--out", os.path.join(out, "nh_farrt.c"), "--target", a.target,
+                                "--from-headers", os.path.join(out, "inc")] +
+                               (["--frames-section", "nh_c128_low"] if a.target == "c128" else []) +
+                               (["--code-section", "nhio"] if a.io_out else []) +
+                               ([] if far_default else ["--drop", "5"]) + ([] if a.far_chars else ["--drop", "6"]),
+                               capture_output=True, text=True)
+            if r.returncode:
+                sys.exit("farrt.py failed:\n" + r.stdout + r.stderr)
+            print(r.stdout.strip())
+            args += ["-dNH_FAR_SPACES", "nh_farrt.c"]
+        elif a.far:
             shutil.copy(os.path.join(ROOT, "tools", "measure", "far_meas.c"), out)
-            args += ["-dNH_FAR_SPACES", "far_meas.c"] + (["-dNH_FAR_DEFAULT"] if far_default else []) + \
+            args += ["-dNH_FAR_SPACES", "far_meas.c"]
+        if a.far:
+            args += (["-dNH_FAR_DEFAULT"] if far_default else []) + \
                 (["-dNH_FAR_CHARS", "-dOSCAR_FARCHARS"] if a.far_chars else [])
         if a.generate_only:
             open(os.path.join(out, "compile.args"), "w").write("\n".join(args) + "\n")

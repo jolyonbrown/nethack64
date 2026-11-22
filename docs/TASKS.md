@@ -796,6 +796,9 @@ Add new tasks at the bottom of the right section.
       (screen80.h on the VDC, the project's font doubled, `tools/mkfont4x8.py --vdc`),
       `src/hal/sys128.c` (no KERNAL: keys from its buffer, which VICE feeds, and from the
       matrix), `reuprobe.c` shared; `make test` 6/6 with the new `c128-reu512` case (x128).
+      Then: the fork's commit 13 (farxzN's lost carry, fixed); `build_c64.py --far-runtime`
+      (`farrt.py --from-headers`) and `--io-out` (`bankgen.py --io-out`, bankreu128 -dIO_OUT
+      14/14; frames in `$0B00-$1AFF`); `build/bank-c128-fc` generated for the desktop.
 
 ## Housekeeping
 

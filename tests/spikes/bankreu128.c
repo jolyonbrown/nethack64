@@ -55,6 +55,65 @@ volatile unsigned nh_fetches;
  * holds another. Changes only A and the flags: the bank call routine keeps its index in Y
  * meanwhile. Writes the REU's registers and never reads them, nor $DE00 ($DF00-$DFFF,
  * docs/HARDWARE.md). nh_cartoff: 1 while the MMU is at $3E. */
+#ifdef IO_OUT
+/* -dIO_OUT: the I/O out by default (bankgen.py --io-out), so that $D000-$DFFF is RAM: the I/O
+ * in only to write the bank register or start the REU's DMA, then the MMU at $3B (the
+ * cartridge at $8000-$BFFF, RAM at $D000) or $3F (all RAM). This code must not lie at
+ * $D000-$DFFF itself. nh_cartoff: 1 while the MMU is at $3F. */
+__asm nh_map
+{
+		sta nh_bank
+		lda #$3e
+		sta $ff00
+		lda nh_bank
+		cmp #64
+		bcs reu
+		sta $de00
+		lda #$3b
+		sta $ff00
+		lda #0
+		sta nh_cartoff
+		rts
+reu:	lda #1
+		sta nh_cartoff
+		lda nh_bank
+		cmp nh_window
+		beq on
+		sta nh_window
+		inc nh_fetches
+		bne cnt
+		inc nh_fetches + 1
+cnt:	lda nh_window
+		sec
+		sbc #64
+		sta nh_bc_t
+		asl
+		asl
+		asl
+		asl
+		asl
+		asl
+		sta $df05
+		lda nh_bc_t
+		lsr
+		lsr
+		sta $df06
+		lda #0
+		sta $df04
+		sta $df02
+		sta $df07
+		sta $df0a
+		lda #$80
+		sta $df03
+		lda #$40
+		sta $df08
+		lda #$91
+		sta $df01
+on:		lda #$3f
+		sta $ff00
+		rts
+}
+#else
 __asm nh_map
 {
 		sta nh_bank
@@ -105,6 +164,7 @@ cnt:	lda nh_window
 		sta $df01
 on:		rts
 }
+#endif
 
 /* Entered from a stub with the stub's last byte on the stack: reads the function and
  * the bank from the stub (which may be in the caller's bank), then maps the bank and jumps to the function with A, X and Y as
@@ -163,17 +223,25 @@ __noinline void check(unsigned bit, char ok)
 }
 
 /* CIA 2 timer A counting system clock cycles (the KERNAL does not use it) */
+/* the I/O in around the CIA's registers, whatever the MMU was (-dIO_OUT leaves it out) */
 __noinline void timer_start(void)
 {
+	char cr = *(volatile char *)0xff00;
+	*(volatile char *)0xff00 = cr & 0xfe;
 	cia2.cra = 0;
 	cia2.ta = 0xffff;
 	cia2.cra = 0x11;
+	*(volatile char *)0xff00 = cr;
 }
 
 __noinline unsigned timer_stop(void)
 {
+	char cr = *(volatile char *)0xff00;
+	*(volatile char *)0xff00 = cr & 0xfe;
 	cia2.cra = 0;
-	return 0xffff - cia2.ta;
+	unsigned t = 0xffff - cia2.ta;
+	*(volatile char *)0xff00 = cr;
+	return t;
 }
 
 /* resident */
@@ -415,8 +483,13 @@ int main(void)
 	check(0x0200, k & 1);
 	check(0x0400, k & 2);
 	check(0x0800, ops[0](20, 22) == 42 && ops[1](20, 22) == -2 && ops[2](1, 2) == 3 && nh_bank == 0);
-	/* the cartridge back in after REU calls: bank 1 reads its own tag, the MMU at $3A */
-	check(0x1000, u65_sub(3, 1) == 2 && b1_add(1, 1) == 2 && nh_cartoff == 0);
+	/* the cartridge back in after REU calls: bank 1 reads its own tag, the MMU at $3A ($3B
+	 * with the I/O out) */
+	check(0x1000, u65_sub(3, 1) == 2 && b1_add(1, 1) == 2 && nh_cartoff == 0
+#ifdef IO_OUT
+		&& *(volatile char *)0xff00 == 0x3b
+#endif
+		);
 
 	__asm { sei }
 	u64_add(0, 0);

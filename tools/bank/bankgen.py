@@ -403,6 +403,9 @@ def main():
                     help="c128 (T2.13): the bank call routine for a C128 in its own mode (MMU, a Magic Desk "
                          "128 cartridge and the REU), the C128's resident regions, and an overlay per "
                          "bank so that Oscar64 writes each bank as a file (tools/bank/c128_images.py)")
+    ap.add_argument("--io-out", action="store_true",
+                    help="with --target c128: the I/O out by default (the bank call routine switches it "
+                         "in only for the bank register and the REU), one code region $C000-$FBFF")
     ap.add_argument("--far-chars", action="store_true",
                     help="far characters (ADR-0010, NH_FAR_CHARS): with --target c128, the regions above "
                          "the bank window hold code only")
@@ -838,7 +841,7 @@ def main():
         sys.exit("--target c128 needs --linker-stubs")
     text = header(sorted(report["banks"]), kept_extern, a.linker_stubs, resident_glue,
                   slice_start if slice_plan else None, a.target,
-                  region_banks(a.inc) if a.target == "c128" else (), a.far_chars)
+                  region_banks(a.inc) if a.target == "c128" else (), a.far_chars, a.io_out)
     open(os.path.join(a.dir, "nhbank.h"), "w").write(text)
     # a far default (a plan's "far_default": {"near": [...]}; c64conf.h, NH_FAR_DEFAULT): every
     # other global of NetHack's files goes to far space 5, so what must stay near is named in
@@ -1154,6 +1157,69 @@ on:		rts
 }
 """
 
+NH_MAP_C128_IO_OUT = r"""
+/* maps bank A; changes only A and the flags (the bank call routine keeps Y).  A C128 in its
+ * own mode with the I/O out by default (bankgen.py --io-out; tests/spikes/bankreu128.c
+ * -dIO_OUT), so that $D000-$DFFF is RAM: the I/O in only to write the Magic Desk 128's bank
+ * register or start the REU's DMA, then the MMU at $3B (the cartridge at $8000-$BFFF, banks
+ * 1-63) or $3F (all RAM: an REU bank, 64 on, in the RAM there).  This code is in section
+ * nhio, which lies below $8000: code at $D000-$DFFF can't switch the I/O in under itself.
+ * nh_cartoff: 1 while the MMU is at $3F. */
+__asm nh_map
+{
+		sta nh_bank
+		lda #$3e
+		sta $ff00
+		lda nh_bank
+		cmp #64
+		bcs reu
+		sta $de00
+		lda #$3b
+		sta $ff00
+		lda #0
+		sta nh_cartoff
+		rts
+reu:	lda #1
+		sta nh_cartoff
+		lda nh_bank
+		cmp nh_window
+		beq on
+		sta nh_window
+		inc nh_fetches
+		bne cnt
+		inc nh_fetches + 1
+cnt:	lda nh_window
+		sec
+		sbc #64
+		sta nh_bc_t
+		asl
+		asl
+		asl
+		asl
+		asl
+		asl
+		sta $df05
+		lda nh_bc_t
+		lsr
+		lsr
+		sta $df06
+		lda #0
+		sta $df04
+		sta $df02
+		sta $df07
+		sta $df0a
+		lda #$80
+		sta $df03
+		lda #$40
+		sta $df08
+		lda #$91
+		sta $df01
+on:		lda #$3f
+		sta $ff00
+		rts
+}
+"""
+
 # the C128's resident RAM in bank 0 with the I/O in (T2.13): below the bank window from the
 # end of BASIC's and the KERNAL's workspace, and above it to the common RAM at $FC00, less the
 # I/O at $D000.  Code and initialised data only above the window: the start code clears the
@@ -1166,6 +1232,17 @@ C128_REGIONS = """#pragma region( main, 0x1d00, 0x8000, , , { code, data, bss, h
 # data, its literals, then goes to the character space; the multiplication tables are read
 # by absolute index)
 C128_REGIONS_FAR_CHARS = C128_REGIONS.replace("{ code, data } )", "{ code } )")
+# --io-out (T2.13): the I/O out by default, so one region of code runs from $C000 to the common
+# RAM at $FC00; section nhio (the bank call routine, the far runtime) is kept below $8000,
+# since code at $D000-$DFFF can't switch the I/O in under itself
+C128_REGIONS_IO_OUT = """#pragma section( nhio, 0 )
+#pragma region( main, 0x1d00, 0x8000, , , { nhio, code, data, bss, heap, stack } )
+#pragma region( nh_c128_hi, 0xc000, 0xfc00, , , { code, data } )"""
+# the C128's low RAM that neither BASIC nor the KERNAL's disk routines need once the program
+# runs ($0B00-$1AFF: the cassette buffer, RS-232 buffers, sprites, function keys, BASIC's
+# variables), as bss: the far runtime's cache frames, which need no clearing
+C128_LOW = """#pragma section( nh_c128_low, 0, , , bss )
+#pragma region( nh_c128_lowr, 0x0b00, 0x1b00, , , { nh_c128_low } )"""
 
 
 def region_banks(incs):
@@ -1183,7 +1260,7 @@ def region_banks(incs):
 
 
 def header(banks, keep_extern={}, linker_stubs=False, resident_glue=(), slice_start=None, target="c64",
-           more_banks=(), far_chars=False):
+           more_banks=(), far_chars=False, io_out=False):
     """keep_extern: the extern keepers assigned somewhere, with their buffers' sizes"""
     bufs_decl = "\n".join("extern char nh_keep_%s[%d];" % (n, keep_extern[n]) for n in sorted(keep_extern))
     bufs_def = "\n".join("char nh_keep_%s[%d];" % (n, keep_extern[n]) for n in sorted(keep_extern))
@@ -1191,7 +1268,9 @@ def header(banks, keep_extern={}, linker_stubs=False, resident_glue=(), slice_st
         bc = BANKCALL
         if target == "c128":
             i, j = bc.index("/* maps bank A;"), bc.index("__asm nh_bankcall")
-            bc = bc[:i] + NH_MAP_C128.strip() + "\n\n" + bc[j:]
+            bc = bc[:i] + (NH_MAP_C128_IO_OUT if io_out else NH_MAP_C128).strip() + "\n\n" + bc[j:]
+            if io_out:
+                bc = "#pragma code( nhio )\n" + bc + "\n#pragma code( code )\n"
         bufs_def += "\n" + bc          # substituted, so no % escaping
     setbank = ("/* through the bank call routine: an REU bank needs fetching (ADR-0008) */\n"
                "extern void nh_setbank(unsigned char b);\n#define NH_BANK(n) nh_setbank(n)"
@@ -1202,7 +1281,8 @@ def header(banks, keep_extern={}, linker_stubs=False, resident_glue=(), slice_st
     if target == "c128":
         # each bank a file of its own (Linker::WritePrgFile), nethack_ovN.prg beside nethack.prg
         regions += "\n/* C128: the resident regions, and each bank written as a file */\n" + \
-            (C128_REGIONS_FAR_CHARS if far_chars else C128_REGIONS) + "\n" + \
+            ((C128_REGIONS_IO_OUT.replace("{ code, data } )", "{ code } )") if far_chars else C128_REGIONS_IO_OUT)
+             if io_out else (C128_REGIONS_FAR_CHARS if far_chars else C128_REGIONS)) + "\n" + C128_LOW + "\n" + \
             "\n".join("#pragma overlay( nethack_ov%d, %d )" % (b, b) for b in sorted(set(banks) | set(more_banks)))
     if slice_start:
         # the slice: one region in every bank, so the linker writes its bytes into each;
