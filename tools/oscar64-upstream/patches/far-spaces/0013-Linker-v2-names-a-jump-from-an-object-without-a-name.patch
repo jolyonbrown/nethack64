@@ -1,0 +1,34 @@
+From 887e4bd6ae29ee2e7542762ade0501f27b1c446e Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 22 Nov 2026 04:10:34 +0000
+Subject: [PATCH] Linker: -v2 names a jump from an object without a name as "*"
+
+Linker::Forwards() prints "Direct <from> -> <to>" with -v2 for an object that
+ends in a JMP to the next object, and read both names unguarded. The body of a
+function written as an __asm block is an object without an identifier, so
+`void f(void) { __asm { jmp target } }` crashed the compiler with -v2 (a null
+mIdent). v1.32.273, the pin, upstream main 4da3147. Without -v2 the code is
+right. It now prints "*" for a missing name, as the info message at the same
+link stage does.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ oscar64/Linker.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/oscar64/Linker.cpp b/oscar64/Linker.cpp
+index 7002550..aec78ad 100644
+--- a/oscar64/Linker.cpp
++++ b/oscar64/Linker.cpp
+@@ -504,7 +504,7 @@ bool Linker::Forwards(LinkerObject* pobj, LinkerObject* lobj)
+ 			if (i < pobj->mReferences.Size() && pobj->mReferences[i]->mRefObject == lobj && pobj->mReferences[i]->mRefOffset == 0)
+ 			{
+ 				if (mCompilerOptions & COPT_VERBOSE2)
+-					printf("Direct %s -> %s\n", pobj->mIdent->mString, lobj->mIdent->mString);
++					printf("Direct %s -> %s\n", pobj->mIdent ? pobj->mIdent->mString : "*", lobj->mIdent ? lobj->mIdent->mString : "*");
+ 
+ 				pobj->mSuffixReference = i;
+ 
+-- 
+2.43.0
+

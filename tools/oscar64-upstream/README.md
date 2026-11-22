@@ -73,7 +73,10 @@ Jolyon has read its explanation and said yes. Until then, branches stay local.
   twelfth is now what was the thirteenth: a loop pass counts the
   zero-page operand of a runtime call (`farxzN`) as read, so a far pointer stepped in a loop
   keeps its carry; `autotest/farcharstest.c`'s page-crossing string. Upstream has the same
-  pass, but its 32-bit calls don't reach it in a one-block loop that was tried.)
+  pass, but its 32-bit calls don't reach it in a one-block loop that was tried. A
+  thirteenth, 2026-11-22, not far-specific: `-v2` prints `*` for an object without a name
+  in the linker's "Direct" line, where a function whose body is an `__asm` block ending in a
+  `JMP` crashed the compiler (r79, compat #82).)
 - **Reproducible output.** v1.32.273 and the eight-commit pin read several
   members of their own data structures before anything has written them, so what
   they emit can depend on what the compiler's heap held: the install path, the
