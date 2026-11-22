@@ -1,0 +1,106 @@
+From 948d9bcdd81c189322f4e3d6917b6eddaa3e990d Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 22 Nov 2026 19:49:49 +0000
+Subject: [PATCH] Preprocessor: an object-like macro that names a function-like
+ one
+
+#define A1 F1 with #define F1(x) g1(x), then A1(3): C89 3.8.3.4 rescans
+F1 with the rest of the source, so this is g1(3). The scanner crashed
+(MacroDict::Insert on a null dictionary, Scanner::NextPreToken): for F1's
+arguments it made a new dictionary and then read the '(', which ended A1's
+expansion and put back the dictionary in effect outside it, none at file
+scope, over the new one. The '(' is now read first: the dictionary then in
+effect is the arguments' scope and what F1's expansion puts back when it
+ends. The case of no arguments kept a stale one to put back; that too.
+
+autotest/macrochaintest.c: one, two and variadic arguments, none, two
+object-like steps, the chain inside a function-like macro's text and in
+its own arguments. Commit 14's compiler crashes on it; make check 1,691 of
+1,691 (20 new), no new failures against commit 14's.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ autotest/macrochaintest.c | 38 ++++++++++++++++++++++++++++++++++++++
+ oscar64/Scanner.cpp       | 11 ++++++++++-
+ 2 files changed, 48 insertions(+), 1 deletion(-)
+ create mode 100644 autotest/macrochaintest.c
+
+diff --git a/autotest/macrochaintest.c b/autotest/macrochaintest.c
+new file mode 100644
+index 0000000..44817d2
+--- /dev/null
++++ b/autotest/macrochaintest.c
+@@ -0,0 +1,38 @@
++// An object-like macro whose text ends with the name of a function-like macro, the
++// arguments following in the text around it (C89 3.8.3.4: the name is replaced, then the
++// result is rescanned with the rest of the source). The scanner crashed: reading the '('
++// ended the first expansion and put back the arguments in effect outside it, none at file
++// scope, over the dictionary it had made for the new arguments.
++
++#include <assert.h>
++
++int g1(int a) { return a + 1; }
++int g2(int a, int b) { return a * 10 + b; }
++
++#define F1(x)		g1(x)
++#define F2(x, y)	g2(x, y)
++#define FV(...)		g2(__VA_ARGS__)
++#define Z()			7
++
++#define A1	F1
++#define A2	F2
++#define AV	FV
++#define AZ	Z
++#define AA1	A1			// two object-like steps
++
++#define USE(y)	A1(y)		// the chain inside a function-like macro's own text
++#define TWICE(y)	A1(A1(y))
++
++int main(void)
++{
++	assert(A1(3) == 4);
++	assert(A2(3, 4) == 34);
++	assert(AV(5, 6) == 56);
++	assert(AZ() == 7);
++	assert(AA1(8) == 9);
++	assert(USE(4) == 5);
++	assert(TWICE(1) == 3);
++	assert(A1(A2(1, 2)) == 13);		// the chain in the arguments of the chain
++	assert(F2(A1(1), AZ()) == 27);
++	return 0;
++}
+diff --git a/oscar64/Scanner.cpp b/oscar64/Scanner.cpp
+index 1ba3cbd..c8c5112 100644
+--- a/oscar64/Scanner.cpp
++++ b/oscar64/Scanner.cpp
+@@ -1121,6 +1121,8 @@ void Scanner::NextPreToken(void)
+ 				if (def->mNumArguments == 0)
+ 				{
+ 					NextRawToken();
++					// as below: the '(' may have ended the expansion that named this macro
++					ex->mDefinedArguments = mDefineArguments;
+ 					if (mToken != TK_OPEN_PARENTHESIS)
+ 						mErrors->Error(mLocation, EERR_INVALID_PREPROCESSOR, "Missing '(' for macro expansion");
+ 					else
+@@ -1130,10 +1132,17 @@ void Scanner::NextPreToken(void)
+ 				}
+ 				else if (def->mNumArguments > 0)
+ 				{
++					NextRawToken();
++
++					// Reading the '(' may have ended the expansion that named this macro (an
++					// object-like macro whose text ends with the name of a function-like one,
++					// its arguments following in the text around it): that restored the
++					// arguments in effect there, which are the scope of these arguments and
++					// what this expansion puts back when it ends.
+ 					MacroDict* scope = mDefineArguments;
++					ex->mDefinedArguments = scope;
+ 
+ 					mDefineArguments = new MacroDict();
+-					NextRawToken();
+ 					if (mToken == TK_OPEN_PARENTHESIS)
+ 					{
+  					mOffset--;
+-- 
+2.43.0
+
