@@ -1,4 +1,4 @@
-From 882218bdfe10be6f3d7cc8ae035960cb72dfbb02 Mon Sep 17 00:00:00 2001
+From fac6f6fc163f13dfbf5daea3da1f76f89f39d6e3 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 21 Nov 2026 12:53:50 +0000
 Subject: [PATCH] Far default: an object keeps to one page

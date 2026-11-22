@@ -67,9 +67,10 @@ Jolyon has read its explanation and said yes. Until then, branches stay local.
   2026-11-21 the ten moved onto pin 85, which adds upstream's fix of r77. An eleventh, the
   same day: far characters, `#pragma farchars` and `#pragma strings` (ADR-0010),
   `autotest/farcharstest.c`, with `-dOSCAR_FARCHARS` for the library's assembler string
-  routines. A twelfth fixes r78, which is not far-specific: two loads through one pointer
-  sorted by offset even when the second loads the pointer; `autotest/loadordertest.c`.
-  Proposed for the pin too: it applies there as it is. A thirteenth: a loop pass counts the
+  routines. A twelfth fixed r78, which is not far-specific: two loads through one pointer
+  sorted by offset even when the second loads the pointer; `autotest/loadordertest.c`. It
+  joined the pin on 2026-11-22 as 86-87, and the series moved onto pin 87 without it, so its
+  twelfth is now what was the thirteenth: a loop pass counts the
   zero-page operand of a runtime call (`farxzN`) as read, so a far pointer stepped in a loop
   keeps its carry; `autotest/farcharstest.c`'s page-crossing string. Upstream has the same
   pass, but its 32-bit calls don't reach it in a one-block loop that was tried.)

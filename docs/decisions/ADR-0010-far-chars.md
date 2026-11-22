@@ -398,5 +398,5 @@ the C128 in x128 (`docs/data/farrt-c128-2026-11-21.txt`). How it differs from th
     region runs `$C000-$FBFF`. The bank call routine and the runtime, which switch the I/O in,
     stay below `$8000` (section `nhio`).
 - **Found on the way:** an upstream optimiser bug that reads a field from the next object of a
-  list (`docs/OSCAR64-COMPAT.md` row 81, r78), fixed in the fork's commit 12 and proposed for
-  the pin.
+  list (`docs/OSCAR64-COMPAT.md` row 81, r78), fixed in the fork's commit 12, which joined
+  the pin as commits 86-87 (2026-11-22).

@@ -1,4 +1,4 @@
-From 7fc80298c43fd0a38c99209663e39dfa52ce0633 Mon Sep 17 00:00:00 2001
+From 00e7b637b5037a7ed5a60ba96bd96ca8672a3503 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 17 Nov 2026 12:12:22 +0000
 Subject: [PATCH] Far spaces: groups go on into the blocks that follow
@@ -16,10 +16,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>
  2 files changed, 292 insertions(+), 139 deletions(-)
 
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index 306fab7..6a0dd46 100644
+index 28cdbe0..6b77ec2 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
-@@ -27129,179 +27129,224 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& o
+@@ -27134,179 +27134,224 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& o
  // accesses are translated one by one.
  static const int FAR_PIN_SLOTS = 4;
  
@@ -380,7 +380,7 @@ index 306fab7..6a0dd46 100644
  }
  
  void InterCodeBasicBlock::CheckNullptrDereference(void) 
-@@ -29453,6 +29498,107 @@ void InterCodeProcedure::BuildLocalAliasTable(void)
+@@ -29458,6 +29503,107 @@ void InterCodeProcedure::BuildLocalAliasTable(void)
  	Disassemble("Built alias temps");
  }
  
@@ -488,7 +488,7 @@ index 306fab7..6a0dd46 100644
  void InterCodeProcedure::Close(void)
  {
  	GrowingTypeArray	tstack(IT_NONE);
-@@ -30648,8 +30794,7 @@ void InterCodeProcedure::Close(void)
+@@ -30653,8 +30799,7 @@ void InterCodeProcedure::Close(void)
  	mEntryBlock->ReduceTempLivetimes();
  	DisassembleDebug("reduce temp livetimes");
  

@@ -1,0 +1,86 @@
+From 90a3986a2f165d1cae50d572ab6751eacade69f7 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 22 Nov 2026 03:52:46 +0000
+Subject: [PATCH 87/87] Test two loads through one pointer, the second loading
+ the pointer
+
+The sum of a field over a list, a mix of an int and a char array element, and
+a count by a field. Fails in the eight configurations above -O0, bytecode and
+native, before the fix (emulation result 3); passes in all ten after it.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ autotest/autotest.bat    |  3 +++
+ autotest/loadordertest.c | 46 ++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 49 insertions(+)
+ create mode 100644 autotest/loadordertest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index c72076d6..7701e8bf 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -465,6 +465,9 @@ rem @echo off
+ @call :test callindexforwardtest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test loadordertest.c
++@if %errorlevel% neq 0 goto :error
++
+ @exit /b 0
+ 
+ :error
+diff --git a/autotest/loadordertest.c b/autotest/loadordertest.c
+new file mode 100644
+index 00000000..221bb507
+--- /dev/null
++++ b/autotest/loadordertest.c
+@@ -0,0 +1,46 @@
++// Two loads through one pointer are sorted by offset (PeepholeReplaceOptimization), but not
++// when the second one loads a new value of the pointer: a field read before `o = o->nobj`
++// must come from the object it was read from.
++struct obj { struct obj * nobj; int v; char oclass; char name[9]; };
++
++struct obj objs[4] = {
++	{ &objs[1], 1, 10, "abcdefgh" }, { &objs[2], 2, 20, "ijklmnop" },
++	{ &objs[3], 3, 30, "qrstuvwx" }, { nullptr, 4, 40, "yzABCDEF" } };
++
++__noinline int classes(struct obj * o)
++{
++	int s = 0;
++	for (; o; o = o->nobj)
++		s += o->oclass;
++	return s;
++}
++
++__noinline long mixed(struct obj * o)
++{
++	long s = 0;
++	while (o)
++	{
++		s += o->v + o->name[2];
++		o = o->nobj;
++	}
++	return s;
++}
++
++__noinline int count(struct obj * o, char c)
++{
++	int n = 0;
++	for (; o; o = o->nobj)
++		if (o->oclass == c)
++			n++;
++	return n;
++}
++
++int main(void)
++{
++	struct obj * volatile hp = objs;
++	int fails = 0;
++	if (classes(hp) != 100) fails |= 1;
++	if (mixed(hp) != 10 + 'c' + 'k' + 's' + 'A') fails |= 2;
++	if (count(hp, 10) != 1 || count(hp, 40) != 1) fails |= 4;
++	return fails;
++}
+-- 
+2.43.0
+

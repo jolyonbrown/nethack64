@@ -1,4 +1,4 @@
-From c2ddfc5c13817eb511c04cb77048fe1e27bce4b3 Mon Sep 17 00:00:00 2001
+From 0fd91d5d4ffd26b614a3b2ee6d77c60233f50a73 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 17 Nov 2026 11:12:04 +0000
 Subject: [PATCH] Far spaces: offsets, provenance, built-ins, warning 2026,
@@ -223,10 +223,10 @@ index 5823e25..3468465 100644
  	EERR_GENERIC = 3000,
  	EERR_FILE_NOT_FOUND,
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index 770a6a8..ee5d446 100644
+index a95766d..bfdfa50 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
-@@ -27037,7 +27037,7 @@ static int FarSpaceOfOperand(const InterOperand& op)
+@@ -27042,7 +27042,7 @@ static int FarSpaceOfOperand(const InterOperand& op)
  static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& instructions, int& i, InterOperand& op, int space)
  {
  	InterInstruction* ins = instructions[i];
@@ -235,7 +235,7 @@ index 770a6a8..ee5d446 100644
  
  	if (op.mMemory == IM_GLOBAL)
  	{
-@@ -27074,9 +27074,15 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
+@@ -27079,9 +27079,15 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
  			atemp = cins->mDst.mTemp;
  		}
  	}
@@ -252,7 +252,7 @@ index 770a6a8..ee5d446 100644
  		InterInstruction* lins = new InterInstruction(ins->mLocation, IC_LEA);
  		lins->mSrc[1].mMemory = IM_INDIRECT;
  		lins->mSrc[1].mType = IT_POINTER;
-@@ -27097,8 +27103,8 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
+@@ -27102,8 +27108,8 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
  	xins->mOperator = IA_FARXLAT;
  	xins->mSrc[0].mType = IT_POINTER;
  	xins->mSrc[0].mTemp = atemp;

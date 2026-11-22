@@ -1,4 +1,4 @@
-From 30e8edb003f9a8ba3d81333f6b8cc36bda33b475 Mon Sep 17 00:00:00 2001
+From 30932c5c8bda5623d3a464f6455825e9ad3d3c03 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 17 Nov 2026 10:49:38 +0000
 Subject: [PATCH] Far spaces: typed far data, translated at each access (WIP)
@@ -115,7 +115,7 @@ index 2dbc06a..53cd6a7 100644
  };
  
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index 884e893..770a6a8 100644
+index ac5e327..a95766d 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
 @@ -4346,7 +4346,7 @@ void ValueSet::UpdateValue(InterCodeBasicBlock * block, InterInstruction * ins,
@@ -137,7 +137,7 @@ index 884e893..770a6a8 100644
  	if (mMemory != IM_NONE && mMemory != IM_INDIRECT)
  	{
  		if (mVarIndex != op.mVarIndex || mLinkerObject != op.mLinkerObject)
-@@ -27007,6 +27010,158 @@ void InterCodeBasicBlock::PeepholeOptimization(const GrowingVariableArray& stati
+@@ -27012,6 +27015,158 @@ void InterCodeBasicBlock::PeepholeOptimization(const GrowingVariableArray& stati
  	}
  }
  
@@ -296,7 +296,7 @@ index 884e893..770a6a8 100644
  void InterCodeBasicBlock::CheckNullptrDereference(void) 
  {
  	if (!mVisited)
-@@ -30351,6 +30506,13 @@ void InterCodeProcedure::Close(void)
+@@ -30356,6 +30511,13 @@ void InterCodeProcedure::Close(void)
  	mEntryBlock->ReduceTempLivetimes();
  	DisassembleDebug("reduce temp livetimes");
  

@@ -1,4 +1,4 @@
-From 96e6d17ccfa4fd6e861d51cca98cf3637474037a Mon Sep 17 00:00:00 2001
+From 611b342fce5d6eb9394482832ae94fbf0c22b6b6 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 21 Nov 2026 23:06:11 +0000
 Subject: [PATCH] Far characters: #pragma farchars, #pragma strings
@@ -459,7 +459,7 @@ index e2db3be..e56b71a 100644
  }
  
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index f158a04..4007b50 100644
+index 7a03d80..9c7cbc3 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
 @@ -21299,7 +21299,10 @@ bool InterCodeBasicBlock::MapLateIntrinsics(void)
@@ -473,7 +473,7 @@ index f158a04..4007b50 100644
  				ins->mSrc[0].mLinkerObject->mProc &&
  				ins->mSrc[0].mLinkerObject->mProc->mIntrinsicFunction &&
  				!strcmp(ins->mSrc[0].mLinkerObject->mIdent->mString, "memcpy"))
-@@ -27210,6 +27213,14 @@ bool InterCodeBasicBlock::LowerFarAccesses(const ExpandingArray<FarGroup>& inher
+@@ -27215,6 +27218,14 @@ bool InterCodeBasicBlock::LowerFarAccesses(const ExpandingArray<FarGroup>& inher
  			break;
  		}
  

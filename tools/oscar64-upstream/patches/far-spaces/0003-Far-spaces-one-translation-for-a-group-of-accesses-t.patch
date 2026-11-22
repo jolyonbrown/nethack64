@@ -1,4 +1,4 @@
-From 6911c17fd354a1f489b940ea05864f09e71041af Mon Sep 17 00:00:00 2001
+From d4e8b866752832413ffba87a370fbd160caee855 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 17 Nov 2026 12:04:51 +0000
 Subject: [PATCH] Far spaces: one translation for a group of accesses to one
@@ -52,7 +52,7 @@ index 8cd0df5..1642561 100644
  		// Optional: a program that names a bank call routine has its calls between
  		// cartridge banks go through it (Linker::InsertBankCalls)
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index ee5d446..306fab7 100644
+index bfdfa50..28cdbe0 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
 @@ -4346,7 +4346,7 @@ void ValueSet::UpdateValue(InterCodeBasicBlock * block, InterInstruction * ins,
@@ -64,7 +64,7 @@ index ee5d446..306fab7 100644
  {}
  
  bool InterOperand::IsValid(void) const
-@@ -27034,9 +27034,8 @@ static int FarSpaceOfOperand(const InterOperand& op)
+@@ -27039,9 +27039,8 @@ static int FarSpaceOfOperand(const InterOperand& op)
  // between the two that could translate (and so fault and evict) another page, except in a
  // copy between two far objects, whose two translations follow each other: the runtime's
  // fault handler keeps the page it translated last.
@@ -75,7 +75,7 @@ index ee5d446..306fab7 100644
  	int atemp, offset = 0;
  
  	if (op.mMemory == IM_GLOBAL)
-@@ -27055,7 +27054,7 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
+@@ -27060,7 +27059,7 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
  			lins->mNumOperands = 2;
  			lins->mDst.mType = IT_POINTER;
  			lins->mDst.mTemp = proc->AddTemporary(IT_POINTER);
@@ -84,7 +84,7 @@ index ee5d446..306fab7 100644
  			atemp = lins->mDst.mTemp;
  		}
  		else
-@@ -27070,7 +27069,7 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
+@@ -27075,7 +27074,7 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
  			cins->mNumOperands = 0;
  			cins->mDst.mType = IT_POINTER;
  			cins->mDst.mTemp = proc->AddTemporary(IT_POINTER);
@@ -93,7 +93,7 @@ index ee5d446..306fab7 100644
  			atemp = cins->mDst.mTemp;
  		}
  	}
-@@ -27093,7 +27092,7 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
+@@ -27098,7 +27097,7 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
  		lins->mNumOperands = 2;
  		lins->mDst.mType = IT_POINTER;
  		lins->mDst.mTemp = proc->AddTemporary(IT_POINTER);
@@ -102,7 +102,7 @@ index ee5d446..306fab7 100644
  		atemp = lins->mDst.mTemp;
  	}
  	else
-@@ -27103,12 +27102,12 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
+@@ -27108,12 +27107,12 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
  	xins->mOperator = IA_FARXLAT;
  	xins->mSrc[0].mType = IT_POINTER;
  	xins->mSrc[0].mTemp = atemp;
@@ -117,7 +117,7 @@ index ee5d446..306fab7 100644
  
  	op.mMemory = IM_INDIRECT;
  	op.mMemoryBase = IM_NONE;
-@@ -27117,9 +27116,31 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
+@@ -27122,9 +27121,31 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& i
  	op.mLinkerObject = nullptr;
  	op.mVarIndex = -1;
  	op.mFarSpace = 0;
@@ -149,7 +149,7 @@ index ee5d446..306fab7 100644
  bool InterCodeBasicBlock::LowerFarAccesses(void)
  {
  	bool	changed = false;
-@@ -27128,37 +27149,152 @@ bool InterCodeBasicBlock::LowerFarAccesses(void)
+@@ -27133,37 +27154,152 @@ bool InterCodeBasicBlock::LowerFarAccesses(void)
  	{
  		mVisited = true;
  

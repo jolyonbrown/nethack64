@@ -1,4 +1,4 @@
-From b24bd2d157f24b523c5384ca3bc0741f0dab8b26 Mon Sep 17 00:00:00 2001
+From b8de7c6d6d58921cb499ee1ff5721f2f5a05bc57 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Thu, 19 Nov 2026 19:26:50 +0000
 Subject: [PATCH] Bank calls: a call from code in a bank goes through a stub in

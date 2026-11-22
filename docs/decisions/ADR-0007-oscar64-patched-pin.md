@@ -578,3 +578,22 @@ commits: 1,097 of 1,110 identical, the others r77 and the new test (four configu
 the two values share a high byte) and `stripedarraytest.c` at -O0 (one reload fewer: an `INC` of
 byte +1 does not change byte +0), no status changes; repros 47 of 77 (r77 fixed); nethack64
 `.crt` and `.prg` byte-identical, `make test` 5/5.
+
+Added on 2026-11-22 (commits 86-87; Jolyon: "yes, add the r78 fix to the pin"), our fix of an
+upstream bug, from the far-spaces fork (its commit 12): 86. r78 (compat #81):
+`PeepholeReplaceOptimization()` sorted two loads through one pointer by offset, checking that the
+first does not overwrite the pointer but not that the second does, so in
+`for (; o; o = o->nobj) s += o->oclass;` the field was read from the next object (the first
+object skipped, the last read through null); -O1 and up, bytecode and native, v1.32.273 and
+upstream main 08b01c9. The swap now also needs the second load's destination to be neither the
+pointer nor the first load's destination. 87. `autotest/loadordertest.c`, which fails in the
+eight configurations above -O0 on 85 commits.
+
+Results 2026-11-22 (87 commits; the patch files give tree 6560d6b, the installed compiler's).
+Autotest 1,641 emulations, all 0 (the new test in all ten configurations); corpus against 85
+commits: 1,111 of 1,120 identical, the others r78 and the new test (four configurations each) and
+`opp_vector.cpp` at -bc -O2, which differs only by install path (85 commits copied to a path as
+long as the candidate's give the candidate's file byte for byte), no status changes; repros 48 of
+78 (r78 fixed); nethack64 `.crt`, `.prg`, `nethack128.prg` and `test128.prg` byte-identical,
+`make test` 6/6. The far-spaces series is now twelve commits on these 87 (its own copy of the fix
+dropped); pin + far-spaces on v1.32.273 give the fork's tree 85516a8.

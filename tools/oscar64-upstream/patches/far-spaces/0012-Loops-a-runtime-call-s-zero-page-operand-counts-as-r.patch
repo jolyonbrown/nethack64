@@ -1,4 +1,4 @@
-From 158f1dd2ff7e6c3c6ecef812bde7a1593a469992 Mon Sep 17 00:00:00 2001
+From 53a4d0cd9fae92f66cebf3e8a45620d6a31a9af7 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 21 Nov 2026 23:55:14 +0000
 Subject: [PATCH] Loops: a runtime call's zero page operand counts as read

@@ -1,4 +1,4 @@
-From 6735e044b4a351673f7df9817a02e325e0c3061d Mon Sep 17 00:00:00 2001
+From ccd6406e42331a50649b66f44d22e2e984c17b2c Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Wed, 18 Nov 2026 03:45:00 +0000
 Subject: [PATCH] Far spaces: a page translation in five bytes (farxzN), single
@@ -82,10 +82,10 @@ index 1642561..a0bee7e 100644
  		if (mCompilationUnits->mRuntimeScope->Lookup(Ident::Unique("farpins")))
  			RegisterRuntime(loc, Ident::Unique("farpins"));
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index 6a0dd46..f158a04 100644
+index 6b77ec2..7a03d80 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
-@@ -27319,7 +27319,30 @@ bool InterCodeBasicBlock::LowerFarAccesses(const ExpandingArray<FarGroup>& inher
+@@ -27324,7 +27324,30 @@ bool InterCodeBasicBlock::LowerFarAccesses(const ExpandingArray<FarGroup>& inher
  				if (g[k] == -2)
  					continue;
  				InterOperand& op = ins->mSrc[k];
