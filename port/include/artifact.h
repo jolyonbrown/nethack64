@@ -48,7 +48,15 @@ struct artifact_s {
 	short	    role;	/* character role associated with */
 	short	    race;	/* character race associated with */
 	long        cost;	/* price when sold to hero (default 100 x base cost) */
+#ifdef NH_FAR_MISC
+	char	    nh_pad[64 - 38];	/* T2.13: 64 bytes, so that no entry crosses a page */
+#endif
 };
+#ifdef NH_FAR_MISC
+/* T2.13: artilist[] in far space 5 (artilist.h, c64conf.h), reached through pointers to
+ * its entries (artifact.c's get_artifact()) */
+#pragma farspace(5, artifact_s)
+#endif
 
 /* invoked properties with special powers */
 #define TAMING		(LAST_PROP+1)

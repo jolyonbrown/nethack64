@@ -162,6 +162,7 @@ extern void perror(const char *);
 #pragma farsection(farmisc, 5)
 #pragma region(farmisc, 0x8000, 0x10000, , 134, { farmisc })
 #include "nhnear.h"
+#define NH_FAR_MISC	/* far types may live in space 5 too (artifact.h) */
 #endif
 
 #if defined(__OSCAR64C__) && defined(NH_FAR_SPACES) && defined(NH_FAR_HEAP)

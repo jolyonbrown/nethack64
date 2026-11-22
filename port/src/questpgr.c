@@ -50,6 +50,27 @@ dump_qtlist(void) /* dump the character msg list to check appearance */
 }
 #endif /* DEBUG */
 
+#ifdef NH_FAR_HEAP_SPACES
+static_assert(sizeof (struct qtmsg) == 16, "struct qtmsg is 16 bytes (T2.14)");
+STATIC_DCL void FDECL(nh_qtfree, (struct qtmsg *));
+
+/* the size it was allocated with: its entries and the terminator construct_qtlist() put
+ * after them */
+STATIC_OVL void
+nh_qtfree(struct qtmsg *list)
+{
+	unsigned n = 1;
+	struct qtmsg *m;
+
+	for (m = list; m->msgnum != -1; m++)
+	    n++;
+	nh_objfree((struct obj_s *) (unsigned) list, n * sizeof(struct qtmsg));
+}
+#define NH_QTFREE(l)	nh_qtfree(l)
+#else
+#define NH_QTFREE(l)	free((genericptr_t) (l))
+#endif
+
 static void
 Fread(genericptr_t ptr, int size, int nitems, dlb *stream)
 {
@@ -67,9 +88,26 @@ construct_qtlist(long hdr_offset)
 {
 	struct qtmsg *msg_list;
 	int	n_msgs;
+#ifdef NH_FAR_HEAP_SPACES
+	struct qtmsg nh_rec;
+	int	i;
+#endif
 
 	(void) dlb_fseek(msg_file, hdr_offset, SEEK_SET);
 	Fread(&n_msgs, sizeof(int), 1, msg_file);
+#ifdef NH_FAR_HEAP_SPACES
+	/* T2.14: far (qtext.h), and read a record at a time into a near entry, since the
+	 * file's records lack the far entries' padding */
+	msg_list = (struct qtmsg *) (unsigned)
+		nh_objalloc((unsigned)(n_msgs+1)*sizeof(struct qtmsg));
+	for (i = 0; i < n_msgs; i++) {
+		Fread((genericptr_t) &nh_rec, NH_QTMSG_FSIZE, 1, msg_file);
+		msg_list[i].msgnum = nh_rec.msgnum;
+		msg_list[i].delivery = nh_rec.delivery;
+		msg_list[i].offset = nh_rec.offset;
+		msg_list[i].size = nh_rec.size;
+	}
+#else
 	msg_list = (struct qtmsg *)
 		alloc((unsigned)(n_msgs+1)*sizeof(struct qtmsg));
 
@@ -77,6 +115,7 @@ construct_qtlist(long hdr_offset)
 	 * Load up the list.
 	 */
 	Fread((genericptr_t)msg_list, n_msgs*sizeof(struct qtmsg), 1, msg_file);
+#endif
 
 	msg_list[n_msgs].msgnum = -1;
 	return(msg_list);
@@ -136,9 +175,9 @@ unload_qtlist(void)
 	if (msg_file)
 	    (void) dlb_fclose(msg_file),  msg_file = 0;
 	if (qt_list.common)
-	    free((genericptr_t) qt_list.common),  qt_list.common = 0;
+	    NH_QTFREE(qt_list.common),  qt_list.common = 0;
 	if (qt_list.chrole)
-	    free((genericptr_t) qt_list.chrole),  qt_list.chrole = 0;
+	    NH_QTFREE(qt_list.chrole),  qt_list.chrole = 0;
 	return;
 }
 

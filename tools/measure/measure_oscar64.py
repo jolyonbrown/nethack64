@@ -30,7 +30,8 @@ environment: OSCAR64 (the compiler), MEASURE_TIMEOUT (seconds per file, default 
   directory, e.g. to size what the runtime links in),
   MEASURE_OUT (the output directory; default build/measure or build/measure-c64),
   MEASURE_DEFS (more -d options), MEASURE_EXTRA (more source files, e.g. a far space's
-  translation routines; the report then lists each file's warnings 2026, T2.12)
+  translation routines; the report then lists each file's warnings 2026, T2.12),
+  MEASURE_NHNEAR (an nhnear.h from a whole-game build, for -dNH_FAR_DEFAULT)
 """
 import argparse
 import collections
@@ -103,6 +104,10 @@ def setup():
         for h in stubs:
             shutil.copy(os.path.join(HERE, "stub", h), os.path.join(OUT, "stub", h))
     shutil.copy(os.path.join(HERE, CONFIGS[CONFIG]["shim"]), os.path.join(OUT, "inc", "c64meas.h"))
+    if os.environ.get("MEASURE_NHNEAR"):
+        # the far default's near list (bankgen.py writes it into a whole-game build), which
+        # c64conf.h includes under NH_FAR_DEFAULT
+        shutil.copy(os.environ["MEASURE_NHNEAR"], os.path.join(OUT, "inc", "nhnear.h"))
     # gcc -E (used by mkstubs.py) needs Oscar64's libc headers minus #pragmas
     osc_inc = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(OSCAR64))), "include")
     fl = os.path.join(OUT, "fakelibc")

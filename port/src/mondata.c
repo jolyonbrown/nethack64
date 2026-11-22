@@ -523,6 +523,9 @@ levl_follower(struct monst_s *mtmp)
 				(!mtmp->mflee || u.uhave.amulet));
 }
 
+#ifdef NH_FAR_GLOBS
+#pragma data(farglob)		/* far space 4 (c64conf.h), read by name (T2.13) */
+#endif
 static const short grownups[][2] = {
 	{PM_CHICKATRICE, PM_COCKATRICE},
 	{PM_LITTLE_DOG, PM_DOG}, {PM_DOG, PM_LARGE_DOG},
@@ -583,6 +586,10 @@ static const short grownups[][2] = {
 #endif
 	{NON_PM,NON_PM}
 };
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#pragma align(grownups, 4)	/* a pair keeps to a page */
+#endif
 
 int
 little_to_big(int montype)

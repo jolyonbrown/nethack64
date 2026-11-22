@@ -26,6 +26,9 @@ static const char *artifact_names[] = {
 #define     ELEC(a,b)	{0,AD_ELEC,a,b}		/* electrical shock */
 #define     STUN(a,b)	{0,AD_STUN,a,b}		/* magical attack */
 
+#ifdef NH_FAR_MISC
+#pragma data(farmisc)
+#endif
 STATIC_OVL NEARDATA struct artifact_s artilist[] = {
 #endif	/* MAKEDEFS_C */
 
@@ -237,6 +240,11 @@ A("The Eye of the Aethiopica",	AMULET_OF_ESP,
 A(0, 0, 0, 0, 0, NO_ATTK, NO_DFNS, NO_CARY, 0, A_NONE, NON_PM, NON_PM, 0L )
 
 };	/* artilist[] (or artifact_names[]) */
+#if !defined(MAKEDEFS_C) && defined(NH_FAR_MISC)
+#pragma data(data)
+#pragma align(artilist, 256)	/* the 64-byte entries keep to pages */
+static_assert(sizeof (struct artifact_s) == 64, "struct artifact_s is 64 bytes (T2.13)");
+#endif
 
 #undef	A
 

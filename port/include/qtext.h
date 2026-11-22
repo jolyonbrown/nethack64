@@ -14,7 +14,16 @@ struct qtmsg {
 	char	delivery;
 	long	offset,
 		size;
+#ifdef NH_FAR_HEAP_SPACES
+	char	nh_pad[5];	/* T2.14: 16 bytes, so that no entry crosses a far page */
+#endif
 };
+#ifdef NH_FAR_HEAP_SPACES
+/* T2.14: the quest texts' index in far space 8, the objects' (c64heap.c); the file's
+ * records are the entries without their padding (questpgr.c's construct_qtlist()) */
+#pragma farspace(8, qtmsg)
+#define NH_QTMSG_FSIZE	((int) offsetof(struct qtmsg, nh_pad))
+#endif
 
 #ifdef MAKEDEFS_C	/***** MAKEDEFS *****/
 

@@ -33,11 +33,19 @@ NEARDATA struct instance_flags iflags;	/* provide linkage */
  *  option (e.g. time and timed_delay) the shorter one must come first.
  */
 
+#ifdef NH_FAR_GLOBS
+/* T2.13: the two option tables in far space 4 (c64conf.h), read by name; 8-byte entries,
+ * aligned to 8, so that no field crosses a page (each access is translated by itself) */
+#pragma data(farglob)
+#endif
 static struct Bool_Opt
 {
 	const char *name;
 	boolean	*addr, initvalue;
 	int optflags;
+#ifdef NH_FAR_GLOBS
+	char nh_pad;		/* 8 bytes */
+#endif
 } boolopt[] = {
 #ifdef AMIGA
 	{"altmeta", &flags.altmeta, TRUE, DISP_IN_GAME},
@@ -197,6 +205,10 @@ static struct Bool_Opt
 	{"wraptext", &iflags.wc2_wraptext, FALSE, SET_IN_GAME},
 	{(char *)0, (boolean *)0, FALSE, 0}
 };
+#ifdef NH_FAR_GLOBS
+#pragma align(boolopt, 8)
+static_assert(sizeof (struct Bool_Opt) == 8, "struct Bool_Opt is 8 bytes (T2.13)");
+#endif
 
 /* compound options, for option_help() and external programs like Amiga
  * frontend */
@@ -334,6 +346,11 @@ static struct Comp_Opt
 	{ "windowtype", "windowing system to use", WINTYPELEN, DISP_IN_GAME },
 	{ (char *)0, (char *)0, 0, 0 }
 };
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#pragma align(compopt, 8)
+static_assert(sizeof (struct Comp_Opt) == 8, "struct Comp_Opt is 8 bytes (T2.13)");
+#endif
 
 #ifdef OPTION_LISTS_ONLY
 #undef static
