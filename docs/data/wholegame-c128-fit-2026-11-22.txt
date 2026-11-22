@@ -67,3 +67,16 @@ compiler then died writing nethack.error.int (the known -rmp crash after a compi
     tables), dungeons 768, nh_name_ring 384, toplines 300; data u 1,381, artilist 1,330,
     compopt 504, boolopt 448, shtypes 336. The heap must hold the tty port's windows (the
     message history, the status lines, menus) and NetHack's own near allocations.
+
+fc4 (fc3's plan; the far-spaces fork's commit 14, 34ee85e: equal string literals named by
+initializers merge, compat #87; 774 s, peak 13.0 GB, exit 20, 2 objects unplaced and then the
+stack and the heap)
+  - The object names: faronames $E000-$FCE3, 7,395 B, exactly obj_descr's distinct strings,
+    797 B to spare (fc3: 8,287 B, 100 B over). The character space $C100-$F5EE, 13,550 B
+    (fc3: 14,781 B; 1,231 B of the resident code's and the tables' repeated literals gone).
+    The monster names 28 B smaller, the role names 77 B.
+  - Unplaced: two bank call stubs in bank 103 (s_suffix, display_inventory; 6 B each), then
+    the stack and the heap as in fc3: the resident side is unchanged (code, data and bss the
+    same), still 2,050 B over before any heap.
+  - The heap that must fit is 11-24 KB (docs/data/heap-peak-2026-11-22.txt): T2.14, the heap
+    far, next.

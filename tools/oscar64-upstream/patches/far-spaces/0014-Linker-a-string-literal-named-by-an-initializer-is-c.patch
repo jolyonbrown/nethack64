@@ -1,0 +1,96 @@
+From 34ee85ef10debff9c1438c5250a1038527489ef3 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 22 Nov 2026 13:38:22 +0000
+Subject: [PATCH] Linker: a string literal named by an initializer is constant,
+ so equal ones merge
+
+Linker::CombineSameConst() merges equal constant objects. A string
+literal in code gets LOBJF_CONST from its const char array type, but
+one reached through a pointer in an initializer got no flag in
+BuildInitializer(), so a table such as { "white", ... }, { "white",
+... } kept every copy. Give it the flag on the same condition.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ autotest/initstringmergetest.c | 29 +++++++++++++++++++++++++++++
+ autotest/makefile              | 12 ++++++++++++
+ oscar64/InterCodeGenerator.cpp |  4 ++++
+ 3 files changed, 45 insertions(+)
+ create mode 100644 autotest/initstringmergetest.c
+
+diff --git a/autotest/initstringmergetest.c b/autotest/initstringmergetest.c
+new file mode 100644
+index 0000000..4f38fca
+--- /dev/null
++++ b/autotest/initstringmergetest.c
+@@ -0,0 +1,29 @@
++// String literals named by initializers: equal ones share storage when the linker
++// combines constants (-O1 and up), and an array initialised from a string never does
++
++#include <string.h>
++#include <assert.h>
++
++struct d { const char * a, * b; };
++const struct d t[3] = { { "white", "red" }, { "white", "blue" }, { "red", 0 } };
++const char * u[2] = { "white", "green" };
++char w[] = "white";
++volatile unsigned v[6];
++
++int main(void)
++{
++	const char * p = "white";
++	v[0] = (unsigned)t[0].a; v[1] = (unsigned)t[1].a; v[2] = (unsigned)u[0];
++	v[3] = (unsigned)t[0].b; v[4] = (unsigned)t[2].a; v[5] = (unsigned)p;
++
++	assert(!strcmp((const char *)v[0], "white") && !strcmp((const char *)v[1], "white"));
++	assert(!strcmp((const char *)v[3], "red") && !strcmp((const char *)v[4], "red"));
++#ifdef MERGED
++	assert(v[0] == v[1] && v[0] == v[2] && v[3] == v[4] && v[5] == v[0]);
++#endif
++	assert((unsigned)w != v[0] && !strcmp(w, (const char *)v[0]));
++	w[0] = 'W';
++	assert(((const char *)v[0])[0] == 'w' && ((const char *)v[1])[0] == 'w');
++
++	return 0;
++}
+diff --git a/autotest/makefile b/autotest/makefile
+index a8ad486..0523dfd 100644
+--- a/autotest/makefile
++++ b/autotest/makefile
+@@ -76,6 +76,18 @@ farcharstest: farcharstest.c
+ 	$(OSCAR64_CC) -ea -g -Os -n -dFARXZ -dOSCAR_FARCHARS $<
+ 	$(OSCAR64_CC) -ea -g -O3 -n -dFARXZ -dOSCAR_FARCHARS $<
+ 
++initstringmergetest: initstringmergetest.c
++	$(OSCAR64_CC) -ea -g -O0 -bc $<
++	$(OSCAR64_CC) -ea -g -O0 -n $<
++	$(OSCAR64_CC) -ea -g -bc -dMERGED $<
++	$(OSCAR64_CC) -ea -g -n -dMERGED $<
++	$(OSCAR64_CC) -ea -g -O2 -bc -dMERGED $<
++	$(OSCAR64_CC) -ea -g -O2 -n -dMERGED $<
++	$(OSCAR64_CC) -ea -g -Os -bc -dMERGED $<
++	$(OSCAR64_CC) -ea -g -Os -n -dMERGED $<
++	$(OSCAR64_CC) -ea -g -O3 -bc -dMERGED $<
++	$(OSCAR64_CC) -ea -g -O3 -n -dMERGED $<
++
+ # testn
+ farspacetest: farspacetest.c
+ 	$(OSCAR64_CC) -ea -g -n $<
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index db48d6a..923819a 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -6378,6 +6378,10 @@ void InterCodeGenerator::BuildInitializer(InterCodeModule * mod, uint8* dp, int
+ 				dec->mSection = mLinker->FarDefaultSection(dec->mIdent, dec->mSection, dec->mFarDefault, dec->mSize, dec->mAlignment);
+ 				var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection, LOT_DATA, dec->mAlignment);
+ 				var->mLinkerObject->mVariable = var;
++				// a string literal named by an initializer is as constant as one in code, so
++				// the linker can merge it with its equals (CombineSameConst)
++				if (dec->mBase && (dec->mBase->mFlags & DTF_CONST))
++					var->mLinkerObject->mFlags |= LOBJF_CONST;
+ 				dec->mLinkerObject = var->mLinkerObject;
+ 				var->mLinkerObject->AddData(dec->mData, dec->mSize);
+ 				mod->mGlobalVars.Push(var);
+-- 
+2.43.0
+
