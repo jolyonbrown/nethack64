@@ -546,6 +546,21 @@ extern void nh_farbwrite4(int, const struct nh_fb4 *, unsigned);
 extern void nh_farmread4(int, struct nh_fb4 *, unsigned);
 extern void nh_farfill4(struct nh_fb4 *, int, unsigned);
 #endif
+#ifdef NH_FAR_HEAP_SPACES
+/* the far heap's blocks (T2.14): a monster's in space 7, an object's in space 8, moved a
+ * byte at a time, so that a block over several pages (a shopkeeper's) is safe. A space
+ * number of 0 is near memory in nh_farmove(). */
+struct nh_fb7 { unsigned char b; };
+struct nh_fb8 { unsigned char b; };
+#pragma farspace(7, nh_fb7)
+#pragma farspace(8, nh_fb8)
+extern void nh_farbwrite7(int, const struct nh_fb7 *, unsigned);
+extern void nh_farmread7(int, struct nh_fb7 *, unsigned);
+extern void nh_farbwrite8(int, const struct nh_fb8 *, unsigned);
+extern void nh_farmread8(int, struct nh_fb8 *, unsigned);
+extern void nh_farfill7(struct nh_fb7 *, int, unsigned);
+extern void nh_farmove(unsigned, int, unsigned, int, unsigned);
+#endif
 #endif
 
 /*

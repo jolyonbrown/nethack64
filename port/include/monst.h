@@ -163,14 +163,43 @@ struct monst_s {
  * exception being the guardian angels which are tame on creation).
  */
 
+#ifdef NH_FAR_HEAP_SPACES
+/* the C64's monsters come from far space 7 (sys/c64/c64heap.c, T2.14); the size freed is
+ * the block's, as allocated: the struct, the extension and the name */
+extern struct monst_s *FDECL(nh_monalloc, (unsigned));
+extern void FDECL(nh_monfree, (struct monst_s *, unsigned));
+#define newmonst(xl) nh_monalloc((unsigned)(xl) + sizeof(struct monst_s))
+#define dealloc_monst(mon) \
+	nh_monfree((mon), sizeof(struct monst_s) + (unsigned)(mon)->mxlth + (unsigned)(mon)->mnamelth)
+#else
 #define newmonst(xl) (struct monst_s *)alloc((unsigned)(xl) + sizeof(struct monst_s))
 #define dealloc_monst(mon) free((genericptr_t)(mon))
+#endif
 
 /* these are in mspeed */
 #define MSLOW 1		/* slow monster */
 #define MFAST 2		/* speeded monster */
 
+#ifdef NH_FAR_HEAP_SPACES
+/* the C64's far heap (T2.14): NAME() is a copy of the name, in a ring of near buffers
+ * (decl.c's nh_hname(): held until four more names are read), and NH_SETMONNAME() writes
+ * one; the name's far address follows the extension, as on the host */
+#define NH_MNAMEADDR(mtmp) \
+	((unsigned)(mtmp) + (unsigned)offsetof(struct monst_s, mextra) + (unsigned)(mtmp)->mxlth)
+extern char *FDECL(nh_hname, (unsigned, int, unsigned));
+#define NAME(mtmp)	nh_hname(NH_MNAMEADDR(mtmp), 7, (mtmp)->mnamelth)
+#define NH_SETMONNAME(mtmp, s) \
+	nh_farmove(NH_MNAMEADDR(mtmp), 7, (unsigned)(s), 0, (unsigned)strlen(s) + 1)
+#define NH_CUTMONNAME(mtmp, at) nh_farmove(NH_MNAMEADDR(mtmp) + (unsigned)(at), 7, (unsigned)"", 0, 1)
+#define NH_MEXTRAADDR(mtmp)	((unsigned)(mtmp) + (unsigned)offsetof(struct monst_s, mextra))
+#define NH_HFILL7(a, c, n)	nh_farfill7((struct nh_fb7 *)(a), (c), (unsigned)(n))
+#else
 #define NAME(mtmp)	(((char *)((mtmp)->mextra)) + (mtmp)->mxlth)
+#define NH_SETMONNAME(mtmp, s)	Strcpy(NAME(mtmp), (s))
+#define NH_CUTMONNAME(mtmp, at)	(NAME(mtmp)[at] = '\0')
+#define NH_MEXTRAADDR(mtmp)	((mtmp)->mextra)
+#define NH_HFILL7(a, c, n)	(void) memset((genericptr_t)(a), (c), (n))
+#endif
 
 #define MON_WEP(mon)	((mon)->mw)
 #define MON_NOWEP(mon)	((mon)->mw = (struct obj_s *)0)

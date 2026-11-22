@@ -199,7 +199,7 @@ restobjchn(int fd, boolean ghostly, boolean frozen)
 		otmp = newobj(xl);
 		if(!first) first = otmp;
 		else otmp2->nobj = otmp;
-		mread(fd, (genericptr_t) otmp,
+		NH_HMREAD(fd, otmp, 8,
 					(unsigned) xl + sizeof(struct obj_s));
 		if (ghostly) {
 		    unsigned nid = flags.ident++;
@@ -253,7 +253,7 @@ restmonchn(int fd, boolean ghostly)
 		mtmp = newmonst(xl);
 		if(!first) first = mtmp;
 		else mtmp2->nmon = mtmp;
-		mread(fd, (genericptr_t) mtmp, (unsigned) xl + sizeof(struct monst_s));
+		NH_HMREAD(fd, mtmp, 7, (unsigned) xl + sizeof(struct monst_s));
 		if (ghostly) {
 			unsigned nid = flags.ident++;
 			add_id_mapping(mtmp->m_id, nid);
@@ -965,17 +965,18 @@ reset_oattached_mids(boolean ghostly)
     unsigned oldid, nid;
     for (otmp = fobj; otmp; otmp = otmp->nobj) {
 	if (ghostly && otmp->oattached == OATTACHED_MONST && otmp->oxlth) {
-	    struct monst_s *mtmp = (struct monst_s *)otmp->oextra;
+	    /* changed through a near copy of its struct (T2.14) */
+	    struct monst_s mtmp;
 
-	    mtmp->m_id = 0;
-	    mtmp->mpeaceful = mtmp->mtame = 0;	/* pet's owner died! */
+	    NH_HCOPY(&mtmp, 0, NH_OEXTRAADDR(otmp), 8, sizeof(mtmp));
+	    mtmp.m_id = 0;
+	    mtmp.mpeaceful = mtmp.mtame = 0;	/* pet's owner died! */
+	    NH_HCOPY(NH_OEXTRAADDR(otmp), 8, &mtmp, 0, sizeof(mtmp));
 	}
 	if (ghostly && otmp->oattached == OATTACHED_M_ID) {
-	    (void) memcpy((genericptr_t)&oldid, (genericptr_t)otmp->oextra,
-								sizeof(oldid));
+	    NH_HCOPY(&oldid, 0, NH_OEXTRAADDR(otmp), 8, sizeof(oldid));
 	    if (lookup_id_mapping(oldid, &nid))
-		(void) memcpy((genericptr_t)otmp->oextra, (genericptr_t)&nid,
-								sizeof(nid));
+		NH_HCOPY(NH_OEXTRAADDR(otmp), 8, &nid, 0, sizeof(nid));
 	    else
 		otmp->oattached = OATTACHED_NOTHING;
 	}

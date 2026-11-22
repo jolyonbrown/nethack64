@@ -802,7 +802,7 @@ tamedog(struct monst_s *mtmp, struct obj_s *obj)
 	mtmp2 = newmonst(sizeof(struct edog_s) + mtmp->mnamelth);
 	*mtmp2 = *mtmp;
 	mtmp2->mxlth = sizeof(struct edog_s);
-	if (mtmp->mnamelth) Strcpy(NAME(mtmp2), NAME(mtmp));
+	if (mtmp->mnamelth) NH_SETMONNAME(mtmp2, NAME(mtmp));
 	initedog(mtmp2);
 	replmon(mtmp, mtmp2);
 	/* `mtmp' is now obsolete */

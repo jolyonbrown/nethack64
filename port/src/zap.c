@@ -632,8 +632,7 @@ revive(struct obj_s *obj)
 			if (obj->oxlth && (obj->oattached == OATTACHED_M_ID)) {
 			    unsigned m_id;
 			    struct monst_s *ghost;
-			    (void) memcpy((genericptr_t)&m_id,
-				    (genericptr_t)obj->oextra, sizeof(m_id));
+			    NH_HCOPY(&m_id, 0, NH_OEXTRAADDR(obj), 8, sizeof(m_id));
 			    ghost = find_mid(m_id, FM_FMON);
 		    	    if (ghost && ghost->data == &mons[PM_GHOST]) {
 		    		    int x2, y2;

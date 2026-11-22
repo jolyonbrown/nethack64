@@ -67,7 +67,7 @@ resetobjs(struct obj_s *ochain, boolean restore)
 					|| is_quest_artifact(otmp))))) {
 			otmp->oartifact = 0;
 			otmp->onamelth = 0;
-			*ONAME(otmp) = '\0';
+			NH_SETOBJNAME(otmp, "");
 		} else if (otmp->oartifact && restore)
 			artifact_exists(otmp,ONAME(otmp),TRUE);
 		if (!restore) {

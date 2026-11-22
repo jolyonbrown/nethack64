@@ -740,7 +740,7 @@ clone_mon(struct monst_s *mon, xchar x, xchar y)
 		m3 = newmonst(sizeof(struct epri) + mon->mnamelth);
 		*m3 = *m2;
 		m3->mxlth = sizeof(struct epri);
-		if (m2->mnamelth) Strcpy(NAME(m3), NAME(m2));
+		if (m2->mnamelth) NH_SETMONNAME(m3, NAME(m2));
 		*(EPRI(m3)) = *(EPRI(mon));
 		replmon(m2, m3);
 		m2 = m3;
@@ -885,7 +885,7 @@ makemon(struct permonst *ptr, int x, int y, int mmflags)
 	else if (mmflags & MM_EMIN) xlth += sizeof(struct emin);
 	mtmp = newmonst(xlth);
 	*mtmp = zeromonst;		/* clear all entries in structure */
-	(void)memset((genericptr_t)mtmp->mextra, 0, xlth);
+	NH_HFILL7(NH_MEXTRAADDR(mtmp), 0, xlth);
 	mtmp->nmon = fmon;
 	fmon = mtmp;
 	mtmp->m_id = flags.ident++;

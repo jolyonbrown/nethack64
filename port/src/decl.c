@@ -209,6 +209,75 @@ nh_farfill3(struct nh_fb3 *d, int c, unsigned n)
 {
 	while (n--) (d++)->b = (unsigned char) c;
 }
+
+#ifdef NH_FAR_HEAP_SPACES
+NH_FARW(7)
+NH_FARR(7)
+NH_FARW(8)
+NH_FARR(8)
+
+void
+nh_farfill7(struct nh_fb7 *d, int c, unsigned n)
+{
+	while (n--) (d++)->b = (unsigned char) c;
+}
+
+/* a monster's or an object's name (NAME(), ONAME()): its n bytes at address a of space sp
+ * copied into the next of four near buffers, NUL-ended; a name is at most PL_PSIZ */
+static char nh_hname_ring[4][PL_PSIZ + 1];
+static unsigned char nh_hname_next;
+
+char *
+nh_hname(unsigned a, int sp, unsigned n)
+{
+	char *d = nh_hname_ring[nh_hname_next];
+
+	nh_hname_next = (nh_hname_next + 1) & 3;
+	if (n > PL_PSIZ)
+		n = PL_PSIZ;
+	nh_farmove((unsigned) d, 0, a, sp, n);
+	d[n] = '\0';
+	return d;
+}
+
+int nh_realloc_ss;	/* obj.h's NH_REALLOC_FROM() */
+
+/* strncpy() to a name at address a of space sp: n bytes, NUL-padded (obj.h) */
+void
+nh_hstrncpy(unsigned a, int sp, const char *s, unsigned n)
+{
+	char tmp[PL_PSIZ + 1];
+
+	if (n > PL_PSIZ + 1)
+		n = PL_PSIZ + 1;
+	(void) strncpy(tmp, s, (int) n);
+	nh_farmove(a, sp, (unsigned) tmp, 0, n);
+}
+
+/* n bytes from address s of space ss to address d of space ds (0 near, 7, 8), through
+ * nh_farbuf: a block copy between or within the heap's spaces (realloc_obj, christening,
+ * a corpse's monster) */
+void
+nh_farmove(unsigned d, int ds, unsigned s, int ss, unsigned n)
+{
+	while (n) {
+		unsigned k = n < sizeof(nh_farbuf) ? n : sizeof(nh_farbuf), i;
+		if (ss == 7)
+			for (i = 0; i < k; i++) nh_farbuf[i] = ((const struct nh_fb7 *) s)[i].b;
+		else if (ss == 8)
+			for (i = 0; i < k; i++) nh_farbuf[i] = ((const struct nh_fb8 *) s)[i].b;
+		else
+			for (i = 0; i < k; i++) nh_farbuf[i] = ((const unsigned char *) s)[i];
+		if (ds == 7)
+			for (i = 0; i < k; i++) ((struct nh_fb7 *) d)[i].b = nh_farbuf[i];
+		else if (ds == 8)
+			for (i = 0; i < k; i++) ((struct nh_fb8 *) d)[i].b = nh_farbuf[i];
+		else
+			for (i = 0; i < k; i++) ((unsigned char *) d)[i] = nh_farbuf[i];
+		d += k; s += k; n -= k;
+	}
+}
+#endif
 #endif
 
 #ifdef C64

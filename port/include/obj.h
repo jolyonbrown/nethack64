@@ -109,8 +109,56 @@ struct obj_s {
 				   is flexible; amount for tmp gold objects */
 };
 
+#ifdef NH_FAR_HEAP_SPACES
+/* the C64's objects come from far space 8 (sys/c64/c64heap.c, T2.14); the size freed is
+ * the block's, as allocated: the struct, the extension and the name */
+extern struct obj_s *FDECL(nh_objalloc, (unsigned));
+extern void FDECL(nh_objfree, (struct obj_s *, unsigned));
+#define newobj(xl)	nh_objalloc((unsigned)(xl) + sizeof(struct obj_s))
+#define nh_freeobj(obj) \
+	nh_objfree((obj), sizeof(struct obj_s) + (unsigned)(obj)->oxlth + (unsigned)(obj)->onamelth)
+#else
 #define newobj(xl)	(struct obj_s *)alloc((unsigned)(xl) + sizeof(struct obj_s))
+#define nh_freeobj(obj)	free((genericptr_t)(obj))
+#endif
+#ifdef NH_FAR_HEAP_SPACES
+/* as monst.h's NAME(): a copy of the name, and NH_SETOBJNAME() to write one (T2.14) */
+#define NH_ONAMEADDR(otmp) \
+	((unsigned)(otmp) + (unsigned)offsetof(struct obj_s, oextra) + (unsigned)(otmp)->oxlth)
+#define ONAME(otmp)	nh_hname(NH_ONAMEADDR(otmp), 8, (otmp)->onamelth)
+#define NH_SETOBJNAME(otmp, s) \
+	nh_farmove(NH_ONAMEADDR(otmp), 8, (unsigned)(s), 0, (unsigned)strlen(s) + 1)
+#define NH_CUTOBJNAME(otmp, at) nh_farmove(NH_ONAMEADDR(otmp) + (unsigned)(at), 8, (unsigned)"", 0, 1)
+/* strncpy(ONAME(dst), src, n), padding with NULs as strncpy does */
+#define NH_NCPYOBJNAME(dst, src, n) nh_hstrncpy(NH_ONAMEADDR(dst), 8, (src), (unsigned)(n))
+extern char *FDECL(nh_hname, (unsigned, int, unsigned));
+extern void FDECL(nh_hstrncpy, (unsigned, int, const char *, unsigned));
+/* blocks of the far heap (T2.14): an extension's far address, a copy between spaces (0
+ * near, 7 monsters, 8 objects), a block to or from a file; each the host's own call there */
+#define NH_OEXTRAADDR(otmp)	((unsigned)(otmp) + (unsigned)offsetof(struct obj_s, oextra))
+#define NH_HCOPY(d, ds, s, ss, n) nh_farmove((unsigned)(d), ds, (unsigned)(s), ss, (unsigned)(n))
+#define NH_HBWRITE(fd, p, sp, n) nh_farbwrite##sp(fd, (const struct nh_fb##sp *)(p), (unsigned)(n))
+#define NH_HMREAD(fd, p, sp, n)	nh_farmread##sp(fd, (struct nh_fb##sp *)(p), (unsigned)(n))
+/* a heap block's far address as a genericptr_t (kept as it is: no translation) */
+#define NH_HADDRP(p)		((genericptr_t)(unsigned)(p))
+/* realloc_obj()'s oextra_src is near (0), a monster (7) or an object (8): its callers say
+ * which, since both spaces' addresses are $8000-$FFFF */
+extern int nh_realloc_ss;
+#define NH_REALLOC_FROM(sp)	(nh_realloc_ss = (sp))
+#define NH_REALLOC_SS()		nh_realloc_ss
+#else
 #define ONAME(otmp)	(((char *)((otmp)->oextra)) + (otmp)->oxlth)
+#define NH_SETOBJNAME(otmp, s)	Strcpy(ONAME(otmp), (s))
+#define NH_CUTOBJNAME(otmp, at)	(ONAME(otmp)[at] = '\0')
+#define NH_NCPYOBJNAME(dst, src, n) (void) strncpy(ONAME(dst), (src), (int)(n))
+#define NH_OEXTRAADDR(otmp)	((otmp)->oextra)
+#define NH_HCOPY(d, ds, s, ss, n) (void) memcpy((genericptr_t)(d), (genericptr_t)(s), (n))
+#define NH_HBWRITE(fd, p, sp, n) bwrite(fd, (genericptr_t)(p), (n))
+#define NH_HMREAD(fd, p, sp, n)	mread(fd, (genericptr_t)(p), (n))
+#define NH_HADDRP(p)		((genericptr_t)(p))
+#define NH_REALLOC_FROM(sp)	((void) 0)
+#define NH_REALLOC_SS()		0
+#endif
 
 /* Weapons and weapon-tools */
 /* KMH -- now based on skill categories.  Formerly:

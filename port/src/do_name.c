@@ -201,15 +201,14 @@ christen_monst(struct monst_s *mtmp, const char *name)
 	}
 	if (lth == mtmp->mnamelth) {
 		/* don't need to allocate a new monst struct */
-		if (lth) Strcpy(NAME(mtmp), name);
+		if (lth) NH_SETMONNAME(mtmp, name);
 		return mtmp;
 	}
 	mtmp2 = newmonst(mtmp->mxlth + lth);
 	*mtmp2 = *mtmp;
-	(void) memcpy((genericptr_t)mtmp2->mextra,
-		      (genericptr_t)mtmp->mextra, mtmp->mxlth);
+	NH_HCOPY(NH_MEXTRAADDR(mtmp2), 7, NH_MEXTRAADDR(mtmp), 7, mtmp->mxlth);
 	mtmp2->mnamelth = lth;
-	if (lth) Strcpy(NAME(mtmp2), name);
+	if (lth) NH_SETMONNAME(mtmp2, name);
 	replmon(mtmp,mtmp2);
 	return(mtmp2);
 }
@@ -334,7 +333,7 @@ realloc_obj(struct obj_s *obj,
 	*otmp = *obj;	/* the cobj pointer is copied to otmp */
 	if (oextra_size) {
 	    if (oextra_src)
-		(void) memcpy((genericptr_t)otmp->oextra, oextra_src,
+		NH_HCOPY(NH_OEXTRAADDR(otmp), 8, oextra_src, NH_REALLOC_SS(),
 							oextra_size);
 	} else {
 	    otmp->oattached = OATTACHED_NOTHING;
@@ -351,7 +350,7 @@ realloc_obj(struct obj_s *obj,
 	   gcc-2.7.2.1 finally fixed this. */
 	if (oname_size) {
 	    if (name)
-		Strcpy(ONAME(otmp), name);
+		NH_SETOBJNAME(otmp, name);
 	}
 
 	if (obj->owornmask) {
@@ -411,10 +410,11 @@ oname(struct obj_s *obj, const char *name)
 
 	if (lth == obj->onamelth) {
 		/* no need to replace entire object */
-		if (lth) Strcpy(ONAME(obj), name);
+		if (lth) NH_SETOBJNAME(obj, name);
 	} else {
+		NH_REALLOC_FROM(8);
 		obj = realloc_obj(obj, obj->oxlth,
-			      (genericptr_t)obj->oextra, lth, name);
+			      NH_HADDRP(NH_OEXTRAADDR(obj)), lth, name);
 	}
 	if (lth) artifact_exists(obj, name, TRUE);
 	if (obj->oartifact) {

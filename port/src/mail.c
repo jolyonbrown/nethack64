@@ -393,7 +393,7 @@ newmail(struct mail_info *info)
 		if ( namelth <= 0 || namelth >= (int) obj->onamelth )
 		    impossible("mail delivery screwed up");
 		else
-		    *(ONAME(obj) + namelth) = '\0';
+		    NH_CUTOBJNAME(obj, namelth);
 		/* Note: renaming object will discard the hidden command. */
 	    }
 	}

@@ -2388,10 +2388,12 @@ newcham(struct monst_s *mtmp,
 		 * polymorphed, so dropping the rank for mplayers seems
 		 * reasonable.
 		 */
-		char *p = index(NAME(mtmp), ' ');
+		/* one copy of the name, cut where it was read (NAME() is a copy
+		   on the C64, T2.14) */
+		char *nm = NAME(mtmp), *p = index(nm, ' ');
 		if (p) {
-			*p = '\0';
-			mtmp->mnamelth = p - NAME(mtmp) + 1;
+			NH_CUTMONNAME(mtmp, p - nm);
+			mtmp->mnamelth = p - nm + 1;
 		}
 	}
 

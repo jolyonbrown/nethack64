@@ -550,8 +550,10 @@ keep_saddle_with_steedcorpse(unsigned steed_mid,
 	while(objchn) {
 		if(objchn->otyp == CORPSE &&
 		   objchn->oattached == OATTACHED_MONST && objchn->oxlth) {
-			struct monst_s *mtmp = (struct monst_s *)objchn->oextra;
-			if (mtmp->m_id == steed_mid) {
+			/* read through a near copy of its struct (T2.14) */
+			struct monst_s mtmp;
+			NH_HCOPY(&mtmp, 0, NH_OEXTRAADDR(objchn), 8, sizeof(mtmp));
+			if (mtmp.m_id == steed_mid) {
 				/* move saddle */
 				xchar x,y;
 				if (get_obj_location(objchn, &x, &y, 0)) {

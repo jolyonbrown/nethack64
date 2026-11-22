@@ -173,6 +173,15 @@ extern void perror(const char *);
  * resident side already 2 KB short without one (docs/data/heap-peak-2026-11-22.txt). */
 #pragma farspace(7, monst_s, epri, emin, eshk_s, bill_x, egd, fakecorridor, edog_s)
 #pragma farspace(8, obj_s)
+/* sections with nothing linked into them, so that the far runtime (farrt.py
+ * --from-headers) gives the spaces their page tables and REU banks: bank 142 is REU 64 KB
+ * bank 19 at $8000, bank 146 REU 64 KB bank 20 at $8000 (both past the code banks) */
+#pragma section(farheapm, 0)
+#pragma farsection(farheapm, 7)
+#pragma region(farheapm, 0x8000, 0x10000, , 142, { farheapm })
+#pragma section(farheapo, 0)
+#pragma farsection(farheapo, 8)
+#pragma region(farheapo, 0x8000, 0x10000, , 146, { farheapo })
 #define NH_FAR_HEAP_SPACES
 #endif
 

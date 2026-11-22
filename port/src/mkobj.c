@@ -239,10 +239,9 @@ splitobj(struct obj_s *obj, long num)
 	if (obj->where == OBJ_FLOOR)
 	    obj->nexthere = otmp;
 	if (obj->oxlth)
-	    (void)memcpy((genericptr_t)otmp->oextra, (genericptr_t)obj->oextra,
-			obj->oxlth);
+	    NH_HCOPY(NH_OEXTRAADDR(otmp), 8, NH_OEXTRAADDR(obj), 8, obj->oxlth);
 	if (obj->onamelth)
-	    (void)strncpy(ONAME(otmp), ONAME(obj), (int)obj->onamelth);
+	    NH_NCPYOBJNAME(otmp, ONAME(obj), obj->onamelth);
 	if (obj->unpaid) splitbill(obj,otmp);
 	if (obj->timed) obj_split_timers(obj, otmp);
 	if (obj_sheds_light(obj)) obj_split_light_source(obj, otmp);
@@ -339,10 +338,9 @@ bill_dummy_object(struct obj_s *otmp)
 	if (!dummy->o_id) dummy->o_id = flags.ident++;	/* ident overflowed */
 	dummy->timed = 0;
 	if (otmp->oxlth)
-	    (void)memcpy((genericptr_t)dummy->oextra,
-			(genericptr_t)otmp->oextra, otmp->oxlth);
+	    NH_HCOPY(NH_OEXTRAADDR(dummy), 8, NH_OEXTRAADDR(otmp), 8, otmp->oxlth);
 	if (otmp->onamelth)
-	    (void)strncpy(ONAME(dummy), ONAME(otmp), (int)otmp->onamelth);
+	    NH_NCPYOBJNAME(dummy, ONAME(otmp), otmp->onamelth);
 	if (Is_candle(dummy)) dummy->lamplit = 0;
 	addtobill(dummy, FALSE, TRUE, TRUE);
 	otmp->no_charge = 1;
@@ -945,13 +943,13 @@ obj_attach_mid(struct obj_s *obj, unsigned mid)
     if (!mid || !obj) return (struct obj_s *)0;
     lth = sizeof(mid);
     namelth = obj->onamelth ? strlen(ONAME(obj)) + 1 : 0;
-    if (namelth) 
+    if (namelth) {
+	NH_REALLOC_FROM(0);
 	otmp = realloc_obj(obj, lth, (genericptr_t) &mid, namelth, ONAME(obj));
-    else {
+    } else {
 	otmp = obj;
 	otmp->oxlth = sizeof(mid);
-	(void) memcpy((genericptr_t)otmp->oextra, (genericptr_t)&mid,
-								sizeof(mid));
+	NH_HCOPY(NH_OEXTRAADDR(otmp), 8, &mid, 0, sizeof(mid));
     }
     if (otmp && otmp->oxlth) otmp->oattached = OATTACHED_M_ID;	/* mark it */
     return otmp;
@@ -965,16 +963,21 @@ save_mtraits(struct obj_s *obj, struct monst_s *mtmp)
 
 	lth = sizeof(struct monst_s) + mtmp->mxlth + mtmp->mnamelth;
 	namelth = obj->onamelth ? strlen(ONAME(obj)) + 1 : 0;
-	otmp = realloc_obj(obj, lth, (genericptr_t) mtmp, namelth, ONAME(obj));
+	NH_REALLOC_FROM(7);
+	otmp = realloc_obj(obj, lth, NH_HADDRP(mtmp), namelth, ONAME(obj));
 	if (otmp && otmp->oxlth) {
-		struct monst_s *mtmp2 = (struct monst_s *)otmp->oextra;
-		if (mtmp->data) mtmp2->mnum = monsndx(mtmp->data);
+		/* the monster's copy in the object, changed through a near copy of its
+		   struct (on the C64 it is in the objects' far space, T2.14) */
+		struct monst_s mtmp2;
+		NH_HCOPY(&mtmp2, 0, NH_OEXTRAADDR(otmp), 8, sizeof(mtmp2));
+		if (mtmp->data) mtmp2.mnum = monsndx(mtmp->data);
 		/* invalidate pointers */
 		/* m_id is needed to know if this is a revived quest leader */
 		/* but m_id must be cleared when loading bones */
-		mtmp2->nmon     = (struct monst_s *)0;
-		mtmp2->data     = (struct permonst *)0;
-		mtmp2->minvent  = (struct obj_s *)0;
+		mtmp2.nmon     = (struct monst_s *)0;
+		mtmp2.data     = (struct permonst *)0;
+		mtmp2.minvent  = (struct obj_s *)0;
+		NH_HCOPY(NH_OEXTRAADDR(otmp), 8, &mtmp2, 0, sizeof(mtmp2));
 		otmp->oattached = OATTACHED_MONST;	/* mark it */
 	}
 	return otmp;
@@ -989,15 +992,25 @@ get_mtraits(struct obj_s *obj, boolean copyof)
 	struct monst_s *mtmp = (struct monst_s *)0;
 	struct monst_s *mnew = (struct monst_s *)0;
 
+#ifdef NH_FAR_HEAP_SPACES
+	/* the monster's copy is in the objects' far space (T2.14): its struct read into a
+	   near one, which a caller that does not copy gets (pray.c reads mtame) */
+	static struct monst_s nh_mtraits;
+
+	if (obj->oxlth && obj->oattached == OATTACHED_MONST) {
+		NH_HCOPY(&nh_mtraits, 0, NH_OEXTRAADDR(obj), 8, sizeof(nh_mtraits));
+		mtmp = &nh_mtraits;
+	}
+#else
 	if (obj->oxlth && obj->oattached == OATTACHED_MONST)
 		mtmp = (struct monst_s *)obj->oextra;
+#endif
 	if (mtmp) {
 	    if (copyof) {
 		int lth = mtmp->mxlth + mtmp->mnamelth;
 		mnew = newmonst(lth);
 		lth += sizeof(struct monst_s);
-		(void) memcpy((genericptr_t)mnew,
-				(genericptr_t)mtmp, lth);
+		NH_HCOPY(mnew, 7, NH_OEXTRAADDR(obj), 8, lth);
 	    } else {
 	      /* Never insert this returned pointer into mon chains! */
 	    	mnew = mtmp;
@@ -1476,7 +1489,7 @@ dealloc_obj(struct obj_s *obj)
 
     if (obj == thrownobj) thrownobj = (struct obj_s*)0;
 
-    free((genericptr_t) obj);
+    nh_freeobj(obj);	/* obj.h: free(), or the C64's far heap */
 }
 
 #ifdef WIZARD

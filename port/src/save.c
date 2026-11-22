@@ -843,7 +843,7 @@ saveobjchn(int fd, struct obj_s *otmp, int mode)
 	    if (perform_bwrite(mode)) {
 		xl = otmp->oxlth + otmp->onamelth;
 		bwrite(fd, (genericptr_t) &xl, sizeof(int));
-		bwrite(fd, (genericptr_t) otmp, xl + sizeof(struct obj_s));
+		NH_HBWRITE(fd, otmp, 8, xl + sizeof(struct obj_s));
 	    }
 	    if (Has_contents(otmp))
 		saveobjchn(fd,otmp->cobj,mode);
@@ -877,7 +877,7 @@ savemonchn(int fd, struct monst_s *mtmp, int mode)
 	    if (perform_bwrite(mode)) {
 		xl = mtmp->mxlth + mtmp->mnamelth;
 		bwrite(fd, (genericptr_t) &xl, sizeof(int));
-		bwrite(fd, (genericptr_t) mtmp, xl + sizeof(struct monst_s));
+		NH_HBWRITE(fd, mtmp, 7, xl + sizeof(struct monst_s));
 	    }
 	    if (mtmp->minvent)
 		saveobjchn(fd,mtmp->minvent,mode);
