@@ -75,10 +75,10 @@ getenv(const char *name)
 /* ---- files: the REU RAM disk (T2.4) ----
  *
  * The REU's top 2 MB (a 4 MB REU, ADR-0008's amendment of 2026-11-22; the code banks and the
- * far spaces have the first 2 MB): 512 blocks of 4 KB. Block 0 is the directory, 128 entries
- * of 32 bytes (the name, NUL-padded, 24; the size, 4, low byte first; the first block, 2; in
- * use, 1); block 1 the allocation table, 2 bytes a block (0 free, $FFFF the last of a file,
- * else the next; blocks 0 and 1 marked last). tools/data/reudisk.py writes the data files
+ * far spaces have the first 2 MB): 512 blocks of 4 KB. Blocks 0 and 1 are the directory, 256
+ * entries of 32 bytes (the name, NUL-padded, 24; the size, 4, low byte first; the first
+ * block, 2; in use, 1); block 2 the allocation table, 2 bytes a block (0 free, $FFFF the last
+ * of a file, else the next; blocks 0 to 2 marked last). tools/data/reudisk.py writes the data files
  * into it when the REU image is made; the game's level, save and bones files are made here.
  * Every transfer is a DMA to or from a near buffer, copied to and from the caller's by C,
  * since a caller's buffer may be in the character space (ADR-0010), which no DMA reaches. The
@@ -87,10 +87,11 @@ getenv(const char *name)
 #define NH_DISK		0x200000UL
 #define NH_BLK		4096U
 #define NH_NBLK		512U
-#define NH_NDIR		128
+#define NH_NDIR		256
 #define NH_DIRSZ	32
 #define NH_NAMESZ	24
-#define NH_FAT		(NH_DISK + NH_BLK)
+#define NH_FAT		(NH_DISK + 2 * NH_BLK)
+#define NH_B0		3U		/* the first data block */
 #define NH_FREE		0U
 #define NH_END		0xffffU
 #define NH_NFD		6
@@ -105,7 +106,8 @@ static long nh_rpos;
 static unsigned nh_rlen;
 
 struct nh_fd {
-	char used, wr, dirty, dir;
+	char used, wr, dirty;
+	unsigned char dir;
 	long pos, size;
 	unsigned first, blk, bidx;	/* the block of index bidx in the file, the walk's place */
 	int back;			/* ungetc()'s character, or -1 */
@@ -167,11 +169,11 @@ nh_fatset(unsigned b, unsigned v)
 static unsigned
 nh_balloc(void)
 {
-	static unsigned hint = 2;
+	static unsigned hint = NH_B0;
 	unsigned k, b;
 
-	for (k = 0; k < NH_NBLK - 2; k++) {
-		b = 2 + (hint - 2 + k) % (NH_NBLK - 2);
+	for (k = 0; k < NH_NBLK - NH_B0; k++) {
+		b = NH_B0 + (hint - NH_B0 + k) % (NH_NBLK - NH_B0);
 		if (nh_fatget(b) == NH_FREE) {
 			nh_fatset(b, NH_END);
 			hint = b + 1;
@@ -186,7 +188,7 @@ nh_bfree(unsigned b)
 {
 	unsigned nx;
 
-	while (b != NH_END && b >= 2 && b < NH_NBLK) {
+	while (b != NH_END && b >= NH_B0 && b < NH_NBLK) {
 		nx = nh_fatget(b);
 		nh_fatset(b, NH_FREE);
 		b = nx;
@@ -297,7 +299,7 @@ open(const char *name, int flags, int mode)
 	f->used = 1;
 	f->wr = (flags & 3) != O_RDONLY;
 	f->dirty = 0;
-	f->dir = (char) i;
+	f->dir = (unsigned char) i;
 	f->pos = 0;
 	f->size = nh_dirsize();
 	f->first = f->blk = nh_dbuf[28] | (unsigned) nh_dbuf[29] << 8;

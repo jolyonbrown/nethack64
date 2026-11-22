@@ -3,6 +3,7 @@
 
 usage: tools/data/c64data.py dungeon HOST_FILE OUT
        tools/data/c64data.py quest HOST_FILE OUT
+       tools/data/c64data.py lev HOST_FILE OUT
 
 dgn_comp and makedefs write structs as they lie in the host's memory (x86-64: int 4 bytes,
 long 8, padding to each field's size), and the game reads them back the same way, so on the
@@ -120,14 +121,155 @@ def quest(data):
     return bytes(out)
 
 
+# ---- the special levels (sp_lev.c's load_special(), sp_lev.h; lev_comp writes them) ----
+# Only these change layout: the long flags; monster, object, engraving and lev_region (a
+# Str_or_Len union, a pointer on the host); gold (an int). Everything else is chars and
+# shorts, the same on both. The host's padding is explicit in each format.
+HOST_MONSTER, C64_MONSTER = "<i4xi4xhb5b2b6x", "<hhhb5b2b"	# name, appear_as: len in the union
+HOST_OBJECT, C64_OBJECT = "<i4xihh5bb2x", "<hhhh5bb"
+HOST_ENGR, C64_ENGR = "<2b6xi4xb7x", "<2bhb"
+HOST_LREGION, C64_LREGION = "<12b4xi4x", "<12bh"
+HOST_GOLD, C64_GOLD = "<2b2xi", "<2bh"
+
+
+class Lev:
+    def __init__(self, data):
+        self.r, self.out = Reader(data), bytearray()
+
+    def copy(self, n):
+        self.out += self.r.take("<%ds" % n)[0]
+
+    def byte(self, signed=False):
+        (v,) = self.r.take("<b" if signed else "<B")
+        self.out += struct.pack("<b" if signed else "<B", v)
+        return v
+
+    def conv(self, hfmt, cfmt, strings=()):
+        v = list(self.r.take(hfmt))
+        self.out += struct.pack(cfmt, *v)	# struct.error if a host int does not fit
+        for i in strings:		# the union's length, then that many bytes
+            self.copy(v[i])
+        return v
+
+    def common(self):
+        self.copy(8)				# lev_init
+        (flags,) = self.r.take("<q")		# long lev_flags
+        self.out += struct.pack("<l", flags)
+        n = self.byte()				# uchar: the message's length
+        self.copy(n)
+
+    def list_of(self, size):
+        n = self.byte(True)			# char n
+        for _ in range(max(n, 0)):
+            self.copy(size)
+        return n
+
+    def monsters(self):
+        n = self.byte(True)
+        for _ in range(max(n, 0)):
+            self.conv(HOST_MONSTER, C64_MONSTER, strings=(0, 1))
+
+    def objects(self):
+        n = self.byte(True)
+        for _ in range(max(n, 0)):
+            self.conv(HOST_OBJECT, C64_OBJECT, strings=(0,))
+
+    def golds(self):
+        n = self.byte(True)
+        for _ in range(max(n, 0)):
+            self.conv(HOST_GOLD, C64_GOLD)
+
+    def engravings(self):
+        n = self.byte(True)
+        for _ in range(max(n, 0)):
+            self.conv(HOST_ENGR, C64_ENGR, strings=(2,))
+
+    def rooms(self):
+        self.common()
+        self.list_of(1)				# robjects
+        self.list_of(1)				# rmonst
+        nrooms = self.byte(True)		# xchar
+        for _ in range(nrooms):
+            for _ in range(2):			# name, parent: short size, then the bytes
+                (size,) = self.r.take("<h")
+                self.out += struct.pack("<h", size)
+                if size > 0:
+                    self.copy(size)
+            self.copy(10)			# x, y, w, h, xalign, yalign, rtype, chance, rlit, filled
+            self.list_of(4)			# room_door
+            self.list_of(3)			# stair
+            self.list_of(4)			# altar
+            self.list_of(2)			# fountain
+            self.list_of(2)			# sink
+            self.list_of(2)			# pool
+            self.list_of(4)			# sp_trap
+            self.monsters()
+            self.objects()
+            self.golds()
+            self.engravings()
+        self.list_of(6)				# corridors (xchar ncorr)
+
+    def maze(self):
+        self.common()
+        self.byte(True)				# schar filling
+        numpart = self.byte(True)		# char numpart
+        for _ in range(numpart):
+            self.byte(True)			# halign
+            self.byte(True)			# valign
+            xsize = self.byte(True)
+            ysize = self.byte(True)
+            if not (self.init_present and xsize <= 1 and ysize <= 1):
+                self.copy(xsize * ysize)	# the map
+            n = self.byte(True)			# lev_regions
+            for _ in range(max(n, 0)):
+                self.conv(HOST_LREGION, C64_LREGION, strings=(12,))
+            self.list_of(1)			# robjects
+            n = self.byte(True)			# rloc_x[n], rloc_y[n]
+            self.copy(2 * max(n, 0))
+            self.list_of(1)			# rmonst
+            self.list_of(7)			# region
+            self.list_of(3)			# door
+            self.list_of(4)			# drawbridge
+            self.list_of(3)			# walk
+            self.list_of(4)			# dig
+            self.list_of(4)			# pass
+            self.list_of(3)			# lad
+            self.list_of(3)			# stair
+            self.list_of(4)			# altar
+            self.list_of(2)			# fountain
+            self.list_of(4)			# sp_trap
+            self.monsters()
+            self.objects()
+            self.golds()
+            self.engravings()
+
+    def convert(self):
+        self.out += struct.pack(C64_VERSION, *[v & 0xFFFFFFFF for v in self.r.take(HOST_VERSION)])
+        kind = self.byte()			# char: SP_LEV_ROOMS 1, SP_LEV_MAZE 2
+        self.init_present = self.r.d[self.r.p]	# lev_init's first field, next
+        if kind == 1:
+            self.rooms()
+        elif kind == 2:
+            self.maze()
+        else:
+            sys.exit("lev: kind %d" % kind)
+        if self.r.p != len(self.r.d):
+            sys.exit("lev: %d bytes left at the end" % (len(self.r.d) - self.r.p))
+        return bytes(self.out)
+
+
+def lev(data):
+    return Lev(data).convert()
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("kind", choices=("dungeon", "quest"))
+    ap.add_argument("kind", choices=("dungeon", "quest", "lev"))
     ap.add_argument("host_file")
     ap.add_argument("out")
     a = ap.parse_args()
     data = open(a.host_file, "rb").read()
-    out = {"dungeon": dungeon, "quest": quest}[a.kind](data)
+    out = {"dungeon": dungeon, "quest": quest, "lev": lev}[a.kind](data)
     open(a.out, "wb").write(out)
     print("%s: %d -> %d bytes" % (a.kind, len(data), len(out)))
 

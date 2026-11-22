@@ -5,24 +5,24 @@ usage: tools/data/reudisk.py OUT.img NAME=PATH [NAME=PATH ...]
        tools/data/reudisk.py --list IMG
 
 The disk is the REU's top 2 MB (a 4 MB REU, ADR-0008's amendment of 2026-11-22): 512 blocks
-of 4 KB. Block 0 is the directory, 128 entries of 32 bytes (the name, NUL-padded, 24 bytes;
-the size, 4, low byte first; the first block, 2; in use, 1; one spare); block 1 the
+of 4 KB. Blocks 0 and 1 are the directory, 256 entries of 32 bytes (the name, NUL-padded, 24
+bytes; the size, 4, low byte first; the first block, 2; in use, 1; one spare); block 2 the
 allocation table, 2 bytes a block (0 free, $FFFF the last block of a file, otherwise the
-next block); blocks 0 and 1 are marked as last. Each file here takes consecutive blocks.
+next block); blocks 0 to 2 are marked as last. Each file here takes consecutive blocks.
 tools/bank/c128_images.py --disk puts the image at the REU's 2 MB.
 """
 import argparse
 import struct
 import sys
 
-BLK, NBLK, NDIR, DIRSZ, NAMESZ, END = 4096, 512, 128, 32, 24, 0xFFFF
+BLK, NBLK, NDIR, DIRSZ, NAMESZ, END, FATBLK = 4096, 512, 256, 32, 24, 0xFFFF, 2
 
 
 def build(files):
     img = bytearray(BLK * NBLK)
     fat = [0] * NBLK
-    fat[0] = fat[1] = END
-    nxt = 2
+    fat[0] = fat[1] = fat[2] = END
+    nxt = 3
     if len(files) > NDIR:
         sys.exit("more than %d files" % NDIR)
     for i, (name, data) in enumerate(files):
@@ -38,12 +38,12 @@ def build(files):
         nxt += len(blocks)
         first = blocks[0] if blocks else END
         img[i * DIRSZ:(i + 1) * DIRSZ] = nb.ljust(NAMESZ, b"\0") + struct.pack("<LHBx", len(data), first, 1)
-    img[BLK:BLK + 2 * NBLK] = struct.pack("<%dH" % NBLK, *fat)
+    img[FATBLK * BLK:FATBLK * BLK + 2 * NBLK] = struct.pack("<%dH" % NBLK, *fat)
     return img, nxt
 
 
 def listing(img):
-    fat = struct.unpack_from("<%dH" % NBLK, img, BLK)
+    fat = struct.unpack_from("<%dH" % NBLK, img, FATBLK * BLK)
     for i in range(NDIR):
         e = img[i * DIRSZ:(i + 1) * DIRSZ]
         if not e[30]:
