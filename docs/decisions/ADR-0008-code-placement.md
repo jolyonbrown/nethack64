@@ -2,7 +2,9 @@
 
 - Status: accepted (Jolyon, 2026-11-17: "accept ADR-0008, 1 MB REU minimum is fine");
   amended 2026-11-20: the REU minimum is 2 MB (Jolyon: "A bigger REU requirement is OK - if
-  we need 2MB so be it"), below
+  we need 2MB so be it"), below; amended 2026-11-22: 4 MB for now, to get the game running,
+  then shrink (Jolyon: "ok go with 4 MB, lets get running then go for shrinking things down"),
+  below
 - Date: 2026-11-16
 - Deciders: Jolyon (+ Claude, who proposes it)
 
@@ -110,3 +112,11 @@ build/profile-arcs-wide.json`; the whole game's bank sizes from `tools/bank/buil
   second megabyte; `nh_map` and `crt_split.py` needed no change (bank b at (b - 64) * 16 KB),
   and `crt_split.py` now pads the image to 2 MB. Checked in VICE: `tests/spikes/run_bankreu.py
   --second-bank 191` (the last 16 KB of a 2 MB REU), 14/14.
+- 2026-11-22: **4 MB for now** (Jolyon: "ok go with 4 MB, lets get running then go for
+  shrinking things down"). The C128's whole game links (T2.13): its code banks and far spaces
+  fill the REU to 1.52 MB, leaving 512 KB, against about 620 KB of data files as the host has
+  them (`data` 209 KB, the levels 213 KB, `quest.dat` 103 KB, `rumors` 43 KB) and the level
+  files a game writes. A 4 MB REU holds them all, uncompressed, for the RAM disk (T2.4). It
+  runs on VICE and the Ultimate and Chameleon families (up to 16 MB), not on Commodore's REUs
+  (512 KB at most) or the 2 MB clones. Shrinking back towards 2 MB comes after the game runs:
+  the data compressed (T2.5), the C64's own level format, measured level files.
