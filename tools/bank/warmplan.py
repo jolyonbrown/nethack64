@@ -11,7 +11,7 @@ counts the copies a plan costs, then moves functions one at a time: the one in a
 bank that causes the most copies goes into the cartridge bank (1-63) it calls or is
 called from most, and if that bank has no room, the coldest functions there (those whose
 moving to the REU costs the fewest copies, and less than the move saves) go to the
-function's old bank, or another REU bank with room.  It stops when no function causes --min-calls copies or more.  Sizes
+function's old bank, or another REU bank with room (--add-banks opens empty ones).  It stops when no function causes --min-calls copies or more.  Sizes
 come from wholesizes.py's graph (G), bank fill from the build's map (M); planfix.py repairs
 what the next build overflows.
 """
@@ -34,6 +34,8 @@ def main():
     ap.add_argument("--min-calls", type=int, default=60)
     ap.add_argument("--slack", type=int, default=256)
     ap.add_argument("--moves", type=int, default=400)
+    ap.add_argument("--add-banks", default="",
+                    help="comma-separated empty REU banks the evicted functions may go to")
     a = ap.parse_args()
 
     plan = json.load(open(a.plan))
@@ -72,7 +74,8 @@ def main():
         """Copies g's calls cost with g in bank b."""
         return sum(n * copies(g, p, b, bank.get(p)) for p, n in calls[g].items())
 
-    reu = sorted(b for b in set(bank.values()) if b >= 64 and b not in fixed)
+    reu = sorted(set(b for b in bank.values() if b >= 64 and b not in fixed) |
+                 set(int(x) for x in a.add_banks.split(",") if x))
     before = total()
     moved = []
     for _ in range(a.moves):

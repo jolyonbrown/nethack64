@@ -108,3 +108,35 @@ fc6 (docs/data/bankplan-2026-11-22-c128fc6.json, --far-heap; 783 s, peak 13.0 GB
     page (the far default leaves those near: compopt, boolopt, grownups 1,220 B; the rest is
     the runtime's and the glue's own), the rest named near (touched every turn, or its
     address handed on as a near pointer).
+
+A correction to fc5 and fc6 (found with fc7): those links also left about 64 KB of banked
+code unplaced (fc5 64,206 B, fc6 64,868 B in 90 banks; fc4 12 B). The map's unplaced lines
+(no bank prefix, address 0000) are real: the far heap's translations made every banked
+function that touches a monster or an object bigger, about 3% of the 1.9 MB of banked code.
+The notes above blamed the resident side alone; they were wrong about the banks.
+
+fc7 (docs/data/bankplan-2026-11-22-c128fc7.json; 783 s, peak 13.1 GB, exit 20)
+  - Near data moved far: options.c's boolopt[] and compopt[] and mondata.c's grownups[] into
+    far space 4, read by name (1,220 B); artilist[] as a far type in space 5, entries padded
+    to 64 (1,330 B). The quest index on the far object heap (about 1.1 KB of near heap).
+    linedup, lined_up, place_monster (bank 2) and wipe_engr_at (bank 3) out of resident code.
+  - Result: data $2A65-$4AFF (fc6 $2FA0-$5A2F), bss to $6C6D (fc6 $7BA0). Oscar64 gives the
+    C128 a 4 KB stack ($7000-$8000) and wants at least 1 KB of heap: 912 B is left, so the
+    resident side is 112 B short ("Cannot place heap section"), the stack placed for the
+    first time.
+  - Banks: still 60,936 B unplaced (the far heap's growth, above), bank 12 (mintrap's) first
+    in the errors.
+  - The plan's speed (tools/bank/warmplan.py's count, the host profile, 19,500 keys): fc1's
+    plan cost 17 REU copies a key, fc3's and every plan since 284 (about 4.7 s a key at 16 ms
+    a copy): fc3's moves sent the tty port's output path (video.c's xputs, cmov, cl_end, home)
+    and others into REU banks. Not noticed until now.
+
+fc8's plan (docs/data/bankplan-2026-11-22-c128fc8.json): fc7's, without shtypes among the
+banked tables (shtypes[] far in space 5, 336 B), then
+  - tools/bank/planfix.py on fc7's map and sizes (wholesizes.py --with-literals on fc7):
+    409 functions out of 90 overflowing banks, into 14 opened REU banks (126-128, 137, 140,
+    141, 144, 145, 148-153);
+  - tools/bank/warmplan.py (295 copies a key after planfix) to 35, where it stalls: video.c's
+    output functions call each other, so no single move gains. Moved as a group into bank 55
+    (tty_curs's; xputs, cmov, cl_end, home, nocmov, has_color, term_start/end_attr), then
+    warmplan again with --add-banks 154-159: 13 copies a key (about 0.21 s at 16 ms).
