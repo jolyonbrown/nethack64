@@ -136,7 +136,11 @@ def measure(f):
     h = os.path.join(OUT, "h_%s.c" % b)
     env = {k: v for k, v in os.environ.items() if k != "MKSTUBS_DEFS"}
     if CONFIGS[CONFIG]["cpp"] is not None:
-        env["MKSTUBS_DEFS"] = " ".join(CONFIGS[CONFIG]["cpp"])
+        # with MEASURE_DEFS' -d options too, so that prototypes under them (the far names'
+        # nh_mname()/nh_oname() under NH_FAR_SPACES) get their stubs
+        env["MKSTUBS_DEFS"] = " ".join(CONFIGS[CONFIG]["cpp"] +
+                                       ["-D" + d[2:] for d in os.environ.get("MEASURE_DEFS", "").split()
+                                        if d.startswith("-d")])
     g = subprocess.run([sys.executable, os.path.join(HERE, "mkstubs.py"), os.path.join(OUT, "inc"),
                         os.path.join(OUT, "src"), f, h] + base, capture_output=True, text=True,
                        env=env)

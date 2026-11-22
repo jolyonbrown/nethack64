@@ -805,6 +805,16 @@ Add new tasks at the bottom of the right section.
       `$0400-$0AFF` and `$1B00-$1BFF`, a plan's `char_space`; planfix for C128 sizes;
       resident functions called from one bank moved into it), in
       `docs/data/wholegame-c128-fit-2026-11-22.txt`.
+- [ ] T2.14 The heap far (ADR-0009 point 7: "`mons[]`, `objects[]` and the heap first"). The
+      C128's fc3 link leaves the resident side 2 KB over with no heap, and the near heap peaks
+      at 11-24 KB in C64 bytes in host games (`docs/data/heap-peak-2026-11-22.txt`: up to 201
+      monsters, 175 objects; a shopkeeper's block is 2,378 B). Monsters and their extensions
+      in far space 7, objects in far space 8 (`c64conf.h`, `NH_FAR_HEAP`); allocators per
+      space; names in the blocks (`NAME()`, `ONAME()`) read through a copy, as `NH_MNAME()`
+      does; `struct bill_x` and `struct fakecorridor` padded so that no entry crosses a page;
+      what stays near (windows, message history, quest index, about 3 KB). 2026-11-22: the
+      spaces declared for measurement (`far_meas.c` spaces 7-8; `measure_oscar64.py` now
+      gives `mkstubs.py` the `MEASURE_DEFS`), warnings 2026 being counted.
 
 ## Phase 3 — first light
 

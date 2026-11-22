@@ -1,4 +1,4 @@
-/* far_meas.c - the translation routines of far spaces 1-5 for measure_oscar64.py with
+/* far_meas.c - the translation routines of far spaces 1-8 for measure_oscar64.py with
  * MEASURE_DEFS=-dNH_FAR_SPACES (T2.12): every page maps to itself, so a program measured
  * this way runs as the near one does; what the measurement wants is the code and the
  * compiler's warnings 2026.  MEASURE_EXTRA=tools/measure/far_meas.c. */
@@ -193,6 +193,68 @@ void farxzc(void)
 {
 	__asm { jmp farxz6 }
 }
+#endif
+
+#ifdef NH_FAR_HEAP
+/* far space 7: the heap's monsters and their extensions (c64conf.h, NH_FAR_HEAP) */
+__asm farxl7
+{
+		txa
+		rts
+}
+
+__asm farxo7
+{
+		sty nh_meas_xoff
+		clc
+		adc nh_meas_xoff
+		bcc done7
+		inx
+done7:	rts
+}
+
+#pragma runtime(farxl7, farxl7)
+#pragma runtime(farxo7, farxo7)
+
+__asm farxz7
+{
+		lda $00, x
+		sta __addr + 0
+		lda $01, x
+		sta __addr + 1
+		rts
+}
+#pragma runtime(farxz7, farxz7)
+
+/* far space 8: the heap's objects (c64conf.h, NH_FAR_HEAP) */
+__asm farxl8
+{
+		txa
+		rts
+}
+
+__asm farxo8
+{
+		sty nh_meas_xoff
+		clc
+		adc nh_meas_xoff
+		bcc done8
+		inx
+done8:	rts
+}
+
+#pragma runtime(farxl8, farxl8)
+#pragma runtime(farxo8, farxo8)
+
+__asm farxz8
+{
+		lda $00, x
+		sta __addr + 0
+		lda $01, x
+		sta __addr + 1
+		rts
+}
+#pragma runtime(farxz8, farxz8)
 #endif
 
 /* the pin slots of the compiler's groups of accesses */

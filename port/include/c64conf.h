@@ -164,6 +164,18 @@ extern void perror(const char *);
 #include "nhnear.h"
 #endif
 
+#if defined(__OSCAR64C__) && defined(NH_FAR_SPACES) && defined(NH_FAR_HEAP)
+/* T2.12, a measurement, not yet the build's: the heap far (ADR-0009 point 7). The level's
+ * monsters, with their extensions, in far space 7, and its objects in far space 8, from
+ * allocators of their own; a block larger than a page stays on the near heap, where a far
+ * pointer below $8000 reaches it untranslated. Measured 2026-11-22 on the host: the near
+ * heap peaks at 11-24 KB in C64 bytes (monsters 16 KB in one game, 201 of them), against a
+ * resident side already 2 KB short without one (docs/data/heap-peak-2026-11-22.txt). */
+#pragma farspace(7, monst_s, epri, emin, eshk_s, bill_x, egd, fakecorridor, edog_s)
+#pragma farspace(8, obj_s)
+#define NH_FAR_HEAP_SPACES
+#endif
+
 #if defined(__OSCAR64C__) && defined(NH_FAR_SPACES) && defined(NH_FAR_CHARS)
 /* T2.13, a measurement (ADR-0010, far characters): far space 6 is the character space, which
  * a byte reached through a pointer may be in (the far-spaces fork's commit 11): addresses

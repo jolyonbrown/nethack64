@@ -38,12 +38,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <execinfo.h>
 
 enum { K_OTHER, K_LEVEL, K_VISION, K_DISPLAY, K_MONS, K_OBJECTS, K_GLOBALS, K_STRINGS, K_HEAP, K_NEAR, NKINDS };
 static const char *kname[NKINDS] = { "other", "level", "vision", "display", "mons", "objects",
                                      "globals", "strings", "heap", "near" };
 
-struct obj_ent { uintptr_t addr; uint32_t size, c64addr, c64size; uint8_t kind, hcat; unsigned long tot;
+struct obj_ent { uintptr_t addr, caller[4]; uint32_t size, c64addr, c64size; uint8_t kind, hcat; unsigned long tot;
                  int lastturn, nturns; char name[48]; };
 
 static struct obj_ent *ents, *heap;
@@ -75,6 +76,19 @@ struct sim {
 static struct sim sims[NPOL][NSIZE];
 static uint32_t lru_now;
 static unsigned long heap_tot[3];      /* struct obj, struct monst, other blocks */
+/* the C64 bytes live on the heap, by the same three kinds, and the most at once (each kind's
+   own peak, and all three's at the moment of the overall peak): how big a near heap is */
+static uint32_t heap_live[3], heap_peak[3], heap_live_all, heap_peak_all, heap_at_peak[3];
+static uint32_t heap_nlive[3], heap_npeak[3];
+/* other blocks at their host size too: char data (the tty port's lines) does not halve */
+static uint32_t heap_other_host, heap_other_host_peak;
+/* at the overall peak, each live block's caller (alloc()'s caller, found by backtrace()) and
+   C64 size, written at exit by caller: what the heap holds when it is fullest */
+struct peak_ent { uintptr_t caller[4]; uint32_t c64size, host; uint8_t hcat; };
+static int in_backtrace;              /* backtrace() may allocate on its first call */
+static struct peak_ent *peak_snap;
+static int npeak_snap, apeak_snap;
+extern char __executable_start[];
 #define NCLASS 33                      /* 8-byte size classes up to 256 B */
 #define MAXFREE 8192
 static uint32_t cls_next[NCLASS];      /* next byte in the class's current page, 0 none */
@@ -120,7 +134,23 @@ static void finish(void)
 			        ents[i].c64size, ents[i].tot, ents[i].nturns);
 	fprintf(f, "heap struct_obj - 48 %lu -\nheap struct_monst - 80 %lu -\nheap other - - %lu -\n",
 	        heap_tot[0], heap_tot[1], heap_tot[2]);
+	fprintf(f, "# heap peak (C64 bytes, blocks): obj %u %u, monst %u %u, other %u %u; "
+	        "all %u (obj %u, monst %u, other %u); other at host size %u\n",
+	        heap_peak[0], heap_npeak[0], heap_peak[1], heap_npeak[1], heap_peak[2], heap_npeak[2],
+	        heap_peak_all, heap_at_peak[0], heap_at_peak[1], heap_at_peak[2], heap_other_host_peak);
 	fclose(f);
+	snprintf(path, sizeof path, "%s.heappeak", op);
+	if ((f = fopen(path, "w")))
+	{
+		/* one line a block live at the peak: kind, C64 size, host size, four return
+		   addresses as offsets from the executable's start (addr2line -f -e <game>) */
+		for (int i = 0; i < npeak_snap; i++)
+			fprintf(f, "%u %u %u %lx %lx %lx %lx\n", peak_snap[i].hcat, peak_snap[i].c64size,
+			        peak_snap[i].host, (unsigned long)peak_snap[i].caller[0],
+			        (unsigned long)peak_snap[i].caller[1], (unsigned long)peak_snap[i].caller[2],
+			        (unsigned long)peak_snap[i].caller[3]);
+		fclose(f);
+	}
 }
 
 static void start(void)
@@ -428,6 +458,18 @@ STORE(1) STORE(2) STORE(4) STORE(8) STORE(16)
 
 static void heap_add(void *p, size_t n)
 {
+	uintptr_t caller[4] = { 0, 0, 0, 0 };
+	if (!in_backtrace && state > 0)
+	{
+		/* the frames above this file's own: alloc() and its caller, or libc's */
+		void *bt[8];
+		int nb, k = 0;
+		in_backtrace = 1;
+		nb = backtrace(bt, 8);
+		in_backtrace = 0;
+		for (int j = 1; j < nb && k < 4; j++)
+			caller[k++] = (uintptr_t)bt[j] - (uintptr_t)__executable_start;
+	}
 	uint32_t c64, at;
 	uint8_t hcat;
 	if (state == 0 && &moves)
@@ -484,7 +526,30 @@ static void heap_add(void *p, size_t n)
 		heap[i].c64size = c64;
 		heap[i].kind = far_kind[K_HEAP] ? K_HEAP : K_NEAR;
 		heap[i].hcat = hcat;
+		memcpy(heap[i].caller, caller, sizeof caller);
 		nheap++;
+	}
+	heap_live[hcat] += c64, heap_nlive[hcat]++, heap_live_all += c64;
+	if (hcat == 2 && (heap_other_host += n ? n : 1) > heap_other_host_peak)
+		heap_other_host_peak = heap_other_host;
+	if (heap_live[hcat] > heap_peak[hcat])
+		heap_peak[hcat] = heap_live[hcat];
+	if (heap_nlive[hcat] > heap_npeak[hcat])
+		heap_npeak[hcat] = heap_nlive[hcat];
+	if (heap_live_all > heap_peak_all)
+	{
+		heap_peak_all = heap_live_all;
+		memcpy(heap_at_peak, heap_live, sizeof heap_live);
+		if (nheap > apeak_snap)
+			peak_snap = __real_realloc(peak_snap, (apeak_snap = nheap * 2) * sizeof *peak_snap);
+		for (int j = 0; j < nheap; j++)
+		{
+			memcpy(peak_snap[j].caller, heap[j].caller, sizeof peak_snap[j].caller);
+			peak_snap[j].c64size = heap[j].c64size;
+			peak_snap[j].host = heap[j].size;
+			peak_snap[j].hcat = heap[j].hcat;
+		}
+		npeak_snap = nheap;
 	}
 	for (uint32_t q = at >> 8; q <= (at + c64 - 1) >> 8 && q < PAGES; q++)
 		page_kind[q] = far_kind[K_HEAP] ? K_HEAP : K_NEAR;
@@ -506,6 +571,9 @@ static void heap_del(void *p)
 		else
 		{
 			uint32_t c64 = heap[mid].c64size;
+			heap_live[heap[mid].hcat] -= c64, heap_nlive[heap[mid].hcat]--, heap_live_all -= c64;
+			if (heap[mid].hcat == 2)
+				heap_other_host -= heap[mid].size;
 			if (c64 <= 256)
 			{
 				int c = (c64 + 7) / 8;

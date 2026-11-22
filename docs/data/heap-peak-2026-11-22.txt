@@ -1,0 +1,45 @@
+How big the near heap gets (T2.13, 2026-11-22). tools/host-build.sh --trace (clang), each heap
+block given a C64 size as tools/measure/trace/nh_trace.c always has (struct obj_s and struct
+monst_s by their own C64 sizes, 48 and 80 bytes plus extras; anything else at half its host
+size, since pointers, ints and longs halve), and, new today, the C64 bytes live by kind, the
+peak of each, and at the overall peak each live block's caller (NH_TRACE_OUT.heappeak,
+backtrace(), resolved with addr2line). Layout from the C128 fc3 map (only the heap matters
+here). tools/profile_play.py bot games; the dungeon comes from the clock, so a seed does not
+fix it.
+
+run   keys    levels  peak, all   at the peak: objects  monsters  other   (other at host size)
+A     6,000   1-7     21,332 B    4,320 (175 at most)  1,574     15,438  (30,900)
+B     30,000  1-4     23,914 B    4,944 (147 at most)  16,096    2,874   (11,235)
+C     6,000   1-2     11,012 B    3,408 (73 at most)   2,096     5,508   (11,370)
+
+Run B's bot lingered: 201 monsters were alive at once (16,096 B). Run A's 15 KB of "other" at
+its peak was not broken down (the caller tracking came after it); run C's was:
+
+at run C's peak, by caller (C64 bytes estimated, host bytes, blocks)
+  other   2,540  5,080   1   makemon <- shkinit             a shopkeeper: struct eshk_s's
+                                                            bill[BILLSZ], 200 entries
+  monst   1,440  2,592  18   makemon <- moveloop
+  obj     1,056  2,288  22   mksobj <- mklev
+  other   1,116  2,232   2   construct_qtlist <- load_qtlist the quest texts' index
+  obj       768  1,664  16   mksobj <- mkobj_at
+  obj       672  1,456  14   mksobj <- mongets
+  other     720  1,440  20   remember_topl <- vpline        the message history
+  other     528  1,056  33   init_level <- newgame          the special levels' list
+  monst     560  1,008   7   makemon <- m_initgrp
+  obj       384    832   8   mksobj <- mkcorpstat
+  obj       288    624   6   mksobj <- mksobj_at
+  other     270    540   9   tty_create_nhwindow             the windows
+  obj       240    520   5   mksobj <- ini_inv
+  (and 10 more callers under 100 B each)
+
+What it means for the C128 link (docs/data/wholegame-c128-fit-2026-11-22.txt): fc3 left the
+resident side 2,050 B over with Oscar64's 3,434 B stack and no heap at all, so a near heap of
+11-24 KB cannot come from squeezing; the monsters and objects go far, as ADR-0009 point 7
+decided ("mons[], objects[] and the heap first"). What stays near is small: the windows,
+the message history, the quest index, the special levels' list, about 3 KB. A block larger
+than a page is the open case: a shopkeeper (the bill, about 2.3 KB on a C64, and Minetown has
+up to five) and a vault guard (the fake corridor, 101 entries of 3 B). The far-spaces fork
+translates each access to a struct larger than a page by itself, so such a block can lie
+across far pages; but its entries (struct bill_x, struct fakecorridor) are far types of their
+own, which the fork translates once per entry, so they must not cross a page: padded to a
+power of two and the block page-aligned, as mons[] and objects[] were (ADR-0009 point 5).
