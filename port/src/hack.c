@@ -713,9 +713,19 @@ findtravelpath(boolean guess)
 	flags.run = 8;
     }
     if (u.tx != u.ux || u.ty != u.uy) {
+#ifdef NH_FAR_MISC
+	/* T3.2: 8.4 KB, twice the C128's whole stack: static, in far space 5 (c64conf.h), read
+	 * by name (findtravelpath() does not recurse: the guess's second pass is a goto) */
+#pragma bss(farmisc)
+	static xchar travel[COLNO][ROWNO];
+	static xchar travelstepx[2][COLNO*ROWNO];
+	static xchar travelstepy[2][COLNO*ROWNO];
+#pragma bss(bss)
+#else
 	xchar travel[COLNO][ROWNO];
 	xchar travelstepx[2][COLNO*ROWNO];
 	xchar travelstepy[2][COLNO*ROWNO];
+#endif
 	xchar tx, ty, ux, uy;
 	int n = 1;			/* max offset in travelsteps */
 	int set = 0;			/* two sets current and previous */
@@ -733,7 +743,17 @@ findtravelpath(boolean guess)
 	}
 
     noguess:
+#ifdef NH_FAR_MISC
+	{	/* far: no memset() through a near pointer */
+	    int cx, cy;
+
+	    for (cx = 0; cx < COLNO; cx++)
+		for (cy = 0; cy < ROWNO; cy++)
+		    travel[cx][cy] = 0;
+	}
+#else
 	(void) memset((genericptr_t)travel, 0, sizeof(travel));
+#endif
 	travelstepx[0][0] = tx;
 	travelstepy[0][0] = ty;
 
