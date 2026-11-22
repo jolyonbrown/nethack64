@@ -14,7 +14,11 @@
 
 /*** Substructures ***/
 
-#ifdef NH_FAR_RNAMES
+/* rm.h's condition for NH_FAR_RNAMES, which it defines after this header is read (hack.h
+ * includes decl.h, and so this, before rm.h): testing NH_FAR_RNAMES here made NH_RNAME()
+ * the identity in every file, so role.c's names, at $E000 up in far space 3, were read as
+ * character-space strings (the C128's first boot, 2026-11-22) */
+#if defined(C64) && defined(__OSCAR64C__) && defined(NH_FAR_SPACES)
 /* a near copy of one of role.c's strings in the ring of buffers (nhbank.h) */
 extern const char *nh_rname(const char *);
 #define NH_RNAME(p) nh_rname(p)

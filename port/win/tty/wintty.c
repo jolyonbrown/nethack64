@@ -389,20 +389,20 @@ give_up:	/* Quit */
 		    if (ok_role(i, flags.initrace, flags.initgend,
 							flags.initalign)) {
 			any.a_int = i+1;	/* must be non-zero */
-			thisch = lowc(roles[i].name.m[0]);
+			thisch = lowc(NH_RNAME(roles[i].name.m)[0]);
 			if (thisch == lastch) thisch = highc(thisch);
 			if (flags.initgend != ROLE_NONE && flags.initgend != ROLE_RANDOM) {
 				if (flags.initgend == 1  && roles[i].name.f)
-					Strcpy(rolenamebuf, roles[i].name.f);
+					Strcpy(rolenamebuf, NH_RNAME(roles[i].name.f));
 				else
-					Strcpy(rolenamebuf, roles[i].name.m);
+					Strcpy(rolenamebuf, NH_RNAME(roles[i].name.m));
 			} else {
 				if (roles[i].name.f) {
-					Strcpy(rolenamebuf, roles[i].name.m);
+					Strcpy(rolenamebuf, NH_RNAME(roles[i].name.m));
 					Strcat(rolenamebuf, "/");
-					Strcat(rolenamebuf, roles[i].name.f);
+					Strcat(rolenamebuf, NH_RNAME(roles[i].name.f));
 				} else 
-					Strcpy(rolenamebuf, roles[i].name.m);
+					Strcpy(rolenamebuf, NH_RNAME(roles[i].name.m));
 			}	
 			add_menu(win, NO_GLYPH, &any, thisch,
 			    0, ATR_NONE, an(rolenamebuf), MENU_UNSELECTED);
@@ -477,8 +477,8 @@ give_up:	/* Quit */
 			if (ok_race(flags.initrole, i, flags.initgend,
 							flags.initalign)) {
 			    any.a_int = i+1;	/* must be non-zero */
-			    add_menu(win, NO_GLYPH, &any, races[i].noun[0],
-				0, ATR_NONE, races[i].noun, MENU_UNSELECTED);
+			    add_menu(win, NO_GLYPH, &any, NH_RNAME(races[i].noun)[0],
+				0, ATR_NONE, NH_RNAME(races[i].noun), MENU_UNSELECTED);
 			}
 		    any.a_int = pick_race(flags.initrole, flags.initgend,
 					flags.initalign, PICK_RANDOM)+1;
@@ -549,8 +549,8 @@ give_up:	/* Quit */
 			if (ok_gend(flags.initrole, flags.initrace, i,
 							    flags.initalign)) {
 			    any.a_int = i+1;
-			    add_menu(win, NO_GLYPH, &any, genders[i].adj[0],
-				0, ATR_NONE, genders[i].adj, MENU_UNSELECTED);
+			    add_menu(win, NO_GLYPH, &any, NH_RNAME(genders[i].adj)[0],
+				0, ATR_NONE, NH_RNAME(genders[i].adj), MENU_UNSELECTED);
 			}
 		    any.a_int = pick_gend(flags.initrole, flags.initrace,
 					    flags.initalign, PICK_RANDOM)+1;
@@ -620,8 +620,8 @@ give_up:	/* Quit */
 			if (ok_align(flags.initrole, flags.initrace,
 							flags.initgend, i)) {
 			    any.a_int = i+1;
-			    add_menu(win, NO_GLYPH, &any, aligns[i].adj[0],
-				 0, ATR_NONE, aligns[i].adj, MENU_UNSELECTED);
+			    add_menu(win, NO_GLYPH, &any, NH_RNAME(aligns[i].adj)[0],
+				 0, ATR_NONE, NH_RNAME(aligns[i].adj), MENU_UNSELECTED);
 			}
 		    any.a_int = pick_align(flags.initrole, flags.initrace,
 					    flags.initgend, PICK_RANDOM)+1;
