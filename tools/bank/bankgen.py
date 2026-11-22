@@ -604,6 +604,20 @@ def main():
         else:
             data_bank.setdefault(f, []).append((d, banks.pop()))
             report["data_banked"] += 1
+    # The character space (ADR-0010, --far-chars): the `char` buffers a plan's "char_space"
+    # names ("file:name" at file scope, "file:function:name" for a function's static) go to
+    # its section, farchars (c64conf.h), initialisers and all.  The compiler reaches them as
+    # far data by name and through any byte pointer (the fork's commit 11), so no use
+    # changes; what must stay near is what platform code under farchars(off) is handed, and
+    # what is stored in a name field (ADR-0010: `pl_fruit`).
+    char_space = {}
+    if a.far_chars:
+        for key in planj.get("char_space", []):
+            parts = key.split(":")
+            if len(parts) not in (2, 3) or parts[0] not in info:
+                sys.exit("bankgen: char_space %r: no such file" % key)
+            char_space.setdefault(parts[0], []).append(parts[1:])
+    report["char_space"] = []
     # extern functions by name, for calls between files within a bank
     extern_bank = {}
     for f in files:
@@ -699,6 +713,16 @@ def main():
                     ["#pragma code(nhslice)", "#pragma data(nhslice)"])
                 ends.setdefault(d["end"], []).extend(["#pragma code(code)", "#pragma data(data)"])
                 report["slice_tables"].append(key)
+        wrapped = set()
+        for spec in char_space.get(f, []):
+            if len(spec) == 1 and any(d["name"] == spec[0] for d, _ in data_bank.get(f, [])):
+                sys.exit("%s:%s: in a bank and in the character space" % (f, spec[0]))
+            start, end = char_space_lines(raw, spec, defs, data_info.get(f, []), f)
+            if start not in wrapped:          # questpgr.c defines three buffers on one line
+                wrapped.add(start)
+                begins.setdefault(start, []).extend(["#pragma data(farchars)", "#pragma bss(farchars)"])
+                ends.setdefault(end, []).extend(["#pragma data(data)", "#pragma bss(bss)"])
+            report["char_space"].append(":".join([f] + spec))
         for d in defs:
             b = bank_of.get("%s:%s" % (f, d["name"]))
             if "%s:%s" % (f, d["name"]) in noinline:
@@ -877,6 +901,38 @@ def main():
         report["banked"], len(report["banks"]), report["trampolines"], report["resident"], len(report["kept_resident"]),
         ", ".join("%s %d" % (w, list(report["kept_resident"].values()).count(w))
                   for w in sorted(set(report["kept_resident"].values())))))
+
+
+CHAR_DEF = r"^\s*(?:(?:static|NEARDATA|const|unsigned)\s+)*(?:char|uchar)\s+(?:NEARDATA\s+)?[^;=]*\b%s\s*\["
+
+
+def char_space_lines(raw, spec, defs, data_defs, f):
+    """The lines of a char_space definition, as begins/ends take them: the 0-based index of
+    its first line and the 1-based number of its last.  spec is [name] at file scope or
+    [function, name] for a function's static, a definition of its own line or, at file
+    scope, one whose initialiser data_definitions() found the end of."""
+    name = spec[-1]
+    bodies = [(d["brace"] - 1, d.get("end", d["brace"])) for d in defs]
+    if len(spec) == 2:
+        fn = next((d for d in defs if d["name"] == spec[0]), None)
+        if fn is None:
+            sys.exit("bankgen: char_space %s:%s: no such function" % (f, ":".join(spec)))
+        span = range(fn["brace"] - 1, fn.get("end", fn["brace"]))
+    else:
+        span = [i for i in range(len(raw)) if not any(lo <= i < hi for lo, hi in bodies)]
+    # a function's own static, not a local of the same name
+    hits = [i for i in span if re.match(CHAR_DEF % re.escape(name), raw[i]) and
+            (len(spec) == 1 or re.match(r"^\s*static\b", raw[i]))]
+    if len(hits) != 1:
+        sys.exit("bankgen: char_space %s:%s: %d definitions found" % (f, ":".join(spec), len(hits)))
+    i = hits[0]
+    code = raw[i].split("/*")[0].rstrip()
+    if code.endswith(";"):
+        return i, i + 1
+    d = next((x for x in data_defs if x["name"] == name and x["line"] == i + 1), None)
+    if len(spec) == 1 and d is not None:
+        return i, d["end"]
+    sys.exit("bankgen: char_space %s:%s: cannot find the end of its definition" % (f, ":".join(spec)))
 
 
 def preprocess_dm(path, inc, cpp):
@@ -1223,10 +1279,12 @@ on:		lda #$3f
 # the C128's resident RAM in bank 0 with the I/O in (T2.13): below the bank window from the
 # end of BASIC's and the KERNAL's workspace, and above it to the common RAM at $FC00, less the
 # I/O at $D000.  Code and initialised data only above the window: the start code clears the
-# bss as one range, BSSStart to BSSEnd
-C128_REGIONS = """#pragma region( main, 0x1d00, 0x8000, , , { code, data, bss, heap, stack } )
-#pragma region( nh_c128_c000, 0xc000, 0xd000, , , { code, data } )
-#pragma region( nh_c128_e000, 0xe000, 0xfc00, , , { code, data } )"""
+# bss as one range, BSSStart to BSSEnd.  The regions above the window come first: the linker fills a section's
+# regions in the order they are declared, so with `main` first the code filled it and left
+# $C000 up empty (docs/data/wholegame-c128-fc-2026-11-22.txt)
+C128_REGIONS = """#pragma region( nh_c128_c000, 0xc000, 0xd000, , , { code, data } )
+#pragma region( nh_c128_e000, 0xe000, 0xfc00, , , { code, data } )
+#pragma region( main, 0x1d00, 0x8000, , , { code, data, bss, heap, stack } )"""
 # with far characters (ADR-0010, c64conf.h's NH_FAR_CHARS) a byte pointer from $C100 up is
 # the character space's, so no near data may lie there: code only (the code section's only
 # data, its literals, then goes to the character space; the multiplication tables are read
@@ -1236,13 +1294,22 @@ C128_REGIONS_FAR_CHARS = C128_REGIONS.replace("{ code, data } )", "{ code } )")
 # RAM at $FC00; section nhio (the bank call routine, the far runtime) is kept below $8000,
 # since code at $D000-$DFFF can't switch the I/O in under itself
 C128_REGIONS_IO_OUT = """#pragma section( nhio, 0 )
-#pragma region( main, 0x1d00, 0x8000, , , { nhio, code, data, bss, heap, stack } )
-#pragma region( nh_c128_hi, 0xc000, 0xfc00, , , { code, data } )"""
+#pragma region( nh_c128_hi, 0xc000, 0xfc00, , , { code, data } )
+#pragma region( main, 0x1d00, 0x8000, , , { nhio, code, data, bss, heap, stack } )"""
 # the C128's low RAM that neither BASIC nor the KERNAL's disk routines need once the program
 # runs ($0B00-$1AFF: the cassette buffer, RS-232 buffers, sprites, function keys, BASIC's
 # variables), as bss: the far runtime's cache frames, which need no clearing
 C128_LOW = """#pragma section( nh_c128_low, 0, , , bss )
-#pragma region( nh_c128_lowr, 0x0b00, 0x1b00, , , { nh_c128_low } )"""
+#pragma region( nh_c128_lowr, 0x0b00, 0x1b00, , , { nh_c128_low } )
+#pragma section( nh_c128_glue, 0, , , bss )
+#pragma region( nh_c128_gluer, 0x0400, 0x0b00, , , { nh_c128_glue } )
+#pragma region( nh_c128_gluer2, 0x1b00, 0x1c00, , , { nh_c128_glue } )"""
+# and below the frames the 40-column screen and the KERNAL's and BASIC's work areas, and the
+# page above them, which nothing uses with the KERNAL out and the screen on the 80-column
+# chip (sys128.c): the bank glue's buffers, which need no clearing either (header()): its
+# scratch space, and the copies NH_KEEP makes (each written before the pointer that names it)
+C128_GLUE_BUFS = ("static char nh_stash_buf[4][NH_STASH_LEN];", "static char nh_args[1024];")
+C128_GLUE_KEEPS = ("delayed_killer", "killer", "nomovemsg", "occtxt")
 
 
 def region_banks(incs):
@@ -1291,7 +1358,7 @@ def header(banks, keep_extern={}, linker_stubs=False, resident_glue=(), slice_st
         regions += ("\n/* the slice: the same code and tables at $%04x-$BFFF of every bank */\n"
                     "#pragma section( nhslice, 0 )\n#pragma region( nhslice_r, 0x%04x, 0xc000, , { %s }, "
                     "{ nhslice } )" % (slice_start, slice_start, ", ".join(str(b) for b in banks)))
-    return """/* nhbank.h - written by tools/bank/bankgen.py: the banks, the bank switch and the
+    text = """/* nhbank.h - written by tools/bank/bankgen.py: the banks, the bank switch and the
  * string copy that its trampolines use (docs/BANKING-SPIKE.md). */
 #ifndef NHBANK_H
 #define NHBANK_H
@@ -1539,6 +1606,15 @@ nh_enter(int n, const char *f)
 
 #endif
 """ % (regions, setbank, bufs_decl, bufs_def)
+    if target == "c128":
+        for d in C128_GLUE_BUFS + tuple("char nh_keep_%s[%d];" % (n, keep_extern[n])
+                                        for n in C128_GLUE_KEEPS if n in keep_extern):
+            # the definition, at the start of its line (not the extern declaration)
+            text, n = re.subn(r"(?m)^%s$" % re.escape(d),
+                              lambda m: "#pragma bss( nh_c128_glue )\n%s\n#pragma bss( bss )" % m.group(0), text)
+            if n != 1:
+                sys.exit("bankgen: %d definitions %r in nhbank.h" % (n, d))
+    return text
 
 
 if __name__ == "__main__":

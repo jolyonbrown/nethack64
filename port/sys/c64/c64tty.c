@@ -7,7 +7,8 @@
  * when it starts, settty() when it ends, and tgetch() for every key
  * (tty_nhgetch).  The keys come from the HAL (src/hal/sys.h): the KERNAL's
  * buffer on a C64, the buffer and the keyboard matrix on a C128, as ASCII,
- * the cursor keys as the vi-keys and DEL as '\b'.  error() is the system
+ * the cursor keys as the vi-keys and DEL as '\b' (sys_waitkey(), declared in
+ * c64conf.h).  error() is the system
  * layer's still (c64conf.h).
  */
 
@@ -16,10 +17,6 @@
 #if defined(TTY_GRAPHICS) && defined(S80_VIDEO)
 
 #include "wintty.h"
-
-/* src/hal/sys.h's, declared here because that header needs Oscar64's own
- * (c64/types.h), which NetHack's files are not compiled with */
-extern char sys_waitkey(void);
 
 char erase_char, kill_char;	/* getline.c, topl.c */
 

@@ -799,6 +799,24 @@ Add new tasks at the bottom of the right section.
       Then: the fork's commit 13 (farxzN's lost carry, fixed); `build_c64.py --far-runtime`
       (`farrt.py --from-headers`) and `--io-out` (`bankgen.py --io-out`, bankreu128 -dIO_OUT
       14/14; frames in `$0B00-$1AFF`); `build/bank-c128-fc` generated for the desktop.
+      2026-11-22 (later): the C128 link with far characters, 617 objects unplaced
+      (`docs/data/wholegame-c128-fc-2026-11-22.txt`); then the resident side fitted step by
+      step (`bankgen.py`: the code regions above the window first, the glue's buffers at
+      `$0400-$0AFF` and `$1B00-$1BFF`, a plan's `char_space`; planfix for C128 sizes;
+      resident functions called from one bank moved into it), in
+      `docs/data/wholegame-c128-fit-2026-11-22.txt`.
+
+## Phase 3 — first light
+
+- [ ] T3.1 The window port: NetHack's tty port without termcap (ADR-0006's amendment of
+      2026-11-22). 2026-11-22: `port/sys/c64/video.c` over `screen80.h` (`s80_putca()` in
+      both screens); `tools/host-build.sh --video` and `tests/host_video_compare.py`, 301
+      screens the same as termcap's; `c64conf.h` turns the port on (`NO_TERMS`, `S80_VIDEO`);
+      it compiles under Oscar64 (wintty.c 20.5 KB, topl.c 4.8, getline.c 1.6, video.c 0.6;
+      r80-r82 worked around); `port/sys/c64/c64tty.c` (gettty, settty, setftty, `tgetch()`
+      over `sys_waitkey()`); in the C128 bank plan. Next: run it on the C128.
+- [ ] T3.2 The system layer's rest: `error()`, `regularize()`, the file layer (T2.4),
+      `fflush()`/`perror()`, time and the RNG (T2.7).
 
 ## Housekeeping
 

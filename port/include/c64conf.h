@@ -124,6 +124,8 @@ extern void NDECL(setftty);
 extern void NDECL(intron);
 extern void NDECL(introff);
 extern int NDECL(tgetch);		/* a key, as pcsys.c's (wintty.c's tty_nhgetch) */
+/* the HAL's (src/hal/sys.h, which needs Oscar64's c64/types.h): a key, waited for */
+extern char NDECL(sys_waitkey);
 
 #ifdef __OSCAR64C__
 /* Oscar64's scanf family parses floats too: with the float routines that is 3.2 KB of

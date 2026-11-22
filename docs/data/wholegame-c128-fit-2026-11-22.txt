@@ -1,0 +1,69 @@
+Fitting the C128's resident side (T2.13), 2026-11-22, links on the desktop with the far-spaces
+fork at 887e4bd (pin 87 + 13 far commits), -rmp -Os -xb -tm=c128 -v2; sources from
+tools/bank/build_c64.py --linker-stubs --far --far-chars --far-runtime --io-out --target c128
+--main real --generate-only. Start: docs/data/wholegame-c128-fc-2026-11-22.txt (fc), 617
+objects unplaced, the resident side 5,685 B short before the heap and the stack.
+
+fc1 (plan build/bankplan-c128fc1.json; 748 s, peak 12.7 GB, exit 20, 83 objects unplaced)
+  - bankgen.py: the code regions above the window declared before `main`, so the linker
+    fills $C000-$FBFF with code first; the bank glue's scratch buffers (nh_args 1,024,
+    nh_stash_buf 512) in a section at $0400-$0AFF that needs no clearing; a plan's
+    "char_space" puts named char buffers in the character space (#pragma bss/data(farchars)
+    around the definition, a function's static too: tested on the fork, the buffer at
+    $C100 and reached through the page table).
+  - The plan: far36's repaired for C128 code sizes (planfix.py --glue, 70 functions out of
+    13 overflowing banks, readobjnam into new bank 126, bank 127 opened); char_space: 20
+    cold buffers and tables (killer_buf, dogname, catname, horsename, xprname's li,
+    dfeature_at's altbuf, hitmu's kbuf, gulpum's msgbuf, parse's in_line, questpgr.c's
+    in_line, cvt_buf, out_line, nambuf, wizkit, ibm_graphics, dec_graphics, save_showsyms,
+    save_monsyms, def_monsyms, def_oc_syms).
+  - Result: $C000-$FBFF full of code (15,359 B); main $1D00-$6FFF full (code 6.0 KB, data
+    10.9 KB, bss 3.0 KB); bss 1,693 B unplaced (66 objects: outbuf, msgbuf, inbuf 256 each,
+    rect 204, nh_keep_occtxt 128, utrack 100, ...), then the heap and the stack (4 KB,
+    $7000-$7FFF). The character space at $C100-$F8CF (14,288 of 15,104 B). Banks: 9 bank
+    call stubs over in banks 91, 100 and 126 (6 B each). Object names: 100 B over in
+    faronames ($E000-$FFFF, 8 strings of objects.c), as in far36's C64 link (the same 8,287 B
+    of names in both maps): not new, not fixed yet.
+    Why: obj_descr's 726 literals (8,287 B) hold 618 distinct strings (7,395 B); Oscar64
+    keeps each copy ("white" six times, "orange" six, "yellow" five...). Merged, the names
+    would fit with 797 B to spare (gcc -E of objects.c in the C64 configuration).
+
+fc2 (plan build/bankplan-c128fc2.json; 772 s, peak 13.0 GB, exit 20, 317 objects unplaced)
+  - The plan: fc1's repaired (planfix.py, 6 functions out of banks 91, 100, 126; readobjnam
+    into new bank 128); 16 resident functions whose host-game calls all, or nearly all,
+    come from one bank moved into it where it had room (acurrstr, can_ooze, curr_mon_load,
+    getmattk, gettrack, itsstuck, m_carrying, max_mon_load, monsndx, movecmd, noattacks,
+    passes_bars, reset_occupations, u_wipe_engr, vault_occupied, which_armor: 2,372 B);
+    char_space + save.c's outbuf, restore.c's inbuf, eat.c's msgbuf; the tty port (now in
+    the C64 configuration, Phase 3) planned for the first time, 87 functions in new banks
+    129, 132, 133 (per-file sizes x1.2).
+  - bankgen.py: four NH_KEEP copies (killer, delayed_killer, nomovemsg, occtxt) in the low
+    glue section too, which gains $1B00-$1BFF.
+  - Result: the glue section full ($0400-$0AFF, $1B00-$1BFF); bss 1,247 B unplaced
+    (dungeons 768, rect 204, ...), then the heap. Resident code 22,411 B (21,579 in fc1):
+    2,472 B moved out, 3,274 B came in with the tty port (genl_outrip 1,264, which tty_procs
+    now names; the resident entries of the tty functions called through windowprocs that
+    take strings, 100-150 B each). The character space over by 414 B (rip.c's tombstone and
+    the tty port's literals). Banks: 129 over by 2,786 B (role.c's player-selection helpers
+    followed their only caller, wintty.c, into it), 13 more over by 6-534 B.
+
+fc3 (plan docs/data/bankplan-2026-11-22-c128fc3.json; 773 s, peak 13.0 GB, exit 20, 13
+objects unplaced). A first try stopped after 27 s: c64tty.c's sys_waitkey() had no stub in
+the whole-game harness (its prototype moved to c64conf.h, where mkstubs.py sees it), and the
+compiler then died writing nethack.error.int (the known -rmp crash after a compile error).
+  - The plan: four more resident functions into the bank that calls them (were_change into
+    32, show_glyph into 102, oselect into 21, online2 into 3: 1,734 B) and the tombstone
+    (rip.c's genl_outrip and center, 1,423 B) into the tty port's bank 133; planfix.py with
+    the room those need marked as overflow in its map (74 functions out of 15 banks, bank
+    136 opened); five questpgr.c/files.c buffers back out of the character space (414 B over
+    in fc2).
+  - Result: every banked object placed but 5 bank call stubs (banks 103 and 136, 6 B each);
+    every resident object placed; the object names' 100 B as before; and no stack or heap.
+    Resident code 22,411 -> about 19.2 KB ($C000-$FBFF full, $2162-$30F9 in main); data
+    $30FA-$5B83 (10,890 B); bss to $7A98 (7,950 B). Oscar64 sizes the stack for this
+    program at 3,434 B (the stack section $7000-$7D69 in the map): the resident side is
+    2,050 B over with that stack and no heap, 2,712 B with the default 4 KB stack.
+  - Still near and large: bss bufs 3,072 (objnam.c), nh_tlb 768 (the far runtime's page
+    tables), dungeons 768, nh_name_ring 384, toplines 300; data u 1,381, artilist 1,330,
+    compopt 504, boolopt 448, shtypes 336. The heap must hold the tty port's windows (the
+    message history, the status lines, menus) and NetHack's own near allocations.
