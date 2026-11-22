@@ -171,3 +171,25 @@ GB, exit 0): the whole game links for the C128, every object placed.
   - First boot in x128 (-cartmd128, 2 MB REU image): the program starts and stops at once in
     the C128 monitor, a BRK near $0007 (a jump through a null or wrong pointer early in
     start-up). Next: find where.
+
+The bootable build (T3.2; build_c64.py --main port --hal c128 --frames 12, the far fork at
+948d9bc, far18)
+  - fc13 booted to the C128 monitor at once: its main() was the measurement harness's
+    (newgame(); moveloop();), so askname() went through an empty windowprocs (Oscar64's
+    bcexec, JMP ($1B), to $0000). Now sys/c64/c64main.c and c64sys.c (files fail for now,
+    the console on the VDC), the HAL banked (bank 55, with HAL_IO_OUT: the I/O in around
+    each access), no s80_text[] shadow (vice.py screen --vdc reads the VDC), the page cache
+    at 12 frames with the page tables in the freed low RAM.
+  - fc14 (far17): the compiler crashed 3 s in (r84, compat #88: an object-like macro naming
+    a function-like one, dlb_fopen -> fopen -> nh_fopen -> bankgen's nh_fopen(...)); fixed in
+    the fork's commit 15. With far18: links, the stack and heap unplaced: the real main()
+    reaches the config-file parser (2.3 KB, never planned) and main() itself took 1,246 B
+    (functions called once inlined into it).
+  - fc15 (main() a call of a banked nh_c64_start(), the parser in bank 4; 818 s, exit 0):
+    links; heap $61E0-$7000, 3,616 B. Boots and prints on the VDC "Window type tty not
+    recognized. Choices are:" and garbage: tty_procs, under a page, went far by the far
+    default, while windows.c's winchoices[] holds its address as a near pointer. No warning
+    2026 for that (an initialiser); the build's 94 warnings 2026 named the rest of the window
+    port's: the tty strings and buffers passed as char *, c64sys.c's errno and struct tm,
+    c64main.c's argv. The far default's near list (2026-11-20) predates those files.
+  - fc16: those twelve named near.
