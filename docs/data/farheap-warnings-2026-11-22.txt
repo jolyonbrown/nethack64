@@ -3,24 +3,32 @@ MEASURE_DEFS="-dNH_FAR_SPACES -dNH_FAR_HEAP", MEASURE_EXTRA=tools/measure/far_me
 far-spaces fork at 34ee85e (commit 14). Monsters and their extensions in far space 7, objects
 in far space 8 (c64conf.h). 202 warnings in 32 game files (the stub harness's own left out).
 
-By kind:
-- about 90: a far pointer cast to genericptr_t and kept, compared or cast back (timers,
-  light sources, fmt_ptr, the FIG_TRANSFORM and HATCH_EGG timers, region callbacks). Harmless:
-  the cast keeps the far address (checked 2026-11-22 with a runtime that maps far page $80 to
-  another RAM page: the store translates, the void * holds $8010, the cast back reads the
-  value; -O0, -O2, -Os). Only a dereference of such a void * as near memory would be wrong.
-- 59: NAME() and ONAME(), a char * into the block (9 of them write: christening, copies).
-- about 25: char arrays and d_levels in the extensions read in place: ESHK()->customer and
-  ->shknam (strncmp, strncpy), &ESHK()->shoplevel, &EGD()->gdlevel, &EPRI()->shrlevel passed
+By kind (the first pattern that matches a line, the specific calls first):
+- 72 harmless: a far pointer cast to genericptr_t and kept, compared or cast back: timers and
+  light sources 48, fmt_ptr 14 (prints the address), region callbacks 5, walk_path()'s
+  argument, mkmaze.c's bubble contents (cons->list) 2, timeout.c's copy of a timer 1, and the
+  continuation lines below. The cast keeps the far address (checked 2026-11-22 with a
+  runtime that maps far page $80 to another RAM page: the store translates, the void * holds
+  $8010, the cast back reads the value; -O0, -O2, -Os). Only a dereference of such a void *
+  as near memory would be wrong.
+- 21 block I/O and copies: bwrite() and mread() of whole monsters and objects (save.c,
+  restore.c), memcpy() of extensions and whole blocks (do_name.c, mkobj.c, restore.c,
+  zap.c's m_id), makemon.c's memset() of the extension. These need the far helpers, and
+  page-safe ones: a shopkeeper's block (2,378 B) spans ten pages, which a built-in that
+  translates once would run past without a warning.
+- 62 NAME() and ONAME(), a char * into the block (9 of them write: christening, copies).
+- 14 the extensions' strings: ESHK()->customer and ->shknam (strncmp, strncpy, strcmp).
+- 15 the extensions' d_levels: &ESHK()->shoplevel, &EGD()->gdlevel, &EPRI()->shrlevel passed
   to on_level() and assign_level().
-- 14: pointers to fields of a far object: &obj->ocontainer->cobj and &obj->ocarry->minvent
+- 11 pointers to fields of a far object: &obj->ocontainer->cobj and &obj->ocarry->minvent
   (extract_nobj), &(*mtmp)->nmon, &mdef->minvent, &otmp->nobj (list walks by pointer to
-  pointer), &mtmp->mtrack[0].
-- 5: a monster inside an object ((struct monst_s *) obj->oextra: a corpse's or statue's
+  pointer), &mtmp->mtrack[0], &current_container->cobj.
+- 5 a monster inside an object ((struct monst_s *) obj->oextra: a corpse's or statue's
   attached monster, OATTACHED_MONST): monster data in the objects' space, to copy between
   spaces.
-- 4: free() and dealloc_monst(): the allocators.
-- 2: memcpy of a whole block (mkobj.c's realloc_obj, the attached monster), 1 mread.
+- 4 the allocator: free() and dealloc_monst().
+(The first count of this file, "about 90 harmless", had put the block I/O lines with the
+round trips; this one matches the specific calls first.)
 
 Seen on the way: a store through a constant far pointer, (struct mon *) 0x8010, is compiled
 as an absolute address without translation (the fork); NetHack has no such store (its only
