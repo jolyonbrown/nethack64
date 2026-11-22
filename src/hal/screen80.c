@@ -1,3 +1,4 @@
+#include <c64/types.h>
 #include "screen80.h"
 #include "font4x8.h"
 #include <c64/vic.h>

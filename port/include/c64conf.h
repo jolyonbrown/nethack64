@@ -33,9 +33,8 @@
  * Not here yet: the system layer's interface (file descriptors, errno, time,
  * getenv, qsort, fseek/ftell/rewind).  It belongs to the Phase 2 file layer
  * and the Phase 3 system layer; until then tools/measure/c64meas-c64.h
- * supplies measurement-only stand-ins.  DEFAULT_WINDOW_SYS stays config.h's
- * "tty" until the Phase 3 c64 window port sets it; only makedefs reads it,
- * for the #version text (dat/options), which a C64 build must regenerate.
+ * supplies measurement-only stand-ins.  DEFAULT_WINDOW_SYS is config.h's
+ * "tty", the port the C64 build has.
  */
 
 #ifndef C64CONF_H
@@ -49,12 +48,15 @@
 #define NO_SIGNAL
 
 /*
- * The tty window port (termcap) is not part of the C64 build, so windows.c
- * and mapglyph.c must not reference tty_procs or has_color().  The c64
- * window port (Phase 3) adds its own procs and DEFAULT_WINDOW_SYS.
- * TEXT_TOMBSTONE keeps rip.c's genl_outrip, which the host build has.
+ * The window port is NetHack's own tty port without termcap (NO_TERMS), as on
+ * MS-DOS (Phase 3): wintty.c, topl.c and getline.c draw through
+ * sys/c64/video.c, over the 80-column screen of src/hal/screen80.h
+ * (S80_VIDEO), so what the game shows is the host build's screen
+ * (tests/host_video_compare.py).  TEXT_TOMBSTONE keeps rip.c's genl_outrip,
+ * which the host build has.
  */
-#undef TTY_GRAPHICS
+#define NO_TERMS
+#define S80_VIDEO
 #define TEXT_TOMBSTONE
 
 /*
@@ -110,6 +112,19 @@ extern void srand48(long);
 extern void VDECL(error, (const char *,...)) PRINTF_F(1,2);
 extern void FDECL(regularize, (char *));
 
+/*
+ * The tty port's terminal set-up (wintty.c), as sys/share/unixtty.c and
+ * pctty.c have it, and stdio's fflush() and perror(), which the tty port
+ * calls and Oscar64's stdio.h lacks (below): the bodies come with the Phase 3
+ * system layer.
+ */
+extern void NDECL(gettty);
+extern void FDECL(settty, (const char *));
+extern void NDECL(setftty);
+extern void NDECL(intron);
+extern void NDECL(introff);
+extern int NDECL(tgetch);		/* a key, as pcsys.c's (wintty.c's tty_nhgetch) */
+
 #ifdef __OSCAR64C__
 /* Oscar64's scanf family parses floats too: with the float routines that is 3.2 KB of
  * resident code for NetHack's few integer and string reads (T2.12).  sys/c64/c64scanf.c
@@ -118,6 +133,8 @@ extern void FDECL(regularize, (char *));
 #define fscanf	nh_fscanf
 extern int nh_sscanf(const char *, const char *, ...);
 extern int nh_fscanf(FILE *, const char *, ...);
+extern int fflush(FILE *);
+extern void perror(const char *);
 #endif
 
 #if defined(__OSCAR64C__) && defined(NH_FAR_SPACES)

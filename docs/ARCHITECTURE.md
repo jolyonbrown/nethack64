@@ -135,10 +135,14 @@ choosing.
 
 NetHack talks to the display only through `struct window_procs`
 (`include/winprocs.h`): `putstr`, `print_glyph`, `nhgetch`, menus, `yn_function`,
-etc. `win/tty/` (4.5 K lines) is the model. Ours ("c64") draws into
-`src/hal/screen80` and reads keys via the KERNAL buffer. Map glyphs come
-through `mapglyph()`; colour per column-pair (see HARDWARE.md) suggests a
-monochrome map first. Keeping the shadow text buffer as the source of truth
+etc. The C64 build uses `win/tty/` itself (4.5 K lines), without termcap
+(`NO_TERMS`, as MS-DOS does; ADR-0006's amendment of 2026-11-22):
+`port/sys/c64/video.c` is its screen layer, about 25 functions over
+`src/hal/screen80` (the VIC-II bitmap on a C64, the VDC on a C128), and
+`tgetch()` in the system layer reads the keys. So the screens are the host's
+(`tests/host_video_compare.py`, `tools/host-build.sh --video`). Colour per
+column-pair on the C64 (see HARDWARE.md) tints a neighbour; the C128's VDC
+colours each character. Keeping the shadow text buffer as the source of truth
 gives agents a text view of the game for free (`tools/vice.py screen`).
 
 ## System layer

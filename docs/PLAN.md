@@ -72,8 +72,12 @@ Exit: an ADR for each choice, each backed by a measured spike in VICE.
 
 ## Phase 3 — First light: a NetHack level on the C64
 
-- [ ] `c64` window port on `screen80` (putstr, print_glyph, nhgetch, yn,
-      menus, status lines, `--More--`)
+- [ ] The window port: NetHack's tty port without termcap on `screen80`
+      (putstr, print_glyph, nhgetch, yn, menus, status lines, `--More--`).
+      2026-11-22: `port/sys/c64/video.c`, the host's screens matched over it
+      (`tests/host_video_compare.py`); the tty port compiles under Oscar64 in
+      the C64 configuration and is in the bank plan; `tgetch()` and the
+      terminal set-up are the system layer's
 - [ ] System layer (RNG seeding, time, panic/exit)
 - [ ] Boot -> character creation -> Dlvl 1 drawn, @ moves, `i` shows inventory
 - [ ] AUTOTEST: scripted keys reach Dlvl 2 via `>`; VICE exit code 0

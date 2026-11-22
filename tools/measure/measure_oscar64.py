@@ -89,6 +89,12 @@ def setup():
     # the C64 platform's own C files (sys/c64), compiled with the game's
     for f in sorted(glob.glob(os.path.join(ROOT, "port", "sys", "c64", "*.c"))):
         shutil.copy(f, os.path.join(OUT, "src"))
+    if CONFIG == "c64":
+        # and its window port (c64conf.h, Phase 3): the tty port without termcap.c, over
+        # sys/c64/video.c and the HAL's screen80.h, whose functions are stubs here
+        for f in ("wintty.c", "topl.c", "getline.c"):
+            shutil.copy(os.path.join(ROOT, "port", "win", "tty", f), os.path.join(OUT, "src"))
+        shutil.copy(os.path.join(ROOT, "src", "hal", "screen80.h"), os.path.join(OUT, "inc"))
     stubs = CONFIGS[CONFIG]["stubs"]
     if stubs is None:
         shutil.copytree(os.path.join(HERE, "stub"), os.path.join(OUT, "stub"))
@@ -256,13 +262,18 @@ def main():
     global CONFIG, OUT, DEFS
     ap = argparse.ArgumentParser(description="Oscar64 compile status and code size per port/src file")
     ap.add_argument("--config", choices=sorted(CONFIGS), default="unix")
-    ap.add_argument("files", nargs="*", help="port/src files (default: all)")
+    ap.add_argument("files", nargs="*", help="port/src or port/sys/c64 files, and with --config c64 "
+                    "wintty.c, topl.c, getline.c (default: all)")
     args = ap.parse_args()
-    # check names before setup() deletes the previous run's output
-    bad = [f for f in args.files if os.path.basename(f) != f or not f.endswith(".c")
-           or not os.path.isfile(os.path.join(ROOT, "port", "src", f))]
+    # check names before setup() deletes the previous run's output: a port/src or
+    # port/sys/c64 file, or with the C64 configuration one of its window port's (setup())
+    known = set(os.path.basename(p) for p in glob.glob(os.path.join(ROOT, "port", "src", "*.c")) +
+                glob.glob(os.path.join(ROOT, "port", "sys", "c64", "*.c")))
+    if args.config == "c64":
+        known |= {"wintty.c", "topl.c", "getline.c"}
+    bad = [f for f in args.files if f not in known]
     if bad:
-        ap.error("not a port/src/*.c file name: " + " ".join(bad))
+        ap.error("not a file of the build: " + " ".join(bad))
     # without makedefs' output every file would fail; say so instead of measuring
     missing = [p for p in GENERATED if not os.path.isfile(os.path.join(ROOT, "port", p))]
     if missing:

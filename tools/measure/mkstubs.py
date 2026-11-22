@@ -151,13 +151,26 @@ for name in wanted:
         continue                                   # declared, never used here
     if any(re.search(RAW_ARRAY % re.escape(name), t) for t in program):
         continue                                   # defined in this program
-    for f in sorted(os.listdir(srcdir)):
-        if not f.endswith(".c") or f == target or f in also:
-            continue
-        if re.search(RAW_ARRAY % re.escape(name), raw(f)) is None:
-            continue
+    # a definition in column 0, else an indented one (options.c's mapped_menu_cmds, which
+    # wintty.c declares), whose brace depth definition() checks
+    others = [f for f in sorted(os.listdir(srcdir)) if f.endswith(".c") and f != target and f not in also]
+    cands = [f for f in others if re.search(RAW_ARRAY % re.escape(name), raw(f))] or \
+        [f for f in others if re.search(RAW_ARRAY.replace("^(?!", "^[ \t]*(?!") % re.escape(name), raw(f))]
+    for f in cands:
         ftext = own_lines(os.path.join(srcdir, f))
         found = definition(ftext, name)
+        # an initializer that names the file's own functions (cmd.c's extcmdlist, which
+        # getline.c reads) cannot be copied: a one-element table of its type stands in,
+        # which is all the harness needs to compile the file it measures
+        names = set(re.findall(r"\b[A-Za-z_]\w*\b", STRING.sub("", found.split("=", 1)[1]))) \
+            if found and "=" in found else set()
+        if found and names & set(defs(os.path.join(srcdir, f))):
+            ext = re.search(r"\bextern\s+([^;()]*?)\b%s\s*\[\s*\]\s*;" % re.escape(name),
+                            preprocess(os.path.join(srcdir, target)))
+            if ext:
+                array_defs.append("/* stands in for %s's, whose initializer names its functions */\n"
+                                  "%s %s[1];" % (f, ext.group(1).strip(), name))
+                break
         if found:
             # shknam.c's shtypes[] names static arrays of the same file (shkgeneral,
             # ...): copy those first, else the copy stops with "Unknown identifier"
@@ -180,6 +193,22 @@ def prototypes(src):
     return found
 
 protos = prototypes(text)
+# the C64 configuration's window port (c64conf.h, Phase 3): the tty port's functions
+# (wintty.h) and the HAL screen under its video layer (screen80.h), declared outside hack.h
+c64_headers = [h for h in ("wintty.h", "screen80.h") if os.path.exists(os.path.join(inc, h))] \
+    if "-DC64" in cfg else []
+if c64_headers:
+    wrapper = os.path.join(base, "mkstubs-c64.h")
+    with open(wrapper, "w") as f:
+        f.write("".join('#include "%s"\n' % h for h in ["hack.h"] + c64_headers))
+    known = {name for _, name, _ in protos}
+    for p in prototypes(preprocess(wrapper)):
+        if p[1] not in known:
+            protos.append(p)
+    for m in re.finditer(r"(?m)^(void|int|char)\s+(s80_\w+)\s*\(([^;]*)\)\s*;", open(os.path.join(inc, "screen80.h")).read()
+                         if "screen80.h" in c64_headers else ""):
+        if m.group(2) not in known:
+            protos.append((m.group(1), m.group(2), m.group(3).strip()))
 # extern.h declares flood_fill_rm and remove_rooms without E (as upstream does):
 # take such bare prototypes from NetHack's headers only, not from Oscar64's libc
 BARE_PROTO = re.compile(r"^(?!extern\b|typedef\b|static\b)([A-Za-z_][^;()]*?)\b([A-Za-z_]\w*)\s*\(([^;]*)\)\s*;\s*$", re.M)
@@ -202,7 +231,7 @@ protos += own_protos
 # would drop them and every static function only they call
 declared = {name for _, name, _ in protos}
 undeclared = sorted(n for n, st in own_defs.items() if not st and n not in declared and n != "main")
-headers = ["hack.h", "dlb.h"]
+headers = ["hack.h", "dlb.h"] + c64_headers
 if own_protos or undeclared:
     for h in re.findall(r'(?m)^[ \t]*#[ \t]*include[ \t]+"([^"]+\.h)"', raw(target)):
         if h not in headers and h != "artilist.h" and os.path.exists(os.path.join(inc, h)):
@@ -329,6 +358,10 @@ for ret, name, args in protos:
     lines.append("__noinline %s %s(%s) {%s}" % (ret, name, params, body))
 
 for name in undeclared:
+    # a union parameter: a second file's prototype of it stops Oscar64 (r80); the C64
+    # build's wintty.h hides tty_add_menu's for that reason, and tty_procs refers to it
+    if "-DC64" in cfg and re.search(r"\b(union|anything)\b", own_decls[name]):
+        continue
     lines.append("extern %s;" % own_decls[name])
     refs.append(name)
 

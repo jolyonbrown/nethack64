@@ -201,3 +201,21 @@ bones and config-file points.
 - **Measurement:**
   `python3 tools/measure/measure_oscar64.py --config c64`, recorded in
   NETHACK-SURVEY.md (2026-11-09 section).
+
+## Amendment, 2026-11-22: the tty port, without termcap
+
+Point 3 compiled `TTY_GRAPHICS` out for a `c64` window port of our own. The C64 build
+instead keeps NetHack's own tty port (`wintty.c`, `topl.c`, `getline.c`) with `NO_TERMS`,
+as MS-DOS does, over `port/sys/c64/video.c`, which draws on `src/hal/screen80.h`
+(`S80_VIDEO`). `termcap.c` stays out. The game logic is untouched and the screens are the
+host build's: `tests/host_video_compare.py` plays one seeded game on the host's termcap
+build and on its build over `video.c`, and the 301 screens match (2026-11-22).
+- `c64conf.h`: `NO_TERMS` and `S80_VIDEO` in place of `#undef TTY_GRAPHICS`; the system
+  layer's `gettty`, `settty`, `setftty`, `intron`, `introff`, `tgetch`, and stdio's
+  `fflush` and `perror`, which Oscar64's `stdio.h` lacks, declared for Phase 3's bodies.
+- Compiler gaps found on the way, with workarounds (OSCAR64-COMPAT.md #83-#85): a union in
+  two files' prototypes of one function (r80, `wintty.h`), a function as a conditional's last
+  operand (r81, `getline.c`), a const union assigned (r82, `wintty.c`).
+- `tests/c64conf_probe.c` now expects `TTY_GRAPHICS`, `NO_TERMS` and `S80_VIDEO`.
+- DEFAULT_WINDOW_SYS stays config.h's "tty", which is now the port the build has; a C64
+  `makedefs` lists tty graphics in `#version`, as the host's does.

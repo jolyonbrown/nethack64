@@ -5,7 +5,8 @@
  *
  * (Its own directory, so that its .lbl never becomes tools/vice.py's newest build/*.lbl.)
  * Expect no errors and "Emulation result 0".  An #error names the option that is
- * wrong.  The measurement shim comes first only to supply time_t, which the C64
+ * wrong (TTY_GRAPHICS, as NO_TERMS and S80_VIDEO: the tty port without termcap,
+ * since Phase 3).  The measurement shim comes first only to supply time_t, which the C64
  * configuration leaves to the system layer (c64conf.h); without -dC64 the probe stops
  * in system.h (<sys/types.h>), as ADR-0006 says it must.
  */
@@ -13,7 +14,7 @@
 #include "hack.h"
 #include "tcap.h"
 
-#if defined(UNIX) || defined(MICRO) || defined(COMPRESS) || defined(TTY_GRAPHICS) || \
+#if defined(UNIX) || defined(MICRO) || defined(COMPRESS) || \
     defined(SHELL) || defined(SUSPEND) || defined(RANDOM) || defined(TERMINFO) || \
     defined(SYSTEM_H) || defined(POSIX_JOB_CONTROL) || defined(SIG_RET_TYPE)
 #error "a Unix-only option is still defined"
@@ -22,7 +23,8 @@
     !defined(MAIL) || !defined(TEXTCOLOR) || !defined(WIZARD) || \
     !defined(TEXT_TOMBSTONE) || !defined(ZEROCOMP) || !defined(RLECOMP) || \
     !defined(INSURANCE) || !defined(NEWS) || !defined(LOGFILE) || !defined(TERMLIB) || \
-    !defined(ASCIIGRAPH) || !defined(NHSTDC) || !defined(REDO)
+    !defined(ASCIIGRAPH) || !defined(NHSTDC) || !defined(REDO) || \
+    !defined(TTY_GRAPHICS) || !defined(NO_TERMS) || !defined(S80_VIDEO)
 #error "an expected option is missing"
 #endif
 #if FILENAME != 45

@@ -17,9 +17,8 @@
 #ifndef HAL_SCREEN80_H
 #define HAL_SCREEN80_H
 
-#ifdef __OSCAR64C__
-#include <c64/types.h>
-#endif
+/* No includes: NetHack's sys/c64/video.c includes this, and mkstubs.py reads it through
+ * gcc -E, where Oscar64's headers are not on the path. */
 
 #define S80_COLS 80
 #define S80_ROWS 25
