@@ -18,12 +18,56 @@ struct proto_dungeon {
 	struct	tmpdungeon_s tmpdungeon[MAXDUNGEON];
 	struct	tmplevel_s   tmplevel[LEV_LIMIT];
 	s_level *final_lev[LEV_LIMIT];	/* corresponding level pointers */
+#ifdef NH_FAR_MISC
+	char	nh_pad[128 - 2 * LEV_LIMIT];	/* tmpbranch[] at a multiple of 64 */
+#endif
 	struct	tmpbranch_s  tmpbranch[BRANCH_LIMIT];
 
 	int	start;	/* starting index of current dungeon sp levels */
 	int	n_levs;	/* number of tmplevel entries */
 	int	n_brs;	/* number of tmpbranch entries */
 };
+
+#ifdef NH_FAR_MISC
+/* T3.2: init_dungeons()'s proto_dungeon is 6.4 KB here (4 KB unpadded), more than the C128's
+ * whole stack, which it overran into the heap; so it is a static in far space 5, a far type
+ * like its entries (dgn_file.h). Its records are read through a near one, its names through
+ * near copies (nh_dgnname()). */
+#pragma farspace(5, proto_dungeon)
+#pragma bss(farmisc)
+static struct proto_dungeon nh_pd;
+#pragma bss(bss)
+#pragma align(nh_pd, 256)
+static_assert(sizeof (struct tmpdungeon_s) == 64 && sizeof (struct tmplevel_s) == 64 &&
+	      sizeof (struct tmpbranch_s) == 64 &&
+	      offsetof(struct proto_dungeon, tmpbranch) % 64 == 0, "dungeon.c's far proto_dungeon");
+
+/* a byte of space 5, as rm.h's nh_fb7 and nh_fb8 are of 7 and 8 */
+struct nh_fb5 { char b; };
+#pragma farspace(5, nh_fb5)
+
+static char nh_dgn_names[2][24];	/* near (the plan names it): the copies */
+
+/* a near copy of one of proto_dungeon's names (char[24], NUL-terminated) */
+STATIC_OVL const char *
+nh_dgnname(const char *p, int k)
+{
+	const struct nh_fb5 *q = (const struct nh_fb5 *) (unsigned) p;
+	int i;
+
+	for (i = 0; i < 23 && (nh_dgn_names[k][i] = q[i].b) != 0; i++)
+		;
+	nh_dgn_names[k][i] = 0;
+	return nh_dgn_names[k];
+}
+#define NH_DGNAME(p, k)		nh_dgnname((p), (k))
+/* a record of the file into a far entry, through a near one */
+#define NH_DGN_READ(dst, type)	do { struct type nh_r; \
+		Fread((genericptr_t) &nh_r, NH_DGN_FSIZE(type), 1, dgn_file); (dst) = nh_r; } while (0)
+#else
+#define NH_DGNAME(p, k)		(p)
+#define NH_DGN_READ(dst, type)	Fread((genericptr_t) &(dst), sizeof(struct type), 1, dgn_file)
+#endif
 
 int n_dgns;				/* number of dungeons (used here,  */
 					/*   and mklev.c)		   */
@@ -231,7 +275,7 @@ find_branch(const char *s, struct proto_dungeon *pd)
 
 	if (pd) {
 	    for (i = 0; i < pd->n_brs; i++)
-		if (!strcmp(pd->tmpbranch[i].name, s)) break;
+		if (!strcmp(NH_DGNAME(pd->tmpbranch[i].name, 0), s)) break;
 	    if (i == pd->n_brs) panic("find_branch: can't find %s", s);
 	} else {
 	    /* support for level tport by name */
@@ -266,7 +310,7 @@ parent_dnum(const char *s, struct proto_dungeon *pd)
 	 * Got branch, now find parent dungeon.  Stop if we have reached
 	 * "this" dungeon (if we haven't found it by now it is an error).
 	 */
-	for (pdnum = 0; strcmp(pd->tmpdungeon[pdnum].name, s); pdnum++)
+	for (pdnum = 0; strcmp(NH_DGNAME(pd->tmpdungeon[pdnum].name, 0), s); pdnum++)
 	    if ((i -= pd->tmpdungeon[pdnum].branches) < 0)
 		return(pdnum);
 
@@ -473,7 +517,7 @@ init_level(int dgn, int proto_index, struct proto_dungeon *pd)
 	pd->final_lev[proto_index] = new_level =
 					(s_level *) alloc(sizeof(s_level));
 	/* load new level with data */
-	Strcpy(new_level->proto, tlevel->name);
+	Strcpy(new_level->proto, NH_DGNAME(tlevel->name, 0));
 	new_level->boneid = tlevel->boneschar;
 	new_level->dlevel.dnum = dgn;
 	new_level->dlevel.dlevel = 0;	/* for now */
@@ -628,7 +672,11 @@ init_dungeons(void) /* initialize the "dungeon" structs */
 	dlb	*dgn_file;
 	register int i, cl = 0, cb = 0;
 	register s_level *x;
+#ifdef NH_FAR_MISC
+#define pd nh_pd		/* far, see above */
+#else
 	struct proto_dungeon pd;
+#endif
 	struct level_map_s *lev_map;
 	struct version_info vers_info;
 
@@ -681,8 +729,7 @@ init_dungeons(void) /* initialize the "dungeon" structs */
 	    panic("init_dungeons: too many dungeons");
 
 	for (i = 0; i < n_dgns; i++) {
-	    Fread((genericptr_t)&pd.tmpdungeon[i],
-				    sizeof(struct tmpdungeon_s), 1, dgn_file);
+	    NH_DGN_READ(pd.tmpdungeon[i], tmpdungeon_s);
 #ifdef WIZARD
 	    if(!wizard)
 #endif
@@ -691,18 +738,16 @@ init_dungeons(void) /* initialize the "dungeon" structs */
 
 		/* skip over any levels or branches */
 		for(j = 0; j < pd.tmpdungeon[i].levels; j++)
-		    Fread((genericptr_t)&pd.tmplevel[cl], sizeof(struct tmplevel_s),
-							1, dgn_file);
+		    NH_DGN_READ(pd.tmplevel[cl], tmplevel_s);
 
 		for(j = 0; j < pd.tmpdungeon[i].branches; j++)
-		    Fread((genericptr_t)&pd.tmpbranch[cb],
-					sizeof(struct tmpbranch_s), 1, dgn_file);
+		    NH_DGN_READ(pd.tmpbranch[cb], tmpbranch_s);
 		n_dgns--; i--;
 		continue;
 	      }
 
-	    Strcpy(dungeons[i].dname, pd.tmpdungeon[i].name);
-	    Strcpy(dungeons[i].proto, pd.tmpdungeon[i].protoname);
+	    Strcpy(dungeons[i].dname, NH_DGNAME(pd.tmpdungeon[i].name, 0));
+	    Strcpy(dungeons[i].proto, NH_DGNAME(pd.tmpdungeon[i].protoname, 1));
 	    dungeons[i].boneid = pd.tmpdungeon[i].boneschar;
 
 	    if(pd.tmpdungeon[i].lev.rand)
@@ -795,8 +840,7 @@ init_dungeons(void) /* initialize the "dungeon" structs */
 	     * special levels until they are all placed.
 	     */
 	    for(; cl < pd.n_levs; cl++) {
-		Fread((genericptr_t)&pd.tmplevel[cl],
-					sizeof(struct tmplevel_s), 1, dgn_file);
+		NH_DGN_READ(pd.tmplevel[cl], tmplevel_s);
 		init_level(i, cl, &pd);
 	    }
 	    /*
@@ -819,8 +863,7 @@ init_dungeons(void) /* initialize the "dungeon" structs */
 	    if (pd.n_brs > BRANCH_LIMIT)
 		panic("init_dungeon: too many branches");
 	    for(; cb < pd.n_brs; cb++)
-		Fread((genericptr_t)&pd.tmpbranch[cb],
-					sizeof(struct tmpbranch_s), 1, dgn_file);
+		NH_DGN_READ(pd.tmpbranch[cb], tmpbranch_s);
 	}
 	(void) dlb_fclose(dgn_file);
 
@@ -882,6 +925,9 @@ init_dungeons(void) /* initialize the "dungeon" structs */
 	dumpit();
 #endif
 }
+#ifdef NH_FAR_MISC
+#undef pd
+#endif
 
 xchar
 dunlev(d_level *lev) /* return the level number for lev in *this* dungeon */

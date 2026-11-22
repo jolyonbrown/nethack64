@@ -55,3 +55,11 @@ timeout.c	if (curr->kind == TIMER_OBJECT && curr->arg == (genericptr_t)obj) {	a 
 timeout.c	if (curr->kind == TIMER_OBJECT && curr->arg == (genericptr_t)src) {	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
 timeout.c	new_light_source(x, y, radius, LS_OBJECT, (genericptr_t) obj);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
 timeout.c	} else if (!stop_timer(BURN_OBJECT, (genericptr_t) obj))	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+dungeon.c	if (!strcmp(NH_DGNAME(pd->tmpbranch[i].name, 0), s)) break;	a far name's address for nh_dgnname(), which reads it as far bytes
+dungeon.c	for (pdnum = 0; strcmp(NH_DGNAME(pd->tmpdungeon[pdnum].name, 0), s); pdnum++)	a far name's address for nh_dgnname(), which reads it as far bytes
+dungeon.c	Strcpy(new_level->proto, NH_DGNAME(tlevel->name, 0));	a far name's address for nh_dgnname(), which reads it as far bytes
+dungeon.c	Strcpy(dungeons[i].dname, NH_DGNAME(pd.tmpdungeon[i].name, 0));	a far name's address for nh_dgnname(), which reads it as far bytes
+dungeon.c	Strcpy(dungeons[i].proto, NH_DGNAME(pd.tmpdungeon[i].protoname, 1));	a far name's address for nh_dgnname(), which reads it as far bytes
+dungeon.c	NH_DGN_READ(pd.tmpdungeon[i], tmpdungeon_s);	Fread() into a near local of a far type (struct type nh_r)
+dungeon.c	NH_DGN_READ(pd.tmplevel[cl], tmplevel_s);	Fread() into a near local of a far type (struct type nh_r)
+dungeon.c	NH_DGN_READ(pd.tmpbranch[cb], tmpbranch_s);	Fread() into a near local of a far type (struct type nh_r)

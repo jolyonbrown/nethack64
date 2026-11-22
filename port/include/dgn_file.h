@@ -27,6 +27,9 @@ struct tmpdungeon_s {
 		branches,
 		entry_lev;		/* entry level for this dungeon */
 	char	boneschar;
+#ifdef NH_FAR_MISC
+	char	nh_pad[64 - 63];	/* T3.2: dungeon.c's proto_dungeon far, its entries */
+#endif				/* padded to 64 so that none crosses a page */
 };
 
 struct tmplevel_s {
@@ -34,6 +37,9 @@ struct tmplevel_s {
 	struct	couple	lev;
 	int	chance, rndlevs, chain, flags;
 	char	boneschar;
+#ifdef NH_FAR_MISC
+	char	nh_pad[64 - 37];
+#endif
 };
 
 struct tmpbranch_s {
@@ -42,7 +48,16 @@ struct tmpbranch_s {
 	int	chain;		/* index into tmplevel array (chained branch)*/
 	int	type;		/* branch type (see below) */
 	int	up;		/* branch is up or down */
+#ifdef NH_FAR_MISC
+	char	nh_pad[64 - 34];
+#endif
 };
+#ifdef NH_FAR_MISC
+/* far types in space 5 (c64conf.h), as dungeon.c's proto_dungeon is: a file record is the
+ * entry without its padding (NH_DGN_FSIZE) */
+#pragma farspace(5, tmpdungeon_s, tmplevel_s, tmpbranch_s)
+#define NH_DGN_FSIZE(type)	((int) offsetof(struct type, nh_pad))
+#endif
 
 /*
  *	Values for type for tmpbranch structure.
