@@ -80,3 +80,31 @@ stack and the heap)
     same), still 2,050 B over before any heap.
   - The heap that must fit is 11-24 KB (docs/data/heap-peak-2026-11-22.txt): T2.14, the heap
     far, next.
+
+fc5 (fc3's plan with build_c64.py --far-heap: the heap far, T2.14; far17; 778 s, peak 13.0
+GB, exit 20, 5,484 objects unplaced)
+  - Far spaces 7 and 8 get page tables (nh_tlb 768 -> 1,024 B) and REU banks 19 and 20.
+  - Resident code 20,196 -> 22,229 B: the far heap's helpers, unplanned and called from many
+    banks, came in resident (allocator 1,214 B, nh_farmove 392, nh_hname 116, nh_hstrncpy 97,
+    the runtime's farxz7/8 and farxo7 122), and the resident functions that touch monsters
+    or objects grew by 204 B of translations. Data at $38F8 pushed the bss and every static
+    frame out (most of the 5,484 are frames).
+
+fc6 (docs/data/bankplan-2026-11-22-c128fc6.json, --far-heap; 783 s, peak 13.0 GB, exit 20)
+  - The plan: the allocator, nh_hname and nh_hstrncpy in cartridge bank 11 (they take only
+    numbers and typed strings, so a bank call is safe; nh_farmove stays resident, since its
+    callers hand it a literal's address as a number), set_apparxy in bank 2 and bad_rock in
+    bank 3 (their callers' banks, cartridge banks both: 537,847 and 153,307 calls in the
+    host profile), toplines in the character space.
+  - Result: main's code $21DC-$2F9F (3,524 B; fc4 3,991), data $2FA0-$5A2F (10,896), bss to
+    $7BA0: 264 B worse than fc4 (the page tables +256, the name ring's 256, the allocator's
+    tables 310, less toplines and code), so the stack is 2,314 B short and there is no heap.
+    The character space $C100-$F750 (13,903 B of 15,104).
+  - The far heap nets about 264 B of resident RAM and takes the heap from 11-24 KB to what
+    stays near: the windows, the message history, the quest index, the special levels' list,
+    about 4 KB with the allocator's overhead. What bank 0 still lacks: about 6.3 KB (the
+    stack's 2,314 B and a 4 KB heap).
+  - Near data, 19,454 B in 441 objects: 2,938 B of it near only because it is larger than a
+    page (the far default leaves those near: compopt, boolopt, grownups 1,220 B; the rest is
+    the runtime's and the glue's own), the rest named near (touched every turn, or its
+    address handed on as a near pointer).
