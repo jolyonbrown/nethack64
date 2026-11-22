@@ -140,3 +140,18 @@ banked tables (shtypes[] far in space 5, 336 B), then
     output functions call each other, so no single move gains. Moved as a group into bank 55
     (tty_curs's; xputs, cmov, cl_end, home, nocmov, has_color, term_start/end_attr), then
     warmplan again with --add-banks 154-159: 13 copies a key (about 0.21 s at 16 ms).
+
+fc8 (797 s, peak 13.1 GB, exit 20): bss to $6C48 (shtypes' 336 B, less about 300 B of new
+resident stubs and two trampolines, an and dospellmenu, from the bank moves); the heap 72 B
+short of 1 KB. The banks fc7's plan opened overfilled by up to 15 KB: warmplan.py counts a
+bank's fill from the build's map, so it did not see what planfix.py had just moved into
+them. Chain them only through a link (or warmplan first, then planfix).
+
+fc9 (docs/data/bankplan-2026-11-22-c128fc9.json: doors[] far, planfix on fc8's map with
+that change's growth added; 805 s, peak 13.1 GB, exit 20)
+  - The resident side fits for the first time: data $2B73-$49CD, bss to $6B40, a 1,216-B
+    heap ($6B40-$7000) under Oscar64's 4 KB stack ($7000-$8000; it sizes this program's at
+    3,430 B). Nothing resident is unplaced.
+  - Banks: 4,839 B unplaced in 16 banks (stubs and caller wrappers, which the size graph
+    leaves out), the first error objnam.c's. 12 REU copies a key.
+  - fc10: planfix on fc9's map, 57 moves.
