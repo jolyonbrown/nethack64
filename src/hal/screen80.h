@@ -17,7 +17,9 @@
 #ifndef HAL_SCREEN80_H
 #define HAL_SCREEN80_H
 
+#ifdef __OSCAR64C__
 #include <c64/types.h>
+#endif
 
 #define S80_COLS 80
 #define S80_ROWS 25
@@ -39,5 +41,11 @@ void s80_puts(const char *s);
 void s80_clear_eol(void);
 void s80_color_cells(char x, char y, char w, char fg);	/* w in columns */
 void s80_invert(char x, char y);	/* toggle reverse video of one column */
+
+/* A character and its attribute at once, for the window port's terminal layer: attr is a
+ * colour (as s80_color_cells takes it) in bits 0-3, plus S80_REVERSE. On the C64 the colour
+ * is the pair's (the VIC-II's limit), so it changes the neighbour's colour too. */
+#define S80_REVERSE	0x80
+void s80_putca(char x, char y, char c, char attr);
 
 #endif

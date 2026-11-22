@@ -211,3 +211,15 @@ void s80_invert(char x, char y)
 	vdc_at(a);
 	vdc_wr(31, v ^ ATTR_REVERSE);
 }
+
+void s80_putca(char x, char y, char c, char attr)
+{
+	if (x >= S80_COLS || y >= S80_ROWS)
+		return;
+	unsigned i = (unsigned)y * S80_COLS + x;
+	s80_text[i] = c;
+	vdc_at(VDC_SCREEN + i);
+	vdc_wr(31, c);
+	vdc_at(VDC_ATTR + i);
+	vdc_wr(31, rgbi[attr & 15] | (attr & S80_REVERSE ? ATTR_REVERSE : 0));
+}

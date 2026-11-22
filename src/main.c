@@ -170,7 +170,7 @@ static bool handle_key(char k)
 #ifdef AUTOTEST
 /* Failure codes are visible as the VICE process exit status. */
 enum { T_PASS = 0, T_WALK = 2, T_BLOCK = 3, T_REU_DMA = 4, T_REU_RESTORE = 5, T_RNG = 6,
-       T_REU_PROBE = 7 };
+       T_REU_PROBE = 7, T_PUTCA = 8 };
 
 static char autotest(void)
 {
@@ -200,6 +200,26 @@ static char autotest(void)
 	srand48(-1L);
 	if (lrand48() != 0x26673e37L)
 		return T_RNG;
+
+	/* s80_putca: a character with its attribute, in the shadow (and on the C64 the pair's
+	   colour in the colour matrix), then the cell put back as it was */
+	{
+		char old = s80_text[24 * S80_COLS + 79];
+		s80_putca(79, 24, 'Z', 7 | S80_REVERSE);
+		if (s80_text[24 * S80_COLS + 79] != 'Z')
+			return T_PUTCA;
+#ifndef __C128__
+		if ((S80_COLORMAP[24 * 40 + 39] >> 4) != 7)
+			return T_PUTCA;
+#endif
+		s80_putca(79, 24, old, 15);
+		if (s80_text[24 * S80_COLS + 79] != old)
+			return T_PUTCA;
+#ifndef __C128__
+		if ((S80_COLORMAP[24 * 40 + 39] >> 4) != 15)
+			return T_PUTCA;
+#endif
+	}
 
 	/* REU: stash, wipe, restore, compare (skipped when no REU attached) */
 	if (reu_banks)

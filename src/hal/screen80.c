@@ -132,3 +132,18 @@ void s80_invert(char x, char y)
 	s80_inv[i >> 3] ^= 1 << (i & 7);
 	draw_pair(x >> 1, y);
 }
+
+void s80_putca(char x, char y, char c, char attr)
+{
+	if (x >= S80_COLS || y >= S80_ROWS)
+		return;
+	unsigned i = (unsigned)y * S80_COLS + x;
+	s80_text[i] = c;
+	if (attr & S80_REVERSE)
+		s80_inv[i >> 3] |= 1 << (i & 7);
+	else
+		s80_inv[i >> 3] &= ~(1 << (i & 7));
+	char *cm = S80_COLORMAP + (unsigned)y * 40 + (x >> 1);
+	*cm = (*cm & 0x0f) | ((attr & 15) << 4);
+	draw_pair(x >> 1, y);
+}

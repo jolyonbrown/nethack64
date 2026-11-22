@@ -46,7 +46,8 @@ for _opt in ("chargde", "chargfr", "chargse", "chargch", "chargno"):
 
 FAILS = {1: "timeout (limitcycles reached)", 2: "walk", 3: "wall blocking",
          4: "REU DMA", 5: "REU restore mismatch", 6: "lrand48 differs from glibc",
-         7: "REU size probe changed the REU or its answer"}
+         7: "REU size probe changed the REU or its answer",
+         8: "s80_putca did not write the character or its colour"}
 
 
 def run_case(name, image, kind, reu):
