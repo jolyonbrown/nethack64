@@ -8,6 +8,9 @@
 #define FCSIZ	(ROWNO+COLNO)
 struct fakecorridor {
 	xchar fx,fy,ftyp;
+#ifdef NH_FAR_HEAP_SPACES
+	xchar nh_pad;		/* T2.14: 4 bytes, so that no entry crosses a far page */
+#endif
 };
 
 struct egd {
@@ -19,6 +22,9 @@ struct egd {
 	xchar warncnt;		/* number of warnings to follow */
 	Bitfield(gddone,1);	/* true iff guard has released player */
 	Bitfield(unused,7);
+#ifdef NH_FAR_HEAP_SPACES
+	xchar nh_pad0;		/* T2.14: fakecorr[] at a multiple of 4 in the block */
+#endif
 	struct fakecorridor fakecorr[FCSIZ];
 };
 

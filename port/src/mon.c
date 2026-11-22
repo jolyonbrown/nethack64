@@ -1226,6 +1226,23 @@ dmonsfree(void)
 {
     struct monst_s **mtmp;
     int count = 0;
+#ifdef NH_FAR_HEAP_SPACES
+    /* T2.14: the links are in far monsters, so no struct monst_s ** points at one:
+       the same walk with the previous monster */
+    struct monst_s *head = fmon, *prev = 0, *cur, *next;
+
+    for (cur = head; cur; cur = next) {
+	next = cur->nmon;
+	if (cur->mhp <= 0) {
+	    if (prev) prev->nmon = next;
+	    else head = next;
+	    dealloc_monst(cur);
+	    count++;
+	} else
+	    prev = cur;
+    }
+    fmon = head;
+#else
 #ifdef NH_FAR_LEVEL
     /* T2.12: fmon is in the far level; walk from a near copy of the head */
     struct monst_s *head = fmon;
@@ -1245,6 +1262,7 @@ dmonsfree(void)
 #ifdef NH_FAR_LEVEL
     fmon = head;
 #endif
+#endif /* NH_FAR_HEAP_SPACES */
 
     if (count != iflags.purge_monsters)
 	impossible("dmonsfree: %d removed doesn't match %d pending",

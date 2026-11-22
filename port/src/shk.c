@@ -170,7 +170,7 @@ next_shkp(struct monst_s *shkp, boolean withbill)
 char *
 shkname(struct monst_s *mtmp) /* called in do_name.c */
 {
-	return(ESHK(mtmp)->shknam);
+	return(NH_ESHK_SHKNAM(ESHK(mtmp)));
 }
 
 void
@@ -184,7 +184,7 @@ shkgone(struct monst_s *mtmp) /* called in mon.c */
 
 	/* [BUG: some of this should be done on the shop level */
 	/*       even when the shk dies on a different level.] */
-	if (on_level(&eshk->shoplevel, &u.uz)) {
+	if (NH_ON_LEVEL_F(eshk->shoplevel, &u.uz)) {
 	    remove_damage(mtmp, TRUE);
 	    sroom->resident = (struct monst_s *)0;
 	    if (!search_special(ANY_SHOP))
@@ -210,7 +210,7 @@ shkgone(struct monst_s *mtmp) /* called in mon.c */
 void
 set_residency(struct monst_s *shkp, boolean zero_out)
 {
-	if (on_level(&(ESHK(shkp)->shoplevel), &u.uz))
+	if (NH_ON_LEVEL_F(ESHK(shkp)->shoplevel, &u.uz))
 	    rooms[ESHK(shkp)->shoproom - ROOMOFFSET].resident =
 		(zero_out)? (struct monst_s *)0 : shkp;
 }
@@ -236,8 +236,8 @@ restshk(struct monst_s *shkp, boolean ghostly)
 	/* shoplevel can change as dungeons move around */
 	/* savebones guarantees that non-homed shk's will be gone */
 	if (ghostly) {
-	    assign_level(&eshkp->shoplevel, &u.uz);
-	    if (ANGRY(shkp) && strncmpi(eshkp->customer, plname, PL_NSIZ))
+	    NH_ASSIGN_LEVEL_F(eshkp->shoplevel, &u.uz);
+	    if (ANGRY(shkp) && strncmpi(NH_ESHK_CUSTOMER(eshkp), plname, PL_NSIZ))
 		pacify_shk(shkp);
 	}
     }
@@ -513,11 +513,11 @@ u_entered_shop(char *enterstring)
 	eshkp->bill_p = &(eshkp->bill[0]);
 
 	if ((!eshkp->visitct || *eshkp->customer) &&
-	    strncmpi(eshkp->customer, plname, PL_NSIZ)) {
+	    strncmpi(NH_ESHK_CUSTOMER(eshkp), plname, PL_NSIZ)) {
 	    /* You seem to be new here */
 	    eshkp->visitct = 0;
 	    eshkp->following = 0;
-	    (void) strncpy(eshkp->customer,plname,PL_NSIZ);
+	    NH_ESHK_SETCUSTOMER(eshkp, plname);
 	    pacify_shk(shkp);
 	}
 
@@ -684,7 +684,7 @@ inhishop(struct monst_s *mtmp)
 {
 	return(index(in_rooms(mtmp->mx, mtmp->my, SHOPBASE),
 		     ESHK(mtmp)->shoproom) &&
-		on_level(&(ESHK(mtmp)->shoplevel), &u.uz));
+		NH_ON_LEVEL_F(ESHK(mtmp)->shoplevel, &u.uz));
 }
 
 struct monst_s *
@@ -942,7 +942,7 @@ make_happy_shk(struct monst_s *shkp, boolean silentkops)
 		boolean vanished = canseemon(shkp);
 
 		Strcpy(shk_nam, mon_nam(shkp));
-		if (on_level(&eshkp->shoplevel, &u.uz)) {
+		if (NH_ON_LEVEL_F(eshkp->shoplevel, &u.uz)) {
 			home_shk(shkp, FALSE);
 			/* didn't disappear if shk can still be seen */
 			if (canseemon(shkp)) vanished = FALSE;
@@ -953,8 +953,18 @@ make_happy_shk(struct monst_s *shkp, boolean silentkops)
 			   happens to be going farther down rather than up */
 			mdrop_special_objs(shkp);
 			/* arrive near shop's door */
-			migrate_to_level(shkp, ledger_no(&eshkp->shoplevel),
+#ifdef NH_FAR_HEAP_SPACES
+			{   /* T2.14: the door is in the far monster; a near copy for
+			       the pointer (migrate_to_level() reads it at once) */
+			    coord shd;
+			    shd = eshkp->shd;
+			    migrate_to_level(shkp, ledger_no(NH_DLEVEL_F(eshkp->shoplevel)),
+					     MIGR_APPROX_XY, &shd);
+			}
+#else
+			migrate_to_level(shkp, ledger_no(NH_DLEVEL_F(eshkp->shoplevel)),
 					 MIGR_APPROX_XY, &eshkp->shd);
+#endif
 		}
 		if (vanished)
 		    pline("Satisfied, %s suddenly disappears!", shk_nam);
@@ -975,7 +985,7 @@ hot_pursuit(struct monst_s *shkp)
 	if(!shkp->isshk) return;
 
 	rile_shk(shkp);
-	(void) strncpy(ESHK(shkp)->customer, plname, PL_NSIZ);
+	NH_ESHK_SETCUSTOMER(ESHK(shkp), plname);
 	ESHK(shkp)->following = 1;
 }
 
@@ -1267,7 +1277,7 @@ proceed:
 			x_monnam(shkp, ARTICLE_THE, "angry", 0, FALSE),
 			mhim(shkp));
 		    pay(1000L,shkp);
-		    if (strncmp(eshkp->customer, plname, PL_NSIZ) || rn2(3))
+		    if (strncmp(NH_ESHK_CUSTOMER(eshkp), plname, PL_NSIZ) || rn2(3))
 			make_happy_shk(shkp, FALSE);
 		    else
 			pline("But %s is as angry as ever.", mon_nam(shkp));
@@ -1570,7 +1580,7 @@ paybill(int croaked)
 	    mtmp2 = mtmp->nmon;
 	    if (mtmp != resident) {
 		/* for bones: we don't want a shopless shk around */
-		if(!on_level(&(ESHK(mtmp)->shoplevel), &u.uz))
+		if(!NH_ON_LEVEL_F(ESHK(mtmp)->shoplevel, &u.uz))
 			mongone(mtmp);
 		else {
 		    numsk++;
@@ -1671,7 +1681,7 @@ inherits(struct monst_s *shkp, int numsk, int croaked)
 			pline("%s %s the %ld %s %sowed %s.",
 			      Monnam(shkp), takes,
 			      loss, currency(loss),
-			      strncmp(eshkp->customer, plname, PL_NSIZ) ?
+			      strncmp(NH_ESHK_CUSTOMER(eshkp), plname, PL_NSIZ) ?
 					"" : "you ",
 			      shkp->female ? "her" : "him");
 			/* shopkeeper has now been paid in full */
@@ -3131,9 +3141,9 @@ shk_move(struct monst_s *shkp)
 			return(0);
 		}
 		if(eshkp->following) {
-			if(strncmp(eshkp->customer, plname, PL_NSIZ)) {
+			if(strncmp(NH_ESHK_CUSTOMER(eshkp), plname, PL_NSIZ)) {
 			    verbalize("%s, %s!  I was looking for %s.",
-				    Hello(shkp), plname, eshkp->customer);
+				    Hello(shkp), plname, NH_ESHK_CUSTOMER(eshkp));
 				    eshkp->following = 0;
 			    return(0);
 			}
@@ -3416,7 +3426,7 @@ pay_for_damage(const char *dmgstr, boolean cant_mollify)
 	y = appear_here->place.y;
 
 	/* not the best introduction to the shk... */
-	(void) strncpy(ESHK(shkp)->customer,plname,PL_NSIZ);
+	NH_ESHK_SETCUSTOMER(ESHK(shkp), plname);
 
 	/* if the shk is already on the war path, be sure it's all out */
 	if(ANGRY(shkp) || ESHK(shkp)->following) {
@@ -3661,9 +3671,9 @@ shk_chat(struct monst_s *shkp)
 			shkname(shkp), mhe(shkp),
 			eshk->robbed ? "non-paying" : "rude");
 	else if (eshk->following) {
-		if (strncmp(eshk->customer, plname, PL_NSIZ)) {
+		if (strncmp(NH_ESHK_CUSTOMER(eshk), plname, PL_NSIZ)) {
 		    verbalize("%s %s!  I was looking for %s.",
-			    Hello(shkp), plname, eshk->customer);
+			    Hello(shkp), plname, NH_ESHK_CUSTOMER(eshk));
 		    eshk->following = 0;
 		} else {
 		    verbalize("%s %s!  Didn't you forget to pay?",

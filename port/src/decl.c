@@ -241,6 +241,8 @@ nh_hname(unsigned a, int sp, unsigned n)
 }
 
 int nh_realloc_ss;	/* obj.h's NH_REALLOC_FROM() */
+struct obj_s *nh_chain_proxy, *nh_chain_cont;	/* obj.h's NH_CHAIN_HEAD() */
+d_level nh_dltmp;	/* dungeon.h's NH_DLEVEL_F() */
 
 /* strncpy() to a name at address a of space sp: n bytes, NUL-padded (obj.h) */
 void

@@ -1232,8 +1232,7 @@ impact_drop(struct obj_s *missile, xchar x, xchar y, xchar dlev)
 		    You("removed %ld %s worth of goods!", price, currency(price));
 		    if(cansee(shkp->mx, shkp->my)) {
 			if(ESHK(shkp)->customer[0] == 0)
-			    (void) strncpy(ESHK(shkp)->customer,
-					   plname, PL_NSIZ);
+			    NH_ESHK_SETCUSTOMER(ESHK(shkp), plname);
 			if(angry)
 			    pline("%s is infuriated!", Monnam(shkp));
 			else pline("\"%s, you are a thief!\"", plname);

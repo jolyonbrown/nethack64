@@ -98,6 +98,20 @@ typedef struct branch_s {
  *
  * Depth corresponds to the number of floors below the surface.
  */
+#ifdef NH_FAR_HEAP_SPACES
+/* a d_level in a far monster's extension (a shopkeeper's, a guard's, a priest's;
+ * T2.14): compared and assigned field by field, as on_level() and assign_level() do,
+ * or copied near for a function that takes a pointer */
+extern d_level nh_dltmp;
+#define NH_ON_LEVEL_F(fl, l2)	((fl).dnum == (l2)->dnum && (fl).dlevel == (l2)->dlevel)
+#define NH_ASSIGN_LEVEL_F(fl, l2) ((fl).dnum = (l2)->dnum, (fl).dlevel = (l2)->dlevel)
+#define NH_DLEVEL_F(fl)		(nh_dltmp = (fl), &nh_dltmp)
+#else
+#define NH_ON_LEVEL_F(fl, l2)	on_level(&(fl), (l2))
+#define NH_ASSIGN_LEVEL_F(fl, l2) assign_level(&(fl), (l2))
+#define NH_DLEVEL_F(fl)		(&(fl))
+#endif
+
 #define Is_astralevel(x)	(on_level(x, &astral_level))
 #define Is_earthlevel(x)	(on_level(x, &earth_level))
 #define Is_waterlevel(x)	(on_level(x, &water_level))

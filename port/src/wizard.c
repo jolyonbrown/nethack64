@@ -468,6 +468,36 @@ resurrect(void)
 	} else {
 	    /* look for a migrating Wizard */
 	    verb = "elude";
+#ifdef NH_FAR_HEAP_SPACES
+	    /* T2.14: the links are in far monsters, so no struct monst_s ** points
+	       at one: the same walk with the previous monster */
+	    {
+	    struct monst_s *prev = 0;
+
+	    for (mtmp = migrating_mons; mtmp; prev = mtmp, mtmp = mtmp->nmon) {
+		if (mtmp->iswiz &&
+			/* if he has the Amulet, he won't bring it to you */
+			!mon_has_amulet(mtmp) &&
+			(elapsed = monstermoves - mtmp->mlstmv) > 0L) {
+		    mon_catchup_elapsed_time(mtmp, elapsed);
+		    if (elapsed >= LARGEST_INT) elapsed = LARGEST_INT - 1;
+		    elapsed /= 50L;
+		    if (mtmp->msleeping && rn2((int)elapsed + 1))
+			mtmp->msleeping = 0;
+		    if (mtmp->mfrozen == 1) /* would unfreeze on next move */
+			mtmp->mfrozen = 0,  mtmp->mcanmove = 1;
+		    if (mtmp->mcanmove && !mtmp->msleeping) {
+			if (prev) prev->nmon = mtmp->nmon;
+			else migrating_mons = mtmp->nmon;
+			mon_arrive(mtmp, TRUE);
+			/* note: there might be a second Wizard; if so,
+			   he'll have to wait til the next resurrection */
+			break;
+		    }
+		}
+	    }
+	    }
+#else
 	    mmtmp = &migrating_mons;
 	    while ((mtmp = *mmtmp) != 0) {
 		if (mtmp->iswiz &&
@@ -491,6 +521,7 @@ resurrect(void)
 		}
 		mmtmp = &mtmp->nmon;
 	    }
+#endif /* NH_FAR_HEAP_SPACES */
 	}
 
 	if (mtmp) {

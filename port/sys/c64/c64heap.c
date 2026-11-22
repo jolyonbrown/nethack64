@@ -25,6 +25,20 @@
 #include "hack.h"
 
 #ifdef NH_FAR_HEAP_SPACES
+#include "eshk.h"
+#include "vault.h"
+
+/* A block larger than a page starts at a page, and the far types inside one keep their
+ * entries within pages: a shopkeeper's bill entries (16 bytes from a multiple of 16) and
+ * a vault guard's fake corridor (4 bytes from a multiple of 4), both after the monster's
+ * struct (eshk.h, vault.h; ADR-0009 point 5).  Oscar64 accepts a negative array size
+ * (compat #75), so static_assert. */
+static_assert(sizeof (struct bill_x) == 16, "struct bill_x is 16 bytes (T2.14)");
+static_assert((offsetof(struct monst_s, mextra) + offsetof(struct eshk_s, bill)) % 16 == 0,
+	      "a shopkeeper's bill[] starts at a multiple of 16 in its block (T2.14)");
+static_assert(sizeof (struct fakecorridor) == 4, "struct fakecorridor is 4 bytes (T2.14)");
+static_assert((offsetof(struct monst_s, mextra) + offsetof(struct egd, fakecorr)) % 4 == 0,
+	      "a guard's fakecorr[] starts at a multiple of 4 in its block (T2.14)");
 
 /* a free block's link: its first two bytes, which no page boundary splits (a block starts
  * at a multiple of 8 in its page, or at a page) */

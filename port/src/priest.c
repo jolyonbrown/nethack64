@@ -134,7 +134,7 @@ STATIC_OVL boolean
 histemple_at(struct monst_s *priest, xchar x, xchar y)
 {
 	return((boolean)((EPRI(priest)->shroom == *in_rooms(x, y, TEMPLE)) &&
-	       on_level(&(EPRI(priest)->shrlevel), &u.uz)));
+	       NH_ON_LEVEL_F(EPRI(priest)->shrlevel, &u.uz)));
 }
 
 /*
@@ -200,7 +200,7 @@ priestini(d_level *lvl, struct mkroom_s *sroom, int sx, int sy, boolean sanctum)
 		EPRI(priest)->shralign = Amask2align(levl[sx][sy].altarmask);
 		EPRI(priest)->shrpos.x = sx;
 		EPRI(priest)->shrpos.y = sy;
-		assign_level(&(EPRI(priest)->shrlevel), lvl);
+		NH_ASSIGN_LEVEL_F(EPRI(priest)->shrlevel, lvl);
 		priest->mtrapseen = ~0;	/* traps are known */
 		priest->mpeaceful = 1;
 		priest->ispriest = 1;
@@ -686,7 +686,7 @@ clearpriests(void)
 
     for(mtmp = fmon; mtmp; mtmp = mtmp2) {
 	mtmp2 = mtmp->nmon;
-	if (!DEADMONSTER(mtmp) && mtmp->ispriest && !on_level(&(EPRI(mtmp)->shrlevel), &u.uz))
+	if (!DEADMONSTER(mtmp) && mtmp->ispriest && !NH_ON_LEVEL_F(EPRI(mtmp)->shrlevel, &u.uz))
 	    mongone(mtmp);
     }
 }
@@ -697,7 +697,7 @@ restpriest(struct monst_s *mtmp, boolean ghostly)
 {
     if(u.uz.dlevel) {
 	if (ghostly)
-	    assign_level(&(EPRI(mtmp)->shrlevel), &u.uz);
+	    NH_ASSIGN_LEVEL_F(EPRI(mtmp)->shrlevel, &u.uz);
     }
 }
 

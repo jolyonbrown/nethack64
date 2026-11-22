@@ -910,9 +910,15 @@ not_special:
 		ny = poss[i].y;
 
 		if (appr != 0) {
+#ifdef NH_FAR_HEAP_SPACES
+		    /* T2.14: the track is in the far monster; read it by index */
+		    for(j=0; j < jcnt; j++)
+			if(nx == mtmp->mtrack[j].x && ny == mtmp->mtrack[j].y)
+#else
 		    mtrk = &mtmp->mtrack[0];
 		    for(j=0; j < jcnt; mtrk++, j++)
 			if(nx == mtrk->x && ny == mtrk->y)
+#endif
 			    if(rn2(4*(cnt-j)))
 				goto nxti;
 		}

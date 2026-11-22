@@ -24,7 +24,7 @@ clear_fcorr(struct monst_s *grd, boolean forceshow)
 	register int fcx, fcy, fcbeg;
 	register struct monst_s *mtmp;
 
-	if (!on_level(&(EGD(grd)->gdlevel), &u.uz)) return TRUE;
+	if (!NH_ON_LEVEL_F(EGD(grd)->gdlevel, &u.uz)) return TRUE;
 
 	while((fcbeg = EGD(grd)->fcbeg) < EGD(grd)->fcend) {
 		fcx = EGD(grd)->fakecorr[fcbeg].fx;
@@ -100,7 +100,7 @@ findgd(void)
 	register struct monst_s *mtmp;
 
 	for(mtmp = fmon; mtmp; mtmp = mtmp->nmon)
-	    if(mtmp->isgd && !DEADMONSTER(mtmp) && on_level(&(EGD(mtmp)->gdlevel), &u.uz))
+	    if(mtmp->isgd && !DEADMONSTER(mtmp) && NH_ON_LEVEL_F(EGD(mtmp)->gdlevel, &u.uz))
 		return(mtmp);
 	return((struct monst_s *)0);
 }
@@ -223,7 +223,7 @@ fnd:
 	EGD(guard)->gddone = 0;
 	EGD(guard)->ogx = x;
 	EGD(guard)->ogy = y;
-	assign_level(&(EGD(guard)->gdlevel), &u.uz);
+	NH_ASSIGN_LEVEL_F(EGD(guard)->gdlevel, &u.uz);
 	EGD(guard)->vroom = vaultroom;
 	EGD(guard)->warncnt = 0;
 
@@ -445,7 +445,7 @@ gd_move(struct monst_s *grd)
 #endif
 	boolean see_guard;
 
-	if(!on_level(&(egrd->gdlevel), &u.uz)) return(-1);
+	if(!NH_ON_LEVEL_F(egrd->gdlevel, &u.uz)) return(-1);
 	nx = ny = m = n = 0;
 	if(!u_in_vault && !grd_in_vault)
 	    wallify_vault(grd);

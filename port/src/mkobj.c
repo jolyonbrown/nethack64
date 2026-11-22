@@ -274,13 +274,30 @@ replace_object(struct obj_s *obj, struct obj_s *otmp)
 	otmp->nobj = obj->nobj;
 	otmp->ocontainer = obj->ocontainer;
 	obj->nobj = otmp;
+#ifdef NH_FAR_HEAP_SPACES
+	{   /* T2.14: the head is in a far object; a struct obj_s ** would be near */
+	    struct obj_s *cont = obj->ocontainer, *head = cont->cobj;
+	    extract_nobj(obj, &head);
+	    cont->cobj = head;
+	}
+#else
 	extract_nobj(obj, &obj->ocontainer->cobj);
+#endif
 	break;
     case OBJ_MINVENT:
 	otmp->nobj = obj->nobj;
 	otmp->ocarry =  obj->ocarry;
 	obj->nobj = otmp;
+#ifdef NH_FAR_HEAP_SPACES
+	{   /* T2.14: the head is in a far monster */
+	    struct monst_s *mon = obj->ocarry;
+	    struct obj_s *head = mon->minvent;
+	    extract_nobj(obj, &head);
+	    mon->minvent = head;
+	}
+#else
 	extract_nobj(obj, &obj->ocarry->minvent);
+#endif
 	break;
     case OBJ_FLOOR:
 	otmp->nobj = obj->nobj;
@@ -1298,14 +1315,31 @@ obj_extract_self(struct obj_s *obj)
 	    remove_object(obj);
 	    break;
 	case OBJ_CONTAINED:
+#ifdef NH_FAR_HEAP_SPACES
+	    {	/* T2.14: the head is in a far object (see replace_object) */
+		struct obj_s *cont = obj->ocontainer, *head = cont->cobj;
+		extract_nobj(obj, &head);
+		cont->cobj = head;
+	    }
+#else
 	    extract_nobj(obj, &obj->ocontainer->cobj);
+#endif
 	    container_weight(obj->ocontainer);
 	    break;
 	case OBJ_INVENT:
 	    freeinv(obj);
 	    break;
 	case OBJ_MINVENT:
+#ifdef NH_FAR_HEAP_SPACES
+	    {	/* T2.14: the head is in a far monster */
+		struct monst_s *mon = obj->ocarry;
+		struct obj_s *head = mon->minvent;
+		extract_nobj(obj, &head);
+		mon->minvent = head;
+	    }
+#else
 	    extract_nobj(obj, &obj->ocarry->minvent);
+#endif
 	    break;
 	case OBJ_MIGRATING:
 	    extract_nobj(obj, &migrating_objs);

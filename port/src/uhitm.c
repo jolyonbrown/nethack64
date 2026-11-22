@@ -1183,6 +1183,26 @@ steal_it(struct monst_s *mdef, struct attack_s *mattk)
 	stealoid = (struct obj_s *)0;
 	if (could_seduce(&youmonst, mdef, mattk)) {
 	    /* find armor, and move it to end of inventory in the process */
+#ifdef NH_FAR_HEAP_SPACES
+	    /* T2.14: the links are in far objects and monsters, so no
+	       struct obj_s ** points at one: the same walk with the previous
+	       object */
+	    struct obj_s *prev = 0, *next;
+
+	    for (otmp = mdef->minvent; otmp; otmp = next) {
+		next = otmp->nobj;
+		if (otmp->owornmask & W_ARM) {
+		    if (stealoid) panic("steal_it: multiple worn suits");
+		    if (prev) prev->nobj = next;	/* take armor out of minvent */
+		    else mdef->minvent = next;
+		    stealoid = otmp;
+		    stealoid->nobj = (struct obj_s *)0;
+		} else
+		    prev = otmp;
+	    }
+	    if (prev) prev->nobj = stealoid;	/* put armor back into minvent */
+	    else mdef->minvent = stealoid;
+#else
 	    minvent_ptr = &mdef->minvent;
 	    while ((otmp = *minvent_ptr) != 0)
 		if (otmp->owornmask & W_ARM) {
@@ -1194,6 +1214,7 @@ steal_it(struct monst_s *mdef, struct attack_s *mattk)
 		    minvent_ptr = &otmp->nobj;
 		}
 	    *minvent_ptr = stealoid;	/* put armor back into minvent */
+#endif
 	}
 
 	if (stealoid) {		/* we will be taking everything */

@@ -317,13 +317,13 @@ nameshk(struct monst_s *shk, const char * const *nlp)
 		/* is name already in use on this level? */
 		for (mtmp = fmon; mtmp; mtmp = mtmp->nmon) {
 		    if (DEADMONSTER(mtmp) || (mtmp == shk) || !mtmp->isshk) continue;
-		    if (strcmp(ESHK(mtmp)->shknam, shname)) continue;
+		    if (strcmp(NH_ESHK_SHKNAM(ESHK(mtmp)), shname)) continue;
 		    break;
 		}
 		if (!mtmp) break;	/* new name */
 	    }
 	}
-	(void) strncpy(ESHK(shk)->shknam, shname, PL_NSIZ);
+	NH_ESHK_SETSHKNAM(ESHK(shk), shname);
 	ESHK(shk)->shknam[PL_NSIZ-1] = 0;
 }
 
@@ -391,7 +391,7 @@ shkinit(const struct shclass *shp, struct mkroom_s *sroom) /* create a new shopk
 	ESHK(shk)->shoproom = (sroom - rooms) + ROOMOFFSET;
 	sroom->resident = shk;
 	ESHK(shk)->shoptype = sroom->rtype;
-	assign_level(&(ESHK(shk)->shoplevel), &u.uz);
+	NH_ASSIGN_LEVEL_F(ESHK(shk)->shoplevel, &u.uz);
 	ESHK(shk)->shd = doors[sh];
 	ESHK(shk)->shk.x = sx;
 	ESHK(shk)->shk.y = sy;

@@ -146,6 +146,13 @@ extern void FDECL(nh_hstrncpy, (unsigned, int, const char *, unsigned));
 extern int nh_realloc_ss;
 #define NH_REALLOC_FROM(sp)	(nh_realloc_ss = (sp))
 #define NH_REALLOC_SS()		nh_realloc_ss
+/* askchain() takes a pointer to a chain's head and reads the head again after each
+ * object it hands on: a container's head is in a far object, so the C64 hands it
+ * &nh_chain_proxy and the container, and askchain() reads that container's cobj
+ * (invent.c, pickup.c) */
+extern struct obj_s *nh_chain_proxy, *nh_chain_cont;
+#define NH_CHAIN_HEAD(objchn) \
+	((objchn) == &nh_chain_proxy ? nh_chain_cont->cobj : *(objchn))
 #else
 #define ONAME(otmp)	(((char *)((otmp)->oextra)) + (otmp)->oxlth)
 #define NH_SETOBJNAME(otmp, s)	Strcpy(ONAME(otmp), (s))
@@ -158,6 +165,7 @@ extern int nh_realloc_ss;
 #define NH_HADDRP(p)		((genericptr_t)(p))
 #define NH_REALLOC_FROM(sp)	((void) 0)
 #define NH_REALLOC_SS()		0
+#define NH_CHAIN_HEAD(objchn)	(*(objchn))
 #endif
 
 /* Weapons and weapon-tools */

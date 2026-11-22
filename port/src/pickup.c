@@ -2152,7 +2152,13 @@ ask_again2:
 				      FALSE,
 #endif
 				      &menu_on_request)) {
-			if (askchain((struct obj_s **)&current_container->cobj,
+#ifdef NH_FAR_HEAP_SPACES
+			nh_chain_cont = current_container;	/* obj.h */
+#define NH_CONT_CHAIN	(&nh_chain_proxy)
+#else
+#define NH_CONT_CHAIN	((struct obj_s **)&current_container->cobj)
+#endif
+			if (askchain(NH_CONT_CHAIN,
 				     (one_by_one ? (char *)0 : select),
 				     allflag, out_container,
 				     0,

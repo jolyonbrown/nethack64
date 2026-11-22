@@ -1356,16 +1356,16 @@ askchain(struct obj_s **objchn,
 	ident = !strcmp(word, "identify");
 	nodot = (!strcmp(word, "nodot") || !strcmp(word, "drop") ||
 		 ident || takeoff);
-	ininv = (*objchn == invent);
+	ininv = (NH_CHAIN_HEAD(objchn) == invent);
 	/* Changed so the askchain is interrogated in the order specified.
 	 * For example, if a person specifies =/ then first all rings will be
 	 * asked about followed by all wands -dgk
 	 */
 nextclass:
 	ilet = 'a'-1;
-	if (*objchn && (*objchn)->oclass == COIN_CLASS)
+	if (NH_CHAIN_HEAD(objchn) && NH_CHAIN_HEAD(objchn)->oclass == COIN_CLASS)
 		ilet--;		/* extra iteration */
-	for (otmp = *objchn; otmp; otmp = otmp2) {
+	for (otmp = NH_CHAIN_HEAD(objchn); otmp; otmp = otmp2) {
 		if(ilet == 'z') ilet = 'A'; else ilet++;
 		otmp2 = otmp->nobj;
 		if (olets && *olets && otmp->oclass != *olets) continue;

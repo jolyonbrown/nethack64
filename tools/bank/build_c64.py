@@ -279,6 +279,10 @@ def main():
     ap.add_argument("--far-chars", action="store_true",
                     help="far characters (ADR-0010; with --far): -dNH_FAR_CHARS and the library's "
                          "-dOSCAR_FARCHARS for the compile, bankgen.py --far-chars, far_meas.c's space 6")
+    ap.add_argument("--far-heap", action="store_true",
+                    help="the heap far (T2.14; with --far): -dNH_FAR_HEAP for the compile and for "
+                         "bankgen.py's view, monsters in far space 7 and objects in far space 8 "
+                         "(c64conf.h, sys/c64/c64heap.c); without it farrt.py drops spaces 7 and 8")
     ap.add_argument("--io-out", action="store_true",
                     help="with --target c128: the I/O out by default (bankgen.py --io-out), the far "
                          "runtime in section nhio")
@@ -292,8 +296,8 @@ def main():
     out = os.path.abspath(a.out)
     # a plan's "far_default" (bankgen.py writes nhnear.h): -dNH_FAR_DEFAULT, with --far only
     far_default = a.far and "far_default" in json.load(open(a.plan))
-    if (a.far_chars or a.far_runtime) and not a.far:
-        sys.exit("--far-chars and --far-runtime need --far")
+    if (a.far_chars or a.far_runtime or a.far_heap) and not a.far:
+        sys.exit("--far-chars, --far-runtime and --far-heap need --far")
     if a.io_out and a.target != "c128":
         sys.exit("--io-out is for --target c128")
     prg = os.path.join(out, "nethack.prg")
@@ -319,6 +323,7 @@ def main():
                            ["--cpp=" + c for c in cpp] + (["--cpp=-DNH_FAR_SPACES"] if a.far else []) +
                            (["--cpp=-DNH_FAR_DEFAULT"] if far_default else []) +
                            (["--cpp=-DNH_FAR_CHARS", "--far-chars"] if a.far_chars else []) +
+                           (["--cpp=-DNH_FAR_HEAP"] if a.far_heap else []) +
                            (["--io-out"] if a.io_out else []) +
                            (["--linker-stubs"] if a.linker_stubs else []) +
                            (["--target", "c128"] if a.target == "c128" else []) +
@@ -343,7 +348,8 @@ def main():
                                 "--from-headers", os.path.join(out, "inc")] +
                                (["--frames-section", "nh_c128_low"] if a.target == "c128" else []) +
                                (["--code-section", "nhio"] if a.io_out else []) +
-                               ([] if far_default else ["--drop", "5"]) + ([] if a.far_chars else ["--drop", "6"]),
+                               ([] if far_default else ["--drop", "5"]) + ([] if a.far_chars else ["--drop", "6"]) +
+                               ([] if a.far_heap else ["--drop", "7", "--drop", "8"]),
                                capture_output=True, text=True)
             if r.returncode:
                 sys.exit("farrt.py failed:\n" + r.stdout + r.stderr)
@@ -354,7 +360,8 @@ def main():
             args += ["-dNH_FAR_SPACES", "far_meas.c"]
         if a.far:
             args += (["-dNH_FAR_DEFAULT"] if far_default else []) + \
-                (["-dNH_FAR_CHARS", "-dOSCAR_FARCHARS"] if a.far_chars else [])
+                (["-dNH_FAR_CHARS", "-dOSCAR_FARCHARS"] if a.far_chars else []) + \
+                (["-dNH_FAR_HEAP"] if a.far_heap else [])
         if a.generate_only:
             open(os.path.join(out, "compile.args"), "w").write("\n".join(args) + "\n")
             print("generated: compile in %s with oscar64 $(cat compile.args)" % out)
