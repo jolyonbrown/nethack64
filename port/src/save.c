@@ -538,7 +538,11 @@ savelev(int fd, xchar lev, int mode)
 #else
 	bwrite(fd,(genericptr_t) &level.flags,sizeof(level.flags));
 #endif
+#ifdef NH_FAR_GLOBS
+	nh_farbwrite4(fd, (const struct nh_fb4 *) doors, sizeof(doors));
+#else
 	bwrite(fd, (genericptr_t) doors, sizeof(doors));
+#endif
 	save_rooms(fd);	/* no dynamic memory to reclaim */
 
 	/* from here on out, saving also involves allocated memory cleanup */

@@ -66,7 +66,13 @@ extern NEARDATA struct mkroom_s* subrooms;
 
 extern struct mkroom_s *dnstairs_room, *upstairs_room, *sstairs_room;
 
+#ifdef NH_FAR_GLOBS
+#pragma data(farglob)		/* as decl.c defines it (T2.13) */
+#endif
 extern NEARDATA coord doors[DOORMAX];
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#endif
 
 /* values for rtype in the room definition structure */
 #define OROOM		 0	/* ordinary room */

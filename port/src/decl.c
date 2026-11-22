@@ -142,7 +142,14 @@ NEARDATA struct obj_s *current_wand = 0;	/* wand currently zapped/applied */
 NEARDATA boolean in_steed_dismounting = FALSE;
 
 NEARDATA coord bhitpos = DUMMY;
+#ifdef NH_FAR_GLOBS
+#pragma data(farglob)		/* far space 4 (c64conf.h), read by name (T2.13) */
+#endif
 NEARDATA coord doors[DOORMAX] = {DUMMY};
+#ifdef NH_FAR_GLOBS
+#pragma data(data)
+#pragma align(doors, 2)		/* an entry keeps to a page */
+#endif
 
 #ifdef NH_FAR_GLOBS
 #pragma data(farglob)

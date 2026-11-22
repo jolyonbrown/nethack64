@@ -772,7 +772,11 @@ getlev(int fd, int pid, xchar lev, boolean ghostly)
 #else
 	mread(fd, (genericptr_t)&level.flags, sizeof(level.flags));
 #endif
+#ifdef NH_FAR_GLOBS
+	nh_farmread4(fd, (struct nh_fb4 *) doors, sizeof(doors));
+#else
 	mread(fd, (genericptr_t)doors, sizeof(doors));
+#endif
 	rest_rooms(fd);		/* No joke :-) */
 	if (nroom)
 	    doorindex = rooms[nroom - 1].fdoor + rooms[nroom - 1].doorct;
