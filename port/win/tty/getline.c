@@ -243,8 +243,10 @@ tty_get_ext_cmd(void)
 	/* maybe a runtime option? */
 	/* hooked_tty_getlin("#", buf, flags.cmd_comp ? ext_cmd_getlin_hook : (getlin_hook_proc) 0); */
 #ifdef REDO
-	hooked_tty_getlin("#", buf, in_doagain ? (getlin_hook_proc)0
-		: ext_cmd_getlin_hook);
+	/* the function first: Oscar64 rejects a function as a conditional's last operand
+	 * after a function pointer (r81, OSCAR64-COMPAT.md #84) */
+	hooked_tty_getlin("#", buf, !in_doagain ? ext_cmd_getlin_hook
+		: (getlin_hook_proc)0);
 #else
 	hooked_tty_getlin("#", buf, ext_cmd_getlin_hook);
 #endif

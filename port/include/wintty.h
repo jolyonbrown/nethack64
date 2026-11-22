@@ -181,8 +181,13 @@ E void FDECL(tty_curs, (winid,int,int));
 E void FDECL(tty_putstr, (winid, int, const char *));
 E void FDECL(tty_display_file, (const char *, BOOLEAN_P));
 E void FDECL(tty_start_menu, (winid));
+#if !defined(C64) || defined(NH_WINTTY_C)
+/* C64: only wintty.c, which defines and calls it, sees this prototype: Oscar64 takes a
+ * union in two files' prototypes of one function for two types (r80, OSCAR64-COMPAT.md
+ * #83); every other file calls it through windowprocs */
 E void FDECL(tty_add_menu, (winid,int,const ANY_P *,
 			CHAR_P,CHAR_P,int,const char *, BOOLEAN_P));
+#endif
 E void FDECL(tty_end_menu, (winid, const char *));
 E int FDECL(tty_select_menu, (winid, int, MENU_ITEM_P **));
 E char FDECL(tty_message_menu, (CHAR_P,int,const char *));

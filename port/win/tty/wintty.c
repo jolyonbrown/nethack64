@@ -8,6 +8,7 @@
  * h+ 930227
  */
 
+#define NH_WINTTY_C	/* wintty.h: tty_add_menu()'s prototype on the C64 (r80) */
 #include "hack.h"
 #include "dlb.h"
 #ifdef SHORT_FILENAMES
@@ -2000,7 +2001,9 @@ tty_add_menu(winid window,
 	newstr = str;
 
     item = (tty_menu_item *) alloc(sizeof(tty_menu_item));
-    item->identifier = *identifier;
+    /* const cast away: Oscar64 takes a const union for another type (r82,
+     * OSCAR64-COMPAT.md #85) */
+    item->identifier = *(anything *) identifier;
     item->count = -1L;
     item->selected = preselected;
     item->selector = ch;
