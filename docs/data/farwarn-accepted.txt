@@ -1,0 +1,57 @@
+# far_warnings.py's accepted warnings 2026 (the C128 whole game, 2026-11-22): file<TAB>source line<TAB>why
+# Reviewed on fc20's link. Not here, so reported as NEW until fixed: c64sys.c's &nh_fds[fd] (two),
+# options.c's memcpy from def_inv_order, role.c's return err_ret (far char arrays):
+# all named near in the fc22/fc23 plans.
+apply.c	(void) stop_timer(FIG_TRANSFORM, (genericptr_t)obj);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+apply.c	FIG_TRANSFORM, (genericptr_t)figurine);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+dig.c	(void) stop_timer(ROT_ORGANIC, (genericptr_t)otmp);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+dig.c	TIMER_OBJECT, ROT_ORGANIC, (genericptr_t)otmp);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+dothrow.c	(void) walk_path(&mc, &cc, mhurtle_step, (genericptr_t)mon);	walk_path()'s genericptr_t argument, cast back by mhurtle_step()
+invent.c	(void) stop_timer(FIG_TRANSFORM, (genericptr_t) obj);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+light.c	if (ls->type == LS_OBJECT && ls->id == (genericptr_t) dest) {	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+light.c	if (ls->type == LS_OBJECT && ls->id == (genericptr_t) src)	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+light.c	if (ls->type == LS_OBJECT && ls->id == (genericptr_t) src) {	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+light.c	ls->id = (genericptr_t) dest;	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+light.c	ls->id = (genericptr_t) find_mid(nid, FM_EVERYWHERE);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+light.c	ls->id = (genericptr_t) find_oid(nid);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+light.c	new_ls->id = (genericptr_t) dest;	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+makemon.c	LS_MONSTER, (genericptr_t)m2);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+makemon.c	LS_MONSTER, (genericptr_t)mtmp);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+mkmaze.c	cons->list = (genericptr_t) mon;	mkmaze.c's bubble contents: kept and cast back
+mkmaze.c	cons->list = (genericptr_t) olist;	mkmaze.c's bubble contents: kept and cast back
+mkobj.c	(void) start_timer(tleft, TIMER_OBJECT, action, (genericptr_t)otmp);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+mkobj.c	(void) start_timer(when, TIMER_OBJECT, action, (genericptr_t)body);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+mkobj.c	(void) stop_timer(FIG_TRANSFORM, (genericptr_t) otmp);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+mkobj.c	(void) stop_timer(REVIVE_MON, (genericptr_t)otmp);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+mkobj.c	(void) stop_timer(ROT_CORPSE, (genericptr_t)otmp);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+mkobj.c	del_light_source(LS_OBJECT, (genericptr_t) obj);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+mkobj.c	fmt_ptr((genericptr_t)container, obj2_address));	fmt_ptr() prints the address
+mkobj.c	fmt_ptr((genericptr_t)mon, mon_address),	fmt_ptr() prints the address
+mkobj.c	fmt_ptr((genericptr_t)obj, obj1_address),	fmt_ptr() prints the address
+mkobj.c	fmt_ptr((genericptr_t)obj, obj_address),	fmt_ptr() prints the address
+mkobj.c	tleft = stop_timer(action, (genericptr_t)otmp);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+mon.c	LS_MONSTER, (genericptr_t)mtmp);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+mon.c	LS_MONSTER, (genericptr_t)mtmp2);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+mon.c	del_light_source(LS_MONSTER, (genericptr_t)mtmp);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+pickup.c	(void) stop_timer(REVIVE_MON, (genericptr_t)obj);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+pickup.c	long rot_alarm = stop_timer(ROT_CORPSE, (genericptr_t)obj);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+questpgr.c	Fread((genericptr_t) &nh_rec, NH_QTMSG_FSIZE, 1, msg_file);	a near local of a far type (its address < $8000 is near)
+region.c	(*callbacks[f_indx])(regions[i], mtmp)) {	region callback: a far monster pointer passed on as it is
+region.c	(void) (*callbacks[f_indx])(regions[i], mon);	region callback: a far monster pointer passed on as it is
+region.c	if (!(*callbacks[f_indx])(regions[i], mon))	region callback: a far monster pointer passed on as it is
+restore.c	mread(fd, (genericptr_t)&r, sizeof(struct rm_s));	a near local of a far type (struct rm_s r)
+timeout.c	(void) stop_timer(FIG_TRANSFORM, (genericptr_t) figurine);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+timeout.c	(void) stop_timer(HATCH_EGG, (genericptr_t) egg);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+timeout.c	(void) stop_timer(HATCH_EGG, (genericptr_t)egg);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+timeout.c	BURN_OBJECT, (genericptr_t)obj)) {	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+timeout.c	FIG_TRANSFORM, (genericptr_t)figurine);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+timeout.c	HATCH_EGG, (genericptr_t)egg);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+timeout.c	curr->arg = (genericptr_t) dest;	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+timeout.c	curr->arg = (genericptr_t) find_oid(nid);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+timeout.c	curr->func_index, (genericptr_t)dest);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+timeout.c	del_light_source(LS_OBJECT, (genericptr_t)obj);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+timeout.c	fmt_ptr((genericptr_t)obj, obj_address), curr->tid);	fmt_ptr() prints the address
+timeout.c	if (curr->kind == TIMER_OBJECT && curr->arg == (genericptr_t)obj) {	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+timeout.c	if (curr->kind == TIMER_OBJECT && curr->arg == (genericptr_t)src) {	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+timeout.c	new_light_source(x, y, radius, LS_OBJECT, (genericptr_t) obj);	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
+timeout.c	} else if (!stop_timer(BURN_OBJECT, (genericptr_t) obj))	a far object's address kept, compared or cast back as genericptr_t (timers, light sources)
