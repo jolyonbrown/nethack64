@@ -34,7 +34,13 @@ STATIC_DCL void FDECL(rest_room, (int,struct mkroom_s *));
 
 #define sq(x) ((x)*(x))
 
+#ifdef NH_FAR_MISC
+#pragma data(farmisc)
+#endif
 extern const struct shclass shtypes[];	/* defined in shknam.c */
+#ifdef NH_FAR_MISC
+#pragma data(data)
+#endif
 
 #ifdef OVLB
 

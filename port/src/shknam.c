@@ -182,6 +182,9 @@ static const char * const shkgeneral[] = {
  * (by testing the sign) whether to use mkobj() or mksobj().
  */
 
+#ifdef NH_FAR_MISC
+#pragma data(farmisc)
+#endif
 const struct shclass shtypes[] = {
 	{"general store", RANDOM_CLASS, 44,
 	    D_SHOP, {{100, RANDOM_CLASS}, {0, 0}, {0, 0}}, shkgeneral},
@@ -220,6 +223,11 @@ const struct shclass shtypes[] = {
 	     {5, -BRASS_LANTERN}, {10, -OIL_LAMP}, {3, -MAGIC_LAMP}}, shklight},
 	{(char *)0, 0, 0, 0, {{0, 0}, {0, 0}, {0, 0}}, 0}
 };
+#ifdef NH_FAR_MISC
+#pragma data(data)
+#pragma align(shtypes, 256)	/* the 32-byte entries keep to pages */
+static_assert(sizeof (struct shclass) == 32, "struct shclass is 32 bytes (T2.13)");
+#endif
 
 #if 0
 /* validate shop probabilities; otherwise incorrect local changes could

@@ -39,7 +39,15 @@ struct shclass {
 	    int itype;	/* item type: if >=0 a class, if < 0 a specific item */
 	} iprobs[5];
 	const char * const *shknms;	/* list of shopkeeper names for this type */
+#ifdef NH_FAR_MISC
+	char	nh_pad[32 - 28];	/* T2.13: 32 bytes, so that no entry crosses a page */
+#endif
 };
+#ifdef NH_FAR_MISC
+/* T2.13: shknam.c's shtypes[] in far space 5 (c64conf.h), reached through pointers to its
+ * entries (shknam.c's shkinit(), mkshobj_at()) and by index */
+#pragma farspace(5, shclass)
+#endif
 
 #ifdef NH_FAR_GLOBS
 #pragma data(farglob)

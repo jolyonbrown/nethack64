@@ -23,7 +23,13 @@ STATIC_DCL void FDECL(kops_gone, (BOOLEAN_P));
 
 #define IS_SHOP(x)	(rooms[x].rtype >= SHOPBASE)
 
+#ifdef NH_FAR_MISC
+#pragma data(farmisc)
+#endif
 extern const struct shclass shtypes[];	/* defined in shknam.c */
+#ifdef NH_FAR_MISC
+#pragma data(data)
+#endif
 extern struct obj_s *thrownobj;		/* defined in dothrow.c */
 
 STATIC_VAR NEARDATA long int followmsg;	/* last time of follow message */
