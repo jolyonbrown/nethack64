@@ -248,6 +248,18 @@ E int FDECL(term_puts, (const char *str));
 E void FDECL(video_update_positionbar, (char *));
   #endif
  #endif/*MSDOS*/
+ #ifdef S80_VIDEO
+  /* sys/c64/video.c: the screen layer over screen80.h, as video.c is MS-DOS's
+   * (c64conf.h; tools/host-build.sh --video on the host) */
+  #undef putchar
+  #undef putc
+  #undef puts
+  #define putchar(x) xputc(x)
+  #define putc(x) xputc(x)
+  #define puts(x) xputs(x)
+E void FDECL(cmov, (int, int));
+E void FDECL(nocmov, (int, int));
+ #endif/*S80_VIDEO*/
 #endif/*NO_TERMS*/
 
 #undef E

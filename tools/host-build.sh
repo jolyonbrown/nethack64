@@ -24,6 +24,9 @@
 #                                        to build/host-banked-install: the rewrite must not change
 #                                        what the game does (docs/BANKING-SPIKE.md);
 #                                        BANKGEN_FLAGS (e.g. --linker-stubs) are passed to bankgen.py
+#   tools/host-build.sh --video          the tty port without termcap (NO_TERMS) drawing through
+#                                        port/sys/c64/video.c, the C64's screen layer, over
+#                                        tools/host-s80.c, installed to build/host-video-install
 #   tools/host-build.sh --trace          src/ built with clang reporting every load and store to
 #                                        tools/measure/trace/nh_trace.c (malloc and friends wrapped),
 #                                        installed to build/host-trace-install: which C64 data pages
@@ -45,6 +48,10 @@ elif [ "${1:-}" = "--profile" ]; then
   SAN="-pg -fno-inline -fno-inline-functions-called-once -fno-optimize-sibling-calls"
 elif [ "${1:-}" = "--trace" ]; then
   H=build/host-trace; INSTALL=host-trace-install; TRACE=1
+elif [ "${1:-}" = "--video" ]; then
+  # the tty port without termcap (NO_TERMS), drawing through port/sys/c64/video.c, the
+  # C64's screen layer, over tools/host-s80.c (screen80.h as a shadow plus ANSI)
+  H=build/host-video; INSTALL=host-video-install; VIDEO=1
 elif [ "${1:-}" = "--banked" ]; then
   H=build/host-banked; INSTALL=host-banked-install
   PLAN=$(realpath "${2:?--banked needs a plan file}")
@@ -77,6 +84,12 @@ if [ -n "${TRACE:-}" ]; then
   sed -i "s|^LFLAGS =.*|LFLAGS = $wrap $(pwd)/nh_trace.o|" util/Makefile
 fi
 sed -i 's|^WINTTYLIB = -ltermlib|WINTTYLIB = -lncurses|' src/Makefile
+if [ -n "${VIDEO:-}" ]; then
+  cp "$ROOT/tools/host-s80.c" src/s80host.c
+  sed -i "s|^CFLAGS = -O -g |CFLAGS = -O -g -DNO_TERMS -DS80_VIDEO -I$ROOT/src/hal |" src/Makefile
+  sed -i 's|^WINTTYOBJ = getline.o termcap.o topl.o wintty.o|WINTTYOBJ = getline.o termcap.o topl.o wintty.o video.o s80host.o|' src/Makefile
+  printf 'video.o: ../sys/c64/video.c $(HACK_H) ../include/wintty.h\n\t$(CC) $(CFLAGS) -c ../sys/c64/video.c\ns80host.o: s80host.c\n\t$(CC) $(CFLAGS) -std=gnu99 -c s80host.c\n' >> src/Makefile
+fi
 # modern ncurses declares tparm() with a prototype
 sed -i 's|^extern char \*tparm();|/* tparm() comes from <term.h> */|' win/tty/termcap.c
 
