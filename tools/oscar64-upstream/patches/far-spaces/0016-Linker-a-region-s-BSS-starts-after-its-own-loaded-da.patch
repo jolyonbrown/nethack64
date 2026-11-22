@@ -1,0 +1,121 @@
+From aba11e5fd98fafc5fb02f91be5d721327a51b3e2 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Sun, 22 Nov 2026 22:11:56 +0000
+Subject: [PATCH] Linker: a region's BSS starts after its own loaded data
+
+PlaceObjects() raised a region's end of loaded data (mNonzero) to the end of
+the whole section an object was placed from. A code section in two regions
+(nethack64's C128 layout: $C000 up, declared first, then the main region
+below) has its end in the first, so the main region got that end, its BSS
+section was moved there (BSSStart = BSSEnd = the high region's end), and the
+start-up code cleared none of the BSS: every zero-initialised global started
+with whatever the RAM held (malloc's HeapNode among them, so the C128 game
+ran out of heap at once). The end raised is now the placed object's own.
+
+autotest/bsstworegionstest.c: code in a one-page region declared before
+main and in main, a BSS array inside BSSStart..BSSEnd; commit 15's compiler
+fails it at -O0 to -O3. make check 1,696 of 1,696 (5 new), no new failures
+against commit 15's.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ autotest/bsstworegionstest.c | 47 ++++++++++++++++++++++++++++++++++++
+ autotest/makefile            |  7 ++++++
+ oscar64/Linker.cpp           |  9 +++++--
+ 3 files changed, 61 insertions(+), 2 deletions(-)
+ create mode 100644 autotest/bsstworegionstest.c
+
+diff --git a/autotest/bsstworegionstest.c b/autotest/bsstworegionstest.c
+new file mode 100644
+index 0000000..e7b8a60
+--- /dev/null
++++ b/autotest/bsstworegionstest.c
+@@ -0,0 +1,47 @@
++// The BSS of a region placed after another region of the same code section (nethack64's
++// C128 layout: code at $C000 up, declared first, and in the main region below). The linker
++// set each region's end of loaded data from the whole section's end, so the main region got
++// the code's end above it, its BSS section started there, and the start-up code cleared
++// none of the BSS: BSSStart and BSSEnd were both the high region's end.
++
++#include <assert.h>
++
++#pragma region(hi, 0xc000, 0xc040, , , { code })	// small: most of the code goes to main
++#pragma region(main, 0x0900, 0x8000, , , { code, data, bss, heap, stack })
++
++extern void BSSStart, BSSEnd;	// as crt.c declares them
++
++int counts[40];				// bss (too big for -O3 to put in the zero page)
++
++// an address through a volatile: a known object's address compared with a constant is
++// folded (as in fardefaulttest.c)
++volatile unsigned va;
++#define ADDR(x) (va = (unsigned)&x, va)
++
++__noinline int work(int i)
++{
++	counts[i % 40] += i;
++	return counts[i % 40];
++}
++
++// more code than the high region holds, so that some of it is placed in main
++__noinline int more(int a, int b)
++{
++	int k, s = 0;
++	for (k = 0; k < a; k++)
++		s += (k * b) ^ (s >> 3) ^ counts[k % 40];
++	return s;
++}
++
++int main(void)
++{
++	unsigned s = ADDR(BSSStart), e = ADDR(BSSEnd);
++	unsigned c = ADDR(counts);
++
++	assert(s < e);
++	assert(s <= c && c + sizeof(counts) <= e);
++	assert(e <= 0x8000);
++	assert(work(3) == 3);
++	assert(more(5, 2) == more(5, 2));
++	return 0;
++}
+diff --git a/autotest/makefile b/autotest/makefile
+index 0523dfd..c2c3007 100644
+--- a/autotest/makefile
++++ b/autotest/makefile
+@@ -76,6 +76,13 @@ farcharstest: farcharstest.c
+ 	$(OSCAR64_CC) -ea -g -Os -n -dFARXZ -dOSCAR_FARCHARS $<
+ 	$(OSCAR64_CC) -ea -g -O3 -n -dFARXZ -dOSCAR_FARCHARS $<
+ 
++bsstworegionstest: bsstworegionstest.c
++	$(OSCAR64_CC) -ea -g -O0 -n $<
++	$(OSCAR64_CC) -ea -g -O1 -n $<
++	$(OSCAR64_CC) -ea -g -Os -n $<
++	$(OSCAR64_CC) -ea -g -O2 -n $<
++	$(OSCAR64_CC) -ea -g -O3 -n $<
++
+ initstringmergetest: initstringmergetest.c
+ 	$(OSCAR64_CC) -ea -g -O0 -bc $<
+ 	$(OSCAR64_CC) -ea -g -O0 -n $<
+diff --git a/oscar64/Linker.cpp b/oscar64/Linker.cpp
+index aec78ad..4f5957f 100644
+--- a/oscar64/Linker.cpp
++++ b/oscar64/Linker.cpp
+@@ -1295,8 +1295,13 @@ void Linker::PlaceObjects(bool retry)
+ 					if (lobj->mAddress + lobj->mSize > lsec->mEnd)
+ 						lsec->mEnd = lobj->mAddress + lobj->mSize;
+ 
+-					if (lsec->mType == LST_DATA && lsec->mEnd > lrgn->mNonzero)
+-						lrgn->mNonzero = lsec->mEnd;
++					// the end of what this region must load: this object's, not the
++					// section's, which may reach into another region (a code section in
++					// two regions): with the section's, a region placed after another of
++					// the same section got that one's end, so its BSS started there and
++					// the start-up code cleared none of it
++					if (lsec->mType == LST_DATA && lobj->mAddress + lobj->mSize > lrgn->mNonzero)
++						lrgn->mNonzero = lobj->mAddress + lobj->mSize;
+ 				}
+ 			}
+ 		}
+-- 
+2.43.0
+
