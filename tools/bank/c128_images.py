@@ -47,6 +47,8 @@ def main():
             continue
         b = int(m.group(1))
         data = open(f, "rb").read()
+        if len(data) < 2:
+            continue		# a section with nothing linked into it (a far heap space's)
         load, body = data[0] | data[1] << 8, data[2:]
         if not body:
             continue

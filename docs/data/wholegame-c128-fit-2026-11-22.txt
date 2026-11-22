@@ -155,3 +155,19 @@ that change's growth added; 805 s, peak 13.1 GB, exit 20)
   - Banks: 4,839 B unplaced in 16 banks (stubs and caller wrappers, which the size graph
     leaves out), the first error objnam.c's. 12 REU copies a key.
   - fc10: planfix on fc9's map, 57 moves.
+
+fc10 (planfix on fc9, 57 moves): 2,796 B unplaced in banks 150 (opened by fc9's repair; its
+caller wrappers came out larger than planfix.py's 40-byte estimate) and 66.
+fc11 (planfix on fc10 with --slack 512, 8 moves): readobjnam() (13,828 B of code with the far
+heap) and its caller wrappers no longer fit any 16 KB bank: bank 151 1,282 B over.
+fc12: readobjnam()'s tail split off as readobjnam_finish() (objnam.c, behaviour-preserving),
+in REU bank 152: bank 151 186 B over (stubs), 152 holding 1,938 B.
+fc13 (docs/data/bankplan-2026-11-22-c128fc13.json: pluslvl into bank 152; 815 s, peak 13.0
+GB, exit 0): the whole game links for the C128, every object placed.
+  - main: code $21E0-$2BBE, data $2BBF-$4A19, bss to $6B88, heap $6B88-$7000 (1,144 B),
+    stack $7000-$8000 (4 KB; Oscar64 sizes this program's at 3,430 B); code $C000-$FBFF.
+  - 131 banks: 63 cartridge banks (nethack.md128), 75 REU banks with the far spaces'
+    (nethack.reu, tools/bank/c128_images.py); 11 REU copies a key in the host profile.
+  - First boot in x128 (-cartmd128, 2 MB REU image): the program starts and stops at once in
+    the C128 monitor, a BRK near $0007 (a jump through a null or wrong pointer early in
+    start-up). Next: find where.
