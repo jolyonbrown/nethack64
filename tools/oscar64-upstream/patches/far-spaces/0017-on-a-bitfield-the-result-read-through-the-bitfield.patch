@@ -1,0 +1,174 @@
+From 78e64e4fafd1e4a02c31b7a06f6b159cbf99f785 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Mon, 23 Nov 2026 00:03:35 +0000
+Subject: [PATCH] ++/-- on a bitfield: the result read through the bitfield
+
+EX_PREINCDEC stored the new value right but returned its reference with the
+bitfield's bits and shift dropped (ExValue(..., 1, 0, 0, ...)), so a read of
+the expression's value read the whole storage unit: `if (--p->q)` with
+`unsigned q : 6` tested the word that holds q and its neighbours (C89
+3.3.3.1: the result is the operand's new value). nethack64's ini_inv(),
+"if (--trop->trquan) continue;", never ended. The reference now keeps its
+bits, shift and far object.
+
+autotest/farbitfieldtest.c: the loop, and --, ++ and a post-decrement's
+values, on a far struct's bitfields (the far runtime as in farspacetest.c);
+the same code on near data fails without the fix too. make check 1,701 of
+1,701 (5 new), no new failures against commit 16's.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ autotest/farbitfieldtest.c     | 105 +++++++++++++++++++++++++++++++++
+ autotest/makefile              |   7 +++
+ oscar64/InterCodeGenerator.cpp |   5 +-
+ 3 files changed, 115 insertions(+), 2 deletions(-)
+ create mode 100644 autotest/farbitfieldtest.c
+
+diff --git a/autotest/farbitfieldtest.c b/autotest/farbitfieldtest.c
+new file mode 100644
+index 0000000..74dcca0
+--- /dev/null
++++ b/autotest/farbitfieldtest.c
+@@ -0,0 +1,105 @@
++/* A bitfield's value after ++/-- through a far pointer (nethack64: u_init.c's ini_inv(),
++ * "if (--trop->trquan) continue;" with trquan a Bitfield of a far struct): the compiler
++ * tested the word at the struct's start instead of the decremented field, so the loop
++ * never ended. Runtime as in farspacetest.c: far page p at RAM page p + $10, and $8000
++ * filled with garbage first. Native code only. */
++#include <string.h>
++
++#pragma farspace(1, t)
++
++#pragma section(fardata, 0)
++#pragma farsection(fardata, 1)
++#pragma region(farr, 0x8000, 0x9000, , , { fardata })
++#pragma region(main, 0x0900, 0x8000, , , { code, data, bss, heap, stack })
++
++
++/* the space's page table: far page p at RAM page p + $10 */
++unsigned char tlb1[256];
++
++__asm farxl1
++{
++		lda tlb1, x
++		rts
++}
++#pragma runtime(farxl1, farxl1)
++
++#ifdef FARXZ
++/* the far pointer at the zero page address in X, translated into ADDR (page in A too),
++   Y kept: with it the compiler calls this for a page instead of farxl1 */
++__asm farxz1
++{
++		lda $00, x
++		sta __addr + 0
++		lda $01, x
++		tax
++		lda tlb1, x
++		sta __addr + 1
++		rts
++}
++#pragma runtime(farxz1, farxz1)
++#endif
++
++/* the address in A and X plus the offset in Y, translated: A and X */
++unsigned char xoff, xlo;
++
++__asm farxo1
++{
++		sty xoff
++		clc
++		adc xoff
++		bcc nc
++		inx
++nc:		sta xlo
++		lda tlb1, x
++		tax
++		lda xlo
++		rts
++}
++#pragma runtime(farxo1, farxo1)
++
++/* the pin slots: a group's translation stores its page here (no faults in this test) */
++unsigned char farpins[4];
++#pragma runtime(farpins, farpins)
++
++
++struct t { short a; char b; char c; unsigned q : 6; unsigned r : 2; };
++
++#pragma data(fardata)
++struct t tab[4] = { { 1, 0, 'x', 3, 1 }, { 2, 0, 'y', 2, 0 }, { 3, 0, 'z', 1, 3 }, { 0, 0, 0, 0, 0 } };
++#pragma data(data)
++
++__noinline int count(struct t * p)
++{
++	int n = 0;
++	while (p->c && n < 100)
++	{
++		n++;
++		if (--p->q)
++			continue;
++		p++;
++	}
++	return n;
++}
++
++__noinline int predec(struct t * p) { return --p->q; }
++__noinline int preinc(struct t * p) { return ++p->q; }
++__noinline int postdec(struct t * p) { return p->q--; }
++
++int main(void)
++{
++	for (int i = 0; i < 256; i++)
++		tlb1[i] = i + 0x10;
++	memcpy((char *)0x9000, (char *)0x8000, 0x1000);
++	memset((char *)0x8000, 0x55, 0x1000);
++
++	if (count(tab) != 6)
++		return 1;
++	if (tab[0].q || tab[1].q || tab[2].q || tab[0].r != 1 || tab[2].r != 3)
++		return 2;
++	tab[1].q = 5;
++	if (predec(&tab[1]) != 4 || tab[1].q != 4 || tab[1].r != 0)
++		return 3;
++	if (preinc(&tab[1]) != 5 || postdec(&tab[1]) != 5 || tab[1].q != 4)
++		return 4;
++	return 0;
++}
+diff --git a/autotest/makefile b/autotest/makefile
+index c2c3007..145bb02 100644
+--- a/autotest/makefile
++++ b/autotest/makefile
+@@ -76,6 +76,13 @@ farcharstest: farcharstest.c
+ 	$(OSCAR64_CC) -ea -g -Os -n -dFARXZ -dOSCAR_FARCHARS $<
+ 	$(OSCAR64_CC) -ea -g -O3 -n -dFARXZ -dOSCAR_FARCHARS $<
+ 
++farbitfieldtest: farbitfieldtest.c
++	$(OSCAR64_CC) -ea -g -O0 -n $<
++	$(OSCAR64_CC) -ea -g -O1 -n $<
++	$(OSCAR64_CC) -ea -g -Os -n $<
++	$(OSCAR64_CC) -ea -g -O2 -n $<
++	$(OSCAR64_CC) -ea -g -O3 -n $<
++
+ bsstworegionstest: bsstworegionstest.c
+ 	$(OSCAR64_CC) -ea -g -O0 -n $<
+ 	$(OSCAR64_CC) -ea -g -O1 -n $<
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index 923819a..4e99fb6 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -3491,8 +3491,9 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 			block->Append(sins);
+ #endif
+ 
+-			// Return reference to value
+-			return ExValue(vl.mType, vl.mTemp, 1, 0, 0, vl.mFarSpace);
++			// Return reference to value: a bitfield's with its bits, or a read of the
++			// result reads the whole storage unit (if (--p->bits) tested the wrong value)
++			return ExValue(vl.mType, vl.mTemp, 1, vl.mBits, vl.mShift, vl.mFarSpace, vl.mFarObject);
+ 		}
+ 		break;
+ 
+-- 
+2.43.0
+
