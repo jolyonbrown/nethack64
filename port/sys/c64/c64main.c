@@ -4,7 +4,7 @@
 /*
  * The game's entry (T3.2), as sys/share/pcmain.c makes it, for the bootable build
  * (tools/bank/build_c64.py --main port, which defines NH_PORT_MAIN): the hardware first
- * (src/hal), then NetHack's start in pcmain.c's order. No command line, no lock file (one
+ * (src/hal), then NetHack's start in pcmain.c's order. No command line, no lock check (one
  * player, one machine) and, until the file layer (T2.4), no saved game to restore.
  */
 #include "hack.h"
@@ -31,7 +31,7 @@ main(void)
 void
 nh_c64_start(void)
 {
-	int argc = 1;
+	int argc = 1, fd;
 	/* a named array: a literal would be in the character space, which a near char * table
 	 * cannot hold (ADR-0010) */
 	static char arg0[] = "nethack";
@@ -45,6 +45,21 @@ nh_c64_start(void)
 	if (!*plname)
 		askname();
 	plnamesuffix();		/* strip suffix from name; calls askname() */
+
+	/* pcmain.c without PC_LOCKING: the level files are named from the player, and level 0
+	 * (the game state's file, which INSURANCE's save_currentstate() writes) is made now */
+	Strcpy(lock, plname);
+	Strcat(lock, ".99");
+	regularize(lock);
+	fd = create_levelfile(0, (char *) 0);
+	if (fd < 0) {
+		raw_print("Cannot create lock file");
+	} else {
+		hackpid = 1;
+		write(fd, (genericptr_t) &hackpid, sizeof(hackpid));
+		close(fd);
+	}
+
 	x_maze_max = COLNO - 1;	/* unixmain.c's */
 	if (x_maze_max % 2)
 		x_maze_max--;

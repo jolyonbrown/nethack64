@@ -1,0 +1,147 @@
+From 8a5783e24b46168dbe958e117ef26ffb836ac7b0 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Mon, 23 Nov 2026 03:28:10 +0000
+Subject: [PATCH] printf: '*' width and precision, and %s's precision
+
+C89 7.9.6.1: a width or precision may be '*', taken from an int
+argument, a negative width meaning a '-' flag and a negative precision
+none; and a precision limits how much of a %s string is written.
+sformat() read only digits, so "%*s" printed "*s" and took the
+following arguments one place early, and %s wrote the whole string.
+nethack64: botl.c pads the status line with "%*s" ("Agent the
+Stripling  *sSt:18/02"), weapon.c's #enhance list uses "%-*s",
+topten.c names "%.10s", and several messages bound a file name with
+"%.243s" so that it cannot overflow their buffer.
+
+autotest/printfstartest.c. make check: no new failures against
+commit 21's.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ autotest/printfstartest.c | 22 ++++++++++++++++
+ include/stdio.c           | 53 +++++++++++++++++++++++++++++++++------
+ 2 files changed, 67 insertions(+), 8 deletions(-)
+ create mode 100644 autotest/printfstartest.c
+
+diff --git a/autotest/printfstartest.c b/autotest/printfstartest.c
+new file mode 100644
+index 0000000..b6aae57
+--- /dev/null
++++ b/autotest/printfstartest.c
+@@ -0,0 +1,22 @@
++// printf's '*' width and precision (a negative width a '-' flag, a negative precision none),
++// and %s's precision: C89 7.9.6.1 (nethack64: botl.c's "%*s", topten.c's "%.10s")
++#include <stdio.h>
++#include <string.h>
++
++int main(void)
++{
++	char buf[40];
++	int bad = 0;
++
++	sprintf(buf, "[%*s]", 4, "ab");
++	if (strcmp(buf, "[  ab]")) bad |= 1;
++	sprintf(buf, "[%-*s]%d", 4, "ab", 7);
++	if (strcmp(buf, "[ab  ]7")) bad |= 2;
++	sprintf(buf, "[%*s]", -3, "x");
++	if (strcmp(buf, "[x  ]")) bad |= 4;
++	sprintf(buf, "[%.*s]", 2, "abcd");
++	if (strcmp(buf, "[ab]")) bad |= 8;
++	sprintf(buf, "[%.3s|%5.2s]", "abcdef", "xyz");
++	if (strcmp(buf, "[abc|   xy]")) bad |= 16;
++	return bad;
++}
+diff --git a/include/stdio.c b/include/stdio.c
+index 34d7b59..87a4f06 100644
+--- a/include/stdio.c
++++ b/include/stdio.c
+@@ -396,7 +396,19 @@ char * sformat(char * buff, const char * fmt, int * fps, bool print)
+ 				c = *p++;
+ 			}
+ 
+-			if (c >= '0' && c <='9')
++			if (c == '*')
++			{
++				// C89 7.9.6.1: the width from an int argument, a negative one a '-' flag
++				int	w = *fps++;
++				if (w < 0)
++				{
++					si.left = true;
++					w = -w;
++				}
++				si.width = w;
++				c = *p++;
++			}
++			else if (c >= '0' && c <='9')
+ 			{
+ 				char i = 0;
+ 				while (c >= '0' && c <='9')
+@@ -411,12 +423,22 @@ char * sformat(char * buff, const char * fmt, int * fps, bool print)
+ 			{
+ 				char	i = 0;
+ 				c = *p++;
+-				while (c >= '0' && c <='9')
++				if (c == '*')
+ 				{
+-					i = i * 10 + c - '0';
++					// the precision from an int argument, a negative one as if omitted
++					int	pr = *fps++;
++					si.precision = pr < 0 ? 255 : pr;
+ 					c = *p++;
+-				}		
+-				si.precision = i;		
++				}
++				else
++				{
++					while (c >= '0' && c <='9')
++					{
++						i = i * 10 + c - '0';
++						c = *p++;
++					}
++					si.precision = i;
++				}
+ 			}
+ 
+ 			if (c == 'd' || c == p'd' || c == 'i' || c == p'i')
+@@ -473,12 +495,16 @@ char * sformat(char * buff, const char * fmt, int * fps, bool print)
+ 			{
+ 				char * sp = (char *)*fps++;
+ 
++				// a precision (255: none given) writes at most that many characters (C89
++				// 7.9.6.1): "%.10s"
++				bool	limited = si.precision != 255;
+ 				char n = 0;
+-				if (si.width)
++				if (si.width || limited)
+ 				{
+-					while (sp[n])
++					while (sp[n] && (!limited || n < si.precision))
+ 						n++;
+ 				}
++				char len = n;
+ 
+ 				if (!si.left)
+ 				{
+@@ -497,7 +523,18 @@ char * sformat(char * buff, const char * fmt, int * fps, bool print)
+ 						puts(bp);
+ 						bi = 0;
+ 					}
+-					puts(sp);
++					if (limited)
++					{
++						for (char k = 0; k < len; k++)
++							putchar(sp[k]);
++					}
++					else
++						puts(sp);
++				}
++				else if (limited)
++				{
++					for (char k = 0; k < len; k++)
++						bp[bi++] = sp[k];
+ 				}
+ 				else
+ 				{
+-- 
+2.43.0
+
