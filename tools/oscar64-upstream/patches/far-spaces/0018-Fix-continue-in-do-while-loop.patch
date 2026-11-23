@@ -1,0 +1,47 @@
+From 64f540080bd9d42344e9a89999078aea5482c5ed Mon Sep 17 00:00:00 2001
+From: drmortalwombat <90205530+drmortalwombat@users.noreply.github.com>
+Date: Sat, 26 Sep 2026 16:29:37 +0200
+Subject: [PATCH] Fix continue in do-while loop
+
+(cherry picked from commit 546b62778352754da8ec124357a9b516b0a5ac35)
+---
+ oscar64/InterCodeGenerator.cpp | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index 4e99fb6..5c75191 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -6024,19 +6024,25 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 			InterInstruction	*	jins = new InterInstruction(MapLocation(exp, inlineMapper), IC_JUMP);
+ 
+ 			InterCodeBasicBlock* cblock = new InterCodeBasicBlock(proc);
+-			InterCodeBasicBlock* lblock = cblock;
++			InterCodeBasicBlock* lblock = new InterCodeBasicBlock(proc);
++			InterCodeBasicBlock* bblock = lblock;
+ 			InterCodeBasicBlock* eblock = new InterCodeBasicBlock(proc);
+ 
+ 			block->Append(jins);
+-			block->Close(cblock, nullptr);
++			block->Close(lblock, nullptr);
+ 
+ 			DestructStack* idestack = destack;
+ 
+-			vr = TranslateExpression(procType, proc, cblock, exp->mRight, destack, gotos, BranchTarget(eblock, odestack), BranchTarget(cblock, idestack), inlineMapper);
++			vr = TranslateExpression(procType, proc, bblock, exp->mRight, destack, gotos, BranchTarget(eblock, odestack), BranchTarget(cblock, idestack), inlineMapper);
+ 
+-			UnwindDestructStack(procType, proc, cblock, destack, idestack, inlineMapper);
++			UnwindDestructStack(procType, proc, bblock, destack, idestack, inlineMapper);
+ 			destack = idestack;
+ 
++			jins = new InterInstruction(MapLocation(exp, inlineMapper), IC_JUMP);
++
++			bblock->Append(jins);
++			bblock->Close(cblock, nullptr);
++
+ 			TranslateLogic(procType, proc, cblock, lblock, eblock, exp->mLeft, destack, gotos, inlineMapper);
+ 
+ 			block = eblock;
+-- 
+2.43.0
+
