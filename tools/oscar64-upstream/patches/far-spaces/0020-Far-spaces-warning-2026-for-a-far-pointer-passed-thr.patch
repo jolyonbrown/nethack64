@@ -1,0 +1,39 @@
+From 31735bf7686ade9af30be2e1d1c9ecc968516107 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Mon, 23 Nov 2026 01:42:02 +0000
+Subject: [PATCH] Far spaces: warning 2026 for a far pointer passed through ...
+
+A variadic argument has no parameter type, so a far array or a pointer
+into a far space went to the callee as it was, and va_arg read it as a
+near pointer, with no warning: nethack64's get_compopt_value(),
+Sprintf(buf, "%s", to_be_done), a function's static string moved to
+far space 5 by #pragma fardefault. Such an argument is now reported as
+a conversion out of its space, as an assignment to a near pointer is
+(the character space excepted, as there). make check 1,706 of 1,706,
+no new failures.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ oscar64/InterCodeGenerator.cpp | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index ccf1a64..81ac9e8 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -4536,6 +4536,12 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 						{
+ 							vr = CoerceType(proc, texp, block, inlineMapper, vr, TheSignedIntTypeDeclaration);
+ 						}
++						else if (vr.mType->mType == DT_TYPE_ARRAY || vr.mType->mType == DT_TYPE_POINTER)
++						{
++							// a variadic argument goes on as a near pointer (va_arg), with no type to
++							// convert to: printf("%s", far_array) read the far address as near RAM
++							CheckFarConversion(texp, (vr.mType->mType == DT_TYPE_ARRAY || vr.mFarSpace) ? vr.mFarSpace : vr.mType->mBase->FarSpace(), 0);
++						}
+ 
+ 
+ 						InterInstruction* wins = new InterInstruction(MapLocation(exp, inlineMapper), IC_STORE);
+-- 
+2.43.0
+

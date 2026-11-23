@@ -1,0 +1,222 @@
+From fa3d25e1174df57c24e90403dfdedde6bf0d2a7f Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Mon, 23 Nov 2026 01:23:26 +0000
+Subject: [PATCH] Far spaces: a conditional keeps its arms' far space
+
+c ? a : b, both arms far arrays (or far addresses, or cast to a pointer
+to a near type inside the arms), was a near pointer to the far address:
+IC_SELECT's result, and the branch form's, was built without the arms'
+mFarSpace, so nothing translated it and no warning 2026 said so.
+nethack64's mkobj() read its object class table at $9080 in whatever
+bank was mapped ("probtype error, oclass=89").
+
+The result now keeps the space the arms agree on, a null pointer arm
+(through casts) agreeing with either; arms that disagree are reported
+as conversions out of their space, and the result is as near as its
+type. So a near pointer initialised from such a conditional now gets
+its warning 2026, like one from the array itself.
+
+autotest/farcondtest.c: indexing and -> through c ? far : far, cast
+arms, a null arm, and a struct-valued conditional; -O0 and -O1 failed
+before (-Os and up folded the selects to direct references). make
+check 1,706 of 1,706 (5 new), no new failures against commit 18's.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ autotest/farcondtest.c         | 93 ++++++++++++++++++++++++++++++++++
+ autotest/makefile              |  7 +++
+ oscar64/InterCodeGenerator.cpp | 33 ++++++++++++
+ oscar64/InterCodeGenerator.h   |  1 +
+ 4 files changed, 134 insertions(+)
+ create mode 100644 autotest/farcondtest.c
+
+diff --git a/autotest/farcondtest.c b/autotest/farcondtest.c
+new file mode 100644
+index 0000000..1432e75
+--- /dev/null
++++ b/autotest/farcondtest.c
+@@ -0,0 +1,93 @@
++/* A conditional of far addresses (#pragma fardefault, as in fardefaulttest.c): c ? a : b keeps
++ * the space its arms agree on, a null pointer arm agreeing with either, so the result is
++ * translated; arms that disagree give warning 2026.  Before, the result was a near pointer to
++ * the far address, with no warning (nethack64: mkobj.c, the object class tables).  Native
++ * code only. */
++#include <string.h>
++
++#pragma section(fardata, 0)
++#pragma farsection(fardata, 1)
++#pragma region(farr, 0x8000, 0x9000, , , { fardata })
++#pragma region(main, 0x0900, 0x8000, , , { code, data, bss, heap, stack })
++
++/* the space's page table: far page p at RAM page p + $10 */
++unsigned char tlb1[256];
++
++__asm farxl1
++{
++		lda tlb1, x
++		rts
++}
++#pragma runtime(farxl1, farxl1)
++
++unsigned char xoff, xlo;
++
++__asm farxo1
++{
++		sty xoff
++		clc
++		adc xoff
++		bcc nc
++		inx
++nc:		sta xlo
++		lda tlb1, x
++		tax
++		lda xlo
++		rts
++}
++#pragma runtime(farxo1, farxo1)
++
++unsigned char farpins[4];
++#pragma runtime(farpins, farpins)
++
++#pragma near(sel, nsel)
++#pragma fardefault(fardata)
++
++struct icp { int iprob; char iclass; };
++const struct icp tab1[] = { { 10, 1 }, { 90, 2 } };
++const struct icp tab2[] = { { 50, 3 }, { 50, 4 } };
++struct pt { char x; int y; } p1 = { 1, 10 }, p2 = { 2, 20 };
++int sel, nsel;
++
++__noinline char pick(int i)
++{
++	return (sel ? tab2 : tab1)[i].iclass;
++}
++
++__noinline char pickcast(int i)
++{
++	return (sel ? (const struct icp *)tab2 : (const struct icp *)tab1)[i].iclass;
++}
++
++__noinline int ynull(void)
++{
++	return (sel ? &p2 : (struct pt *)0) ? (sel ? &p2 : (struct pt *)0)->y : -1;
++}
++
++__noinline int ystruct(void)
++{
++	return (sel ? p2 : p1).y;
++}
++
++int main(void)
++{
++	for (int i = 0; i < 256; i++)
++		tlb1[i] = i;
++	for (int i = 0x80; i < 0x90; i++)
++		tlb1[i] = i + 0x10;
++	memcpy((char *)0x9000, (char *)0x8000, 0x1000);
++	memset((char *)0x8000, 0xee, 0x1000);
++
++	int fails = 0;
++	sel = 0;
++	if (pick(1) != 2) fails |= 1;
++	if (pickcast(0) != 1) fails |= 2;
++	if (ynull() != -1) fails |= 4;
++	if (ystruct() != 10) fails |= 8;
++	sel = 1;
++	if (pick(1) != 4) fails |= 16;
++	if (pickcast(0) != 3) fails |= 32;
++	if (ynull() != 20) fails |= 64;
++	if (ystruct() != 20) fails |= 128;
++	return fails;
++}
+diff --git a/autotest/makefile b/autotest/makefile
+index 145bb02..bd2d822 100644
+--- a/autotest/makefile
++++ b/autotest/makefile
+@@ -76,6 +76,13 @@ farcharstest: farcharstest.c
+ 	$(OSCAR64_CC) -ea -g -Os -n -dFARXZ -dOSCAR_FARCHARS $<
+ 	$(OSCAR64_CC) -ea -g -O3 -n -dFARXZ -dOSCAR_FARCHARS $<
+ 
++farcondtest: farcondtest.c
++	$(OSCAR64_CC) -ea -g -O0 -n $<
++	$(OSCAR64_CC) -ea -g -O1 -n $<
++	$(OSCAR64_CC) -ea -g -Os -n $<
++	$(OSCAR64_CC) -ea -g -O2 -n $<
++	$(OSCAR64_CC) -ea -g -O3 -n $<
++
+ farbitfieldtest: farbitfieldtest.c
+ 	$(OSCAR64_CC) -ea -g -O0 -n $<
+ 	$(OSCAR64_CC) -ea -g -O1 -n $<
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index 5c75191..ccf1a64 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -384,6 +384,29 @@ void InterCodeGenerator::CheckFarConversion(Expression* exp, int from, int to)
+ 		mErrors->Error(exp->mLocation, EWARN_FAR_POINTER_CONVERSION, "Pointer into a far space converted to a pointer outside it");
+ }
+ 
++// a null pointer constant, through any casts: (struct obj *)0
++static bool IsNullPointerExpression(Expression* exp)
++{
++	while (exp && exp->mType == EX_TYPECAST)
++		exp = exp->mLeft;
++	return exp && exp->mType == EX_CONSTANT && exp->mDecValue && exp->mDecValue->IsNullConst();
++}
++
++// The far space a conditional's pointer (or struct reference) keeps: its arms', when they
++// agree, a null pointer agreeing with either arm; otherwise the result is as near as its type,
++// and an arm in a far space is reported as a conversion out of it.  Without it, c ? a : b of
++// two far arrays was a near pointer to a far address, and no warning (a cast arm too).
++int InterCodeGenerator::ConditionalFarSpace(Expression* exp, const ExValue& vl, const ExValue& vr, int typeSpace)
++{
++	int fl = IsNullPointerExpression(exp->mRight->mLeft) ? vr.mFarSpace : vl.mFarSpace;
++	int fr = IsNullPointerExpression(exp->mRight->mRight) ? vl.mFarSpace : vr.mFarSpace;
++	if (fl == fr)
++		return fl;
++	CheckFarConversion(exp, fl, typeSpace);
++	CheckFarConversion(exp, fr, typeSpace);
++	return typeSpace;
++}
++
+ InterCodeGenerator::ExValue InterCodeGenerator::CoerceType(InterCodeProcedure* proc, Expression* exp, InterCodeBasicBlock*& block, InlineMapper* inlineMapper, ExValue v, Declaration* type, bool checkTrunc)
+ {
+ 	int		stemp = v.mTemp;
+@@ -5433,6 +5456,11 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 				sins->mDst.mTemp = ttemp;
+ 				block->Append(sins);
+ 
++				if (ttype == IT_POINTER)
++				{
++					int fs = ConditionalFarSpace(exp, vl, vr, tref ? dtype->FarSpace() : dtype->mBase ? dtype->mBase->FarSpace() : 0);
++					return ExValue(dtype, ttemp, tref, 0, 0, fs, fs && vl.mFarObject == vr.mFarObject ? vl.mFarObject : 0);
++				}
+ 				return ExValue(dtype, ttemp, tref);
+ 			}
+ 			else
+@@ -5595,6 +5623,11 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 
+ 					block = eblock;
+ 
++					if (ttype == IT_POINTER)
++					{
++						int fs = ConditionalFarSpace(exp, vl, vr, tref ? dtype->FarSpace() : dtype->mBase ? dtype->mBase->FarSpace() : 0);
++						return ExValue(dtype, ttemp, tref, 0, 0, fs, fs && vl.mFarObject == vr.mFarObject ? vl.mFarObject : 0);
++					}
+ 					return ExValue(dtype, ttemp, tref);
+ 				}
+ 				else
+diff --git a/oscar64/InterCodeGenerator.h b/oscar64/InterCodeGenerator.h
+index 9f17a1d..09d08bf 100644
+--- a/oscar64/InterCodeGenerator.h
++++ b/oscar64/InterCodeGenerator.h
+@@ -98,6 +98,7 @@ protected:
+ 	ExValue ToValue(InterCodeProcedure* proc, Expression* exp, InterCodeBasicBlock*& block, InlineMapper* inlineMapper, ExValue v);
+ 	ExValue Dereference(InterCodeProcedure* proc, Expression* exp, InterCodeBasicBlock*& block, InlineMapper* inlineMapper, ExValue v, int level = 0, int limit = 0);
+ 	void CheckFarConversion(Expression* exp, int from, int to);
++	int ConditionalFarSpace(Expression* exp, const ExValue& vl, const ExValue& vr, int typeSpace);
+ 	int BuiltinFarSpace(Expression* exp, const ExValue& v, int64 size);
+ 	int FarObjectSize(Declaration* type);
+ 	ExValue CoerceType(InterCodeProcedure* proc, Expression* exp, InterCodeBasicBlock*& block, InlineMapper* inlineMapper, ExValue v, Declaration * type, bool checkTrunc = true);
+-- 
+2.43.0
+
