@@ -1,0 +1,44 @@
+From a82328b712d4d04981d99bf3eb4d05edf9c4ed8c Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Tue, 24 Nov 2026 07:58:14 +0000
+Subject: [PATCH] Push and pop frame instructions compare their frame size
+
+InterInstruction::IsEqual() and IsEqualSource() compared mConst only for
+IC_CONSTANT, so an IC_PUSH_FRAME or IC_POP_FRAME (no operands, the size in
+mConst) equalled any other of its kind. Common-instruction merging then
+took the two arms' pops of a conditional whose arms call functions with
+argument blocks of different sizes as one: the C128 NetHack's xkilled(),
+"You("%s %s!", verb, !tame ? mon_nam(mtmp) : x_monnam(mtmp, ...))", gave
+back 11 bytes after mon_nam()'s 4-byte block, 7 bytes of the soft stack
+lost on each kill.
+
+make check: 1,731 emulations, all returning 0.
+---
+ oscar64/InterCode.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index a4c9f5c..818673e 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -3089,7 +3089,7 @@ bool InterInstruction::IsEqual(const InterInstruction* ins) const
+ 		if (!mSrc[i].IsEqual(ins->mSrc[i]))
+ 			return false;
+ 
+-	if (mCode == IC_CONSTANT && !mConst.IsEqual(ins->mConst))
++	if ((mCode == IC_CONSTANT || mCode == IC_PUSH_FRAME || mCode == IC_POP_FRAME) && !mConst.IsEqual(ins->mConst))
+ 		return false;
+ 
+ 	return true;
+@@ -3110,7 +3110,7 @@ bool InterInstruction::IsEqualSource(const InterInstruction* ins) const
+ 		if (!mSrc[i].IsEqual(ins->mSrc[i]))
+ 			return false;
+ 
+-	if (mCode == IC_CONSTANT && !mConst.IsEqual(ins->mConst))
++	if ((mCode == IC_CONSTANT || mCode == IC_PUSH_FRAME || mCode == IC_POP_FRAME) && !mConst.IsEqual(ins->mConst))
+ 		return false;
+ 
+ 	return true;
+-- 
+2.43.0
+
