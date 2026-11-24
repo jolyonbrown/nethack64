@@ -25,6 +25,13 @@ typedef struct tty_mi {
     char str[1];
 } tty_menu_item;
 
+/* a line of the message window's history (topl.c): on the C64 a far heap block, which a
+ * long game's history (20 lines, each as long as the longest it has held, up to TBUFSZ)
+ * would otherwise take from a near heap of 2,840 bytes */
+struct tty_msg {
+    char s[1];
+};
+
 /* descriptor for tty-based windows */
 struct WinDesc {
     int flags;			/* window flags */

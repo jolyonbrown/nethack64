@@ -19,6 +19,46 @@ STATIC_DCL void FDECL(topl_putsym, (CHAR_P));
 STATIC_DCL void NDECL(remember_topl);
 STATIC_DCL void FDECL(removetopl, (int));
 
+/* The message history's lines (wintty.h): on the C64 far heap blocks in the message
+ * window's data[], kept there as their addresses; a far block has no near address, so a
+ * line is copied in and out by index, out to the reader's own buffer. */
+#ifdef NH_FAR_HEAP_SPACES
+extern struct tty_msg *FDECL(nh_msgalloc, (unsigned));
+extern void FDECL(nh_msgfree, (struct tty_msg *, unsigned));
+#define MSG_FAR(p)	((struct tty_msg *) (unsigned) (p))
+
+STATIC_OVL char *
+msgline(char *p, char *buf)
+{
+    struct tty_msg *m = MSG_FAR(p);
+    int n = 0;
+
+    if (!m) return (char *) 0;
+    while ((buf[n] = m->s[n]) != '\0')
+	n++;
+    return buf;
+}
+
+STATIC_OVL void
+msgput(char *p, const char *s)
+{
+    struct tty_msg *m = MSG_FAR(p);
+    int n = 0;
+
+    while ((m->s[n] = s[n]) != '\0')
+	n++;
+}
+#define MSGLINE(p, buf)	msgline((p), (buf))
+#define MSGALLOC(n)	((char *) (unsigned) nh_msgalloc((unsigned) (n)))
+#define MSGFREE(p, n)	nh_msgfree(MSG_FAR(p), (unsigned) (n))
+#define MSGPUT(p, s)	msgput((p), (s))
+#else
+#define MSGLINE(p, buf)	((void) (buf), (p))
+#define MSGALLOC(n)	((char *) alloc((unsigned) (n)))
+#define MSGFREE(p, n)	free((genericptr_t) (p))
+#define MSGPUT(p, s)	Strcpy((p), (s))
+#endif
+
 #ifdef OVLB
 
 int
@@ -28,6 +68,7 @@ tty_doprev_message(void)
 
     winid prevmsg_win;
     int i;
+    char buf[TBUFSZ], *s;		/* a history line read out (MSGLINE) */
     if ((iflags.prevmsg_window != 's') && !ttyDisplay->inread) { /* not single */
         if(iflags.prevmsg_window == 'f') { /* full */
             prevmsg_win = create_nhwindow(NHW_MENU);
@@ -36,8 +77,8 @@ tty_doprev_message(void)
             cw->maxcol = cw->maxrow;
             i = cw->maxcol;
             do {
-                if(cw->data[i] && strcmp(cw->data[i], "") )
-                    putstr(prevmsg_win, 0, cw->data[i]);
+                if((s = MSGLINE(cw->data[i], buf)) != 0 && strcmp(s, "") )
+                    putstr(prevmsg_win, 0, s);
                 i = (i + 1) % cw->rows;
             } while (i != cw->maxcol);
             putstr(prevmsg_win, 0, toplines);
@@ -55,7 +96,7 @@ tty_doprev_message(void)
                         cw->maxcol = cw->maxrow;
                 } else if (cw->maxcol == (cw->maxrow - 1)){
                     ttyDisplay->dismiss_more = C('p');	/* <ctrl/P> allowed at --More-- */
-                    redotoplin(cw->data[cw->maxcol]);
+                    redotoplin(MSGLINE(cw->data[cw->maxcol], buf));
                     cw->maxcol--;
                     if (cw->maxcol < 0) cw->maxcol = cw->rows-1;
                     if (!cw->data[cw->maxcol])
@@ -67,8 +108,8 @@ tty_doprev_message(void)
                     cw->maxcol = cw->maxrow;
                     i = cw->maxcol;
                     do {
-                        if(cw->data[i] && strcmp(cw->data[i], "") )
-                            putstr(prevmsg_win, 0, cw->data[i]);
+                        if((s = MSGLINE(cw->data[i], buf)) != 0 && strcmp(s, "") )
+                            putstr(prevmsg_win, 0, s);
                         i = (i + 1) % cw->rows;
                     } while (i != cw->maxcol);
                     putstr(prevmsg_win, 0, toplines);
@@ -87,7 +128,7 @@ tty_doprev_message(void)
             cw->maxcol=cw->maxrow-1;
             if(cw->maxcol < 0) cw->maxcol = cw->rows-1;
             do {
-                putstr(prevmsg_win, 0, cw->data[cw->maxcol]);
+                putstr(prevmsg_win, 0, MSGLINE(cw->data[cw->maxcol], buf));
                 cw->maxcol--;
                 if (cw->maxcol < 0) cw->maxcol = cw->rows-1;
                 if (!cw->data[cw->maxcol])
@@ -106,7 +147,7 @@ tty_doprev_message(void)
             if (cw->maxcol == cw->maxrow)
                 redotoplin(toplines);
             else if (cw->data[cw->maxcol])
-                redotoplin(cw->data[cw->maxcol]);
+                redotoplin(MSGLINE(cw->data[cw->maxcol], buf));
             cw->maxcol--;
             if (cw->maxcol < 0) cw->maxcol = cw->rows-1;
             if (!cw->data[cw->maxcol])
@@ -147,12 +188,12 @@ remember_topl(void)
     unsigned len = strlen(toplines) + 1;
 
     if (len > (unsigned)cw->datlen[idx]) {
-	if (cw->data[idx]) free(cw->data[idx]);
+	if (cw->data[idx]) MSGFREE(cw->data[idx], cw->datlen[idx]);
 	len += (8 - (len & 7));		/* pad up to next multiple of 8 */
-	cw->data[idx] = (char *)alloc(len);
+	cw->data[idx] = MSGALLOC(len);
 	cw->datlen[idx] = (short)len;
     }
-    Strcpy(cw->data[idx], toplines);
+    MSGPUT(cw->data[idx], toplines);
     cw->maxcol = cw->maxrow = (idx + 1) % cw->rows;
 }
 

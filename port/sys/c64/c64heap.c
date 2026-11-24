@@ -211,4 +211,23 @@ nh_mifree(struct tty_mi *m, unsigned n)
 	nh_hfree(1, (unsigned) m, n);
 }
 
+/* the message window's history lines (wintty.h), from the objects' space too */
+struct tty_msg;
+
+struct tty_msg *
+nh_msgalloc(unsigned n)
+{
+	unsigned a = nh_halloc(1, n);
+
+	if (!a)
+		panic("Object space full; cannot get %u bytes", n);
+	return (struct tty_msg *) a;
+}
+
+void
+nh_msgfree(struct tty_msg *m, unsigned n)
+{
+	nh_hfree(1, (unsigned) m, n);
+}
+
 #endif /* NH_FAR_HEAP_SPACES */

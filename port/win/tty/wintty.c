@@ -38,6 +38,7 @@ extern void msmsg(const char *,...);
 #ifdef NH_FAR_HEAP_SPACES
 extern struct tty_mi *FDECL(nh_mialloc, (unsigned));
 extern void FDECL(nh_mifree, (struct tty_mi *, unsigned));
+extern void FDECL(nh_msgfree, (struct tty_msg *, unsigned));	/* topl.c's history lines */
 static_assert(sizeof (anything) == sizeof (genericptr_t),
 	      "a menu identifier is copied as its a_void (tty_add_menu)");
 #define NH_MIALLOC(n)	nh_mialloc((unsigned) (n))
@@ -952,6 +953,12 @@ free_window_info(struct WinDesc *cw, boolean free_data)
 	    cw->maxrow = cw->rows;		/* topl data */
 	for(i=0; i<cw->maxrow; i++)
 	    if(cw->data[i]) {
+#ifdef NH_FAR_HEAP_SPACES
+		if (cw->type == NHW_MESSAGE)	/* far heap blocks (topl.c) */
+		    nh_msgfree((struct tty_msg *) (unsigned) cw->data[i],
+			       (unsigned) cw->datlen[i]);
+		else
+#endif
 		free((genericptr_t)cw->data[i]);
 		cw->data[i] = (char *)0;
 		if (cw->datlen) cw->datlen[i] = 0;
