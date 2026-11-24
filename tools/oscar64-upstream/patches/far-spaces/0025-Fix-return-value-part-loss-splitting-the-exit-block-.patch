@@ -1,0 +1,39 @@
+From 38ee47d7b20e530e1685979113c0c29c57ac4a51 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Tue, 24 Nov 2026 06:34:51 +0000
+Subject: [PATCH] Fix return value part loss: splitting the exit block moves
+ the exit
+
+SplitSinglePath() splits a branch target after a store of A that only
+the return needs, so that the branch goes past it. When the target was
+the exit block, SplitBlock() moved its temporary RTS into the new block
+while the procedure kept the old block as its exit: the epilogue was
+written there and the branch reached a bare RTS, leaving the frame on
+the soft stack and the saved zero page temporaries unrestored.
+
+The SplitBlock() part of upstream 3e2ffb6 (its new SplitSinglePath()
+case, the CheckGlobalAddressSumYPointer() and PeepHoleOptimizerExits()
+changes and the InterCode.cpp part are left out).
+
+(cherry picked from commit 3e2ffb69ccfb06c3564f40ef21e625daa33476c1)
+---
+ oscar64/NativeCodeGenerator.cpp | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 8633d02..4542995 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -16704,6 +16704,9 @@ NativeCodeBasicBlock* NativeCodeBasicBlock::SplitBlock(int at)
+ 		block->mIns.Push(mIns[i]);
+ 	mIns.SetSize(at);
+ 
++	if (this == mProc->mExitBlock)
++		mProc->mExitBlock = block;
++
+ 	return block;
+ }
+ 
+-- 
+2.43.0
+
