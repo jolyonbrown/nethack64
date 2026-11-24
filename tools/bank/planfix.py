@@ -31,6 +31,11 @@ import re
 import sys
 
 BANK = 16384
+# the HAL's files stay in their bank: their public functions switch the I/O in (src/hal/io128.h)
+# and then call static helpers (vdc_rd, vdc_wr, ...) that expect it in, but a call to another
+# bank goes through a stub that sets the MMU back to the I/O out (fc37: vdc_rd moved to REU
+# bank 129 spun forever on $D600, RAM there)
+PINNED_FILES = ("vdc80.c", "sys128.c")
 LINE = re.compile(r"^(?:([0-9a-f]{2}):)?([0-9a-f]{4,5}) - ([0-9a-f]{4,5}) : ([^,]+), (\w+):nhbank_(\d+)")
 
 
@@ -177,7 +182,8 @@ def main():
         if b in fixed:
             continue
         need = left[b] + slack[b]
-        members = [k for k, bk in plan["banks"].items() if bk == b and size.get(k.split(":", 1)[1])]
+        members = [k for k, bk in plan["banks"].items() if bk == b and size.get(k.split(":", 1)[1])
+                   and k.split(":", 1)[0] not in PINNED_FILES]
         members.sort(key=lambda k: (inside[k.split(":", 1)[1]], size[k.split(":", 1)[1]]))
         for k in members:
             if need <= 0:

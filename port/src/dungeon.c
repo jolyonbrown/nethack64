@@ -48,11 +48,13 @@ struct nh_fb5 { char b; };
 
 static char nh_dgn_names[2][24];	/* near (the plan names it): the copies */
 
-/* a near copy of one of proto_dungeon's names (char[24], NUL-terminated) */
+/* a near copy of one of proto_dungeon's names (char[24], NUL-terminated); the name's address
+ * comes as an integer, since a call from another bank copies a char * argument from the
+ * caller's bank (bankgen.py's __t wrappers), which here read the cartridge bank's own bytes */
 STATIC_OVL const char *
-nh_dgnname(const char *p, int k)
+nh_dgnname(unsigned p, int k)
 {
-	const struct nh_fb5 *q = (const struct nh_fb5 *) (unsigned) p;
+	const struct nh_fb5 *q = (const struct nh_fb5 *) p;
 	int i;
 
 	for (i = 0; i < 23 && (nh_dgn_names[k][i] = q[i].b) != 0; i++)
@@ -60,7 +62,7 @@ nh_dgnname(const char *p, int k)
 	nh_dgn_names[k][i] = 0;
 	return nh_dgn_names[k];
 }
-#define NH_DGNAME(p, k)		nh_dgnname((p), (k))
+#define NH_DGNAME(p, k)		nh_dgnname((unsigned) (p), (k))
 /* a record of the file into a far entry, through a near one */
 #define NH_DGN_READ(dst, type)	do { struct type nh_r; \
 		Fread((genericptr_t) &nh_r, NH_DGN_FSIZE(type), 1, dgn_file); (dst) = nh_r; } while (0)
