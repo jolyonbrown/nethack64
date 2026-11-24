@@ -1,0 +1,40 @@
+From e41bc8642c2fffa8588a28dd4042fe87960556e5 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Mon, 23 Nov 2026 23:45:04 +0000
+Subject: [PATCH] Fix loss of mem alive flag after combining dual zp stores
+
+EliminateDoubleStore() moves a load from one of two zero page copies of a
+value to the other, so that one store can go; the moved load kept the
+first address's live flags, so the second address could look dead after
+it, and a later peephole (LDA zp; ASL -> ASL zp) then shifted the copy
+in place while it was still read.
+
+The NativeCodeGenerator.cpp part of upstream 679546b (its InterCode.cpp
+part, MergeInnerFrames, is a separate optimisation and is left out).
+
+(cherry picked from commit 679546b14ff8ba1a4720e802b46f05d17fc3e435)
+---
+ oscar64/NativeCodeGenerator.cpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 2f247ee..8633d02 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -43793,11 +43793,13 @@ bool NativeCodeBasicBlock::EliminateDoubleStore(int at)
+ 		if (mIns[i].mAddress == a0)
+ 		{
+ 			mIns[i].mAddress = a1;
++			mIns[i].mLive |= LIVE_MEM;
+ 			return true;
+ 		}
+ 		if (mIns[i].mAddress == a1)
+ 		{
+ 			mIns[i].mAddress = a0;
++			mIns[i].mLive |= LIVE_MEM;
+ 			return true;
+ 		}
+ 	}
+-- 
+2.43.0
+
