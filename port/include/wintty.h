@@ -15,11 +15,14 @@ typedef struct tty_mi {
     struct tty_mi *next;
     anything identifier;	/* user identifier */
     long count;			/* user count */
-    char *str;			/* description string (including accelerator) */
     int attr;			/* string attribute */
     boolean selected;		/* TRUE if selected by user */
     char selector;		/* keyboard accelerator */
     char gselector;		/* group accelerator */
+    /* description string (including accelerator), in the item's own block: the C64 port
+     * keeps menu items on the far heap (c64conf.h), where its near heap has no room for a
+     * long menu (fc40: #loot after an inventory panicked "cannot get 36 bytes") */
+    char str[1];
 } tty_menu_item;
 
 /* descriptor for tty-based windows */

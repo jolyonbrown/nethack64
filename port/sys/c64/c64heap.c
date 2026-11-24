@@ -191,4 +191,24 @@ nh_objfree(struct obj_s *o, unsigned n)
 	nh_hfree(1, (unsigned) o, n);
 }
 
+/* the tty port's menu items (wintty.h), each with its string, from the objects' space:
+ * a menu is short-lived, and the near heap cannot hold a long one */
+struct tty_mi;
+
+struct tty_mi *
+nh_mialloc(unsigned n)
+{
+	unsigned a = nh_halloc(1, n);
+
+	if (!a)
+		panic("Object space full; cannot get %u bytes", n);
+	return (struct tty_mi *) a;
+}
+
+void
+nh_mifree(struct tty_mi *m, unsigned n)
+{
+	nh_hfree(1, (unsigned) m, n);
+}
+
 #endif /* NH_FAR_HEAP_SPACES */

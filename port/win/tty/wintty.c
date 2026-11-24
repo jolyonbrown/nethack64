@@ -33,6 +33,31 @@ extern void msmsg(const char *,...);
 
 #include "wintty.h"
 
+/* a menu item with its string (wintty.h), on the C64 from the far heap
+ * (sys/c64/c64heap.c); the size is the item's own, its string as allocated */
+#ifdef NH_FAR_HEAP_SPACES
+extern struct tty_mi *FDECL(nh_mialloc, (unsigned));
+extern void FDECL(nh_mifree, (struct tty_mi *, unsigned));
+static_assert(sizeof (anything) == sizeof (genericptr_t),
+	      "a menu identifier is copied as its a_void (tty_add_menu)");
+#define NH_MIALLOC(n)	nh_mialloc((unsigned) (n))
+#define NH_MIFREE(p)	nh_mifree((p), (unsigned) (sizeof(tty_menu_item) + strlen_mi(p)))
+
+/* a far item's string by index: it has no near address */
+static unsigned
+strlen_mi(tty_menu_item *p)
+{
+    unsigned n = 0;
+
+    while (p->str[n])
+	n++;
+    return n;
+}
+#else
+#define NH_MIALLOC(n)	((tty_menu_item *) alloc((unsigned) (n)))
+#define NH_MIFREE(p)	free((genericptr_t) (p))
+#endif
+
 #ifdef CLIPPING		/* might want SIGWINCH */
  #if defined(BSD) || defined(ULTRIX) || defined(AIX_31) || defined(_BULL_SOURCE)
 #include <signal.h>
@@ -944,8 +969,7 @@ free_window_info(struct WinDesc *cw, boolean free_data)
 	tty_menu_item *temp;
 	while ((temp = cw->mlist) != 0) {
 	    cw->mlist = cw->mlist->next;
-	    if (temp->str) free((genericptr_t)temp->str);
-	    free((genericptr_t)temp);
+	    NH_MIFREE(temp);
 	}
     }
     if (cw->plist) {
@@ -1125,7 +1149,7 @@ process_menu_window(winid window, struct WinDesc *cw)
     long count;
     int n, curr_page, page_lines;
     boolean finished, counting, reset_count;
-    char *cp, *rp, resp[QBUFSZ], gacc[QBUFSZ],
+    char *rp, resp[QBUFSZ], gacc[QBUFSZ],
 	 *msave, *morestr;
 
     curr_page = page_lines = 0;
@@ -1208,13 +1232,14 @@ process_menu_window(winid window, struct WinDesc *cw)
 		     * this.
 		     */
 		    term_start_attr(curr->attr);
-		    for (n = 0, cp = curr->str;
+		    /* by index: a far item's string has no near address (wintty.h) */
+		    for (n = 0;
 #ifndef WIN32CON
-			  *cp && (int) ++ttyDisplay->curx < (int) ttyDisplay->cols;
-			  cp++, n++)
+			  curr->str[n] && (int) ++ttyDisplay->curx < (int) ttyDisplay->cols;
+			  n++)
 #else
-			  *cp && (int) ttyDisplay->curx < (int) ttyDisplay->cols;
-			  cp++, n++, ttyDisplay->curx++)
+			  curr->str[n] && (int) ttyDisplay->curx < (int) ttyDisplay->cols;
+			  n++, ttyDisplay->curx++)
 #endif
 			if (n == 2 && curr->identifier.a_void != 0 &&
 							curr->selected) {
@@ -1223,7 +1248,7 @@ process_menu_window(winid window, struct WinDesc *cw)
 			    else
 				(void) putchar('#'); /* count selected */
 			} else
-			    (void) putchar(*cp);
+			    (void) putchar(curr->str[n]);
 		    term_end_attr(curr->attr);
 		}
 	    } else {
@@ -1977,6 +2002,7 @@ tty_add_menu(winid window,
     tty_menu_item *item;
     const char *newstr;
     char buf[4+BUFSZ];
+    int len, k;
 
     if (str == (const char*) 0)
 	return;
@@ -1987,7 +2013,7 @@ tty_add_menu(winid window,
 
     cw->nitems++;
     if (identifier->a_void) {
-	int len = strlen(str);
+	len = strlen(str);
 	if (len >= BUFSZ) {
 	    /* We *think* everything's coming in off at most BUFSZ bufs... */
 	    impossible("Menu item too long (%d).", len);
@@ -2000,16 +2026,24 @@ tty_add_menu(winid window,
     } else
 	newstr = str;
 
-    item = (tty_menu_item *) alloc(sizeof(tty_menu_item));
-    /* const cast away: Oscar64 takes a const union for another type (r82,
+    /* the item with its string (wintty.h), the string no longer than tty_end_menu()
+     * would cut it to, so that the size freed is the size allocated */
+    len = strlen(newstr);
+    if (len > (int) ttyDisplay->cols - 2)
+	len = (int) ttyDisplay->cols - 2;
+    item = NH_MIALLOC(sizeof(tty_menu_item) + len);
+    /* the union through its widest member, a pointer: a far item takes no struct
+     * copy (T2.14), and Oscar64 takes a const union for another type (r82,
      * OSCAR64-COMPAT.md #85) */
-    item->identifier = *(anything *) identifier;
+    item->identifier.a_void = identifier->a_void;
     item->count = -1L;
     item->selected = preselected;
     item->selector = ch;
     item->gselector = gch;
     item->attr = attr;
-    item->str = copy_of(newstr);
+    for (k = 0; k < len; k++)
+	item->str[k] = newstr[k];
+    item->str[len] = '\0';
 
     item->next = cw->mlist;
     cw->mlist = item;
@@ -2087,8 +2121,10 @@ tty_end_menu(winid window, const char *prompt)
 	    if (menu_ch++ == 'z') menu_ch = 'A';
 	}
 
-	/* cut off any lines that are too long */
-	len = strlen(curr->str) + 2;	/* extra space at beg & end */
+	/* cut off any lines that are too long (by index: wintty.h) */
+	for (len = 0; curr->str[len]; len++)
+	    ;
+	len += 2;			/* extra space at beg & end */
 	if (len > (int)ttyDisplay->cols) {
 	    curr->str[ttyDisplay->cols-2] = 0;
 	    len = ttyDisplay->cols;
@@ -2161,7 +2197,7 @@ tty_select_menu(winid window, int how, menu_item **menu_list)
 	*menu_list = (menu_item *) alloc(n * sizeof(menu_item));
 	for (mi = *menu_list, curr = cw->mlist; curr; curr = curr->next)
 	    if (curr->selected) {
-		mi->item = curr->identifier;
+		mi->item.a_void = curr->identifier.a_void;	/* as tty_add_menu() */
 		mi->count = curr->count;
 		mi++;
 	    }

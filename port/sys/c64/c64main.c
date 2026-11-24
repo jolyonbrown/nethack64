@@ -4,8 +4,9 @@
 /*
  * The game's entry (T3.2), as sys/share/pcmain.c makes it, for the bootable build
  * (tools/bank/build_c64.py --main port, which defines NH_PORT_MAIN): the hardware first
- * (src/hal), then NetHack's start in pcmain.c's order. No command line, no lock check (one
- * player, one machine) and, until the file layer (T2.4), no saved game to restore.
+ * (src/hal), then NetHack's start in pcmain.c's order. No command line and no lock check (one
+ * player, one machine). A saved game is restored as pcmain.c does: restore_saved_game() also
+ * names the save file (set_savefile_name()), without which dosave0() gives up at once.
  */
 #include "hack.h"
 
@@ -72,12 +73,50 @@ nh_c64_start(void)
 	dlb_init();
 	display_gamewindows();
 
-	player_selection();
-	newgame();
-	flags.move = 0;
-	set_wear();
-	(void) pickup(1);
-	read_engr_at(u.ux, u.uy);
+	if ((fd = restore_saved_game()) >= 0) {
+#ifdef WIZARD
+		/* Since wizard is actually flags.debug, restoring might
+		 * overwrite it.
+		 */
+		boolean remember_wiz_mode = wizard;
+#endif
+#ifdef NEWS
+		if(iflags.news){
+		    display_file(NEWS, FALSE);
+		    iflags.news = FALSE;
+		}
+#endif
+		pline("Restoring save file...");
+		mark_synch();	/* flush output */
+
+		if(!dorecover(fd))
+			goto not_recovered;
+#ifdef WIZARD
+		if(!wizard && remember_wiz_mode) wizard = TRUE;
+#endif
+		check_special_room(FALSE);
+		if (discover)
+			You("are in non-scoring discovery mode.");
+
+		if (discover || wizard) {
+			if(yn("Do you want to keep the save file?") == 'n'){
+				(void) delete_savefile();
+			}
+		}
+
+		flags.move = 0;
+	} else {
+not_recovered:
+		player_selection();
+		newgame();
+		if (discover)
+			You("are in non-scoring discovery mode.");
+
+		flags.move = 0;
+		set_wear();
+		(void) pickup(1);
+		read_engr_at(u.ux,u.uy);
+	}
 
 	moveloop();
 }
