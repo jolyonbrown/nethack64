@@ -1,0 +1,46 @@
+From 3b822daeb38f550329bdc226686635bdaf38d239 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Tue, 24 Nov 2026 15:14:20 +0000
+Subject: [PATCH] IsEqual compares the space of far address translations
+
+An IA_FARXLAT unary operator keeps its far space (and offset) in
+mConst, so two translations of the same pointer into different spaces
+compared equal and common-instruction merging kept one of them.
+NetHack's doeat() read objects[otyp].oc_nutrition through the mons[]
+space, so every food ration gave no nutrition and was eaten in one bite,
+and the far heap's nh_halloc() read a free list link of the monster
+heap from the object heap.
+
+Both IsEqual() and IsEqualSource() now compare mConst for it, as they do
+for constants and frame pushes and pops.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ oscar64/InterCode.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
+index 818673e..c263e40 100644
+--- a/oscar64/InterCode.cpp
++++ b/oscar64/InterCode.cpp
+@@ -3089,7 +3089,7 @@ bool InterInstruction::IsEqual(const InterInstruction* ins) const
+ 		if (!mSrc[i].IsEqual(ins->mSrc[i]))
+ 			return false;
+ 
+-	if ((mCode == IC_CONSTANT || mCode == IC_PUSH_FRAME || mCode == IC_POP_FRAME) && !mConst.IsEqual(ins->mConst))
++	if ((mCode == IC_CONSTANT || mCode == IC_PUSH_FRAME || mCode == IC_POP_FRAME || mOperator == IA_FARXLAT) && !mConst.IsEqual(ins->mConst))
+ 		return false;
+ 
+ 	return true;
+@@ -3110,7 +3110,7 @@ bool InterInstruction::IsEqualSource(const InterInstruction* ins) const
+ 		if (!mSrc[i].IsEqual(ins->mSrc[i]))
+ 			return false;
+ 
+-	if ((mCode == IC_CONSTANT || mCode == IC_PUSH_FRAME || mCode == IC_POP_FRAME) && !mConst.IsEqual(ins->mConst))
++	if ((mCode == IC_CONSTANT || mCode == IC_PUSH_FRAME || mCode == IC_POP_FRAME || mOperator == IA_FARXLAT) && !mConst.IsEqual(ins->mConst))
+ 		return false;
+ 
+ 	return true;
+-- 
+2.43.0
+
