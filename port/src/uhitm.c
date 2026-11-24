@@ -486,6 +486,250 @@ hmon(struct monst_s *mon, struct obj_s *obj, int thrown) /* return TRUE if mon s
 	return result;
 }
 
+/* hmon_hitmon()'s locals, for hmon_hitmon_b() */
+struct nh_hmon_v {
+	struct obj_s **nh_obj;		/* read where the tail reads it: it may be freed by then */
+	struct permonst **nh_mdat;
+	int *nh_tmp, *nh_barehand_silver_rings, *nh_wtype;
+	boolean *nh_hittxt, *nh_destroyed, *nh_already_killed, *nh_get_dmg_bonus,
+		*nh_ispoisoned, *nh_needpoismsg, *nh_poiskilled, *nh_silvermsg, *nh_silverobj,
+		*nh_valid_weapon_attack, *nh_unarmed;
+#ifdef STEED
+	int *nh_jousting;
+#endif
+	char *nh_unconventional, *nh_saved_oname;
+};
+
+STATIC_DCL boolean FDECL(hmon_hitmon_b, (struct monst_s *,int,struct nh_hmon_v *));
+
+/* hmon_hitmon()'s damage and messages, from its note on obj on, word for word, its locals
+ * reached through v (the C64 port: hmon_hitmon() split so that each part fits a bank) */
+STATIC_OVL boolean
+hmon_hitmon_b(struct monst_s *mon, int thrown, struct nh_hmon_v *v)
+{
+#define obj (*v->nh_obj)
+#define mdat (*v->nh_mdat)
+#define tmp (*v->nh_tmp)
+#define barehand_silver_rings (*v->nh_barehand_silver_rings)
+#define wtype (*v->nh_wtype)
+#define hittxt (*v->nh_hittxt)
+#define destroyed (*v->nh_destroyed)
+#define already_killed (*v->nh_already_killed)
+#define get_dmg_bonus (*v->nh_get_dmg_bonus)
+#define ispoisoned (*v->nh_ispoisoned)
+#define needpoismsg (*v->nh_needpoismsg)
+#define poiskilled (*v->nh_poiskilled)
+#define silvermsg (*v->nh_silvermsg)
+#define silverobj (*v->nh_silverobj)
+#define valid_weapon_attack (*v->nh_valid_weapon_attack)
+#define unarmed (*v->nh_unarmed)
+#ifdef STEED
+#define jousting (*v->nh_jousting)
+#endif
+#define unconventional (v->nh_unconventional)
+#define saved_oname (v->nh_saved_oname)
+	/****** NOTE: perhaps obj is undefined!! (if !thrown && BOOMERANG)
+	 *      *OR* if attacking bare-handed!! */
+
+	if (get_dmg_bonus && tmp > 0) {
+		tmp += u.udaminc;
+		/* If you throw using a propellor, you don't get a strength
+		 * bonus but you do get an increase-damage bonus.
+		 */
+		if(!thrown || !obj || !uwep || !ammo_and_launcher(obj, uwep))
+		    tmp += dbon();
+	}
+
+	if (valid_weapon_attack) {
+	    struct obj_s *wep;
+
+	    /* to be valid a projectile must have had the correct projector */
+	    wep = PROJECTILE(obj) ? uwep : obj;
+	    tmp += weapon_dam_bonus(wep);
+	    /* [this assumes that `!thrown' implies wielded...] */
+	    wtype = thrown ? weapon_type(wep) : uwep_skill_type();
+	    use_skill(wtype, 1);
+	}
+
+	if (ispoisoned) {
+	    int nopoison = (10 - (obj->owt/10));            
+	    if(nopoison < 2) nopoison = 2;
+	    if Role_if(PM_SAMURAI) {
+		You("dishonorably use a poisoned weapon!");
+		adjalign(-sgn(u.ualign.type));
+	    } else if ((u.ualign.type == A_LAWFUL) && (u.ualign.record > -10)) {
+		You_feel("like an evil coward for using a poisoned weapon.");
+		adjalign(-1);
+	    }
+	    if (obj && !rn2(nopoison)) {
+		obj->opoisoned = FALSE;
+		Your("%s %s no longer poisoned.", xname(obj),
+		     otense(obj, "are"));
+	    }
+	    if (resists_poison(mon))
+		needpoismsg = TRUE;
+	    else if (rn2(10))
+		tmp += rnd(6);
+	    else poiskilled = TRUE;
+	}
+	if (tmp < 1) {
+	    /* make sure that negative damage adjustment can't result
+	       in inadvertently boosting the victim's hit points */
+	    tmp = 0;
+	    if (mdat == &mons[PM_SHADE]) {
+		if (!hittxt) {
+		    const char *what = unconventional[0] ? unconventional : "attack";
+		    Your("%s %s harmlessly through %s.",
+		    	what, vtense(what, "pass"),
+			mon_nam(mon));
+		    hittxt = TRUE;
+		}
+	    } else {
+		if (get_dmg_bonus) tmp = 1;
+	    }
+	}
+
+#ifdef STEED
+	if (jousting) {
+	    tmp += d(2, (obj == uwep) ? 10 : 2);	/* [was in dmgval()] */
+	    You("joust %s%s",
+			 mon_nam(mon), canseemon(mon) ? exclam(tmp) : ".");
+	    if (jousting < 0) {
+		Your("%s shatters on impact!", xname(obj));
+		/* (must be either primary or secondary weapon to get here) */
+		u.twoweap = FALSE;	/* untwoweapon() is too verbose here */
+		if (obj == uwep) uwepgone();		/* set unweapon */
+		/* minor side-effect: broken lance won't split puddings */
+		useup(obj);
+		obj = 0;
+	    }
+	    /* avoid migrating a dead monster */
+	    if (mon->mhp > tmp) {
+		mhurtle(mon, u.dx, u.dy, 1);
+		mdat = mon->data; /* in case of a polymorph trap */
+		if (DEADMONSTER(mon)) already_killed = TRUE;
+	    }
+	    hittxt = TRUE;
+	} else
+#endif
+
+	/* VERY small chance of stunning opponent if unarmed. */
+	if (unarmed && tmp > 1 && !thrown && !obj && !Upolyd) {
+	    if (rnd(100) < P_SKILL(P_BARE_HANDED_COMBAT) &&
+			!bigmonst(mdat) && !thick_skinned(mdat)) {
+		if (canspotmon(mon))
+		    pline("%s %s from your powerful strike!", Monnam(mon),
+			  makeplural(stagger(mon->data, "stagger")));
+		/* avoid migrating a dead monster */
+		if (mon->mhp > tmp) {
+		    mhurtle(mon, u.dx, u.dy, 1);
+		    mdat = mon->data; /* in case of a polymorph trap */
+		    if (DEADMONSTER(mon)) already_killed = TRUE;
+		}
+		hittxt = TRUE;
+	    }
+	}
+
+	if (!already_killed) mon->mhp -= tmp;
+	/* adjustments might have made tmp become less than what
+	   a level draining artifact has already done to max HP */
+	if (mon->mhp > mon->mhpmax) mon->mhp = mon->mhpmax;
+	if (mon->mhp < 1)
+		destroyed = TRUE;
+	if (mon->mtame && (!mon->mflee || mon->mfleetim) && tmp > 0) {
+		abuse_dog(mon);
+		monflee(mon, 10 * rnd(tmp), FALSE, FALSE);
+	}
+	if((mdat == &mons[PM_BLACK_PUDDING] || mdat == &mons[PM_BROWN_PUDDING])
+		   && obj && obj == uwep
+		   && objects[obj->otyp].oc_material == IRON
+		   && mon->mhp > 1 && !thrown && !mon->mcan
+		   /* && !destroyed  -- guaranteed by mhp > 1 */ ) {
+		if (clone_mon(mon, 0, 0)) {
+			pline("%s divides as you hit it!", Monnam(mon));
+			hittxt = TRUE;
+		}
+	}
+
+	if (!hittxt &&			/*( thrown => obj exists )*/
+	  (!destroyed || (thrown && m_shot.n > 1 && m_shot.o == obj->otyp))) {
+		if (thrown) hit(mshot_xname(obj), mon, exclam(tmp));
+		else if (!flags.verbose) You("hit it.");
+		else You("%s %s%s", Role_if(PM_BARBARIAN) ? "smite" : "hit",
+			 mon_nam(mon), canseemon(mon) ? exclam(tmp) : ".");
+	}
+
+	if (silvermsg) {
+		const char *fmt;
+		char *whom = mon_nam(mon);
+		char silverobjbuf[BUFSZ];
+
+		if (canspotmon(mon)) {
+		    if (barehand_silver_rings == 1)
+			fmt = "Your silver ring sears %s!";
+		    else if (barehand_silver_rings == 2)
+			fmt = "Your silver rings sear %s!";
+		    else if (silverobj && saved_oname[0]) {
+		    	Sprintf(silverobjbuf, "Your %s%s %s %%s!",
+		    		strstri(saved_oname, "silver") ?
+					"" : "silver ",
+				saved_oname, vtense(saved_oname, "sear"));
+		    	fmt = silverobjbuf;
+		    } else
+			fmt = "The silver sears %s!";
+		} else {
+		    *whom = highc(*whom);	/* "it" -> "It" */
+		    fmt = "%s is seared!";
+		}
+		/* note: s_suffix returns a modifiable buffer */
+		if (!noncorporeal(mdat))
+		    whom = strcat(s_suffix(whom), " flesh");
+		pline(fmt, whom);
+	}
+
+	if (needpoismsg)
+		pline_The("poison doesn't seem to affect %s.", mon_nam(mon));
+	if (poiskilled) {
+		pline_The("poison was deadly...");
+		if (!already_killed) xkilled(mon, 0);
+		return FALSE;
+	} else if (destroyed) {
+		if (!already_killed)
+		    killed(mon);	/* takes care of most messages */
+	} else if(u.umconf && !thrown) {
+		nohandglow(mon);
+		if (!mon->mconf && !resist(mon, SPBOOK_CLASS, 0, NOTELL)) {
+			mon->mconf = 1;
+			if (!mon->mstun && mon->mcanmove && !mon->msleeping &&
+				canseemon(mon))
+			    pline("%s appears confused.", Monnam(mon));
+		}
+	}
+
+	return((boolean)(destroyed ? FALSE : TRUE));
+#undef obj
+#undef mdat
+#undef tmp
+#undef barehand_silver_rings
+#undef wtype
+#undef hittxt
+#undef destroyed
+#undef already_killed
+#undef get_dmg_bonus
+#undef ispoisoned
+#undef needpoismsg
+#undef poiskilled
+#undef silvermsg
+#undef silverobj
+#undef valid_weapon_attack
+#undef unarmed
+#ifdef STEED
+#undef jousting
+#endif
+#undef unconventional
+#undef saved_oname
+}
+
 /* guts of hmon() */
 STATIC_OVL boolean
 hmon_hitmon(struct monst_s *mon, struct obj_s *obj, int thrown)
@@ -513,6 +757,7 @@ hmon_hitmon(struct monst_s *mon, struct obj_s *obj, int thrown)
 	char yourbuf[BUFSZ];
 	char unconventional[BUFSZ];	/* substituted for word "attack" in msg */
 	char saved_oname[BUFSZ];
+	struct nh_hmon_v nh_v;
 
 	unconventional[0] = '\0';
 	saved_oname[0] = '\0';
@@ -866,185 +1111,30 @@ hmon_hitmon(struct monst_s *mon, struct obj_s *obj, int thrown)
 	    }
 	}
 
-	/****** NOTE: perhaps obj is undefined!! (if !thrown && BOOMERANG)
-	 *      *OR* if attacking bare-handed!! */
-
-	if (get_dmg_bonus && tmp > 0) {
-		tmp += u.udaminc;
-		/* If you throw using a propellor, you don't get a strength
-		 * bonus but you do get an increase-damage bonus.
-		 */
-		if(!thrown || !obj || !uwep || !ammo_and_launcher(obj, uwep))
-		    tmp += dbon();
-	}
-
-	if (valid_weapon_attack) {
-	    struct obj_s *wep;
-
-	    /* to be valid a projectile must have had the correct projector */
-	    wep = PROJECTILE(obj) ? uwep : obj;
-	    tmp += weapon_dam_bonus(wep);
-	    /* [this assumes that `!thrown' implies wielded...] */
-	    wtype = thrown ? weapon_type(wep) : uwep_skill_type();
-	    use_skill(wtype, 1);
-	}
-
-	if (ispoisoned) {
-	    int nopoison = (10 - (obj->owt/10));            
-	    if(nopoison < 2) nopoison = 2;
-	    if Role_if(PM_SAMURAI) {
-		You("dishonorably use a poisoned weapon!");
-		adjalign(-sgn(u.ualign.type));
-	    } else if ((u.ualign.type == A_LAWFUL) && (u.ualign.record > -10)) {
-		You_feel("like an evil coward for using a poisoned weapon.");
-		adjalign(-1);
-	    }
-	    if (obj && !rn2(nopoison)) {
-		obj->opoisoned = FALSE;
-		Your("%s %s no longer poisoned.", xname(obj),
-		     otense(obj, "are"));
-	    }
-	    if (resists_poison(mon))
-		needpoismsg = TRUE;
-	    else if (rn2(10))
-		tmp += rnd(6);
-	    else poiskilled = TRUE;
-	}
-	if (tmp < 1) {
-	    /* make sure that negative damage adjustment can't result
-	       in inadvertently boosting the victim's hit points */
-	    tmp = 0;
-	    if (mdat == &mons[PM_SHADE]) {
-		if (!hittxt) {
-		    const char *what = unconventional[0] ? unconventional : "attack";
-		    Your("%s %s harmlessly through %s.",
-		    	what, vtense(what, "pass"),
-			mon_nam(mon));
-		    hittxt = TRUE;
-		}
-	    } else {
-		if (get_dmg_bonus) tmp = 1;
-	    }
-	}
-
+	/* the C64 port: the rest is hmon_hitmon_b()'s, so that each part fits a 16 KB bank
+	 * (behaviour-preserving: the code unchanged) */
+	nh_v.nh_obj = &obj;
+	nh_v.nh_mdat = &mdat;
+	nh_v.nh_tmp = &tmp;
+	nh_v.nh_barehand_silver_rings = &barehand_silver_rings;
+	nh_v.nh_wtype = &wtype;
+	nh_v.nh_hittxt = &hittxt;
+	nh_v.nh_destroyed = &destroyed;
+	nh_v.nh_already_killed = &already_killed;
+	nh_v.nh_get_dmg_bonus = &get_dmg_bonus;
+	nh_v.nh_ispoisoned = &ispoisoned;
+	nh_v.nh_needpoismsg = &needpoismsg;
+	nh_v.nh_poiskilled = &poiskilled;
+	nh_v.nh_silvermsg = &silvermsg;
+	nh_v.nh_silverobj = &silverobj;
+	nh_v.nh_valid_weapon_attack = &valid_weapon_attack;
+	nh_v.nh_unarmed = &unarmed;
 #ifdef STEED
-	if (jousting) {
-	    tmp += d(2, (obj == uwep) ? 10 : 2);	/* [was in dmgval()] */
-	    You("joust %s%s",
-			 mon_nam(mon), canseemon(mon) ? exclam(tmp) : ".");
-	    if (jousting < 0) {
-		Your("%s shatters on impact!", xname(obj));
-		/* (must be either primary or secondary weapon to get here) */
-		u.twoweap = FALSE;	/* untwoweapon() is too verbose here */
-		if (obj == uwep) uwepgone();		/* set unweapon */
-		/* minor side-effect: broken lance won't split puddings */
-		useup(obj);
-		obj = 0;
-	    }
-	    /* avoid migrating a dead monster */
-	    if (mon->mhp > tmp) {
-		mhurtle(mon, u.dx, u.dy, 1);
-		mdat = mon->data; /* in case of a polymorph trap */
-		if (DEADMONSTER(mon)) already_killed = TRUE;
-	    }
-	    hittxt = TRUE;
-	} else
+	nh_v.nh_jousting = &jousting;
 #endif
-
-	/* VERY small chance of stunning opponent if unarmed. */
-	if (unarmed && tmp > 1 && !thrown && !obj && !Upolyd) {
-	    if (rnd(100) < P_SKILL(P_BARE_HANDED_COMBAT) &&
-			!bigmonst(mdat) && !thick_skinned(mdat)) {
-		if (canspotmon(mon))
-		    pline("%s %s from your powerful strike!", Monnam(mon),
-			  makeplural(stagger(mon->data, "stagger")));
-		/* avoid migrating a dead monster */
-		if (mon->mhp > tmp) {
-		    mhurtle(mon, u.dx, u.dy, 1);
-		    mdat = mon->data; /* in case of a polymorph trap */
-		    if (DEADMONSTER(mon)) already_killed = TRUE;
-		}
-		hittxt = TRUE;
-	    }
-	}
-
-	if (!already_killed) mon->mhp -= tmp;
-	/* adjustments might have made tmp become less than what
-	   a level draining artifact has already done to max HP */
-	if (mon->mhp > mon->mhpmax) mon->mhp = mon->mhpmax;
-	if (mon->mhp < 1)
-		destroyed = TRUE;
-	if (mon->mtame && (!mon->mflee || mon->mfleetim) && tmp > 0) {
-		abuse_dog(mon);
-		monflee(mon, 10 * rnd(tmp), FALSE, FALSE);
-	}
-	if((mdat == &mons[PM_BLACK_PUDDING] || mdat == &mons[PM_BROWN_PUDDING])
-		   && obj && obj == uwep
-		   && objects[obj->otyp].oc_material == IRON
-		   && mon->mhp > 1 && !thrown && !mon->mcan
-		   /* && !destroyed  -- guaranteed by mhp > 1 */ ) {
-		if (clone_mon(mon, 0, 0)) {
-			pline("%s divides as you hit it!", Monnam(mon));
-			hittxt = TRUE;
-		}
-	}
-
-	if (!hittxt &&			/*( thrown => obj exists )*/
-	  (!destroyed || (thrown && m_shot.n > 1 && m_shot.o == obj->otyp))) {
-		if (thrown) hit(mshot_xname(obj), mon, exclam(tmp));
-		else if (!flags.verbose) You("hit it.");
-		else You("%s %s%s", Role_if(PM_BARBARIAN) ? "smite" : "hit",
-			 mon_nam(mon), canseemon(mon) ? exclam(tmp) : ".");
-	}
-
-	if (silvermsg) {
-		const char *fmt;
-		char *whom = mon_nam(mon);
-		char silverobjbuf[BUFSZ];
-
-		if (canspotmon(mon)) {
-		    if (barehand_silver_rings == 1)
-			fmt = "Your silver ring sears %s!";
-		    else if (barehand_silver_rings == 2)
-			fmt = "Your silver rings sear %s!";
-		    else if (silverobj && saved_oname[0]) {
-		    	Sprintf(silverobjbuf, "Your %s%s %s %%s!",
-		    		strstri(saved_oname, "silver") ?
-					"" : "silver ",
-				saved_oname, vtense(saved_oname, "sear"));
-		    	fmt = silverobjbuf;
-		    } else
-			fmt = "The silver sears %s!";
-		} else {
-		    *whom = highc(*whom);	/* "it" -> "It" */
-		    fmt = "%s is seared!";
-		}
-		/* note: s_suffix returns a modifiable buffer */
-		if (!noncorporeal(mdat))
-		    whom = strcat(s_suffix(whom), " flesh");
-		pline(fmt, whom);
-	}
-
-	if (needpoismsg)
-		pline_The("poison doesn't seem to affect %s.", mon_nam(mon));
-	if (poiskilled) {
-		pline_The("poison was deadly...");
-		if (!already_killed) xkilled(mon, 0);
-		return FALSE;
-	} else if (destroyed) {
-		if (!already_killed)
-		    killed(mon);	/* takes care of most messages */
-	} else if(u.umconf && !thrown) {
-		nohandglow(mon);
-		if (!mon->mconf && !resist(mon, SPBOOK_CLASS, 0, NOTELL)) {
-			mon->mconf = 1;
-			if (!mon->mstun && mon->mcanmove && !mon->msleeping &&
-				canseemon(mon))
-			    pline("%s appears confused.", Monnam(mon));
-		}
-	}
-
-	return((boolean)(destroyed ? FALSE : TRUE));
+	nh_v.nh_unconventional = unconventional;
+	nh_v.nh_saved_oname = saved_oname;
+	return hmon_hitmon_b(mon, thrown, &nh_v);
 }
 
 STATIC_OVL boolean

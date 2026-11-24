@@ -839,279 +839,32 @@ magic_negation(struct monst_s *mon)
 	return armpro;
 }
 
-/*
- * hitmu: monster hits you
- *	  returns 2 if monster dies (e.g. "yellow light"), 1 otherwise
- *	  3 if the monster lives but teleported/paralyzed, so it can't keep
- *	       attacking you
- */
+/* hitmu()'s locals, for hitmu_b() */
+struct nh_hitmu_v {
+	struct permonst **nh_mdat;
+	int *nh_uncancelled, *nh_ptmp, *nh_dmg, *nh_armpro, *nh_permdmg;
+	char *nh_buf;
+};
+
+STATIC_DCL int FDECL(hitmu_b, (struct monst_s *,struct attack_s *,struct nh_hitmu_v *,
+				BOOLEAN_P));
+
+/* hitmu()'s cases from AD_LEGS on, word for word, hitmu()'s locals reached through v (the
+ * C64 port: hitmu() split so that each part fits a bank): what hitmu() returns, or -1 to
+ * go on after its switch; at_stone enters at AD_STON's do_stone, as AD_PHYS's goto did */
 STATIC_OVL int
-hitmu(struct monst_s *mtmp, struct attack_s *mattk)
+hitmu_b(struct monst_s *mtmp, struct attack_s *mattk, struct nh_hitmu_v *v, boolean at_stone)
 {
-	register struct permonst *mdat = mtmp->data;
-	register int uncancelled, ptmp;
-	int dmg, armpro, permdmg;
-	char	 buf[BUFSZ];
-	struct permonst *olduasmon = youmonst.data;
-	int res;
-
-	if (!canspotmon(mtmp))
-	    map_invisible(mtmp->mx, mtmp->my);
-
-/*	If the monster is undetected & hits you, you should know where
- *	the attack came from.
- */
-	if(mtmp->mundetected && (hides_under(mdat) || mdat->mlet == S_EEL)) {
-	    mtmp->mundetected = 0;
-	    if (!(Blind ? Blind_telepat : Unblind_telepat)) {
-		struct obj_s *obj;
-		const char *what;
-
-		if ((obj = level.objects[mtmp->mx][mtmp->my]) != 0) {
-		    if (Blind && !obj->dknown)
-			what = something;
-		    else if (is_pool(mtmp->mx, mtmp->my) && !Underwater)
-			what = "the water";
-		    else
-			what = doname(obj);
-
-		    pline("%s was hidden under %s!", Amonnam(mtmp), what);
-		}
-		newsym(mtmp->mx, mtmp->my);
-	    }
-	}
-
-/*	First determine the base damage done */
-	dmg = d((int)mattk->damn, (int)mattk->damd);
-	if(is_undead(mdat) && midnight())
-		dmg += d((int)mattk->damn, (int)mattk->damd); /* extra damage */
-
-/*	Next a cancellation factor	*/
-/*	Use uncancelled when the cancellation factor takes into account certain
- *	armor's special magic protection.  Otherwise just use !mtmp->mcan.
- */
-	armpro = magic_negation(&youmonst);
-	uncancelled = !mtmp->mcan && ((rn2(3) >= armpro) || !rn2(50));
-
-	permdmg = 0;
-/*	Now, adjust damages via resistances or specific attacks */
+#define mdat (*v->nh_mdat)
+#define uncancelled (*v->nh_uncancelled)
+#define ptmp (*v->nh_ptmp)
+#define dmg (*v->nh_dmg)
+#define armpro (*v->nh_armpro)
+#define permdmg (*v->nh_permdmg)
+#define buf (v->nh_buf)
+	if (at_stone)
+		goto do_stone;
 	switch(mattk->adtyp) {
-	    case AD_PHYS:
-		if (mattk->aatyp == AT_HUGS && !sticks(youmonst.data)) {
-		    if(!u.ustuck && rn2(2)) {
-			if (u_slip_free(mtmp, mattk)) {
-			    dmg = 0;
-			} else {
-			    u.ustuck = mtmp;
-			    pline("%s grabs you!", Monnam(mtmp));
-			}
-		    } else if(u.ustuck == mtmp) {
-			exercise(A_STR, FALSE);
-			You("are being %s.",
-			      (mtmp->data == &mons[PM_ROPE_GOLEM])
-			      ? "choked" : "crushed");
-		    }
-		} else {			  /* hand to hand weapon */
-		    if(mattk->aatyp == AT_WEAP && otmp) {
-			if (otmp->otyp == CORPSE
-				&& touch_petrifies(&mons[otmp->corpsenm])) {
-			    dmg = 1;
-			    pline("%s hits you with the %s corpse.",
-				Monnam(mtmp), NH_MNAME(mons[otmp->corpsenm].mname));
-			    if (!Stoned)
-				goto do_stone;
-			}
-			dmg += dmgval(otmp, &youmonst);
-			if (dmg <= 0) dmg = 1;
-			if (!(otmp->oartifact &&
-				artifact_hit(mtmp, &youmonst, otmp, &dmg,dieroll)))
-			     hitmsg(mtmp, mattk);
-			if (!dmg) break;
-			if (u.mh > 1 && u.mh > ((u.uac>0) ? dmg : dmg+u.uac) &&
-				   objects[otmp->otyp].oc_material == IRON &&
-					(u.umonnum==PM_BLACK_PUDDING
-					|| u.umonnum==PM_BROWN_PUDDING)) {
-			    /* This redundancy necessary because you have to
-			     * take the damage _before_ being cloned.
-			     */
-			    if (u.uac < 0) dmg += u.uac;
-			    if (dmg < 1) dmg = 1;
-			    if (dmg > 1) exercise(A_STR, FALSE);
-			    u.mh -= dmg;
-			    flags.botl = 1;
-			    dmg = 0;
-			    if(cloneu())
-			    You("divide as %s hits you!",mon_nam(mtmp));
-			}
-			urustm(mtmp, otmp);
-		    } else if (mattk->aatyp != AT_TUCH || dmg != 0 ||
-				mtmp != u.ustuck)
-			hitmsg(mtmp, mattk);
-		}
-		break;
-	    case AD_DISE:
-		hitmsg(mtmp, mattk);
-		if (!diseasemu(mdat)) dmg = 0;
-		break;
-	    case AD_FIRE:
-		hitmsg(mtmp, mattk);
-		if (uncancelled) {
-		    pline("You're %s!", on_fire(youmonst.data, mattk));
-		    if (youmonst.data == &mons[PM_STRAW_GOLEM] ||
-		        youmonst.data == &mons[PM_PAPER_GOLEM]) {
-			    You("roast!");
-			    /* KMH -- this is okay with unchanging */
-			    rehumanize();
-			    break;
-		    } else if (Fire_resistance) {
-			pline_The("fire doesn't feel hot!");
-			dmg = 0;
-		    }
-		    if((int) mtmp->m_lev > rn2(20))
-			destroy_item(SCROLL_CLASS, AD_FIRE);
-		    if((int) mtmp->m_lev > rn2(20))
-			destroy_item(POTION_CLASS, AD_FIRE);
-		    if((int) mtmp->m_lev > rn2(25))
-			destroy_item(SPBOOK_CLASS, AD_FIRE);
-		    burn_away_slime();
-		} else dmg = 0;
-		break;
-	    case AD_COLD:
-		hitmsg(mtmp, mattk);
-		if (uncancelled) {
-		    pline("You're covered in frost!");
-		    if (Cold_resistance) {
-			pline_The("frost doesn't seem cold!");
-			dmg = 0;
-		    }
-		    if((int) mtmp->m_lev > rn2(20))
-			destroy_item(POTION_CLASS, AD_COLD);
-		} else dmg = 0;
-		break;
-	    case AD_ELEC:
-		hitmsg(mtmp, mattk);
-		if (uncancelled) {
-		    You("get zapped!");
-		    if (Shock_resistance) {
-			pline_The("zap doesn't shock you!");
-			dmg = 0;
-		    }
-		    if((int) mtmp->m_lev > rn2(20))
-			destroy_item(WAND_CLASS, AD_ELEC);
-		    if((int) mtmp->m_lev > rn2(20))
-			destroy_item(RING_CLASS, AD_ELEC);
-		} else dmg = 0;
-		break;
-	    case AD_SLEE:
-		hitmsg(mtmp, mattk);
-		if (uncancelled && multi >= 0 && !rn2(5)) {
-		    if (Sleep_resistance) break;
-		    fall_asleep(-rnd(10), TRUE);
-		    if (Blind) You("are put to sleep!");
-		    else You("are put to sleep by %s!", mon_nam(mtmp));
-		}
-		break;
-	    case AD_BLND:
-		if (can_blnd(mtmp, &youmonst, mattk->aatyp, (struct obj_s*)0)) {
-		    if (!Blind) pline("%s blinds you!", Monnam(mtmp));
-		    make_blinded(Blinded+(long)dmg,FALSE);
-		    if (!Blind) Your(vision_clears);
-		}
-		dmg = 0;
-		break;
-	    case AD_DRST:
-		ptmp = A_STR;
-		goto dopois;
-	    case AD_DRDX:
-		ptmp = A_DEX;
-		goto dopois;
-	    case AD_DRCO:
-		ptmp = A_CON;
-dopois:
-		hitmsg(mtmp, mattk);
-		if (uncancelled && !rn2(8)) {
-		    Sprintf(buf, "%s %s",
-			    s_suffix(Monnam(mtmp)), mpoisons_subj(mtmp, mattk));
-		    poisoned(buf, ptmp, NH_MNAME(mdat->mname), 30);
-		}
-		break;
-	    case AD_DRIN:
-		hitmsg(mtmp, mattk);
-		if (defends(AD_DRIN, uwep) || !has_head(youmonst.data)) {
-		    You("don't seem harmed.");
-		    /* Not clear what to do for green slimes */
-		    break;
-		}
-		if (u_slip_free(mtmp,mattk)) break;
-
-		if (uarmh && rn2(8)) {
-		    /* not body_part(HEAD) */
-		    Your("helmet blocks the attack to your head.");
-		    break;
-		}
-		if (Half_physical_damage) dmg = (dmg+1) / 2;
-		mdamageu(mtmp, dmg);
-
-		if (!uarmh || uarmh->otyp != DUNCE_CAP) {
-		    Your("brain is eaten!");
-		    /* No such thing as mindless players... */
-		    if (ABASE(A_INT) <= ATTRMIN(A_INT)) {
-			int lifesaved = 0;
-			struct obj_s *wore_amulet = uamul;
-
-			while(1) {
-			    /* avoid looping on "die(y/n)?" */
-			    if (lifesaved && (discover || wizard)) {
-				if (wore_amulet && !uamul) {
-				    /* used up AMULET_OF_LIFE_SAVING; still
-				       subject to dying from brainlessness */
-				    wore_amulet = 0;
-				} else {
-				    /* explicitly chose not to die;
-				       arbitrarily boost intelligence */
-				    ABASE(A_INT) = ATTRMIN(A_INT) + 2;
-				    You_feel("like a scarecrow.");
-				    break;
-				}
-			    }
-
-			    if (lifesaved)
-				pline("Unfortunately your brain is still gone.");
-			    else
-				Your("last thought fades away.");
-			    killer = "brainlessness";
-			    killer_format = KILLED_BY;
-			    done(DIED);
-			    lifesaved++;
-			}
-		    }
-		}
-		/* adjattrib gives dunce cap message when appropriate */
-		(void) adjattrib(A_INT, -rnd(2), FALSE);
-		forget_levels(25);	/* lose memory of 25% of levels */
-		forget_objects(25);	/* lose memory of 25% of objects */
-		exercise(A_WIS, FALSE);
-		break;
-	    case AD_PLYS:
-		hitmsg(mtmp, mattk);
-		if (uncancelled && multi >= 0 && !rn2(3)) {
-		    if (Free_action) {
-			You("momentarily stiffen.");            
-		    } else {
-			if (Blind) You("are frozen!");
-			else You("are frozen by %s!", mon_nam(mtmp));
-			nomovemsg = 0;	/* default: "you can move again" */
-			nomul(-rnd(10));
-			exercise(A_DEX, FALSE);
-		    }
-		}
-		break;
-	    case AD_DRLI:
-		hitmsg(mtmp, mattk);
-		if (uncancelled && !rn2(3) && !Drain_resistance) {
-		    losexp("life drainage");
-		}
-		break;
 	    case AD_LEGS:
 		{ register long side = rn2(2) ? RIGHT_SIDE : LEFT_SIDE;
 		  const char *sidestr = (side == RIGHT_SIDE) ? "right" : "left";
@@ -1533,6 +1286,311 @@ dopois:
 		break;
 	    default:	dmg = 0;
 			break;
+	}
+	return -1;
+#undef mdat
+#undef uncancelled
+#undef ptmp
+#undef dmg
+#undef armpro
+#undef permdmg
+#undef buf
+}
+
+/*
+ * hitmu: monster hits you
+ *	  returns 2 if monster dies (e.g. "yellow light"), 1 otherwise
+ *	  3 if the monster lives but teleported/paralyzed, so it can't keep
+ *	       attacking you
+ */
+STATIC_OVL int
+hitmu(struct monst_s *mtmp, struct attack_s *mattk)
+{
+	struct permonst *mdat = mtmp->data;	/* not register: hitmu_b() takes its address */
+	int uncancelled, ptmp;
+	int dmg, armpro, permdmg;
+	char	 buf[BUFSZ];
+	struct permonst *olduasmon = youmonst.data;
+	int res;
+	struct nh_hitmu_v nh_v;
+
+	if (!canspotmon(mtmp))
+	    map_invisible(mtmp->mx, mtmp->my);
+
+/*	If the monster is undetected & hits you, you should know where
+ *	the attack came from.
+ */
+	if(mtmp->mundetected && (hides_under(mdat) || mdat->mlet == S_EEL)) {
+	    mtmp->mundetected = 0;
+	    if (!(Blind ? Blind_telepat : Unblind_telepat)) {
+		struct obj_s *obj;
+		const char *what;
+
+		if ((obj = level.objects[mtmp->mx][mtmp->my]) != 0) {
+		    if (Blind && !obj->dknown)
+			what = something;
+		    else if (is_pool(mtmp->mx, mtmp->my) && !Underwater)
+			what = "the water";
+		    else
+			what = doname(obj);
+
+		    pline("%s was hidden under %s!", Amonnam(mtmp), what);
+		}
+		newsym(mtmp->mx, mtmp->my);
+	    }
+	}
+
+/*	First determine the base damage done */
+	dmg = d((int)mattk->damn, (int)mattk->damd);
+	if(is_undead(mdat) && midnight())
+		dmg += d((int)mattk->damn, (int)mattk->damd); /* extra damage */
+
+/*	Next a cancellation factor	*/
+/*	Use uncancelled when the cancellation factor takes into account certain
+ *	armor's special magic protection.  Otherwise just use !mtmp->mcan.
+ */
+	armpro = magic_negation(&youmonst);
+	uncancelled = !mtmp->mcan && ((rn2(3) >= armpro) || !rn2(50));
+
+	permdmg = 0;
+/*	Now, adjust damages via resistances or specific attacks */
+	nh_v.nh_mdat = &mdat;
+	nh_v.nh_uncancelled = &uncancelled;
+	nh_v.nh_ptmp = &ptmp;
+	nh_v.nh_dmg = &dmg;
+	nh_v.nh_armpro = &armpro;
+	nh_v.nh_permdmg = &permdmg;
+	nh_v.nh_buf = buf;
+	switch(mattk->adtyp) {
+	    case AD_PHYS:
+		if (mattk->aatyp == AT_HUGS && !sticks(youmonst.data)) {
+		    if(!u.ustuck && rn2(2)) {
+			if (u_slip_free(mtmp, mattk)) {
+			    dmg = 0;
+			} else {
+			    u.ustuck = mtmp;
+			    pline("%s grabs you!", Monnam(mtmp));
+			}
+		    } else if(u.ustuck == mtmp) {
+			exercise(A_STR, FALSE);
+			You("are being %s.",
+			      (mtmp->data == &mons[PM_ROPE_GOLEM])
+			      ? "choked" : "crushed");
+		    }
+		} else {			  /* hand to hand weapon */
+		    if(mattk->aatyp == AT_WEAP && otmp) {
+			if (otmp->otyp == CORPSE
+				&& touch_petrifies(&mons[otmp->corpsenm])) {
+			    dmg = 1;
+			    pline("%s hits you with the %s corpse.",
+				Monnam(mtmp), NH_MNAME(mons[otmp->corpsenm].mname));
+			    if (!Stoned) {
+				/* AD_STON's do_stone, now hitmu_b()'s, and then out of the
+				 * switch as from there (C64 port) */
+				int nh_r = hitmu_b(mtmp, mattk, &nh_v, TRUE);
+				if (nh_r >= 0) return nh_r;
+				break;
+			    }
+			}
+			dmg += dmgval(otmp, &youmonst);
+			if (dmg <= 0) dmg = 1;
+			if (!(otmp->oartifact &&
+				artifact_hit(mtmp, &youmonst, otmp, &dmg,dieroll)))
+			     hitmsg(mtmp, mattk);
+			if (!dmg) break;
+			if (u.mh > 1 && u.mh > ((u.uac>0) ? dmg : dmg+u.uac) &&
+				   objects[otmp->otyp].oc_material == IRON &&
+					(u.umonnum==PM_BLACK_PUDDING
+					|| u.umonnum==PM_BROWN_PUDDING)) {
+			    /* This redundancy necessary because you have to
+			     * take the damage _before_ being cloned.
+			     */
+			    if (u.uac < 0) dmg += u.uac;
+			    if (dmg < 1) dmg = 1;
+			    if (dmg > 1) exercise(A_STR, FALSE);
+			    u.mh -= dmg;
+			    flags.botl = 1;
+			    dmg = 0;
+			    if(cloneu())
+			    You("divide as %s hits you!",mon_nam(mtmp));
+			}
+			urustm(mtmp, otmp);
+		    } else if (mattk->aatyp != AT_TUCH || dmg != 0 ||
+				mtmp != u.ustuck)
+			hitmsg(mtmp, mattk);
+		}
+		break;
+	    case AD_DISE:
+		hitmsg(mtmp, mattk);
+		if (!diseasemu(mdat)) dmg = 0;
+		break;
+	    case AD_FIRE:
+		hitmsg(mtmp, mattk);
+		if (uncancelled) {
+		    pline("You're %s!", on_fire(youmonst.data, mattk));
+		    if (youmonst.data == &mons[PM_STRAW_GOLEM] ||
+		        youmonst.data == &mons[PM_PAPER_GOLEM]) {
+			    You("roast!");
+			    /* KMH -- this is okay with unchanging */
+			    rehumanize();
+			    break;
+		    } else if (Fire_resistance) {
+			pline_The("fire doesn't feel hot!");
+			dmg = 0;
+		    }
+		    if((int) mtmp->m_lev > rn2(20))
+			destroy_item(SCROLL_CLASS, AD_FIRE);
+		    if((int) mtmp->m_lev > rn2(20))
+			destroy_item(POTION_CLASS, AD_FIRE);
+		    if((int) mtmp->m_lev > rn2(25))
+			destroy_item(SPBOOK_CLASS, AD_FIRE);
+		    burn_away_slime();
+		} else dmg = 0;
+		break;
+	    case AD_COLD:
+		hitmsg(mtmp, mattk);
+		if (uncancelled) {
+		    pline("You're covered in frost!");
+		    if (Cold_resistance) {
+			pline_The("frost doesn't seem cold!");
+			dmg = 0;
+		    }
+		    if((int) mtmp->m_lev > rn2(20))
+			destroy_item(POTION_CLASS, AD_COLD);
+		} else dmg = 0;
+		break;
+	    case AD_ELEC:
+		hitmsg(mtmp, mattk);
+		if (uncancelled) {
+		    You("get zapped!");
+		    if (Shock_resistance) {
+			pline_The("zap doesn't shock you!");
+			dmg = 0;
+		    }
+		    if((int) mtmp->m_lev > rn2(20))
+			destroy_item(WAND_CLASS, AD_ELEC);
+		    if((int) mtmp->m_lev > rn2(20))
+			destroy_item(RING_CLASS, AD_ELEC);
+		} else dmg = 0;
+		break;
+	    case AD_SLEE:
+		hitmsg(mtmp, mattk);
+		if (uncancelled && multi >= 0 && !rn2(5)) {
+		    if (Sleep_resistance) break;
+		    fall_asleep(-rnd(10), TRUE);
+		    if (Blind) You("are put to sleep!");
+		    else You("are put to sleep by %s!", mon_nam(mtmp));
+		}
+		break;
+	    case AD_BLND:
+		if (can_blnd(mtmp, &youmonst, mattk->aatyp, (struct obj_s*)0)) {
+		    if (!Blind) pline("%s blinds you!", Monnam(mtmp));
+		    make_blinded(Blinded+(long)dmg,FALSE);
+		    if (!Blind) Your(vision_clears);
+		}
+		dmg = 0;
+		break;
+	    case AD_DRST:
+		ptmp = A_STR;
+		goto dopois;
+	    case AD_DRDX:
+		ptmp = A_DEX;
+		goto dopois;
+	    case AD_DRCO:
+		ptmp = A_CON;
+dopois:
+		hitmsg(mtmp, mattk);
+		if (uncancelled && !rn2(8)) {
+		    Sprintf(buf, "%s %s",
+			    s_suffix(Monnam(mtmp)), mpoisons_subj(mtmp, mattk));
+		    poisoned(buf, ptmp, NH_MNAME(mdat->mname), 30);
+		}
+		break;
+	    case AD_DRIN:
+		hitmsg(mtmp, mattk);
+		if (defends(AD_DRIN, uwep) || !has_head(youmonst.data)) {
+		    You("don't seem harmed.");
+		    /* Not clear what to do for green slimes */
+		    break;
+		}
+		if (u_slip_free(mtmp,mattk)) break;
+
+		if (uarmh && rn2(8)) {
+		    /* not body_part(HEAD) */
+		    Your("helmet blocks the attack to your head.");
+		    break;
+		}
+		if (Half_physical_damage) dmg = (dmg+1) / 2;
+		mdamageu(mtmp, dmg);
+
+		if (!uarmh || uarmh->otyp != DUNCE_CAP) {
+		    Your("brain is eaten!");
+		    /* No such thing as mindless players... */
+		    if (ABASE(A_INT) <= ATTRMIN(A_INT)) {
+			int lifesaved = 0;
+			struct obj_s *wore_amulet = uamul;
+
+			while(1) {
+			    /* avoid looping on "die(y/n)?" */
+			    if (lifesaved && (discover || wizard)) {
+				if (wore_amulet && !uamul) {
+				    /* used up AMULET_OF_LIFE_SAVING; still
+				       subject to dying from brainlessness */
+				    wore_amulet = 0;
+				} else {
+				    /* explicitly chose not to die;
+				       arbitrarily boost intelligence */
+				    ABASE(A_INT) = ATTRMIN(A_INT) + 2;
+				    You_feel("like a scarecrow.");
+				    break;
+				}
+			    }
+
+			    if (lifesaved)
+				pline("Unfortunately your brain is still gone.");
+			    else
+				Your("last thought fades away.");
+			    killer = "brainlessness";
+			    killer_format = KILLED_BY;
+			    done(DIED);
+			    lifesaved++;
+			}
+		    }
+		}
+		/* adjattrib gives dunce cap message when appropriate */
+		(void) adjattrib(A_INT, -rnd(2), FALSE);
+		forget_levels(25);	/* lose memory of 25% of levels */
+		forget_objects(25);	/* lose memory of 25% of objects */
+		exercise(A_WIS, FALSE);
+		break;
+	    case AD_PLYS:
+		hitmsg(mtmp, mattk);
+		if (uncancelled && multi >= 0 && !rn2(3)) {
+		    if (Free_action) {
+			You("momentarily stiffen.");            
+		    } else {
+			if (Blind) You("are frozen!");
+			else You("are frozen by %s!", mon_nam(mtmp));
+			nomovemsg = 0;	/* default: "you can move again" */
+			nomul(-rnd(10));
+			exercise(A_DEX, FALSE);
+		    }
+		}
+		break;
+	    case AD_DRLI:
+		hitmsg(mtmp, mattk);
+		if (uncancelled && !rn2(3) && !Drain_resistance) {
+		    losexp("life drainage");
+		}
+		break;
+	    default:
+		/* the C64 port: the cases from AD_LEGS on are hitmu_b()'s, so that each part fits
+		 * a 16 KB bank (behaviour-preserving: the cases unchanged) */
+		{
+		    int nh_r = hitmu_b(mtmp, mattk, &nh_v, FALSE);
+		    if (nh_r >= 0) return nh_r;
+		}
+		break;
 	}
 	if(u.uhp < 1) done_in_by(mtmp);
 

@@ -20,6 +20,7 @@ STATIC_DCL int FDECL(kick_object, (XCHAR_P, XCHAR_P));
 STATIC_DCL char *FDECL(kickstr, (char *));
 STATIC_DCL void FDECL(otransit_msg, (struct obj_s *, BOOLEAN_P, long));
 STATIC_DCL void FDECL(drop_to, (coord *,SCHAR_P));
+STATIC_DCL int FDECL(dokick_at, (int,int,int,char *,BOOLEAN_P));
 
 static NEARDATA struct obj_s *kickobj;
 
@@ -610,173 +611,16 @@ kickstr(char *buf)
 	return strcat(strcpy(buf, "kicking "), what);
 }
 
-int
-dokick(void)
+/* dokick()'s kick at the map location x, y, from its test for a door on, word for word
+ * (the C64 port: dokick() split so that each part fits a bank); at_ouch enters at its
+ * ouch, as dokick()'s goto after a failed object kick did */
+STATIC_OVL int
+dokick_at(int x, int y, int avrg_attrib, char *buf, boolean at_ouch)
 {
-	int x, y;
-	int avrg_attrib;
 	register struct monst_s *mtmp;
-	boolean no_kick = FALSE;
-	char buf[BUFSZ];
 
-	if (nolimbs(youmonst.data) || slithy(youmonst.data)) {
-		You("have no legs to kick with.");
-		no_kick = TRUE;
-	} else if (verysmall(youmonst.data)) {
-		You("are too small to do any kicking.");
-		no_kick = TRUE;
-#ifdef STEED
-	} else if (u.usteed) {
-		if (yn_function("Kick your steed?", ynchars, 'y') == 'y') {
-		    You("kick %s.", mon_nam(u.usteed));
-		    kick_steed();
-		    return 1;
-		} else {
-		    return 0;
-		}
-#endif
-	} else if (Wounded_legs) {
-		/* note: jump() has similar code */
-		long wl = (EWounded_legs & BOTH_SIDES);
-		const char *bp = body_part(LEG);
-
-		if (wl == BOTH_SIDES) bp = makeplural(bp);
-		Your("%s%s %s in no shape for kicking.",
-		     (wl == LEFT_SIDE) ? "left " :
-			(wl == RIGHT_SIDE) ? "right " : "",
-		     bp, (wl == BOTH_SIDES) ? "are" : "is");
-		no_kick = TRUE;
-	} else if (near_capacity() > SLT_ENCUMBER) {
-		Your("load is too heavy to balance yourself for a kick.");
-		no_kick = TRUE;
-	} else if (youmonst.data->mlet == S_LIZARD) {
-		Your("legs cannot kick effectively.");
-		no_kick = TRUE;
-	} else if (u.uinwater && !rn2(2)) {
-		Your("slow motion kick doesn't hit anything.");
-		no_kick = TRUE;
-	} else if (u.utrap) {
-		switch (u.utraptype) {
-		    case TT_PIT:
-			pline("There's not enough room to kick down here.");
-			break;
-		    case TT_WEB:
-		    case TT_BEARTRAP:
-			You_cant("move your %s!", body_part(LEG));
-			break;
-		    default:
-			break;
-		}
-		no_kick = TRUE;
-	}
-
-	if (no_kick) {
-		/* ignore direction typed before player notices kick failed */
-		display_nhwindow(WIN_MESSAGE, TRUE);	/* --More-- */
-		return 0;
-	}
-
-	if(!getdir((char *)0)) return(0);
-	if(!u.dx && !u.dy) return(0);
-
-	x = u.ux + u.dx;
-	y = u.uy + u.dy;
-
-	/* KMH -- Kicking boots always succeed */
-	if (uarmf && uarmf->otyp == KICKING_BOOTS)
-	    avrg_attrib = 99;
-	else
-	    avrg_attrib = (ACURRSTR+ACURR(A_DEX)+ACURR(A_CON))/3;
-
-	if(u.uswallow) {
-		switch(rn2(3)) {
-		case 0:  You_cant("move your %s!", body_part(LEG));
-			 break;
-		case 1:  if (is_animal(u.ustuck->data)) {
-				pline("%s burps loudly.", Monnam(u.ustuck));
-				break;
-			 }
-		default: Your("feeble kick has no effect."); break;
-		}
-		return(1);
-	}
-	if (Levitation) {
-		int xx, yy;
-
-		xx = u.ux - u.dx;
-		yy = u.uy - u.dy;
-		/* doors can be opened while levitating, so they must be
-		 * reachable for bracing purposes
-		 * Possible extension: allow bracing against stuff on the side?
-		 */
-		if (isok(xx,yy) && !IS_ROCK(levl[xx][yy].typ) &&
-			!IS_DOOR(levl[xx][yy].typ) &&
-			(!Is_airlevel(&u.uz) || !OBJ_AT(xx,yy))) {
-		    You("have nothing to brace yourself against.");
-		    return(0);
-		}
-	}
-
-	wake_nearby();
-	u_wipe_engr(2);
-
-	maploc = &levl[x][y];
-
-	/* The next five tests should stay in    */
-	/* their present order: monsters, pools, */
-	/* objects, non-doors, doors.		 */
-
-	if(MON_AT(x, y)) {
-		struct permonst *mdat;
-
-		mtmp = m_at(x, y);
-		mdat = mtmp->data;
-		if (!mtmp->mpeaceful || !canspotmon(mtmp))
-		    flags.forcefight = TRUE; /* attack even if invisible */
-		kick_monster(x, y);
-		flags.forcefight = FALSE;
-		/* see comment in attack_checks() */
-		if (!DEADMONSTER(mtmp) &&
-		    !canspotmon(mtmp) &&
-		    /* check x and y; a monster that evades your kick by
-		       jumping to an unseen square doesn't leave an I behind */
-		    mtmp->mx == x && mtmp->my == y &&
-		    !glyph_is_invisible(levl[x][y].glyph) &&
-		    !(u.uswallow && mtmp == u.ustuck))
-			map_invisible(x, y);
-		if((Is_airlevel(&u.uz) || Levitation) && flags.move) {
-		    int range;
-
-		    range = ((int)youmonst.data->cwt + (weight_cap() + inv_weight()));
-		    if (range < 1) range = 1; /* divide by zero avoidance */
-		    range = (3*(int)mdat->cwt) / range;
-
-		    if(range < 1) range = 1;
-		    hurtle(-u.dx, -u.dy, range, TRUE);
-		}
-		return(1);
-	}
-	if (glyph_is_invisible(levl[x][y].glyph)) {
-		unmap_object(x, y);
-		newsym(x, y);
-	}
-	if (is_pool(x, y) ^ !!u.uinwater) {
-		/* objects normally can't be removed from water by kicking */
-		You("splash some water around.");
-		return 1;
-	}
-
-	kickobj = (struct obj_s *)0;
-	if (OBJ_AT(x, y) &&
-	    (!Levitation || Is_airlevel(&u.uz) || Is_waterlevel(&u.uz)
-	     || sobj_at(BOULDER,x,y))) {
-		if(kick_object(x, y)) {
-		    if(Is_airlevel(&u.uz))
-			hurtle(-u.dx, -u.dy, 1, TRUE); /* assume it's light */
-		    return(1);
-		}
+	if (at_ouch)
 		goto ouch;
-	}
 
 	if(!IS_DOOR(maploc->typ)) {
 		if(maploc->typ == SDOOR) {
@@ -1103,6 +947,179 @@ dumb:
 		}
 	}
 	return(1);
+}
+
+int
+dokick(void)
+{
+	int x, y;
+	int avrg_attrib;
+	register struct monst_s *mtmp;
+	boolean no_kick = FALSE;
+	char buf[BUFSZ];
+
+	if (nolimbs(youmonst.data) || slithy(youmonst.data)) {
+		You("have no legs to kick with.");
+		no_kick = TRUE;
+	} else if (verysmall(youmonst.data)) {
+		You("are too small to do any kicking.");
+		no_kick = TRUE;
+#ifdef STEED
+	} else if (u.usteed) {
+		if (yn_function("Kick your steed?", ynchars, 'y') == 'y') {
+		    You("kick %s.", mon_nam(u.usteed));
+		    kick_steed();
+		    return 1;
+		} else {
+		    return 0;
+		}
+#endif
+	} else if (Wounded_legs) {
+		/* note: jump() has similar code */
+		long wl = (EWounded_legs & BOTH_SIDES);
+		const char *bp = body_part(LEG);
+
+		if (wl == BOTH_SIDES) bp = makeplural(bp);
+		Your("%s%s %s in no shape for kicking.",
+		     (wl == LEFT_SIDE) ? "left " :
+			(wl == RIGHT_SIDE) ? "right " : "",
+		     bp, (wl == BOTH_SIDES) ? "are" : "is");
+		no_kick = TRUE;
+	} else if (near_capacity() > SLT_ENCUMBER) {
+		Your("load is too heavy to balance yourself for a kick.");
+		no_kick = TRUE;
+	} else if (youmonst.data->mlet == S_LIZARD) {
+		Your("legs cannot kick effectively.");
+		no_kick = TRUE;
+	} else if (u.uinwater && !rn2(2)) {
+		Your("slow motion kick doesn't hit anything.");
+		no_kick = TRUE;
+	} else if (u.utrap) {
+		switch (u.utraptype) {
+		    case TT_PIT:
+			pline("There's not enough room to kick down here.");
+			break;
+		    case TT_WEB:
+		    case TT_BEARTRAP:
+			You_cant("move your %s!", body_part(LEG));
+			break;
+		    default:
+			break;
+		}
+		no_kick = TRUE;
+	}
+
+	if (no_kick) {
+		/* ignore direction typed before player notices kick failed */
+		display_nhwindow(WIN_MESSAGE, TRUE);	/* --More-- */
+		return 0;
+	}
+
+	if(!getdir((char *)0)) return(0);
+	if(!u.dx && !u.dy) return(0);
+
+	x = u.ux + u.dx;
+	y = u.uy + u.dy;
+
+	/* KMH -- Kicking boots always succeed */
+	if (uarmf && uarmf->otyp == KICKING_BOOTS)
+	    avrg_attrib = 99;
+	else
+	    avrg_attrib = (ACURRSTR+ACURR(A_DEX)+ACURR(A_CON))/3;
+
+	if(u.uswallow) {
+		switch(rn2(3)) {
+		case 0:  You_cant("move your %s!", body_part(LEG));
+			 break;
+		case 1:  if (is_animal(u.ustuck->data)) {
+				pline("%s burps loudly.", Monnam(u.ustuck));
+				break;
+			 }
+		default: Your("feeble kick has no effect."); break;
+		}
+		return(1);
+	}
+	if (Levitation) {
+		int xx, yy;
+
+		xx = u.ux - u.dx;
+		yy = u.uy - u.dy;
+		/* doors can be opened while levitating, so they must be
+		 * reachable for bracing purposes
+		 * Possible extension: allow bracing against stuff on the side?
+		 */
+		if (isok(xx,yy) && !IS_ROCK(levl[xx][yy].typ) &&
+			!IS_DOOR(levl[xx][yy].typ) &&
+			(!Is_airlevel(&u.uz) || !OBJ_AT(xx,yy))) {
+		    You("have nothing to brace yourself against.");
+		    return(0);
+		}
+	}
+
+	wake_nearby();
+	u_wipe_engr(2);
+
+	maploc = &levl[x][y];
+
+	/* The next five tests should stay in    */
+	/* their present order: monsters, pools, */
+	/* objects, non-doors, doors.		 */
+
+	if(MON_AT(x, y)) {
+		struct permonst *mdat;
+
+		mtmp = m_at(x, y);
+		mdat = mtmp->data;
+		if (!mtmp->mpeaceful || !canspotmon(mtmp))
+		    flags.forcefight = TRUE; /* attack even if invisible */
+		kick_monster(x, y);
+		flags.forcefight = FALSE;
+		/* see comment in attack_checks() */
+		if (!DEADMONSTER(mtmp) &&
+		    !canspotmon(mtmp) &&
+		    /* check x and y; a monster that evades your kick by
+		       jumping to an unseen square doesn't leave an I behind */
+		    mtmp->mx == x && mtmp->my == y &&
+		    !glyph_is_invisible(levl[x][y].glyph) &&
+		    !(u.uswallow && mtmp == u.ustuck))
+			map_invisible(x, y);
+		if((Is_airlevel(&u.uz) || Levitation) && flags.move) {
+		    int range;
+
+		    range = ((int)youmonst.data->cwt + (weight_cap() + inv_weight()));
+		    if (range < 1) range = 1; /* divide by zero avoidance */
+		    range = (3*(int)mdat->cwt) / range;
+
+		    if(range < 1) range = 1;
+		    hurtle(-u.dx, -u.dy, range, TRUE);
+		}
+		return(1);
+	}
+	if (glyph_is_invisible(levl[x][y].glyph)) {
+		unmap_object(x, y);
+		newsym(x, y);
+	}
+	if (is_pool(x, y) ^ !!u.uinwater) {
+		/* objects normally can't be removed from water by kicking */
+		You("splash some water around.");
+		return 1;
+	}
+
+	kickobj = (struct obj_s *)0;
+	if (OBJ_AT(x, y) &&
+	    (!Levitation || Is_airlevel(&u.uz) || Is_waterlevel(&u.uz)
+	     || sobj_at(BOULDER,x,y))) {
+		if(kick_object(x, y)) {
+		    if(Is_airlevel(&u.uz))
+			hurtle(-u.dx, -u.dy, 1, TRUE); /* assume it's light */
+		    return(1);
+		}
+		return dokick_at(x, y, avrg_attrib, buf, TRUE);	/* its ouch (C64 port) */
+	}
+
+	/* the C64 port: the rest is dokick_at()'s, so that each part fits a 16 KB bank
+	 * (behaviour-preserving: the code unchanged) */
+	return dokick_at(x, y, avrg_attrib, buf, FALSE);
 }
 
 STATIC_OVL void
