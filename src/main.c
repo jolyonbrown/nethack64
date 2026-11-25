@@ -170,7 +170,7 @@ static bool handle_key(char k)
 #ifdef AUTOTEST
 /* Failure codes are visible as the VICE process exit status. */
 enum { T_PASS = 0, T_WALK = 2, T_BLOCK = 3, T_REU_DMA = 4, T_REU_RESTORE = 5, T_RNG = 6,
-       T_REU_PROBE = 7, T_PUTCA = 8 };
+       T_REU_PROBE = 7, T_PUTCA = 8, T_KEYS = 9 };
 
 static char autotest(void)
 {
@@ -219,6 +219,23 @@ static char autotest(void)
 		if ((S80_COLORMAP[24 * 40 + 39] >> 4) != 15)
 			return T_PUTCA;
 #endif
+	}
+
+	/* the keyboard buffer's PETSCII as the game sees it: the left arrow is '_' (travel),
+	   RUN/STOP ESC, CRSR-DOWN 'j', a shifted letter upper case (docs/TO-DECIDE.md) */
+	{
+#ifdef __C128__
+		volatile char *buf = (volatile char *)0x034a, *count = (volatile char *)0x00d0;
+#else
+		volatile char *buf = (volatile char *)0x0277, *count = (volatile char *)0x00c6;
+#endif
+		static const char in[4] = { 95, 3, 17, 193 }, out[4] = { '_', 27, 'j', 'A' };
+		for (char i = 0; i < 4; i++)
+			buf[i] = in[i];
+		*count = 4;
+		for (char i = 0; i < 4; i++)
+			if (sys_getkey() != out[i])
+				return T_KEYS;
 	}
 
 	/* REU: stash, wipe, restore, compare (skipped when no REU attached) */

@@ -36,8 +36,10 @@ void sys_init(void)
 }
 
 /* PETSCII from the buffer: as sys.c's table (cursor keys as vi-keys, RETURN as '\n') */
-static const char key_from[] = { 13,   20, 3,  95, 17,  145, 29,  157, 0 };
-static const char key_to[]   = { '\n', 8,  27, 27, 'j', 'k', 'l', 'h' };
+/* PETSCII 95, the left-arrow key, is not here: it stays '_' (travel), the only way to type
+ * '_' on a C64, as the C128's matrix scan gives it; RUN/STOP is ESC (docs/TO-DECIDE.md, 2026-11-25) */
+static const char key_from[] = { 13,   20, 3,  17,  145, 29,  157, 0 };
+static const char key_to[]   = { '\n', 8,  27, 'j', 'k', 'l', 'h' };
 
 static char petscii_to_ascii(char c)
 {

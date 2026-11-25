@@ -7,19 +7,28 @@ TASKS.md, the pin). Session notes point here rather than repeating the questions
 
 ## Open
 
-### The left-arrow key: ESC or `_` (travel)?
-*Raised 2026-11-24 (Claude), playing the C128 build.*
+### A joystick, and the C128's keypad
+*Raised 2026-11-25 (Jolyon: "we might need to consider joystick use").* Nothing reads a
+joystick yet. It fits NetHack well: the eight stick directions are the eight moves, and a
+stick's diagonals are easier than `y` `u` `b` `n`. It would only produce keys the game
+already takes, so it is the port's input, not game behaviour, and needs no ADR. The choices:
 
-- The keyboard-buffer path maps PETSCII 95, the left-arrow key, to ESC
-  (`src/hal/sys.c` and `src/hal/sys128.c`, `key_from[]`, there since the scaffold).
-- On the C64, `_` can only be typed as the left-arrow key, so travel (`_`) can't be typed at
-  all. The C128's matrix scan (`sys128.c`, `keys_plain[]`) already gives `_` for it, so the
-  two machines disagree.
-- RUN/STOP is ESC on both, so the left arrow being ESC as well is not needed for ESC.
-- Options: (a) the left arrow gives `_` on both (`key_to[]` 27 → `'_'`); (b) leave it as ESC
-  and give travel another key; (c) leave it.
-- Recommendation: (a). It matches the C128's scan, keeps ESC on RUN/STOP, and is where the
-  C64's keyboard puts `_`. It is a key mapping, not game behaviour, so no ADR is needed.
+- **Which port.** Port 2 (`$DC00`), the usual games port. A stick in port 1 (`$DC01`) is read
+  on the keyboard's row lines, so pushing it looks like a key going down in every column of
+  that row (up: DEL, 1, 3, 5, 7, 9, +, £). That is C64/C128 hardware behaviour: the KERNAL
+  scan on the C64 and our scan on the C128 (`sys128.c`) would both type them. Port 2 shares
+  the column lines, so a key pressed while the stick is pushed can ghost, but the stick on
+  its own types nothing. Recommendation: port 2 only.
+- **What the fire button does.** (a) fire held with a direction = the shifted move (`L`:
+  rush), fire alone = `s` (search); (b) fire alone = `,` (pick up); (c) fire alone = RETURN,
+  to page through `--More--`. Recommendation: (a), with RETURN left to the keyboard.
+- **Repeat.** Holding the stick moves again after a short delay. The C128's own key scan
+  does not repeat yet: a key counts once when it goes down, whereas a terminal NetHack
+  repeats a held key. Whatever delay the stick gets, held keys should probably get too.
+- **Related, C128 only.** The C128's keypad (on `$D02F`'s lines, not read yet) could give the
+  moves as on a PC keypad, with the game's `number_pad` option left off.
+- Cost: on the C128 a few hundred bytes in its HAL; on the C64 the same, from the resident
+  memory we are squeezing, so the C64 could leave it out or have it later.
 
 ### Pin additions: r86, r87, r89, #95, #96, #97, #99
 *Raised 2026-11-23 (Claude); #99 added 2026-11-24.* Compiler fixes that the far-spaces fork
@@ -48,4 +57,7 @@ an ADR.
 
 ## Decided
 
-(None yet.)
+### The left-arrow key gives `_` (travel) on both machines
+*Decided 2026-11-25. Jolyon: "Happy with your recommendations about the key."* Option (a):
+the keyboard-buffer path no longer maps PETSCII 95 to ESC (`src/hal/sys.c`,
+`src/hal/sys128.c`); RUN/STOP stays ESC. The self-test checks it (`src/main.c`, failure 9).

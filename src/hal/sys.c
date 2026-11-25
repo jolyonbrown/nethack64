@@ -23,8 +23,10 @@ void sys_init(void)
 /* PETSCII control/cursor codes and what the game should see instead.
  * (A table rather than a switch: Oscar64 v1.32.273 -Os segfaults on the
  * switch version - see tests/oscar64-repros/r9_os_switch_asm_segv.c.) */
-static const char key_from[] = { 13,   20, 3,  95, 17,  145, 29,  157, 0 };
-static const char key_to[]   = { '\n', 8,  27, 27, 'j', 'k', 'l', 'h' };
+/* PETSCII 95, the left-arrow key, is not here: it stays '_' (travel), the only way to type
+ * '_' on a C64, as the C128's matrix scan gives it; RUN/STOP is ESC (docs/TO-DECIDE.md, 2026-11-25) */
+static const char key_from[] = { 13,   20, 3,  17,  145, 29,  157, 0 };
+static const char key_to[]   = { '\n', 8,  27, 'j', 'k', 'l', 'h' };
 
 static char petscii_to_ascii(char c)
 {
