@@ -43,6 +43,10 @@ char s80_cx, s80_cy;
  * brown, light red, dark grey, grey, light green, light blue, light grey */
 static const char rgbi[16] = { 0, 15, 8, 7, 10, 4, 2, 13, 12, 12, 9, 1, 14, 5, 3, 14 };
 
+/* defined here, not in the header: the whole game's banker puts a table in its reader's bank
+ * only from the .c file's own definition (tools/mkfont4x8.py) */
+static const char fontvdc[96 * 8] = { FONTVDC_BYTES };
+
 static char attr_fg = 15;
 
 static void vdc_wr(char r, char v)
@@ -250,6 +254,11 @@ void s80_putca(char x, char y, char c, char attr)
 	vdc_at(VDC_SCREEN + i);
 	vdc_wr(31, c);
 	vdc_at(VDC_ATTR + i);
-	vdc_wr(31, rgbi[attr & 15] | (attr & S80_REVERSE ? ATTR_REVERSE : 0));
+	/* not "rgbi[attr & 15] | (attr & S80_REVERSE ? ATTR_REVERSE : 0)": Oscar64 indexes the
+	 * table with a register it never loads (r92), and every character came out black */
+	char a = rgbi[attr & 15];
+	if (attr & S80_REVERSE)
+		a |= ATTR_REVERSE;
+	vdc_wr(31, a);
 	IO_OUT();
 }

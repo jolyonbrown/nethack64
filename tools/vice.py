@@ -211,8 +211,9 @@ class Vice:
             p += size + 1
         return regs
 
-    def display(self):
-        _, rb = self.cmd(CMD_DISPLAY_GET, b"\x01\x00")
+    def display(self, vicii=True):
+        # the first byte picks the VIC-II (1) or, on the C128, the VDC (0)
+        _, rb = self.cmd(CMD_DISPLAY_GET, bytes([1 if vicii else 0, 0]))
         (fl,) = struct.unpack("<I", rb[:4])
         dw, dh, xo, yo, iw, ih, bpp = struct.unpack("<HHHHHHB", rb[4:4 + 13])
         p = 4 + fl
@@ -220,9 +221,9 @@ class Vice:
         pixels = rb[p + 4:p + 4 + bl]
         return dw, dh, xo, yo, iw, ih, pixels
 
-    def palette(self):
+    def palette(self, vicii=True):
         try:
-            _, rb = self.cmd(CMD_PALETTE_GET, b"\x01")
+            _, rb = self.cmd(CMD_PALETTE_GET, bytes([1 if vicii else 0]))
         except ViceError:
             return PEPTO
         (count,) = struct.unpack("<H", rb[:2])
@@ -441,6 +442,7 @@ def main():
         if name == "wait-text":
             p.add_argument("text"); p.add_argument("--timeout", type=float, default=20)
     p = sub.add_parser("screenshot"); p.add_argument("out")
+    p.add_argument("--vdc", action="store_true", help="the C128's 80-column VDC display")
     p = sub.add_parser("mem"); p.add_argument("addr"); p.add_argument("length")
     p = sub.add_parser("poke"); p.add_argument("addr"); p.add_argument("bytes", nargs="+")
     p = sub.add_parser("sym"); p.add_argument("name"); p.add_argument("--lbl")
@@ -486,8 +488,9 @@ def main():
                     raise SystemExit("timed out waiting for %r" % a.text)
                 time.sleep(0.5)
         elif a.cmd == "screenshot":
-            dw, dh, xo, yo, iw, ih, px = v.display()
-            pal = v.palette()
+            dw, dh, xo, yo, iw, ih, px = v.display(not a.vdc)
+            pal = v.palette(not a.vdc)
+            px = px.ljust(dw * dh, b"\0")	# x128's VDC buffer comes 4 bytes short
             rows = []
             for y in range(ih):
                 base = (yo + y) * dw + xo

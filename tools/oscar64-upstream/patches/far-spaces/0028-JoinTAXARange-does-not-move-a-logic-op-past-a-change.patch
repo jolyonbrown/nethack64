@@ -1,0 +1,41 @@
+From 53e86f097cfce16f425d26d587ab981db3caf0f6 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Tue, 24 Nov 2026 23:36:54 +0000
+Subject: [PATCH] JoinTAXARange does not move a logic op past a change of its
+ index register
+
+For TAX ... TXA followed by a logic op (A dead after the TAX), the op
+moved up to before the TAX.  The check that nothing in between changes
+its operand looked at memory only: "TAX; LDA a; AND #$0F; TAY; TXA;
+ORA tab,y" became "ORA tab,y; TAX; ...", reading the table with Y
+never loaded.  The op no longer moves past a change of Y when it is
+indexed by Y, or at all when it is indexed by X (the TAX changes X).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ oscar64/NativeCodeGenerator.cpp | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
+index 4542995..81052e3 100644
+--- a/oscar64/NativeCodeGenerator.cpp
++++ b/oscar64/NativeCodeGenerator.cpp
+@@ -39135,10 +39135,13 @@ bool NativeCodeBasicBlock::JoinTAXARange(int from, int to)
+ 		return true;
+ 	}
+ 
+-	if (!(mIns[from].mLive & (LIVE_CPU_REG_A | LIVE_CPU_REG_Z)) && to + 1 < mIns.Size() && mIns[to + 1].IsLogic() && !(mIns[to + 1].mLive & LIVE_CPU_REG_Z))
++	// the logic op moves up past the TAX and the instructions after it: an index in X would
++	// be read before the TAX, an index in Y before any change of Y on the way
++	if (!(mIns[from].mLive & (LIVE_CPU_REG_A | LIVE_CPU_REG_Z)) && to + 1 < mIns.Size() && mIns[to + 1].IsLogic() && !(mIns[to + 1].mLive & LIVE_CPU_REG_Z) &&
++		!mIns[to + 1].RequiresXReg())
+ 	{
+ 		int k = from + 1;
+-		while (k < to && !mIns[to + 1].MayBeChangedOnAddress(mIns[k]))
++		while (k < to && !mIns[to + 1].MayBeChangedOnAddress(mIns[k]) && !(mIns[to + 1].RequiresYReg() && mIns[k].ChangesYReg()))
+ 			k++;
+ 		if (k == to)
+ 		{
+-- 
+2.43.0
+

@@ -14,6 +14,7 @@
 #include "dlb.h"
 
 extern void sys_init(void);		/* src/hal/sys128.c */
+extern void s80_init(char, char);	/* src/hal/vdc80.c: the VDC's font, colours, a clear screen */
 extern void nh_far_init(void);		/* the far runtime (tools/bank/farrt.py) */
 
 void nh_c64_start(void);
@@ -25,6 +26,7 @@ main(void)
 {
 	sys_init();
 	nh_far_init();
+	s80_init(15, 0);	/* light grey on black, as src/main.c's demo (a banked function) */
 	nh_c64_start();
 	return 0;
 }
