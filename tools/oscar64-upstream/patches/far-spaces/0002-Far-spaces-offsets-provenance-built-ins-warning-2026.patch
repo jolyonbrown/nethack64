@@ -1,4 +1,4 @@
-From 0fd91d5d4ffd26b614a3b2ee6d77c60233f50a73 Mon Sep 17 00:00:00 2001
+From a09bef8962320e3c5d5ef9d13fb0fdf18f202746 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 17 Nov 2026 11:12:04 +0000
 Subject: [PATCH] Far spaces: offsets, provenance, built-ins, warning 2026,
@@ -223,7 +223,7 @@ index 5823e25..3468465 100644
  	EERR_GENERIC = 3000,
  	EERR_FILE_NOT_FOUND,
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index a95766d..bfdfa50 100644
+index d89c964..09956f6 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
 @@ -27042,7 +27042,7 @@ static int FarSpaceOfOperand(const InterOperand& op)
@@ -278,7 +278,7 @@ index 6ae4cbb..fd61353 100644
  
  class InterInstruction;
 diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
-index f58a3a1..65bc1b1 100644
+index 63affd9..1529d4f 100644
 --- a/oscar64/InterCodeGenerator.cpp
 +++ b/oscar64/InterCodeGenerator.cpp
 @@ -337,10 +337,45 @@ void InterCodeGenerator::StoreValue(InterCodeProcedure* proc, Expression* exp, I
@@ -346,16 +346,16 @@ index f58a3a1..65bc1b1 100644
  		}
  
  
-@@ -3426,7 +3462,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
- #endif
+@@ -3427,7 +3463,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
  
- 			// Return reference to value
--			return ExValue(vl.mType, vl.mTemp, 1);
-+			return ExValue(vl.mType, vl.mTemp, 1, 0, 0, vl.mFarSpace);
+ 			// Return reference to value: a bitfield's with its bits, or a read of the
+ 			// result reads the whole storage unit (if (--p->bits) tested the wrong value)
+-			return ExValue(vl.mType, vl.mTemp, 1, vl.mBits, vl.mShift);
++			return ExValue(vl.mType, vl.mTemp, 1, vl.mBits, vl.mShift, vl.mFarSpace);
  		}
  		break;
  
-@@ -3541,7 +3577,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+@@ -3542,7 +3578,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
  					// a pointer value points into its type's space; a pointer still in memory
  					// is loaded from where that memory is (Dereference then takes the type's)
  					return ExValue(vl.mType->mBase, vl.mTemp, vl.mReference + 1, 0, 0,
@@ -364,7 +364,7 @@ index f58a3a1..65bc1b1 100644
  				return ExValue(vl.mType->mBase, vl.mTemp, 1, 0, 0,
  					vl.mType->mType == DT_TYPE_ARRAY ? vl.mFarSpace : vl.mType->mBase->FarSpace());
  			case TK_BINARY_AND:
-@@ -3553,7 +3589,10 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+@@ -3554,7 +3590,10 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
  				dec->mBase = vl.mType;
  				dec->mSize = 2;
  				dec->mFlags = DTF_DEFINED;
@@ -376,7 +376,7 @@ index f58a3a1..65bc1b1 100644
  			}
  			case TK_BANKOF:
  			{
-@@ -3955,9 +3994,11 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+@@ -3956,9 +3995,11 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
  							ins->mSrc[0].mType = IT_POINTER;
  							ins->mSrc[0].mMemory = IM_INDIRECT;
  							ins->mSrc[0].mTemp = vr.mTemp;
@@ -388,7 +388,7 @@ index f58a3a1..65bc1b1 100644
  							block->Append(ins);
  
  							return vl;
-@@ -4000,6 +4041,8 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+@@ -4001,6 +4042,8 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
  							ins->mSrc[0].mOperandSize = int(nex->mDecValue->mInteger);
  							ins->mSrc[1].mOperandSize = int(nex->mDecValue->mInteger);
  							ins->mConst.mOperandSize = int(nex->mDecValue->mInteger);
@@ -397,7 +397,7 @@ index f58a3a1..65bc1b1 100644
  							if (vl.mType->mBase && vr.mType->mBase)
  							{
  								if ((vl.mType->mBase->mFlags & DTF_VOLATILE) || (vr.mType->mBase->mFlags & DTF_VOLATILE))
-@@ -4040,6 +4083,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+@@ -4041,6 +4084,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
  							ins->mSrc[1].mType = IT_POINTER;
  							ins->mSrc[1].mMemory = IM_INDIRECT;
  							ins->mSrc[1].mTemp = vl.mTemp;
@@ -405,7 +405,7 @@ index f58a3a1..65bc1b1 100644
  							ins->mSrc[0].mOperandSize = 1;
  							ins->mSrc[1].mOperandSize = int(nex->mDecValue->mInteger);
  							ins->mConst.mOperandSize = int(nex->mDecValue->mInteger);
-@@ -4080,6 +4124,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+@@ -4081,6 +4125,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
  							ins->mSrc[1].mType = IT_POINTER;
  							ins->mSrc[1].mMemory = IM_INDIRECT;
  							ins->mSrc[1].mTemp = vl.mTemp;
@@ -413,7 +413,7 @@ index f58a3a1..65bc1b1 100644
  							ins->mSrc[0].mOperandSize = 1;
  							ins->mSrc[1].mOperandSize = int(nex->mDecValue->mInteger);
  							ins->mConst.mOperandSize = int(nex->mDecValue->mInteger);
-@@ -5625,13 +5670,22 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+@@ -5626,13 +5671,22 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
  			}
  			else if (exp->mDecType->mType == DT_TYPE_POINTER && vr.mType->mType == DT_TYPE_POINTER)
  			{
@@ -492,7 +492,7 @@ index c15bb1c..2c54852 100644
  			}
  		}
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index 12c8e1b..9eb8f23 100644
+index e291cae..e9f6365 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
 @@ -13560,21 +13560,36 @@ void NativeCodeBasicBlock::UnaryOperator(InterCodeProcedure* proc, NativeCodePro

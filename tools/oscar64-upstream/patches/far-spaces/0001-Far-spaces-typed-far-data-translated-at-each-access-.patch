@@ -1,4 +1,4 @@
-From 30932c5c8bda5623d3a464f6455825e9ad3d3c03 Mon Sep 17 00:00:00 2001
+From f5648ea9bf4090b03cdb91b20a37626d28a51cbc Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 17 Nov 2026 10:49:38 +0000
 Subject: [PATCH] Far spaces: typed far data, translated at each access (WIP)
@@ -115,7 +115,7 @@ index 2dbc06a..53cd6a7 100644
  };
  
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index ac5e327..a95766d 100644
+index d28357f..d89c964 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
 @@ -4346,7 +4346,7 @@ void ValueSet::UpdateValue(InterCodeBasicBlock * block, InterInstruction * ins,
@@ -342,7 +342,7 @@ index d0ae095..6ae4cbb 100644
  	void CollectGlobalReferences(NumberSet& referencedGlobals, NumberSet& modifiedGlobals, bool & storesIndirect, bool & loadsIndirect, bool & globalsChecked);
  	
 diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
-index ee29855..f58a3a1 100644
+index 1f8532a..63affd9 100644
 --- a/oscar64/InterCodeGenerator.cpp
 +++ b/oscar64/InterCodeGenerator.cpp
 @@ -69,6 +69,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::Dereference(InterCodeProcedure*
@@ -466,7 +466,7 @@ index ee29855..f58a3a1 100644
  		}
  
  		case EX_BINARY:
-@@ -3523,8 +3538,12 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+@@ -3524,8 +3539,12 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
  				else if (vl.mType->mStride != 1)
  					vl = Dereference(proc, exp, block, inlineMapper, vl, 0);
  				else
@@ -524,7 +524,7 @@ index ce7cf0d..7945f2a 100644
  	LinkerSection(void);
  
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index 2f44156..12c8e1b 100644
+index 1a03337..e291cae 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
 @@ -13558,6 +13558,27 @@ void NativeCodeBasicBlock::UnaryOperator(InterCodeProcedure* proc, NativeCodePro

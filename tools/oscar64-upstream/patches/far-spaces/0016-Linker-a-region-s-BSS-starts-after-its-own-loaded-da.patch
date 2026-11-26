@@ -1,4 +1,4 @@
-From aba11e5fd98fafc5fb02f91be5d721327a51b3e2 Mon Sep 17 00:00:00 2001
+From 510c5176696bdaef11a5c365e059217478640e7c Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sun, 22 Nov 2026 22:11:56 +0000
 Subject: [PATCH] Linker: a region's BSS starts after its own loaded data

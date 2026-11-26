@@ -1,4 +1,4 @@
-From 887e4bd6ae29ee2e7542762ade0501f27b1c446e Mon Sep 17 00:00:00 2001
+From 498d8b9e2fade67474706be76f2a25f8be9e9da4 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sun, 22 Nov 2026 04:10:34 +0000
 Subject: [PATCH] Linker: -v2 names a jump from an object without a name as "*"

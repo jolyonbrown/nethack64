@@ -1,4 +1,4 @@
-From ba74e9a7adfc81fb23ddd0f896784093ee1a77e8 Mon Sep 17 00:00:00 2001
+From f38e8a93188f6cde95339d2e6420c3e5ede01a7d Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 20 Nov 2026 22:00:47 +0000
 Subject: [PATCH] Far default: #pragma fardefault(section) and #pragma
@@ -176,7 +176,7 @@ index 53cd6a7..4d75370 100644
  	int64				mInteger, mMinValue, mMaxValue;
  	double				mNumber;
 diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
-index 46919cc..37ff5b9 100644
+index e9dd934..fe2de4b 100644
 --- a/oscar64/InterCodeGenerator.cpp
 +++ b/oscar64/InterCodeGenerator.cpp
 @@ -869,7 +869,7 @@ void InterCodeGenerator::InitGlobalVariable(InterCodeModule * mod, Declaration*
@@ -206,7 +206,7 @@ index 46919cc..37ff5b9 100644
  					var->mLinkerObject->mVariable = var;
  					dec->mLinkerObject = var->mLinkerObject;
  					var->mIdent = dec->mQualIdent;
-@@ -6366,7 +6366,7 @@ void InterCodeGenerator::BuildInitializer(InterCodeModule * mod, uint8* dp, int
+@@ -6373,7 +6373,7 @@ void InterCodeGenerator::BuildInitializer(InterCodeModule * mod, uint8* dp, int
  				var->mSize = dec->mSize;
  				if (dec->mFlags & DTF_VAR_ALIASING)
  					var->mAliased = true;

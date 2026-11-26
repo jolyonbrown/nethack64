@@ -1,27 +1,23 @@
-From 78e64e4fafd1e4a02c31b7a06f6b159cbf99f785 Mon Sep 17 00:00:00 2001
+From 076bb3323394bd21bdc28b848900835054193e26 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
-Date: Mon, 23 Nov 2026 00:03:35 +0000
-Subject: [PATCH] ++/-- on a bitfield: the result read through the bitfield
+Date: Thu, 26 Nov 2026 21:24:51 +0000
+Subject: [PATCH] Far spaces: ++/-- on a far bitfield keeps its far object
 
-EX_PREINCDEC stored the new value right but returned its reference with the
-bitfield's bits and shift dropped (ExValue(..., 1, 0, 0, ...)), so a read of
-the expression's value read the whole storage unit: `if (--p->q)` with
-`unsigned q : 6` tested the word that holds q and its neighbours (C89
-3.3.3.1: the result is the operand's new value). nethack64's ini_inv(),
-"if (--trop->trquan) continue;", never ended. The reference now keeps its
-bits, shift and far object.
+The pin's fix of ++/-- on a bitfield (its reference keeps the bitfield's bits
+and shift) returns the reference without the far object here, so the read of
+the expression's value through a far pointer was not translated. The reference
+now keeps its far object too. nethack64's u_init.c ini_inv(),
+"if (--trop->trquan) continue;", with trquan a Bitfield of a far struct.
 
 autotest/farbitfieldtest.c: the loop, and --, ++ and a post-decrement's
-values, on a far struct's bitfields (the far runtime as in farspacetest.c);
-the same code on near data fails without the fix too. make check 1,701 of
-1,701 (5 new), no new failures against commit 16's.
+values, on a far struct's bitfields (the far runtime as in farspacetest.c).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  autotest/farbitfieldtest.c     | 105 +++++++++++++++++++++++++++++++++
  autotest/makefile              |   7 +++
- oscar64/InterCodeGenerator.cpp |   5 +-
- 3 files changed, 115 insertions(+), 2 deletions(-)
+ oscar64/InterCodeGenerator.cpp |   2 +-
+ 3 files changed, 113 insertions(+), 1 deletion(-)
  create mode 100644 autotest/farbitfieldtest.c
 
 diff --git a/autotest/farbitfieldtest.c b/autotest/farbitfieldtest.c
@@ -154,17 +150,14 @@ index c2c3007..145bb02 100644
  	$(OSCAR64_CC) -ea -g -O0 -n $<
  	$(OSCAR64_CC) -ea -g -O1 -n $<
 diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
-index 923819a..4e99fb6 100644
+index 46e0ce2..5c75191 100644
 --- a/oscar64/InterCodeGenerator.cpp
 +++ b/oscar64/InterCodeGenerator.cpp
-@@ -3491,8 +3491,9 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
- 			block->Append(sins);
- #endif
+@@ -3493,7 +3493,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
  
--			// Return reference to value
--			return ExValue(vl.mType, vl.mTemp, 1, 0, 0, vl.mFarSpace);
-+			// Return reference to value: a bitfield's with its bits, or a read of the
-+			// result reads the whole storage unit (if (--p->bits) tested the wrong value)
+ 			// Return reference to value: a bitfield's with its bits, or a read of the
+ 			// result reads the whole storage unit (if (--p->bits) tested the wrong value)
+-			return ExValue(vl.mType, vl.mTemp, 1, vl.mBits, vl.mShift, vl.mFarSpace);
 +			return ExValue(vl.mType, vl.mTemp, 1, vl.mBits, vl.mShift, vl.mFarSpace, vl.mFarObject);
  		}
  		break;

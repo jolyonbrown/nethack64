@@ -1,4 +1,4 @@
-From 53a4d0cd9fae92f66cebf3e8a45620d6a31a9af7 Mon Sep 17 00:00:00 2001
+From 705e8ccea3ac29ab041bbd0952a53ecad3f78913 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 21 Nov 2026 23:55:14 +0000
 Subject: [PATCH] Loops: a runtime call's zero page operand counts as read
@@ -49,10 +49,10 @@ index 9aa36da..be553ec 100644
  	if (*(volatile char *)(char *)0xc100 != (char)0xee) fails |= 4096;
  
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index a085666..2f247ee 100644
+index 31e3b23..81052e3 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
-@@ -48383,6 +48383,13 @@ bool NativeCodeBasicBlock::RemoveSimpleLoopUnusedIndex(void)
+@@ -48391,6 +48391,13 @@ bool NativeCodeBasicBlock::RemoveSimpleLoopUnusedIndex(void)
  				}
  				else if (ins.mType == ASMIT_JSR)
  				{

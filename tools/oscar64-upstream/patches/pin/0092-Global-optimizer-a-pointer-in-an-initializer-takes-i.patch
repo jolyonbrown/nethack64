@@ -1,7 +1,7 @@
-From 56fdc4aaf252cd1a2f1d99792b7ab93114a6ef2e Mon Sep 17 00:00:00 2001
+From a6b5d0bb42694af2ba471cc445db6525b08e9e8b Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Mon, 23 Nov 2026 03:52:21 +0000
-Subject: [PATCH] Global optimizer: a pointer in an initializer takes its
+Subject: [PATCH 92/99] Global optimizer: a pointer in an initializer takes its
  object's address
 
 ReplaceGlobalConst() replaces a global by its initial value when its
@@ -16,50 +16,13 @@ armour: a Valkyrie wearing her +3 small shield had AC 10. A pointer
 member is now analysed as Analyze() analyses a DT_CONST_POINTER
 constant, with ANAFL_LHS | ANAFL_RHS.
 
-autotest/initptrglobaltest.c. make check: 1,731 emulations (10 new),
-no new failures against commit 22's.
+The test, autotest/initptrglobaltest.c, is the next commit.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
- autotest/initptrglobaltest.c | 28 ++++++++++++++++++++++++++++
- oscar64/GlobalOptimizer.cpp  |  5 ++++-
- 2 files changed, 32 insertions(+), 1 deletion(-)
- create mode 100644 autotest/initptrglobaltest.c
+ oscar64/GlobalOptimizer.cpp | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
 
-diff --git a/autotest/initptrglobaltest.c b/autotest/initptrglobaltest.c
-new file mode 100644
-index 0000000..b0cf634
---- /dev/null
-+++ b/autotest/initptrglobaltest.c
-@@ -0,0 +1,28 @@
-+// A global reached only through a pointer in another global's initializer (nethack64: worn.c's
-+// worn[] and uarms): the global optimizer must not fold it to its initial value.
-+struct obj { int x; };
-+struct obj *ua = 0, *ub = 0;
-+const struct w { long m; struct obj **p; } worn[] = { { 1, &ua }, { 2, &ub }, { 0, 0 } };
-+struct obj shield = { 4 };
-+
-+__noinline void setworn(struct obj *o, long m)
-+{
-+	const struct w *wp;
-+	for (wp = worn; wp->m; wp++)
-+		if (wp->m & m)
-+			*wp->p = o;
-+}
-+
-+__noinline int ac(void)
-+{
-+	int a = 10;
-+	if (ua) a -= ua->x;
-+	if (ub) a -= ub->x;
-+	return a;
-+}
-+
-+int main(void)
-+{
-+	setworn(&shield, 2);
-+	return ac() == 6 ? 0 : 1;
-+}
 diff --git a/oscar64/GlobalOptimizer.cpp b/oscar64/GlobalOptimizer.cpp
 index 9782b61..e1edd63 100644
 --- a/oscar64/GlobalOptimizer.cpp

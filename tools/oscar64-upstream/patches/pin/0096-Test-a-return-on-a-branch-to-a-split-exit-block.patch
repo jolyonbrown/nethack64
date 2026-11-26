@@ -1,0 +1,76 @@
+From 6e10c61346e725fb08840e81df43047307667798 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 26 Nov 2026 21:12:26 +0000
+Subject: [PATCH 96/99] Test a return on a branch to a split exit block
+
+autotest/splitexitreturntest.c: snuff() must give its soft stack frame back when it returns through candle()'s result. Fails in the five native configurations without the fix.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ autotest/autotest.bat          |  3 +++
+ autotest/splitexitreturntest.c | 39 ++++++++++++++++++++++++++++++++++
+ 2 files changed, 42 insertions(+)
+ create mode 100644 autotest/splitexitreturntest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 1153a8b..b25929a 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -477,6 +477,9 @@ rem @echo off
+ @call :test initptrglobaltest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test splitexitreturntest.c
++@if %errorlevel% neq 0 goto :error
++
+ @exit /b 0
+ 
+ :error
+diff --git a/autotest/splitexitreturntest.c b/autotest/splitexitreturntest.c
+new file mode 100644
+index 0000000..4eeba86
+--- /dev/null
++++ b/autotest/splitexitreturntest.c
+@@ -0,0 +1,39 @@
++// A return on a branch to the exit block, split after a store of A that only the return
++// needs (SplitSinglePath): the branch must still reach the epilogue, which gives the soft
++// stack frame back, and not the bare RTS left in the block the split made.
++struct S { unsigned char flags; int otyp; };
++
++static __noinline void get_loc(struct S *o, signed char *x, signed char *y) { *x = (signed char) o->otyp; *y = 1; }
++char snuff(struct S *o);
++char (*volatile again)(struct S *) = snuff;
++static __noinline char candle(struct S *o) { if (o->otyp == 9) return again(o); return o->otyp == 7; }
++static __noinline void say(signed char x, signed char y) { if (x == 99) *(volatile char *)0xd020 = y; }
++
++__noinline char snuff(struct S *o)
++{
++	signed char x, y;
++
++	if (o->flags & 8) {
++		if (o->otyp == 1 || o->otyp == 2 || o->otyp == 3) {
++			get_loc(o, &x, &y);
++			say(x, y);
++			return 1;
++		}
++		if (candle(o))
++			return 1;
++	}
++	return 0;
++}
++
++int main(void)
++{
++	struct S s;
++	char *a, *b;
++
++	s.flags = 8;
++	s.otyp = 5;
++	a = *(char *volatile *)0x23;	/* the soft stack pointer (SP, zero page $23) */
++	snuff(&s);
++	b = *(char *volatile *)0x23;
++	return a != b;			/* 0 when snuff() gave its frame back */
++}
+-- 
+2.43.0
+

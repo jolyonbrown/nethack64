@@ -1,4 +1,4 @@
-From fa3d25e1174df57c24e90403dfdedde6bf0d2a7f Mon Sep 17 00:00:00 2001
+From 9f2b7f9bc3c5b097e93b04d502e0a3db7de06c0d Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Mon, 23 Nov 2026 01:23:26 +0000
 Subject: [PATCH] Far spaces: a conditional keeps its arms' far space

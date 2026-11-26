@@ -597,3 +597,43 @@ long as the candidate's give the candidate's file byte for byte), no status chan
 78 (r78 fixed); nethack64 `.crt`, `.prg`, `nethack128.prg` and `test128.prg` byte-identical,
 `make test` 6/6. The far-spaces series is now twelve commits on these 87 (its own copy of the fix
 dropped); pin + far-spaces on v1.32.273 give the fork's tree 85516a8.
+
+Added on 2026-11-26 (commits 88-99; Jolyon, on the pin additions in `docs/TO-DECIDE.md`:
+"compiler fixes i'm happy with whatever you recommend"). Seven fixes from the far-spaces fork
+that are not far-specific, each followed by a test where a small one exists:
+- 88-89: r86, compat #90. The value of `++`/`--` on a bitfield was its whole storage unit.
+  Test: `autotest/bitfieldincdectest.c`.
+- 90-91: r87, compat #91. `continue` in a `do`-`while` skipped the condition. The fix is
+  upstream's 546b627. Test: `autotest/continuedowhiletest.c`.
+- 92-93: r89, compat #93. A global reached only through a pointer in an initializer was
+  folded to its initial value. Test: `autotest/initptrglobaltest.c`.
+- 94: compat #95. A zero-page copy was shifted in place while still read. The fix is
+  upstream's 679546b. No small test.
+- 95-96: r91, compat #96. A return on a branch reached a bare `RTS`. The fix is upstream's
+  3e2ffb6. Test: `autotest/splitexitreturntest.c`.
+- 97: compat #97. Push and pop frame instructions of different sizes were merged. No small
+  test.
+- 98-99: r92, compat #99. `JoinTAXARange()` moved a logic op past a change of its index
+  register. Test: `autotest/jointaxalogictest.c`.
+
+Each new test fails on 87 commits: the first two in all ten configurations, the
+initializer's at -O2, -Os and -O3, and the last two in the five native ones.
+
+Results 2026-11-26 (99 commits; the patch files give tree 5fd735f, the installed compiler's):
+- Autotest: 1,691 emulations, all 0.
+- Corpus against 87 commits, over the autotests and the repros: 1,128 of 1,175 identical,
+  no status changes. The other 47 are:
+  - 22 builds of the five fixed repros;
+  - 22 builds of the five new tests;
+  - `opp_vector.cpp` at -bc -O2, which differs only by install path;
+  - `opp_hashmap.cpp` and `structreturncontrolflow.c` at -n -O0, both of which pass. In
+    `opp_hashmap.cpp` the old code stored a byte shifted left where the new code sign-extends
+    it.
+- Repros: 53 of 92 (r86, r87, r89, r91 and r92 fixed).
+- nethack64: `.crt`, `.prg`, `nethack128.prg`, `test.prg`, `test-ef.crt` and `test128.prg`
+  are byte-identical to 87 commits' builds. `make test` 6/6.
+
+The far-spaces series is now 22 commits on these 99. Its 17th keeps only the far part of r86's
+fix, the far object in the returned reference. With the pin it gives the compiler and library
+sources of the fork's 53e86f0, the compiler the C128 game is linked with (far31), plus the five
+new tests.

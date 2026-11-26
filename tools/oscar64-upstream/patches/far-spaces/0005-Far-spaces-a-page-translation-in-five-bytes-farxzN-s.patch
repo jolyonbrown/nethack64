@@ -1,4 +1,4 @@
-From ccd6406e42331a50649b66f44d22e2e984c17b2c Mon Sep 17 00:00:00 2001
+From f93f45da725fbf9e783c5eb949846977f8c482a4 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Wed, 18 Nov 2026 03:45:00 +0000
 Subject: [PATCH] Far spaces: a page translation in five bytes (farxzN), single
@@ -82,7 +82,7 @@ index 1642561..a0bee7e 100644
  		if (mCompilationUnits->mRuntimeScope->Lookup(Ident::Unique("farpins")))
  			RegisterRuntime(loc, Ident::Unique("farpins"));
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index 6b77ec2..7a03d80 100644
+index 0d126bc..1c0a8c4 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
 @@ -27324,7 +27324,30 @@ bool InterCodeBasicBlock::LowerFarAccesses(const ExpandingArray<FarGroup>& inher
@@ -118,7 +118,7 @@ index 6b77ec2..7a03d80 100644
  					// through the group's translation, at the field's offset
  					op.mTemp = groups[g[k]].mXTemp;
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index 2c894f7..2ca49a6 100644
+index 83f464e..7a52c6a 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
 @@ -895,7 +895,7 @@ bool NativeCodeInstruction::IsUsedResultInstructions(NumberSet& requiredTemps)
@@ -205,7 +205,7 @@ index 2c894f7..2ca49a6 100644
  		else
  		{
  			mIns.Push(NativeCodeInstruction(ins, ASMIT_LDX, ASMIM_ZERO_PAGE, sreg + 1));
-@@ -17400,9 +17420,9 @@ void NativeCodeBasicBlock::CollectZeroPageUsage(NumberSet& used, NumberSet &modi
+@@ -17403,9 +17423,9 @@ void NativeCodeBasicBlock::CollectZeroPageUsage(NumberSet& used, NumberSet &modi
  
  						if (mIns[i].mFlags & NCIF_USE_ZP_32_X)
  						{
@@ -217,7 +217,7 @@ index 2c894f7..2ca49a6 100644
  								pairs += mIns[i].mParam + j;
  						}
  					}
-@@ -41660,8 +41680,8 @@ bool NativeCodeBasicBlock::IsFinalZeroPageUseTail(const NativeCodeBasicBlock* bl
+@@ -41666,8 +41686,8 @@ bool NativeCodeBasicBlock::IsFinalZeroPageUseTail(const NativeCodeBasicBlock* bl
  			{
  				if (mIns[i].mFlags & NCIF_USE_ZP_32_X)
  				{
@@ -228,7 +228,7 @@ index 2c894f7..2ca49a6 100644
  						return false;
  				}
  			}
-@@ -41775,8 +41795,8 @@ bool NativeCodeBasicBlock::IsFinalZeroPageUse(const NativeCodeBasicBlock* block,
+@@ -41781,8 +41801,8 @@ bool NativeCodeBasicBlock::IsFinalZeroPageUse(const NativeCodeBasicBlock* block,
  
  					if (mIns[at].mFlags & NCIF_USE_ZP_32_X)
  					{
@@ -239,7 +239,7 @@ index 2c894f7..2ca49a6 100644
  							return false;
  					}
  				}
-@@ -72856,6 +72876,14 @@ LinkerObject* NativeCodeGenerator::AllocateShortMulTable(InterOperator op, int f
+@@ -72864,6 +72884,14 @@ LinkerObject* NativeCodeGenerator::AllocateShortMulTable(InterOperator op, int f
  	}
  }
  

@@ -1,4 +1,4 @@
-From 611b342fce5d6eb9394482832ae94fbf0c22b6b6 Mon Sep 17 00:00:00 2001
+From 2babb63f579e8cb54c15c6b00a4456c777f88cec Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 21 Nov 2026 23:06:11 +0000
 Subject: [PATCH] Far characters: #pragma farchars, #pragma strings
@@ -459,7 +459,7 @@ index e2db3be..e56b71a 100644
  }
  
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index 7a03d80..9c7cbc3 100644
+index 1c0a8c4..08d04b5 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
 @@ -21299,7 +21299,10 @@ bool InterCodeBasicBlock::MapLateIntrinsics(void)
@@ -489,7 +489,7 @@ index 7a03d80..9c7cbc3 100644
  		for (int k = 0; k < 2; k++)
  		{
 diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
-index 895f636..db48d6a 100644
+index d41601a..54dc3ba 100644
 --- a/oscar64/InterCodeGenerator.cpp
 +++ b/oscar64/InterCodeGenerator.cpp
 @@ -360,6 +360,10 @@ int InterCodeGenerator::BuiltinFarSpace(Expression* exp, const ExValue& v, int64

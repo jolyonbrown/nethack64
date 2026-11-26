@@ -1,0 +1,38 @@
+From 2f209708e4cf21e3364f4efa7f103baa96ea2965 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Mon, 23 Nov 2026 00:03:35 +0000
+Subject: [PATCH 88/99] ++/-- on a bitfield: the result read through the
+ bitfield
+
+EX_PREINCDEC stored the new value right but returned its reference with the
+bitfield's bits and shift dropped (ExValue(..., 1)), so a read of the
+expression's value read the whole storage unit: `if (--p->q)` with
+`unsigned q : 6` tested the word that holds q and its neighbours (C89
+3.3.3.1: the result is the operand's new value). nethack64's ini_inv(),
+"if (--trop->trquan) continue;", never ended. The reference now keeps its
+bits and shift.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ oscar64/InterCodeGenerator.cpp | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
+index ee29855..82e6dbc 100644
+--- a/oscar64/InterCodeGenerator.cpp
++++ b/oscar64/InterCodeGenerator.cpp
+@@ -3410,8 +3410,9 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+ 			block->Append(sins);
+ #endif
+ 
+-			// Return reference to value
+-			return ExValue(vl.mType, vl.mTemp, 1);
++			// Return reference to value: a bitfield's with its bits, or a read of the
++			// result reads the whole storage unit (if (--p->bits) tested the wrong value)
++			return ExValue(vl.mType, vl.mTemp, 1, vl.mBits, vl.mShift);
+ 		}
+ 		break;
+ 
+-- 
+2.43.0
+

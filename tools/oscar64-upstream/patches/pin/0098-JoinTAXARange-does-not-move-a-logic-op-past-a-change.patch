@@ -1,8 +1,8 @@
-From 53e86f097cfce16f425d26d587ab981db3caf0f6 Mon Sep 17 00:00:00 2001
+From c051ee86fcd5395ae9fb257fd27fe155677bb94d Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 24 Nov 2026 23:36:54 +0000
-Subject: [PATCH] JoinTAXARange does not move a logic op past a change of its
- index register
+Subject: [PATCH 98/99] JoinTAXARange does not move a logic op past a change of
+ its index register
 
 For TAX ... TXA followed by a logic op (A dead after the TAX), the op
 moved up to before the TAX.  The check that nothing in between changes
@@ -17,10 +17,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  1 file changed, 5 insertions(+), 2 deletions(-)
 
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index 4542995..81052e3 100644
+index 72e9aeb..1a03337 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
-@@ -39135,10 +39135,13 @@ bool NativeCodeBasicBlock::JoinTAXARange(int from, int to)
+@@ -39071,10 +39071,13 @@ bool NativeCodeBasicBlock::JoinTAXARange(int from, int to)
  		return true;
  	}
  

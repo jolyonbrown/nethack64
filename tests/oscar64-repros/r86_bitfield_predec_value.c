@@ -9,8 +9,8 @@
  * loop never ended (the C128 game: "Object space full" before the first turn); and any
  * other ++/-- of a Bitfield whose value is used.
  * Expect when fixed: "Emulation result 0".
- * Workaround: decrement, then test the field in its own statement; the far fork's commit 17
- * fixes it.
+ * Workaround: decrement, then test the field in its own statement. Fixed by the pin's commit 88
+ * (2026-11-26, from the far fork's commit 17; the fork keeps the far object part).
  * FLAGS: -e -n
  */
 struct t { short a; char b; char c; unsigned q : 6; unsigned r : 2; };

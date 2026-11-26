@@ -9,8 +9,8 @@
  * <= 100 && !r1);`: with only small rectangles left the first level's makerooms() never
  * ended (the C128 game, fc27b, after the character was chosen); any do-while with a
  * continue.
- * Expect when fixed: "Emulation result 0". Workaround: the far fork's commit 18, a
- * cherry-pick of 546b627.
+ * Expect when fixed: "Emulation result 0". Fixed by the pin's commit 90 (2026-11-26), a
+ * cherry-pick of 546b627, from the far fork.
  * FLAGS: -e -n
  */
 int cnt;

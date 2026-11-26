@@ -1,4 +1,4 @@
-From d4e8b866752832413ffba87a370fbd160caee855 Mon Sep 17 00:00:00 2001
+From 9dca74550532399075ec47126b28e6d646c9851e Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 17 Nov 2026 12:04:51 +0000
 Subject: [PATCH] Far spaces: one translation for a group of accesses to one
@@ -52,7 +52,7 @@ index 8cd0df5..1642561 100644
  		// Optional: a program that names a bank call routine has its calls between
  		// cartridge banks go through it (Linker::InsertBankCalls)
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index bfdfa50..28cdbe0 100644
+index 09956f6..b780517 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
 @@ -4346,7 +4346,7 @@ void ValueSet::UpdateValue(InterCodeBasicBlock * block, InterInstruction * ins,
@@ -327,7 +327,7 @@ index fd61353..a7fe958 100644
  	void Forward(const InterOperand& op);
  	void ForwardTemp(const InterOperand& op);
 diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
-index 65bc1b1..46919cc 100644
+index 1529d4f..e9dd934 100644
 --- a/oscar64/InterCodeGenerator.cpp
 +++ b/oscar64/InterCodeGenerator.cpp
 @@ -70,6 +70,7 @@ InterCodeGenerator::ExValue InterCodeGenerator::Dereference(InterCodeProcedure*
@@ -442,7 +442,7 @@ index 65bc1b1..46919cc 100644
  		}
  
  		case EX_BINARY:
-@@ -3577,9 +3598,11 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+@@ -3578,9 +3599,11 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
  					// a pointer value points into its type's space; a pointer still in memory
  					// is loaded from where that memory is (Dereference then takes the type's)
  					return ExValue(vl.mType->mBase, vl.mTemp, vl.mReference + 1, 0, 0,
@@ -482,7 +482,7 @@ index c5855d3..9f17a1d 100644
  	ExValue TranslateExpression(Declaration * procType, InterCodeProcedure * proc, InterCodeBasicBlock*& block, Expression* exp, DestructStack*& destack, GotoNode*& gotos, const BranchTarget & breakBlock, const BranchTarget& continueBlock, InlineMapper * inlineMapper, ExValue * lrexp = nullptr);
  	void TranslateLogic(Declaration* procType, InterCodeProcedure* proc, InterCodeBasicBlock* block, InterCodeBasicBlock* tblock, InterCodeBasicBlock* fblock, Expression* exp, DestructStack*& destack, GotoNode*& gotos, InlineMapper* inlineMapper);
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index 9eb8f23..2c894f7 100644
+index e9f6365..83f464e 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
 @@ -13566,7 +13566,8 @@ void NativeCodeBasicBlock::UnaryOperator(InterCodeProcedure* proc, NativeCodePro

@@ -1,0 +1,59 @@
+From 5eead5ec3cdbb009b0ef566997396eabd4681bf1 Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 26 Nov 2026 21:12:26 +0000
+Subject: [PATCH 89/99] Test the value of ++/-- on a bitfield
+
+autotest/bitfieldincdectest.c: a loop that continues while --p->q is non-zero. Fails in all ten configurations without the fix.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ autotest/autotest.bat         |  3 +++
+ autotest/bitfieldincdectest.c | 22 ++++++++++++++++++++++
+ 2 files changed, 25 insertions(+)
+ create mode 100644 autotest/bitfieldincdectest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 7701e8b..0f4755c 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -468,6 +468,9 @@ rem @echo off
+ @call :test loadordertest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test bitfieldincdectest.c
++@if %errorlevel% neq 0 goto :error
++
+ @exit /b 0
+ 
+ :error
+diff --git a/autotest/bitfieldincdectest.c b/autotest/bitfieldincdectest.c
+new file mode 100644
+index 0000000..513b103
+--- /dev/null
++++ b/autotest/bitfieldincdectest.c
+@@ -0,0 +1,22 @@
++// The value of ++/-- on a bitfield is the bitfield's new value (C89 3.3.3.1), not the
++// storage unit that holds it and its neighbours: `if (--p->q) continue;` must end.
++struct t { short a; char b; char c; unsigned q : 6; unsigned r : 2; };
++struct t tab[2] = { { 1, 0, 'x', 3, 1 }, { 0, 0, 0, 0, 0 } };
++
++__noinline int count(struct t * p)
++{
++	int n = 0;
++	while (p->c && n < 100)
++	{
++		n++;
++		if (--p->q)
++			continue;
++		p++;
++	}
++	return n;
++}
++
++int main(void)
++{
++	return count(tab) == 3 && tab[0].r == 1 ? 0 : 1;
++}
+-- 
+2.43.0
+

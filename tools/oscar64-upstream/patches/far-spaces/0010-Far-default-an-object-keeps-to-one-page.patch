@@ -1,4 +1,4 @@
-From fac6f6fc163f13dfbf5daea3da1f76f89f39d6e3 Mon Sep 17 00:00:00 2001
+From 26c9325798a11e90a0fe1005021132a3daaedb57 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sat, 21 Nov 2026 12:53:50 +0000
 Subject: [PATCH] Far default: an object keeps to one page
@@ -82,7 +82,7 @@ index 4b40ac4..1ebb01c 100644
  	if (*(unsigned char *)0x8000 != 0xee) fails |= 32;
  	return fails;
 diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
-index 37ff5b9..895f636 100644
+index fe2de4b..d41601a 100644
 --- a/oscar64/InterCodeGenerator.cpp
 +++ b/oscar64/InterCodeGenerator.cpp
 @@ -869,7 +869,8 @@ void InterCodeGenerator::InitGlobalVariable(InterCodeModule * mod, Declaration*
@@ -115,7 +115,7 @@ index 37ff5b9..895f636 100644
  					var->mLinkerObject->mVariable = var;
  					dec->mLinkerObject = var->mLinkerObject;
  					var->mIdent = dec->mQualIdent;
-@@ -6366,7 +6369,8 @@ void InterCodeGenerator::BuildInitializer(InterCodeModule * mod, uint8* dp, int
+@@ -6373,7 +6376,8 @@ void InterCodeGenerator::BuildInitializer(InterCodeModule * mod, uint8* dp, int
  				var->mSize = dec->mSize;
  				if (dec->mFlags & DTF_VAR_ALIASING)
  					var->mAliased = true;

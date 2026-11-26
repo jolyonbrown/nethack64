@@ -1,4 +1,4 @@
-From 005a582a7972f4cc771e4bee6f7eafb6aa37d964 Mon Sep 17 00:00:00 2001
+From f24188b71f0d2a238abb963d2eefc4272564c1ed Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 20 Nov 2026 04:19:21 +0000
 Subject: [PATCH] Bank calls: section flag 4 keeps a section's calls on the

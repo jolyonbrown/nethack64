@@ -76,7 +76,12 @@ Jolyon has read its explanation and said yes. Until then, branches stay local.
   pass, but its 32-bit calls don't reach it in a one-block loop that was tried. A
   thirteenth, 2026-11-22, not far-specific: `-v2` prints `*` for an object without a name
   in the linker's "Direct" line, where a function whose body is an `__asm` block ending in a
-  `JMP` crashed the compiler (r79, compat #82).)
+  `JMP` crashed the compiler (r79, compat #82). Commits 14 to 28 followed, 2026-11-22 to 24.
+  On 2026-11-26 seven that are not far-specific joined the pin as 88-99, each fix followed
+  by a test where a small one exists: r86, r87, r89, compat #95, #96, #97 and #99 (r92).
+  The series moved onto pin 99 without them: 22 commits, its 17th now only the far part of
+  r86's fix. Pin + far-spaces on v1.32.273 give the fork's compiler and library sources
+  as they were at 53e86f0 (the desktop's far31), plus the pin's five new tests.)
 - **Reproducible output.** v1.32.273 and the eight-commit pin read several
   members of their own data structures before anything has written them, so what
   they emit can depend on what the compiler's heap held: the install path, the

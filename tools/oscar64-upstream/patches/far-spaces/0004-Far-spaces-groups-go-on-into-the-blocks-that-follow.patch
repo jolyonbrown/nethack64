@@ -1,4 +1,4 @@
-From 00e7b637b5037a7ed5a60ba96bd96ca8672a3503 Mon Sep 17 00:00:00 2001
+From 847b2b9d0f482f8c20d6fb6e7fb805156cfd8ce6 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 17 Nov 2026 12:12:22 +0000
 Subject: [PATCH] Far spaces: groups go on into the blocks that follow
@@ -16,7 +16,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
  2 files changed, 292 insertions(+), 139 deletions(-)
 
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index 28cdbe0..6b77ec2 100644
+index b780517..0d126bc 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
 @@ -27134,179 +27134,224 @@ static void LowerFarOperand(InterCodeProcedure* proc, GrowingInstructionArray& o

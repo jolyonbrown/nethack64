@@ -1,4 +1,4 @@
-From fe2b21e7e76f1c2ac5be369e06e6d68300d926dd Mon Sep 17 00:00:00 2001
+From 5b9eaa042bc76184d52aeb79410507a0563bb36a Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Mon, 23 Nov 2026 02:58:34 +0000
 Subject: [PATCH] Far spaces: an access through a pointer variable is
@@ -187,7 +187,7 @@ index bd2d822..6cf941a 100644
  	$(OSCAR64_CC) -ea -g -O0 -n $<
  	$(OSCAR64_CC) -ea -g -O1 -n $<
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index 9c7cbc3..a4c9f5c 100644
+index 08d04b5..818673e 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
 @@ -1,4 +1,5 @@

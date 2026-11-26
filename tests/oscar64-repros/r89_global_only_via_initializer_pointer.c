@@ -11,7 +11,8 @@
  * body armour alone (uarm is assigned in polyself.c): a Valkyrie's +3 small shield, worn,
  * left her AC 10, not 6 (the C128, fc31). Every slot but uarm, uwep and the rings' alike.
  * Expect when fixed: "Emulation result 0".
- * Workaround: the far fork's commit 23 (a pointer member's object marked address-taken).
+ * Fixed by the pin's commit 92 (2026-11-26, from the far fork: a pointer member's object marked
+ * address-taken).
  * FLAGS: -e -n -Os
  */
 struct obj { int x; };

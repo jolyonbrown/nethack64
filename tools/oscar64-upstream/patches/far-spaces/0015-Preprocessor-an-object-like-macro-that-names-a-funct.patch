@@ -1,4 +1,4 @@
-From 948d9bcdd81c189322f4e3d6917b6eddaa3e990d Mon Sep 17 00:00:00 2001
+From 1c67e97c1eb5564dad4fad0bb2c32a80e5e5d9cb Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sun, 22 Nov 2026 19:49:49 +0000
 Subject: [PATCH] Preprocessor: an object-like macro that names a function-like

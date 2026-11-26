@@ -1,0 +1,50 @@
+From b38217195a7cd223282e97e8d23b1e42392bde4f Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 26 Nov 2026 21:12:26 +0000
+Subject: [PATCH 91/99] Test continue in a do-while loop
+
+autotest/continuedowhiletest.c: a continue must still run the condition's ++t. Fails in all ten configurations without the fix.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ autotest/autotest.bat          |  3 +++
+ autotest/continuedowhiletest.c | 13 +++++++++++++
+ 2 files changed, 16 insertions(+)
+ create mode 100644 autotest/continuedowhiletest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 0f4755c..0dedbb0 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -471,6 +471,9 @@ rem @echo off
+ @call :test bitfieldincdectest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test continuedowhiletest.c
++@if %errorlevel% neq 0 goto :error
++
+ @exit /b 0
+ 
+ :error
+diff --git a/autotest/continuedowhiletest.c b/autotest/continuedowhiletest.c
+new file mode 100644
+index 0000000..26e770d
+--- /dev/null
++++ b/autotest/continuedowhiletest.c
+@@ -0,0 +1,13 @@
++// `continue` in a do-while goes to the condition (C89 3.6.6.2), so its side effects happen.
++int cnt;
++
++int main(void)
++{
++	int t = 0;
++	do {
++		cnt++;
++		if (cnt < 1000)
++			continue;
++	} while (++t <= 10);
++	return cnt == 11 ? 0 : 1;
++}
+-- 
+2.43.0
+

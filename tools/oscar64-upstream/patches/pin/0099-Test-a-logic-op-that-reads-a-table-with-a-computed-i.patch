@@ -1,0 +1,58 @@
+From db3fdf83fa5ed225866c95941ccbc986fcacfc1a Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 26 Nov 2026 21:12:26 +0000
+Subject: [PATCH 99/99] Test a logic op that reads a table with a computed
+ index
+
+autotest/jointaxalogictest.c: tab[a & 15] | (a & 0x80 ? 0x40 : 0). Fails in the five native configurations without the fix.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ autotest/autotest.bat        |  3 +++
+ autotest/jointaxalogictest.c | 20 ++++++++++++++++++++
+ 2 files changed, 23 insertions(+)
+ create mode 100644 autotest/jointaxalogictest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index b25929a..31e0bb9 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -480,6 +480,9 @@ rem @echo off
+ @call :test splitexitreturntest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test jointaxalogictest.c
++@if %errorlevel% neq 0 goto :error
++
+ @exit /b 0
+ 
+ :error
+diff --git a/autotest/jointaxalogictest.c b/autotest/jointaxalogictest.c
+new file mode 100644
+index 0000000..76de681
+--- /dev/null
++++ b/autotest/jointaxalogictest.c
+@@ -0,0 +1,20 @@
++// "TAX ... TXA; ORA tab,y" with A dead after the TAX: the logic op must not move up past the
++// instructions that load its index register (JoinTAXARange).
++static const char tab[16] = { 0, 15, 8, 7, 10, 4, 2, 13, 12, 12, 9, 1, 14, 5, 3, 14 };
++char out;
++
++__noinline void put(char v) { out = v; }
++
++__noinline void f(char a)
++{
++	put(tab[a & 15] | (a & 0x80 ? 0x40 : 0));
++}
++
++int main(void)
++{
++	f(1);
++	if (out != 15)
++		return 1;
++	f(0x82);
++	return out == 0x48 ? 0 : 2;
++}
+-- 
+2.43.0
+

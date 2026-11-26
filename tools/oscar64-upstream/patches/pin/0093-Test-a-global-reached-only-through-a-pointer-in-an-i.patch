@@ -1,0 +1,66 @@
+From 8336cc22b18656600de149cf5955487acd0da4dd Mon Sep 17 00:00:00 2001
+From: Jolyon Brown <jolyon@limilo.com>
+Date: Thu, 26 Nov 2026 21:12:26 +0000
+Subject: [PATCH 93/99] Test a global reached only through a pointer in an
+ initializer
+
+autotest/initptrglobaltest.c: setworn() writes ub through worn[]'s pointer, which ac() must see. Fails at -O2, -Os and -O3 (and -O3 -bc) without the fix.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ autotest/autotest.bat        |  3 +++
+ autotest/initptrglobaltest.c | 28 ++++++++++++++++++++++++++++
+ 2 files changed, 31 insertions(+)
+ create mode 100644 autotest/initptrglobaltest.c
+
+diff --git a/autotest/autotest.bat b/autotest/autotest.bat
+index 0dedbb0..1153a8b 100644
+--- a/autotest/autotest.bat
++++ b/autotest/autotest.bat
+@@ -474,6 +474,9 @@ rem @echo off
+ @call :test continuedowhiletest.c
+ @if %errorlevel% neq 0 goto :error
+ 
++@call :test initptrglobaltest.c
++@if %errorlevel% neq 0 goto :error
++
+ @exit /b 0
+ 
+ :error
+diff --git a/autotest/initptrglobaltest.c b/autotest/initptrglobaltest.c
+new file mode 100644
+index 0000000..b0cf634
+--- /dev/null
++++ b/autotest/initptrglobaltest.c
+@@ -0,0 +1,28 @@
++// A global reached only through a pointer in another global's initializer (nethack64: worn.c's
++// worn[] and uarms): the global optimizer must not fold it to its initial value.
++struct obj { int x; };
++struct obj *ua = 0, *ub = 0;
++const struct w { long m; struct obj **p; } worn[] = { { 1, &ua }, { 2, &ub }, { 0, 0 } };
++struct obj shield = { 4 };
++
++__noinline void setworn(struct obj *o, long m)
++{
++	const struct w *wp;
++	for (wp = worn; wp->m; wp++)
++		if (wp->m & m)
++			*wp->p = o;
++}
++
++__noinline int ac(void)
++{
++	int a = 10;
++	if (ua) a -= ua->x;
++	if (ub) a -= ub->x;
++	return a;
++}
++
++int main(void)
++{
++	setworn(&shield, 2);
++	return ac() == 6 ? 0 : 1;
++}
+-- 
+2.43.0
+

@@ -14,8 +14,8 @@
  * never showed it).
  * Expect when fixed: "Emulation result 0".
  * Workaround: the value first, the bit after ("char a = tab[x & 15]; if (x & 0x80) a |= 0x40;"),
- * as vdc80.c does; the far fork's commit 28 (the op does not move past a change of its index
- * register, or at all when it is indexed by X).
+ * as vdc80.c does. Fixed by the pin's commit 98 (2026-11-26, from the far fork: the op does not
+ * move past a change of its index register, or at all when it is indexed by X).
  * FLAGS: -e -Os -n
  */
 static const char tab[16] = { 0, 15, 8, 7, 10, 4, 2, 13, 12, 12, 9, 1, 14, 5, 3, 14 };

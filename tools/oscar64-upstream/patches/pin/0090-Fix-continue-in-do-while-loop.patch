@@ -1,7 +1,7 @@
-From 64f540080bd9d42344e9a89999078aea5482c5ed Mon Sep 17 00:00:00 2001
+From fdc01c2e4f8520b004fbb1c40de1f3b55f658c64 Mon Sep 17 00:00:00 2001
 From: drmortalwombat <90205530+drmortalwombat@users.noreply.github.com>
 Date: Sat, 26 Sep 2026 16:29:37 +0200
-Subject: [PATCH] Fix continue in do-while loop
+Subject: [PATCH 90/99] Fix continue in do-while loop
 
 (cherry picked from commit 546b62778352754da8ec124357a9b516b0a5ac35)
 ---
@@ -9,10 +9,10 @@ Subject: [PATCH] Fix continue in do-while loop
  1 file changed, 10 insertions(+), 4 deletions(-)
 
 diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
-index 4e99fb6..5c75191 100644
+index 82e6dbc..1f8532a 100644
 --- a/oscar64/InterCodeGenerator.cpp
 +++ b/oscar64/InterCodeGenerator.cpp
-@@ -6024,19 +6024,25 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
+@@ -5919,19 +5919,25 @@ InterCodeGenerator::ExValue InterCodeGenerator::TranslateExpression(Declaration*
  			InterInstruction	*	jins = new InterInstruction(MapLocation(exp, inlineMapper), IC_JUMP);
  
  			InterCodeBasicBlock* cblock = new InterCodeBasicBlock(proc);

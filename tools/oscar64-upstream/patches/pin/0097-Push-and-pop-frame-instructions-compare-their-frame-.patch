@@ -1,7 +1,8 @@
-From a82328b712d4d04981d99bf3eb4d05edf9c4ed8c Mon Sep 17 00:00:00 2001
+From e866b6d427022d4cb2779df37290617787bf7a09 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Tue, 24 Nov 2026 07:58:14 +0000
-Subject: [PATCH] Push and pop frame instructions compare their frame size
+Subject: [PATCH 97/99] Push and pop frame instructions compare their frame
+ size
 
 InterInstruction::IsEqual() and IsEqualSource() compared mConst only for
 IC_CONSTANT, so an IC_PUSH_FRAME or IC_POP_FRAME (no operands, the size in
@@ -12,16 +13,16 @@ argument blocks of different sizes as one: the C128 NetHack's xkilled(),
 back 11 bytes after mon_nam()'s 4-byte block, 7 bytes of the soft stack
 lost on each kill.
 
-make check: 1,731 emulations, all returning 0.
+No test: the reduced attempts had their frames folded into one common frame.
 ---
  oscar64/InterCode.cpp | 4 ++--
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/oscar64/InterCode.cpp b/oscar64/InterCode.cpp
-index a4c9f5c..818673e 100644
+index ac5e327..d28357f 100644
 --- a/oscar64/InterCode.cpp
 +++ b/oscar64/InterCode.cpp
-@@ -3089,7 +3089,7 @@ bool InterInstruction::IsEqual(const InterInstruction* ins) const
+@@ -3088,7 +3088,7 @@ bool InterInstruction::IsEqual(const InterInstruction* ins) const
  		if (!mSrc[i].IsEqual(ins->mSrc[i]))
  			return false;
  
@@ -30,7 +31,7 @@ index a4c9f5c..818673e 100644
  		return false;
  
  	return true;
-@@ -3110,7 +3110,7 @@ bool InterInstruction::IsEqualSource(const InterInstruction* ins) const
+@@ -3109,7 +3109,7 @@ bool InterInstruction::IsEqualSource(const InterInstruction* ins) const
  		if (!mSrc[i].IsEqual(ins->mSrc[i]))
  			return false;
  

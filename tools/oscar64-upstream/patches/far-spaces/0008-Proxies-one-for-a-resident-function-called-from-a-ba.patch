@@ -1,4 +1,4 @@
-From 7f51096a9778165b316257e12fd80920ac22c794 Mon Sep 17 00:00:00 2001
+From 325d5f85533f641a5e315545716fb94935ec919b Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Fri, 20 Nov 2026 18:55:24 +0000
 Subject: [PATCH] Proxies: one for a resident function called from a bank goes
@@ -19,10 +19,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>
  2 files changed, 21 insertions(+), 3 deletions(-)
 
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index 2ca49a6..a085666 100644
+index 7a52c6a..31e3b23 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
-@@ -72912,6 +72912,20 @@ static inline bool isfparam(const NativeCodeInstruction & cins, const NativeCode
+@@ -72920,6 +72920,20 @@ static inline bool isfparam(const NativeCodeInstruction & cins, const NativeCode
  	return false;
  }
  
@@ -43,7 +43,7 @@ index 2ca49a6..a085666 100644
  void NativeCodeGenerator::RegisterFunctionCall(NativeCodeBasicBlock* block, int at)
  {
  	LinkerObject* lo = block->mIns[at].mLinkerObject;
-@@ -72949,6 +72963,7 @@ void NativeCodeGenerator::RegisterFunctionCall(NativeCodeBasicBlock* block, int
+@@ -72957,6 +72971,7 @@ void NativeCodeGenerator::RegisterFunctionCall(NativeCodeBasicBlock* block, int
  			FunctionCall* ncp = new FunctionCall();
  			ncp->mLinkerObject = lo;
  			ncp->mOffset = block->mIns[at].mAddress;
@@ -51,7 +51,7 @@ index 2ca49a6..a085666 100644
  
  			ncp->mProxyObject = nullptr;
  			ncp->mCount = 1;
-@@ -72966,7 +72981,7 @@ void NativeCodeGenerator::RegisterFunctionCall(NativeCodeBasicBlock* block, int
+@@ -72974,7 +72989,7 @@ void NativeCodeGenerator::RegisterFunctionCall(NativeCodeBasicBlock* block, int
  			}
  
  			FunctionCall* cp = mFunctionCalls;
@@ -60,7 +60,7 @@ index 2ca49a6..a085666 100644
  				cp = cp->mNext;
  			if (!cp)
  			{
-@@ -73032,6 +73047,7 @@ bool NativeCodeGenerator::MergeFunctionCall(NativeCodeBasicBlock* block, int at)
+@@ -73040,6 +73055,7 @@ bool NativeCodeGenerator::MergeFunctionCall(NativeCodeBasicBlock* block, int at)
  			FunctionCall	ncp;
  			ncp.mLinkerObject = lo;
  			ncp.mOffset = block->mIns[at].mAddress;
@@ -68,7 +68,7 @@ index 2ca49a6..a085666 100644
  
  			int i = lat, lai = -1;
  			while (i < at)
-@@ -73046,7 +73062,7 @@ bool NativeCodeGenerator::MergeFunctionCall(NativeCodeBasicBlock* block, int at)
+@@ -73054,7 +73070,7 @@ bool NativeCodeGenerator::MergeFunctionCall(NativeCodeBasicBlock* block, int at)
  			}
  
  			FunctionCall* cp = mFunctionCalls;
@@ -77,7 +77,7 @@ index 2ca49a6..a085666 100644
  				cp = cp->mNext;
  			if (cp)
  			{
-@@ -73716,7 +73732,7 @@ void NativeCodeGenerator::BuildFunctionProxies(void)
+@@ -73724,7 +73740,7 @@ void NativeCodeGenerator::BuildFunctionProxies(void)
  			if (ncp->mCount > 1)
  			{
  				//				printf("RFC %s : %d\n", ncp->mLinkerObject->mIdent->mString, ncp->mCount);

@@ -1,7 +1,8 @@
-From e41bc8642c2fffa8588a28dd4042fe87960556e5 Mon Sep 17 00:00:00 2001
+From bec4e33450b047ab23963abd9b121c44aefa8d11 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Mon, 23 Nov 2026 23:45:04 +0000
-Subject: [PATCH] Fix loss of mem alive flag after combining dual zp stores
+Subject: [PATCH 94/99] Fix loss of mem alive flag after combining dual zp
+ stores
 
 EliminateDoubleStore() moves a load from one of two zero page copies of a
 value to the other, so that one store can go; the moved load kept the
@@ -18,10 +19,10 @@ part, MergeInnerFrames, is a separate optimisation and is left out).
  1 file changed, 2 insertions(+)
 
 diff --git a/oscar64/NativeCodeGenerator.cpp b/oscar64/NativeCodeGenerator.cpp
-index 2f247ee..8633d02 100644
+index 2f44156..3241c51 100644
 --- a/oscar64/NativeCodeGenerator.cpp
 +++ b/oscar64/NativeCodeGenerator.cpp
-@@ -43793,11 +43793,13 @@ bool NativeCodeBasicBlock::EliminateDoubleStore(int at)
+@@ -43729,11 +43729,13 @@ bool NativeCodeBasicBlock::EliminateDoubleStore(int at)
  		if (mIns[i].mAddress == a0)
  		{
  			mIns[i].mAddress = a1;

@@ -1,4 +1,4 @@
-From 34ee85ef10debff9c1438c5250a1038527489ef3 Mon Sep 17 00:00:00 2001
+From 4ebe92f99e55f2e123ee677011f97ba0aef724c9 Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Sun, 22 Nov 2026 13:38:22 +0000
 Subject: [PATCH] Linker: a string literal named by an initializer is constant,
@@ -77,10 +77,10 @@ index a8ad486..0523dfd 100644
  farspacetest: farspacetest.c
  	$(OSCAR64_CC) -ea -g -n $<
 diff --git a/oscar64/InterCodeGenerator.cpp b/oscar64/InterCodeGenerator.cpp
-index db48d6a..923819a 100644
+index 54dc3ba..46e0ce2 100644
 --- a/oscar64/InterCodeGenerator.cpp
 +++ b/oscar64/InterCodeGenerator.cpp
-@@ -6378,6 +6378,10 @@ void InterCodeGenerator::BuildInitializer(InterCodeModule * mod, uint8* dp, int
+@@ -6385,6 +6385,10 @@ void InterCodeGenerator::BuildInitializer(InterCodeModule * mod, uint8* dp, int
  				dec->mSection = mLinker->FarDefaultSection(dec->mIdent, dec->mSection, dec->mFarDefault, dec->mSize, dec->mAlignment);
  				var->mLinkerObject = mLinker->AddObject(dec->mLocation, dec->mQualIdent, dec->mSection, LOT_DATA, dec->mAlignment);
  				var->mLinkerObject->mVariable = var;

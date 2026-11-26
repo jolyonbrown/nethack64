@@ -1,4 +1,4 @@
-From 8a5783e24b46168dbe958e117ef26ffb836ac7b0 Mon Sep 17 00:00:00 2001
+From 733e1a6ac533810ae8ac0078525ac664ed2be0ce Mon Sep 17 00:00:00 2001
 From: Jolyon Brown <jolyon@limilo.com>
 Date: Mon, 23 Nov 2026 03:28:10 +0000
 Subject: [PATCH] printf: '*' width and precision, and %s's precision

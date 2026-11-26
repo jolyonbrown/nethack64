@@ -19,7 +19,8 @@
  * moveloop()'s "change" became 62, the newt's x: the hero "turned into" mons[-1] and the
  * game panicked in monsndx() (the C128, fc41, Dlvl 2).
  * Expect when fixed: "Emulation result 0".
- * Workaround: the far fork's commit 25 (upstream's two lines in SplitBlock()).
+ * Fixed by the pin's commit 95 (2026-11-26, from the far fork: upstream's two lines in
+ * SplitBlock()).
  * FLAGS: -e -Os -n
  */
 struct S { unsigned char flags; int otyp; };
