@@ -168,6 +168,10 @@ static bool handle_key(char k)
 }
 
 #ifdef AUTOTEST
+#ifdef __C128__
+char sys128_decode(const char *down, char joy);	/* src/hal/sys128.c */
+#endif
+
 /* Failure codes are visible as the VICE process exit status. */
 enum { T_PASS = 0, T_WALK = 2, T_BLOCK = 3, T_REU_DMA = 4, T_REU_RESTORE = 5, T_RNG = 6,
        T_REU_PROBE = 7, T_PUTCA = 8, T_KEYS = 9 };
@@ -237,6 +241,33 @@ static char autotest(void)
 			if (sys_getkey() != out[i])
 				return T_KEYS;
 	}
+#ifdef __C128__
+	/* the C128's matrix and joystick decoding, on made-up scans (VICE cannot press keys
+	   from the monitor): KP6, shift + KP7, ESC, left arrow; the stick up-left, fire alone,
+	   fire with right; each step a scan, then all keys up */
+	{
+		static const char col[9] = { 9, 8, 9, 7, 0, 0, 0, 0, 0 };
+		static const char bit[9] = { 0x20, 0x40, 0x01, 0x02, 0, 0, 0, 0, 0 };
+		static const char joy[9] = { 0, 0, 0, 0, 5, 16, 0, 16, 24 };
+		static const char want[9] = { 'l', 'Y', 27, '_', 'y', 0, 's', 0, 'L' };
+		static const char after[9] = { 0, 0, 0, 0, 0, 's', 0, 0, 0 };
+		static char down[11];
+		for (char t = 0; t < 9; t++)
+		{
+			memset(down, 0, sizeof(down));
+			down[col[t]] = bit[t];
+			if (t == 1)
+				down[1] |= 0x80;		/* left shift */
+			if (sys128_decode(down, joy[t]) != want[t])
+				return T_KEYS;
+			if (t == 5 || t == 7)
+				continue;				/* fire stays down for the next step */
+			memset(down, 0, sizeof(down));
+			if (sys128_decode(down, 0) != after[t])
+				return T_KEYS;
+		}
+	}
+#endif
 
 	/* REU: stash, wipe, restore, compare (skipped when no REU attached) */
 	if (reu_banks)

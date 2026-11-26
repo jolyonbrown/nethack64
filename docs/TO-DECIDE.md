@@ -7,40 +7,18 @@ TASKS.md, the pin). Session notes point here rather than repeating the questions
 
 ## Open
 
-### A joystick, and the C128's keypad
-*Raised 2026-11-25 (Jolyon: "we might need to consider joystick use").* Nothing reads a
-joystick yet. It fits NetHack well: the eight stick directions are the eight moves, and a
-stick's diagonals are easier than `y` `u` `b` `n`. It would only produce keys the game
-already takes, so it is the port's input, not game behaviour, and needs no ADR. The choices:
+### The joystick's fire button, and holding the stick
+*Raised 2026-11-25; built 2026-11-26 as recommended, open for Jolyon to change.* The C128's
+stick in port 2 (`src/hal/sys128.c`) works as follows:
+- fire held with a direction gives the shifted (rush) move, `L`;
+- fire on its own gives `s` (search) when it is let go without a move;
+- each push counts once, with no repeat.
 
-- **Which port.** Port 2 (`$DC00`), the usual games port. A stick in port 1 (`$DC01`) is read
-  on the keyboard's row lines, so pushing it looks like a key going down in every column of
-  that row (up: DEL, 1, 3, 5, 7, 9, +, £). That is C64/C128 hardware behaviour: the KERNAL
-  scan on the C64 and our scan on the C128 (`sys128.c`) would both type them. Port 2 shares
-  the column lines, so a key pressed while the stick is pushed can ghost, but the stick on
-  its own types nothing. Recommendation: port 2 only.
-- **What the fire button does.** (a) fire held with a direction = the shifted move (`L`:
-  rush), fire alone = `s` (search); (b) fire alone = `,` (pick up); (c) fire alone = RETURN,
-  to page through `--More--`. Recommendation: (a), with RETURN left to the keyboard.
-- **Repeat.** Holding the stick moves again after a short delay. The C128's own key scan
-  does not repeat yet: a key counts once when it goes down, whereas a terminal NetHack
-  repeats a held key. Whatever delay the stick gets, held keys should probably get too.
-- **Related, C128 only.** The C128's keypad (on `$D02F`'s lines, not read yet) could give the
-  moves as on a PC keypad, with the game's `number_pad` option left off.
-- Cost: on the C128 a few hundred bytes in its HAL; on the C64 the same, from the resident
-  memory we are squeezing, so the C64 could leave it out or have it later.
-
-### Pin additions: r86, r87, r89, #95, #96, #97, #99
-*Raised 2026-11-23 (Claude); #99 added 2026-11-24.* Compiler fixes that the far-spaces fork
-has and the pin (`tools/oscar64-upstream/patches/pin/`, ADR-0007) does not. r86 and r87, #95
-and #96 are upstream Oscar64's own fixes; r89, #97 and #99 are ours. #99 (r92, fork commit
-28) is the one that made the C128's screen black: the pin and upstream miscompile it too.
-#98 is a bug in the far fork's own code, so it goes with the fork, not the pin. Details: `docs/OSCAR64-COMPAT.md`.
-
-### Rebase the far-spaces fork on current upstream?
-*Raised 2026-11-23 (Claude).* The fork is upstream Oscar64 to 2026-08-20 plus our 28
-commits; upstream has 213 more, which already fix #95 and #96. A rebase would pick up their
-fixes but means re-running `make check` and the whole-game link.
+The alternatives for fire alone were `,` (pick up) or RETURN. Repeat is left out on purpose:
+a stick held up-left repeats `y`, and `y` answers "Really attack?" when the hero walks into a
+peaceful monster or a shopkeeper. Rush (fire + direction) covers distance instead. The C128's
+own keys don't repeat either (a key counts once when it goes down), unlike a terminal
+NetHack; that could change, with the same caveat.
 
 ### Codex reviews: the packet, or wait for the sandbox fix?
 *Raised 2026-11-23 (Claude).* With `-s read-only`, Codex now runs commands unsandboxed here
@@ -56,6 +34,35 @@ replays and testing, but not true to the game. Changing that is game behaviour, 
 an ADR.
 
 ## Decided
+
+### The joystick in port 2, and the C128's keypad
+*Decided 2026-11-26. Jolyon: "port 2 was a common setup for a lot of c64 games, happy to go
+with that"; "the c128 numeric keypad is a good shout indeed for that machine".* Built in
+`src/hal/sys128.c` for the C128:
+- the stick in port 2 gives the eight moves;
+- the keypad gives the moves as on a PC keypad, 5 searching, whatever the game's `number_pad`;
+- the C128's ESC key is ESC, HELP is `?`, and the cursor keys above the keypad are moves;
+- the keyboard is not scanned while the stick is pushed, so a key held then doesn't ghost.
+
+The self-test checks the decoding (failure 9). The keypad and the separate cursor keys were
+also pressed in x128 through a virtual display and moved the hero. The stick could not be
+driven in this VICE (3.7.1): neither its monitor's joyport command nor its keypad-as-joystick
+changed what `$DC00` reads, even for a five-line test program. So the stick on real hardware,
+or in a VICE window with a stick in port 2, is still to be seen. The C64 gets the stick later,
+if its resident memory allows.
+
+### Pin additions: r86, r87, r89, #95, #96, #97, #99
+*Decided 2026-11-26. Jolyon: "compiler fixes i'm happy with whatever you recommend".* All
+seven joined the pin as commits 88-99 (ADR-0007), with a test for each that has a small one.
+The far-spaces series moved onto pin 99 (22 commits, the same compiler sources as before).
+
+### Rebasing the far-spaces fork on current upstream: not now
+*Decided 2026-11-26 on the same words, as recommended.* The C128 game is linked with the fork
+as it is. A rebase onto upstream's 213 newer commits means porting the pin's 99 commits and
+the series' 22 onto a moved code base, a new `make check` and corpus run, and a whole-game
+relink, with new optimiser code that may bring new bugs of its own. For now, upstream fixes
+are taken one at a time when the game hits their bug, as #91, #95 and #96 were. The rebase
+goes with the upstream work at the end of the port, when it has to be done anyway.
 
 ### The left-arrow key gives `_` (travel) on both machines
 *Decided 2026-11-25. Jolyon: "Happy with your recommendations about the key."* Option (a):
