@@ -47,7 +47,7 @@ the port is done.
 
 **Still to come.**
 - The rest of the game in play: special levels, the Mines, Sokoban, the quest, shops.
-- Speed, a real clock and seed (the decision is open in `docs/TO-DECIDE.md`), and
+- Speed (the C128's 2 MHz mode is not switched on yet), a real clock and seed (the decision is open in `docs/TO-DECIDE.md`), and
   persistence to disk.
 - Then the C64, with about 12 KB less near memory than the C128 has (ADR-0003). The C64 platform build
   (`make`) and its self-tests stay working throughout.

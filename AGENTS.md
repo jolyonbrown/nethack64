@@ -89,7 +89,10 @@ VICE passing is necessary, not sufficient: real-hardware caveats are in `docs/HA
 
 - Measured facts → `docs/NETHACK-SURVEY.md` or `docs/OSCAR64-COMPAT.md` (with date + tool versions).
 - Decisions → new `docs/decisions/ADR-NNNN-*.md` from `docs/decisions/TEMPLATE.md`.
-- Progress → tick `docs/TASKS.md`; phase status → `docs/PLAN.md`.
+- Progress → tick `docs/TASKS.md`; phase status → `docs/PLAN.md` (its "Where we are" line);
+  the public summary → `README.md`'s "Where it stands". Keep all three current as work lands,
+  not only at milestones (Jolyon, 2026-11-26: "we should keep everything up to date as we
+  progress"). Questions for Jolyon → `docs/TO-DECIDE.md`.
 - End each working session with a short handoff note in `docs/sessions/YYYY-MM-DD-<agent>.md`:
   what changed, what was verified (commands + results), what is next, open questions.
 - Story-worthy moments (a milestone, a surprise, a hard-won fix) → an entry in the

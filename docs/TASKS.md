@@ -566,7 +566,7 @@ Add new tasks at the bottom of the right section.
 
 ## Phase 2 — spikes (after Phase 1 is mostly green)
 
-- [ ] T2.1 Banking spike A (EF execute-in-place, trampolines) with hack.c + apply.c + zap.c
+- [x] T2.1 Banking spike A (EF execute-in-place, trampolines) with hack.c + apply.c + zap.c
       — 2026-11-14: measurements, coupling, constant data, hardware and Oscar64's 64-bank
       limit in docs/BANKING-SPIKE.md; a first simulation from gprof call counts
       (`tools/profile_play.py`, `tools/measure/bankpart.py`): about 80 calls a turn leave
@@ -593,8 +593,12 @@ Add new tasks at the bottom of the right section.
       size probe no longer overwrites the REU (self-test 7). The whole game from the renumbered
       plan passes every check (desktop, 621 s), 828 B less resident code than before
       (`nh_unstash`). Next: the .crt + REU image once the data fits (T2.12).
-- [ ] T2.2 Banking spike B (REU overlays) with the same files (BANKING-SPIKE.md)
-- [ ] T2.3 RAM map for dynamic state; BUFSZ policy ADR
+      — 2026-11-26: done. The banked game runs on the C128 (fc50): 137 banks, 63 in place on
+      the cartridge, 74 from the REU (`docs/data/bankplan-2026-11-26-c128fc50.json`).
+- [x] T2.2 Banking spike B (REU overlays) with the same files (BANKING-SPIKE.md)
+      — Superseded by ADR-0008 (2026-11-17), which uses both: banks in place on the cartridge
+      and REU banks copied into the same window.
+- [x] T2.3 RAM map for dynamic state; BUFSZ policy ADR
       — 2026-11-15: measured (docs/RAM-PLAN.md): what NetHack reaches through plain
       pointers is about 155-170 KB (mutable alone 62-77 KB, corrected the same day: Oscar64
       overlays the static frames, 3.2 KB not 11.5; `mons[]`, `objects[]` and
@@ -609,11 +613,16 @@ Add new tasks at the bottom of the right section.
       about 10 cycles for each x86 instruction of NetHack's code). Two speed wins found:
       `levl[x][y]` multiplies by 126 through `mul16by8` (a third of monster movement's
       cycles), `dist2()` squares through `mul16`. Next: the far-data design (an ADR).
+      — Done as ADR-0009 (typed far spaces, accepted 2026-11-16) and ADR-0010 (far characters,
+      built 2026-11-21, still marked proposed). No BUFSZ ADR was needed: BUFSZ stays 256 and no
+      game buffer was shrunk. fc50's near heap: 1,240 of 2,828 bytes free on Dlvl 2.
 - [ ] T2.4 REU RAM-disk file layer with an AUTOTEST
+      — 2026-11-24: built in `port/sys/c64/c64sys.c`; on the C128 it holds the save file
+      (17,173 B) and the level files (Dlvl 1 to 2 and back). Left: the AUTOTEST.
 - [ ] T2.5 Compress `data`/`quest.dat`/`rumors` three ways; table of ratios + decode speed
 - [ ] T2.6 Host build variant with `COMPRESS` off, so `host_smoke` exercises the
       RLECOMP/ZEROCOMP save code the C64 uses (ADR-0006); before Phase 5 saves
-- [ ] T2.8 Oscar64 compiles the whole game in one run (the banked build has to):
+- [x] T2.8 Oscar64 compiles the whole game in one run (the banked build has to):
       — 2026-11-15: it did not finish in an hour (`tools/bank/build_c64.py`). Two global
       analyses walk every path through the call graph's cycles (r62, compat #64): NetHack's
       direct calls form one cycle of 279 functions, and with calls through pointers one of
@@ -663,7 +672,8 @@ Add new tasks at the bottom of the right section.
       103 banks live (more than EasyFlash's 64: the REU), for an ADR. (d) The harness's `nh_refs[]`
       takes every function's address, which makes Oscar64 give them all stack parameters:
       measure code size with calls instead, since 1.19 MB is probably high.
-- [ ] T2.9 Smaller bank calls: the C trampolines took 124 KB of resident code in the whole
+      — 2026-11-26: done. The C128 game links in one run (fc50: exit 0, peak 13.7 GB, desktop).
+- [x] T2.9 Smaller bank calls: the C trampolines took 124 KB of resident code in the whole
       game, 85% of it for functions that take stack arguments, which a trampoline copies.
       — 2026-11-15: the Oscar64 fork's linker makes 6-byte stubs instead
       (in the pin as commits 72-73 since 2026-11-15, Jolyon: "add both to the pin"): a call into
@@ -674,6 +684,8 @@ Add new tasks at the bottom of the right section.
       resident code 65 KB (156 KB with trampolines); host build plays. The stack (r64 + stubs,
       4 commits): autotest 1,591/1,591, corpus identical except the new test and #67.
       Next: the string trampolines (26 KB), stubs in the callers' banks, and T2.3.
+      — 2026-11-26: done for now. The C128 game links and runs with the stubs; the string
+      trampolines are left for the C64's squeeze.
 - [ ] T2.7 RNG + clock ADR before Phase 3 first light: which generator implements
       `lrand48`/`srand48` (exact, for seed-for-seed replays vs the host, or faster), seed
       width, clock source for seeding, moon phase, Friday 13th and `night()`/`midnight()`
@@ -774,6 +786,9 @@ Add new tasks at the bottom of the right section.
       99.6 -> about 63 KB, code 31.4 -> 25.9 KB. The page cache traced at 8-64 pages: 4 KB costs
       about 125 ms a turn. Next: the cache size into the budget, the vision grids far, the
       hot set and libc out of resident code, then strings.
+      — 2026-11-26: the far-spaces series, 22 commits on pin 99
+      (`tools/oscar64-upstream/patches/far-spaces/`), builds the C128 game that plays. Left:
+      whether and when the series joins the pin.
 - [ ] T2.13 The C128 platform (ADR-0003, amendment of 2026-11-21: the whole game runs first on
       a C128 + Magic Desk 128 + REU in x128, the C64 build kept working): a `-tm=c128` build of
       the banked game with its banks on a Magic Desk 128 image (16 KB at `$8000`, `$DE00`) and
@@ -809,7 +824,11 @@ Add new tasks at the bottom of the right section.
       added, warmplan: 11 REU copies a key), readobjnam() split: fc13 links, every object
       placed (heap 1,144 B, 4 KB stack). First boot in x128 stops at once (BRK near `$0007`).
       Next: that crash, then the boot.
-- [ ] T2.14 The heap far (ADR-0009 point 7: "`mons[]`, `objects[]` and the heap first"). The
+      — 2026-11-23: the first level plays (9c127a4). 2026-11-24: saves, restores, level
+      changes (78f6511). 2026-11-25: the VDC's text no longer black on black (r92, fc49).
+      2026-11-26: the keypad, ESC, HELP and a joystick in port 2 (fc50). Left: 2 MHz (not switched on yet), a
+      `make test` case for the whole game, the stick on real hardware.
+- [x] T2.14 The heap far (ADR-0009 point 7: "`mons[]`, `objects[]` and the heap first"). The
       C128's fc3 link leaves the resident side 2 KB over with no heap, and the near heap peaks
       at 11-24 KB in C64 bytes in host games (`docs/data/heap-peak-2026-11-22.txt`: up to 201
       monsters, 175 objects; a shopkeeper's block is 2,378 B). Monsters and their extensions
@@ -828,18 +847,24 @@ Add new tasks at the bottom of the right section.
       extensions' d_levels; `bill_x` and `fakecorridor` padded (static_assert);
       `build_c64.py --far-heap`. Linked in fc13 (T2.13); the quest index far too. Its
       translations grew banked code by about 60 KB (more banks).
+      — 2026-11-26: done. Monsters and objects in far spaces 7 and 8, the menu items and the
+      message history too (2026-11-24); fc50's near heap has 1,240 of 2,828 bytes free.
 
 ## Phase 3 — first light
 
-- [ ] T3.1 The window port: NetHack's tty port without termcap (ADR-0006's amendment of
+- [x] T3.1 The window port: NetHack's tty port without termcap (ADR-0006's amendment of
       2026-11-22). 2026-11-22: `port/sys/c64/video.c` over `screen80.h` (`s80_putca()` in
       both screens); `tools/host-build.sh --video` and `tests/host_video_compare.py`, 301
       screens the same as termcap's; `c64conf.h` turns the port on (`NO_TERMS`, `S80_VIDEO`);
       it compiles under Oscar64 (wintty.c 20.5 KB, topl.c 4.8, getline.c 1.6, video.c 0.6;
       r80-r82 worked around); `port/sys/c64/c64tty.c` (gettty, settty, setftty, `tgetch()`
       over `sys_waitkey()`); in the C128 bank plan. Next: run it on the C128.
+      — 2026-11-23: runs on the C128 (the first level drawn and played, 9c127a4); menus,
+      `--More--`, `^P` and the `O` menu since.
 - [ ] T3.2 The system layer's rest: `error()`, `regularize()`, the file layer (T2.4),
       `fflush()`/`perror()`, time and the RNG (T2.7).
+      — 2026-11-24: save and restore through the RAM disk (`c64main.c` restores as
+      `pcmain.c` does). Open: the clock (`docs/TO-DECIDE.md`).
 
 ## Housekeeping
 
