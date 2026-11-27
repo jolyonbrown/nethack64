@@ -123,7 +123,10 @@ Exit: `make test` includes a "walk downstairs" test on the real game.
       REU bank loads, 1,681 of 16 KB for the first level (`docs/data/speed-c128-2026-11-27.txt`).
       fc52: the port's own code (RAM disk, heap, tty) on cartridge banks, which the host-made
       plan had put in the REU: 505 loads to the first level instead of 3,772, start-up 2.6 s
-      (15.4), the first level 29.0 s (61.9), the replay 507 s (577). Next: the loads in play
+      (15.4), the first level 29.0 s (61.9), the replay 507 s (577). fc53: the save path
+      (each level change writes the old level) and small hot callees too: 1.9 s, 24.5 s, 408 s.
+      The plan's "cartridge" list keeps this code off the REU when the plan tools re-plan.
+      Next: the loads in play
 - [ ] Long games by a NetHack-playing AI agent (Jolyon's suggestion, 2026-11-13: one
       such agent has reportedly ascended), driving VICE through `tools/vice.py`; and the
       same games recorded on the host build and replayed seed for seed on the C64 build,
@@ -157,6 +160,8 @@ Exit: FEATURES.md checklist ticked by scripted or manual play.
 
 1. **RAM for dynamic state** (45-60 KB needed, 30 KB resident) — Phase 2. Solved on the C128
    by far data (ADR-0009, ADR-0010); the C64 has about 12 KB less near memory than that.
+   2026-11-27: the C128's near heap peaks at 2,344 bytes or more of its 2,808 while a level
+   is made (`docs/data/heap-c128-2026-11-27.txt`), and a failed malloc() is a panic.
 2. **Code size vs 1 MB flash** (~1.2 MB code, measured 2026-11-14, + data) — compression, REU (docs/BANKING-SPIKE.md).
    Solved by REU banks (ADR-0008): the C128 game uses 137 banks, 74 of them from the REU.
 3. **Oscar64 maturity on 130K lines** — repros, upstream issues, pinned version.
@@ -171,3 +176,5 @@ Exit: FEATURES.md checklist ticked by scripted or manual play.
 4. **EF + REU bus conflict on real hardware** — sub-type 1 on Ultimate; REU-only fallback.
 5. **Speed** — NetHack waits for input; vision recalculation and level
    creation are the hot spots to profile (Oscar64 `-ep` profiler, VICE).
+   2026-11-27: on the C128 most of the time was REU bank loads, and most of those came from
+   code the host's profile, from which the bank plan is made, never saw run (fc53).

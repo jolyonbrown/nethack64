@@ -13,6 +13,8 @@ them), moves the functions with the fewest calls inside their bank (from the hos
 profile, tools/profile_play.py) to the bank with the least room that takes each (best fit), until the bank has its
 overflow plus --slack bytes to spare (less in a bank whose biggest function leaves less).  Sizes come from tools/measure/wholesizes.py
 --with-literals on the same build.
+A function the plan's "cartridge" list names (or its file) moves only to another
+cartridge bank.
 
 --oversized handles a function too big for any bank (Oscar64 inlined the static helpers it
 alone calls): the helpers its source calls but its intermediate code (--int) no longer does
@@ -37,6 +39,15 @@ BANK = 16384
 # bank 129 spun forever on $D600, RAM there)
 PINNED_FILES = ("vdc80.c", "sys128.c")
 LINE = re.compile(r"^(?:([0-9a-f]{2}):)?([0-9a-f]{4,5}) - ([0-9a-f]{4,5}) : ([^,]+), (\w+):nhbank_(\d+)")
+
+
+def on_cartridge(plan, key):
+    """Whether the plan's "cartridge" list names this function ("file.c:fn") or its file:
+    code the host game's profile never sees run (the port's RAM disk, heap and tty; the
+    save path) and that the C128 calls often, which must not go to an REU bank, where
+    each call can cost a 16 KB copy (docs/data/loads-c128fc51d-2026-11-27.txt)"""
+    names = plan.get("cartridge", {}).get("names", ())
+    return key in names or key.split(":", 1)[0] in names
 
 
 def main():
@@ -192,7 +203,8 @@ def main():
             n = size[name]
             # best fit: the bank with the least room that takes it, so the big holes stay for
             # the big functions (the most room first spread 33 overflows over every new bank)
-            fits = [t for t in banks if t != b and t not in left and t not in fixed and free[t] >= cost(name, t)[0]]
+            fits = [t for t in banks if t != b and t not in left and t not in fixed and free[t] >= cost(name, t)[0]
+                    and (t < 64 or not on_cartridge(plan, k))]
             if not fits:
                 continue
             to = min(fits, key=lambda t: free[t] - cost(name, t)[0])

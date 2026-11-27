@@ -832,8 +832,12 @@ Add new tasks at the bottom of the right section.
       code on cartridge banks (a ring of the C128's bank loads, `bankgen.py --load-log` and
       `tools/measure/trace/loadlog.py`, showed the RAM disk's two REU banks made 77% of them;
       `docs/data/loads-c128fc51d-2026-11-27.txt`): start-up 2.6 s, the first level 29.0 s.
-      Left: the loads in play, a `make test` case for the whole game, the stick on real
-      hardware.
+      fc53: the save path and small hot callees as well: 1.9 s, 24.5 s, the Dlvl 2 replay
+      408 s (653 on fc50). The plan's "cartridge" list (bankgen.py refuses a plan that puts
+      it in the REU; planfix.py and warmplan.py leave it on the cartridge) keeps the host
+      profile's blind spot from undoing this. The near heap peaks at 2,344 or more of 2,808
+      bytes (`docs/data/heap-c128-2026-11-27.txt`). Left: the loads in play, the near heap's
+      margin, a `make test` case for the whole game, the stick on real hardware.
 - [x] T2.14 The heap far (ADR-0009 point 7: "`mons[]`, `objects[]` and the heap first"). The
       C128's fc3 link leaves the resident side 2 KB over with no heap, and the near heap peaks
       at 11-24 KB in C64 bytes in host games (`docs/data/heap-peak-2026-11-22.txt`: up to 201

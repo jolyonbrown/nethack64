@@ -389,6 +389,15 @@ def insertion_line(raw, line):
     return i
 
 
+def on_cartridge(plan, key):
+    """Whether the plan's "cartridge" list names this function ("file.c:fn") or its file:
+    code the host game's profile never sees run (the port's RAM disk, heap and tty; the
+    save path) and that the C128 calls often, which must not go to an REU bank, where
+    each call can cost a 16 KB copy (docs/data/loads-c128fc51d-2026-11-27.txt)"""
+    names = plan.get("cartridge", {}).get("names", ())
+    return key in names or key.split(":", 1)[0] in names
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--plan", required=True)
@@ -411,13 +420,16 @@ def main():
                          "the bank window hold code only")
     ap.add_argument("--load-log", action="store_true",
                     help="with --target c128 --io-out, for measuring only: the bank call routine keeps "
-                         "a ring of its last 16 REU loads, nh_flog (tools/measure/trace/loadlog.py "
+                         "a ring of its last 4 REU loads, nh_flog (tools/measure/trace/loadlog.py "
                          "reads it), which costs time on every load")
     ap.add_argument("files", nargs="+")
     a = ap.parse_args()
 
     planj = json.load(open(a.plan))
     plan = planj["banks"]
+    off = sorted(k for k, b in plan.items() if b >= 64 and on_cartridge(planj, k))
+    if off:
+        sys.exit("bankgen: the plan's \"cartridge\" list has these in REU banks: %s" % ", ".join(off))
     # functions to keep out of line (a plan's "noinline": the static helpers Oscar64 would
     # inline into a function that then no longer fits a bank; tools/bank/planfix.py)
     noinline = set(planj.get("noinline", []))
@@ -1347,13 +1359,13 @@ def region_banks(incs):
 
 
 LOAD_LOG_VARS = """
-/* bankgen.py --load-log, for measuring: a ring of the last 16 REU loads, 16 bytes each: the
+/* bankgen.py --load-log, for measuring: a ring of the last 4 REU loads, 16 bytes each: the
  * bank, 1 for a call's load (0 for a return's), the call's target, then the stack from
  * nh_map's return address on (a call: the saved bank at +4, the caller's return address
  * less one at +5; a return: the caller's return address less one at +2).  nh_flog_i is the
  * next entry's offset.  tools/measure/trace/loadlog.py reads it with nh_fetches. */
-volatile unsigned char nh_flog[256];
-#pragma align(nh_flog, 256)
+volatile unsigned char nh_flog[64];		/* from the near heap: 4 loads, as a load's DMA alone
+					 * takes 16 ms, and 256 bytes less heap failed start-up */
 volatile unsigned char nh_flog_i, nh_flog_k, nh_flog_tlo, nh_flog_thi;
 """
 
@@ -1361,7 +1373,8 @@ LOAD_LOG_ENTRY = "".join("\t\tlda $01%02x, x\n\t\tsta nh_flog, y\n\t\tiny\n" % o
 
 
 def with_load_log(bc):
-    """The C128 bank call routine (--io-out) with the load ring of --load-log: nh_map writes
+    """The C128 bank call routine (--io-out) with the load ring of --load-log (4 entries of 16
+    bytes, so that it costs the near heap only 64 bytes): nh_map writes
     an entry with the MMU at $3F (all RAM: the ring may lie under the I/O), and nh_bankcall
     says whether a load is a call's and to where"""
     def once(text, old, new):
@@ -1376,7 +1389,7 @@ def with_load_log(bc):
               "".join("\t\tlda %s\n\t\tsta nh_flog, y\n\t\tiny\n" % v
                       for v in ("nh_window", "nh_flog_k", "nh_flog_tlo", "nh_flog_thi")) +
               "\t\ttsx\n" + LOAD_LOG_ENTRY +
-              "\t\tsty nh_flog_i\n\t\tlda #$3e\n\t\tsta $ff00\n\t\tpla\n\t\ttay\n\t\tpla\n\t\ttax\n" +
+              "\t\ttya\n\t\tand #$3f\n\t\tsta nh_flog_i\n\t\tlda #$3e\n\t\tsta $ff00\n\t\tpla\n\t\ttay\n\t\tpla\n\t\ttax\n" +
               "\t\tlda nh_window\n")
     bc = once(bc, "\t\tldy #1\nl1:", "\t\tldy #1\n\t\tlda bjmp + 1\n\t\tsta nh_flog_tlo\n\t\tlda bjmp + 2\n"
               "\t\tsta nh_flog_thi\n\t\tlda #1\n\t\tsta nh_flog_k\nl1:")

@@ -9,12 +9,14 @@ usage: tools/measure/trace/loadlog.py record BUILD_DIR OUT.jsonl [--step N] [--a
 
 record: x128 must be running the build at real speed (not warp: a poll every few ms has
 to come before 16 more loads fill the ring) with the binary monitor on (tools/vice.py
-launch, without --warp). Each poll reads nh_fetches and, when it moved, the ring
+launch, without --warp; a load's DMA alone takes 16 ms, and the ring holds 4). Each poll reads nh_fetches and, when it moved, the ring
 (nh_flog, nh_flog_i), and writes each new load as a line of OUT: the count n, "call"
 (the caller, its bank, the callee and its bank) or "ret" (the function returned to, its
 bank), and the prompt waited for. Loads that came faster than the polls are counted as
 missed. Every 2 s the screen is read (the VDC's, bit 7 off so that reverse video counts)
-and, when the next prompt of the script (or one after it) shows, its keys are typed.
+and, when the script's next prompt shows, its keys are typed; a --More-- that the script
+does not wait for gets a space (unless --keep-more).
+Every 20th poll also walks the near heap's free list: the least free seen is printed.
 The default script plays a new game to the welcome --More--, as tools/measure/trace/
 calls_game.py does on the host. A poll stops the CPU (the monitor), so the game runs
 slower than at real speed; the loads it makes are the same.
@@ -33,7 +35,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import vice  # noqa: E402
 
 SCRIPT = ("Who are you=Agent\r;Shall I pick=n;Pick a role=v;Pick the race=h;"
-          "Pick the alignment=n;Is this ok=y;--More--=")
+          "Pick the alignment=n;--More--=")
+RING = 64          # bankgen.py --load-log's nh_flog: 4 entries of 16 bytes
 MAPLINE = re.compile(r"^(?:([0-9a-f]{2}):)?([0-9a-f]{4,5}) - ([0-9a-f]{4,5}) : ([^,]+), NATIVE_CODE:")
 
 
@@ -87,42 +90,68 @@ def record(a):
         d = v.vdc_read(0, 2000)
         return "".join(chr(b & 0x7F) if 32 <= (b & 0x7F) < 127 else " " for b in d)
 
+    def heap_free():
+        """the near heap's free bytes, from Oscar64's free list (crt.c: HeapNode, then
+        blocks of {next, end}), or None before the first malloc()"""
+        p, total = labels["HeapNode"], 0
+        if not any(v.mem_get(p + 2, 2)):
+            return None         # crt_malloc sets the dummy node's size on its first call
+        for _ in range(64):
+            b = v.mem_get(p, 4)
+            p = b[0] | b[1] << 8
+            if p == 0:
+                return total
+            if not labels["HeapStart"] <= p < labels["HeapEnd"]:
+                return None     # not set up yet (or read in the middle of a change)
+            e = v.mem_get(p + 2, 2)
+            total += (e[0] | e[1] << 8) - p
+        return None
+
     out = open(a.out, "a" if a.append else "w")
     last, missed, step = None, 0, a.step
+    polls, low = 0, None
     t0 = tscr = time.time()
     while step < len(steps) and time.time() - t0 < a.minutes * 60:
         fc = fetches()
         if last is None:
             last = fc
         if fc != last:
-            ring, i = v.mem_get(fl, 256), v.mem_get(fi, 1)[0]
+            ring, i = v.mem_get(fl, RING), v.mem_get(fi, 1)[0]
             fc = fetches()
             n = (fc - last) & 0xFFFF
-            take = min(n, 16)
+            if n > 0x8000:
+                n = fc          # read before the game zeroed the counter
+            take = min(n, RING // 16)
             missed += n - take
             for j in range(take, 0, -1):
-                p = (i - 16 * j) % 256
+                p = (i - 16 * j) % RING
                 ev = decode(ring[p:p + 16], name)
                 ev["n"], ev["step"] = fc - j + 1, steps[step][0]
                 out.write(json.dumps(ev) + "\n")
             out.flush()
             last = fc
+        polls += 1
+        if polls % 20 == 0:
+            f = heap_free()
+            if f is not None and (low is None or f < low):
+                low = f
         v.resume()
         if time.time() - tscr > 2:
             tscr = time.time()
             scr = screen()
-            hit = [k for k in range(step, len(steps)) if steps[k][0] in scr]
-            if hit:
-                step = hit[0]
-                print("%6.1f s  %5d loads, %d missed: %s" % (time.time() - t0, fc, missed, steps[step][0]),
-                      flush=True)
+            if "--More--" in scr and steps[step][0] != "--More--" and not a.keep_more:
+                v.keys(" ")     # a message the script did not wait for: on with the game
+            elif steps[step][0] in scr:
+                print("%6.1f s  %5d loads, %d missed, near heap free %s at least: %s" % (
+                    time.time() - t0, fc, missed, low, steps[step][0]), flush=True)
                 if steps[step][1]:
                     v.keys(steps[step][1])
                 step += 1
             v.resume()
         time.sleep(0.005)
     out.close()
-    print("%s: %d loads missed%s" % (a.out, missed, "" if step >= len(steps) else ", timed out"))
+    print("%s: %d loads missed; the near heap had %s bytes free at least (of %d)%s" % (
+        a.out, missed, low, labels["HeapEnd"] - labels["HeapStart"], "" if step >= len(steps) else ", timed out"))
     return 0 if step >= len(steps) else 1
 
 
@@ -156,6 +185,8 @@ def main():
     r.add_argument("--step", type=int, default=0, help="start at this prompt of the script")
     r.add_argument("--append", action="store_true")
     r.add_argument("--minutes", type=float, default=20)
+    r.add_argument("--keep-more", action="store_true",
+                   help="do not answer a --More-- that the script does not name with a space")
     s = sub.add_parser("summary")
     s.add_argument("out")
     s.add_argument("--top", type=int, default=20)

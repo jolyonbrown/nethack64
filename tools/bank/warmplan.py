@@ -14,6 +14,7 @@ moving to the REU costs the fewest copies, and less than the move saves) go to t
 function's old bank, or another REU bank with room (--add-banks opens empty ones).  It stops when no function causes --min-calls copies or more.  Sizes
 come from wholesizes.py's graph (G), bank fill from the build's map (M); planfix.py repairs
 what the next build overflows.
+A function the plan's "cartridge" list names (or its file) is never moved out to the REU.
 """
 import argparse
 import collections
@@ -22,6 +23,15 @@ import re
 
 BANK = 16384
 LINE = re.compile(r"^([0-9a-f]{2}):([0-9a-f]{4,5}) - ([0-9a-f]{4,5}) : ([^,]+), (\w+):nhbank_(\d+)")
+
+
+def on_cartridge(plan, key):
+    """Whether the plan's "cartridge" list names this function ("file.c:fn") or its file:
+    code the host game's profile never sees run (the port's RAM disk, heap and tty; the
+    save path) and that the C128 calls often, which must not go to an REU bank, where
+    each call can cost a 16 KB copy (docs/data/loads-c128fc51d-2026-11-27.txt)"""
+    names = plan.get("cartridge", {}).get("names", ())
+    return key in names or key.split(":", 1)[0] in names
 
 
 def main():
@@ -108,7 +118,8 @@ def main():
                     # the coldest functions of t, by what moving them to the REU costs, each
                     # to `old` if it has room, else to the REU bank with the most
                     others = sorted(((cost_of(g, old) - cost_of(g, t), g) for g, b in bank.items()
-                                     if b == t and g in size and g != f and size[g] > 0), key=lambda x: x[0])
+                                     if b == t and g in size and g != f and size[g] > 0
+                                     and not on_cartridge(plan, key[g])), key=lambda x: x[0])
                     loss = 0
                     for dl, g in others:
                         if got >= need:

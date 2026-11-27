@@ -1,0 +1,22 @@
+The C128 game's near heap at its fullest, 2026-11-27 (fc52L: fc52 with bankgen.py
+--load-log, whose ring and code leave 2,576 bytes of heap, against fc52's 2,808).
+tools/measure/trace/loadlog.py record walked Oscar64's free list (crt.c: HeapNode, then
+{next, end} blocks) every 20th poll, a few times a second of game time, on x128 at real
+speed: Agent, n, v, h, n, then the welcome and a minute of play on Dlvl 1.
+
+                                     least free seen   so in use at least
+before "Who are you?"                      2,468                 108
+before "Shall I pick"                      2,036                 540
+the character menus                        1,844                 732
+making the first level, to --More--          232               2,344
+a minute of play on Dlvl 1                   232               2,344
+
+A sample can miss a peak between two polls, so the true peak is higher, if anything.
+With 2,304 bytes of heap (the first --load-log builds, whose ring took 256 bytes):
+fc52L failed at start-up once, in warp ("Program initialization has failed ... Memory
+allocation failure"), and stopped at a panic after the first --More-- once, at real
+speed; fc51d (fc51's plan) reached the first --More--. So the peak sits about there.
+So fc52's 2,808 bytes leave about 460 at the first level's creation, less if a peak fell
+between polls; fc50's 1,588 in use on Dlvl 2 (README) is use at rest, not the peak.
+What holds it there is not yet known (the far heap, spaces 7 and 8, takes monsters and
+objects; the near heap has the rest of NetHack's malloc()s).
