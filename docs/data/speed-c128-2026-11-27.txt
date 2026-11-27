@@ -67,3 +67,33 @@ the replay to Dlvl 2 (about 400 turns)      506.5          407.5
 
 The replay's last screen is the same. Against fc50 (1 MHz, the plan as made from the host):
 start-up 15.4 -> 1.9 s, the first level 80.7 -> 24.5 s, the replay 652.7 -> 407.5 s.
+
+fc54 (2026-11-27, later): fc53 with the per-move callees that fc53L's load ring showed in a
+minute of play on Dlvl 1 (tools/measure/trace/loadlog.py: 1,236 loads for about 180 moves)
+on cartridge banks (docs/data/bankplan-2026-11-27-c128fc54.json): encumber_msg and
+gethungry into moveloop's bank 1, find_ac, dog_invent, dog_hunger, read_engr_at,
+tty_print_glyph and g_putch. Left in the REU for now: view_from with left_side (vision) and
+pickup, each too big for one bank with its partner.
+
+                                         fc53           fc54
+the last role key to the first "--More--"    24.5           24.1
+the replay to Dlvl 2 (about 400 turns)      407.5          392.7
+
+The replay's last screen is the same. (Launch to "Who are you?" read 2.7 s this time, 1.9
+before: it includes VICE starting.) The replay's times include tools/vice.py's look at the
+screen after each key, now a good part of them.
+
+fc57 (2026-11-27, later): warmplan.py on fc54's plan (docs/data/bankplan-2026-11-27-c128fc57.json),
+with the port's code and src/hal's rng.c on the plan's "cartridge" list and the HAL's files
+never moved (a first warmplan run had sent video.c's xputc, rng.c's lrand48 and
+vdc80.c/sys128.c's s80_putca and sys_waitkey to REU banks, and that build did not place),
+then planfix.py for one overflowing bank; and the near heap's fixes (T2.15). warmplan's
+model of the host profile: REU copies 10 a key -> 3.
+
+                                         fc54           fc57
+the last role key to the first "--More--"    24.1           25.2
+the replay to Dlvl 2 (about 400 turns)      392.7          388.0
+
+The replay's last screen is the same. The REU bank loads to the first --More--: 192 (fc54:
+232). The replay's time is now mostly tools/vice.py's look at the screen after each key,
+so seconds no longer show a plan's gains; the next comparison is nh_fetches over the replay.

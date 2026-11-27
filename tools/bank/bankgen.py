@@ -493,7 +493,8 @@ def main():
         code = COMMENT_OR_STRING.sub(" ", open(os.path.join(a.dir, f), encoding="latin-1").read())
         members |= set(re.findall(r"(?:\.|->)\s*([A-Za-z_]\w*)\s*\(", code))
 
-    report = {"banked": 0, "resident": 0, "kept_resident": {}, "trampolines": 0, "banks": set(),
+    planned_resident = set(planj.get("resident", []))
+    report = {"unplanned": [], "banked": 0, "resident": 0, "kept_resident": {}, "trampolines": 0, "banks": set(),
               "followed_callers": 0, "files_left_alone": selfinc, "entry_checks": 0, "shadowed": [],
               "used_bare": [], "kept": 0, "kept_fields": [], "keep_unhandled": [], "noinline": [],
               "keep_globals": sorted(keep_extern), "linker_stubs": a.linker_stubs, "direct": 0,
@@ -854,6 +855,8 @@ def main():
             key = "%s:%s" % (f, d["name"])
             if key not in bank_of:
                 report["resident"] += 1
+                if key not in plan and d["name"] not in planned_resident:
+                    report["unplanned"].append(key)
                 continue
             report["banked"] += 1
             if key not in renamed:
@@ -913,6 +916,11 @@ def main():
     if report["data_banked"] or report["data_left"]:
         print("bankgen: %d read-only tables banked, %d left resident" % (report["data_banked"],
                                                                        len(report["data_left"])))
+    if report["unplanned"]:
+        # resident by default, but resident code is the C128's scarcest room: a new
+        # function the plan missed pushed 208 bytes of stubs out of the near heap (fc55)
+        print("bankgen: %d functions the plan does not name stay resident: %s" % (
+            len(report["unplanned"]), ", ".join(report["unplanned"])))
     print("bankgen: %d functions banked in %d banks (%d with a trampoline), %d resident, "
           "%d kept resident (%s)" % (
         report["banked"], len(report["banks"]), report["trampolines"], report["resident"], len(report["kept_resident"]),

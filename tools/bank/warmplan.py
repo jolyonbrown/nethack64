@@ -14,7 +14,8 @@ moving to the REU costs the fewest copies, and less than the move saves) go to t
 function's old bank, or another REU bank with room (--add-banks opens empty ones).  It stops when no function causes --min-calls copies or more.  Sizes
 come from wholesizes.py's graph (G), bank fill from the build's map (M); planfix.py repairs
 what the next build overflows.
-A function the plan's "cartridge" list names (or its file) is never moved out to the REU.
+A function the plan's "cartridge" list names (or its file) is never moved out to the REU,
+and the HAL's files (PINNED_FILES) are not moved at all.
 """
 import argparse
 import collections
@@ -22,6 +23,11 @@ import json
 import re
 
 BANK = 16384
+# never moved, as planfix.py's PINNED_FILES: the HAL's files stay in their bank (their public
+# functions switch the I/O in and call static helpers that expect it; a call to another bank
+# switches it out). A warmplan run without this (2026-11-27) scattered vdc80.c's s80_putca
+# and sys128.c's sys_waitkey into REU banks.
+PINNED_FILES = ("vdc80.c", "sys128.c")
 LINE = re.compile(r"^([0-9a-f]{2}):([0-9a-f]{4,5}) - ([0-9a-f]{4,5}) : ([^,]+), (\w+):nhbank_(\d+)")
 
 
@@ -91,7 +97,7 @@ def main():
     for _ in range(a.moves):
         # the function in an REU bank whose calls cost the most copies
         cand = [(cost_of(g, bank[g]), g) for g in calls if bank.get(g, 0) >= 64 and g in size
-                and bank[g] not in fixed]
+                and bank[g] not in fixed and key[g].split(":", 1)[0] not in PINNED_FILES]
         if not cand:
             break
         cand.sort(reverse=True)
@@ -119,7 +125,8 @@ def main():
                     # to `old` if it has room, else to the REU bank with the most
                     others = sorted(((cost_of(g, old) - cost_of(g, t), g) for g, b in bank.items()
                                      if b == t and g in size and g != f and size[g] > 0
-                                     and not on_cartridge(plan, key[g])), key=lambda x: x[0])
+                                     and not on_cartridge(plan, key[g])
+                                     and key[g].split(":", 1)[0] not in PINNED_FILES), key=lambda x: x[0])
                     loss = 0
                     for dl, g in others:
                         if got >= need:
