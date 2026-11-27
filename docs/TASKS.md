@@ -614,7 +614,7 @@ Add new tasks at the bottom of the right section.
       `levl[x][y]` multiplies by 126 through `mul16by8` (a third of monster movement's
       cycles), `dist2()` squares through `mul16`. Next: the far-data design (an ADR).
       — Done as ADR-0009 (typed far spaces, accepted 2026-11-16) and ADR-0010 (far characters,
-      built 2026-11-21, still marked proposed). No BUFSZ ADR was needed: BUFSZ stays 256 and no
+      built 2026-11-21, accepted 2026-11-27). No BUFSZ ADR was needed: BUFSZ stays 256 and no
       game buffer was shrunk. fc50's near heap: 1,240 of 2,828 bytes free on Dlvl 2.
 - [ ] T2.4 REU RAM-disk file layer with an AUTOTEST
       — 2026-11-24: built in `port/sys/c64/c64sys.c`; on the C128 it holds the save file

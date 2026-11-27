@@ -1,7 +1,9 @@
 # ADR-0010: Far characters: byte pointers tagged by address range
 
-- Status: proposed; on hold after review (2026-11-20); revised 2026-11-21 (below), pending Jolyon;
-  laid out for the C128 and step 2's checks done, 2026-11-21
+- Status: accepted as built (Jolyon, 2026-11-27: "Ok that sounds good to me", to the
+  recommendation to accept the C128 layout as built); proposed 2026-11-20, on hold after
+  review, revised 2026-11-21 (below) and built that night under "you go ahead". The C64's
+  layout of the same idea is designed when its squeeze starts.
 - Date: 2026-11-20
 - Deciders: Jolyon (+ Claude Code, which proposed it; Jolyon agreed to the direction:
   "I agree with your suggestion", 2026-11-20, after options A, B and C in RAM-PLAN.md)
@@ -28,7 +30,7 @@ The accessors for names (`NH_MNAME()`, ADR-0009's amendment) show the copy-out a
 works but needs a wrapper at every read site and a ring of copies whose lifetime has to
 be checked; it does not reach buffers that code writes.
 
-## Decision (proposed)
+## Decision (as first proposed; revised below)
 
 1. **A character space.** `#pragma farchars(n, base)` makes far space n the space of
    byte data: an access of one byte (`char`, `signed char`, `unsigned char`, and what a
@@ -400,3 +402,10 @@ the C128 in x128 (`docs/data/farrt-c128-2026-11-21.txt`). How it differs from th
 - **Found on the way:** an upstream optimiser bug that reads a field from the next object of a
   list (`docs/OSCAR64-COMPAT.md` row 81, r78), fixed in the fork's commit 12, which joined
   the pin as commits 86-87 (2026-11-22).
+
+## Accepted (2026-11-27)
+
+The C128 game plays with far characters as revised above: the character space in RAM bank 1
+at `$C100-$FBFF` (fc50, `docs/data/bankplan-2026-11-26-c128fc50.json`, `char_space`). Jolyon
+accepted it as built on 2026-11-27 (`docs/TO-DECIDE.md`, Decided). The C64 has no second RAM
+bank, so its layout is a separate design, made with the C64's squeeze.

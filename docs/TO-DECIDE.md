@@ -20,13 +20,6 @@ peaceful monster or a shopkeeper. Rush (fire + direction) covers distance instea
 own keys don't repeat either (a key counts once when it goes down), unlike a terminal
 NetHack; that could change, with the same caveat.
 
-### ADR-0010 (far characters): accept it as built?
-*Raised 2026-11-26 (Claude), found while bringing PLAN.md up to date.* ADR-0010 still says
-"proposed ... pending Jolyon", but it has been built since 2026-11-21 under "you go ahead",
-and the C128 game that plays depends on it: shared strings and `char` arrays live in the
-C128's RAM bank 1 at `$C100-$FBFF`. Recommendation: mark it accepted, with the C128 layout
-as built. The C64's layout for the same idea is still to be designed when the squeeze starts.
-
 ### Codex reviews: the packet, or wait for the sandbox fix?
 *Raised 2026-11-23 (Claude).* With `-s read-only`, Codex now runs commands unsandboxed here
 because bubblewrap still can't start. It wrote `docs/sessions/2026-11-23-codex.md` (left
@@ -41,6 +34,13 @@ replays and testing, but not true to the game. Changing that is game behaviour, 
 an ADR.
 
 ## Decided
+
+### ADR-0010 (far characters) accepted as built
+*Decided 2026-11-27. Jolyon: "Ok that sounds good to me", to the recommendation to mark
+it accepted with the C128 layout as built.* ADR-0010 had said "proposed ... pending Jolyon"
+since 2026-11-20, though it was built on 2026-11-21 under "you go ahead" and the C128 game
+depends on it: shared strings and `char` arrays in the C128's RAM bank 1 at `$C100-$FBFF`.
+The C64's layout of the same idea is designed when its squeeze starts.
 
 ### The joystick in port 2, and the C128's keypad
 *Decided 2026-11-26. Jolyon: "port 2 was a common setup for a lot of c64 games, happy to go

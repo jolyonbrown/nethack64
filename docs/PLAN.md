@@ -77,7 +77,7 @@ with `__noinline` stubs the code is ≈ 1.19 MB, and `mhitm.c` aborts the compil
       the game's speed before any of it (about 1.8 s a turn for the bot's crowded level 1;
       far data would add 15-30%). Next: the far-data design ADR.
       — Done as ADR-0009 (typed far spaces in the REU for structs and the heap, accepted
-      2026-11-16) and ADR-0010 (far characters, built 2026-11-21, still marked proposed). BUFSZ
+      2026-11-16) and ADR-0010 (far characters, built 2026-11-21, accepted 2026-11-27). BUFSZ
       stays 256: no game buffer was shrunk. On fc50 the near heap has 1,240 of 2,828 bytes free.
 - [ ] REU RAM-disk file layer + dlb over compressed blobs
       — 2026-11-24: the RAM disk works on the C128 (`port/sys/c64/c64sys.c`): saves, and level
