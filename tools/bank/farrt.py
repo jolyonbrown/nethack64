@@ -204,6 +204,10 @@ def main():
     reu = ", ".join("0x%02x" % next((b for m, _, _, b in spaces if m == n), 0) for n in range(top + 1))
     io_in = "\t\tlda $ff00\n\t\tpha\n\t\tand #$fe\n\t\tsta $ff00\n" if a.target == "c128" else ""
     io_out = "\t\tpla\n\t\tsta $ff00\n" if a.target == "c128" else ""
+    # the C128 starts the DMA at 1 MHz and puts its clock back after (src/hal/sys128.c's
+    # sys128_speed(): a 1750 clone's guide says the C128 must be at 1 MHz for a DMA)
+    dma = ("\t\tlda $d030\n\t\tpha\n\t\tand #$fe\n\t\tsta $d030\n\t\tlda nh_fy\n\t\tsta $df01\n"
+           "\t\tpla\n\t\tsta $d030\n") if a.target == "c128" else "\t\tlda nh_fy\n\t\tsta $df01\n"
     out = ["""/* nh_farrt.c - the far runtime, written by tools/bank/farrt.py (%(args)s).
  * Spaces %(spaces)s; %(frames)d frames of cache; %(target)s. */
 
@@ -258,9 +262,7 @@ __asm nh_far_dma
 		sta $df0a
 		lda #1
 		sta $df08
-		lda nh_fy
-		sta $df01
-		rts
+%(dma)s		rts
 }
 
 /* page X of space A is not in RAM: fetch it into a frame and return the frame's RAM page
@@ -358,7 +360,7 @@ set:	sta $ffff, x
 }
 """ % dict(args=" ".join(sys.argv[1:]), spaces=", ".join(str(s[0]) for s in spaces), frames=a.frames,
            target=a.target, ntlb=128 * len(spaces), nsp=top + 1, tlb_lo=tlb_lo, tlb_hi=tlb_hi, reu=reu,
-           io_in=io_in, io_out=io_out,
+           io_in=io_in, io_out=io_out, dma=dma,
            fsec="#pragma bss( %s )\n" % a.frames_section if a.frames_section else "",
            fsecend="#pragma bss( bss )\n" if a.frames_section else "")]
     if a.code_section:

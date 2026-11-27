@@ -170,11 +170,26 @@ static bool handle_key(char k)
 #ifdef AUTOTEST
 #ifdef __C128__
 char sys128_decode(const char *down, char joy);	/* src/hal/sys128.c */
+void sys128_speed(char fast);					/* src/hal/sys128.c */
+
+/* CIA 2 timer A ticks (1 MHz whatever the CPU's clock) for a fixed loop */
+static unsigned speed_ticks(void)
+{
+	volatile char *cia2 = (volatile char *)0xdd00;
+	cia2[0x0e] = 0x00;
+	cia2[0x04] = 0xff;
+	cia2[0x05] = 0xff;
+	cia2[0x0e] = 0x11;							/* load, start, continuous, phi2 */
+	for (volatile unsigned i = 0; i < 500; i++)
+		;
+	cia2[0x0e] = 0x00;
+	return 0xffff - (cia2[0x04] | (cia2[0x05] << 8));
+}
 #endif
 
 /* Failure codes are visible as the VICE process exit status. */
 enum { T_PASS = 0, T_WALK = 2, T_BLOCK = 3, T_REU_DMA = 4, T_REU_RESTORE = 5, T_RNG = 6,
-       T_REU_PROBE = 7, T_PUTCA = 8, T_KEYS = 9 };
+       T_REU_PROBE = 7, T_PUTCA = 8, T_KEYS = 9, T_SPEED = 10 };
 
 static char autotest(void)
 {
@@ -266,6 +281,18 @@ static char autotest(void)
 			if (sys128_decode(down, 0) != after[t])
 				return T_KEYS;
 		}
+	}
+
+	/* 2 MHz, as the game runs: $D030 bit 0 set and the same loop in well under 2/3 of the
+	   1 MHz ticks; then back to 1 MHz, as the demo's REU transfers below need */
+	{
+		unsigned slow = speed_ticks();
+		sys128_speed(1);
+		char bit = *(volatile char *)0xd030 & 1;
+		unsigned fast = speed_ticks();
+		sys128_speed(0);
+		if (!bit || (*(volatile char *)0xd030 & 1) || fast * 3u > slow * 2u)
+			return T_SPEED;
 	}
 #endif
 

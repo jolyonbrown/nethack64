@@ -1160,7 +1160,9 @@ NH_MAP_C128 = r"""
  * own mode (T2.13, tests/spikes/bankreu128.c): banks 1-63 are a Magic Desk 128 cartridge's,
  * executed in place with the MMU at $3A (external function ROM at $8000-$BFFF, I/O in);
  * banks from 64 on live in the REU, as on the C64, and run in the RAM there with the MMU at
- * $3E.  The I/O stays in throughout.  nh_cartoff: 1 while the MMU is at $3E. */
+ * $3E.  The I/O stays in throughout.  nh_cartoff: 1 while the MMU is at $3E.  The REU's DMA
+ * starts with the CPU at 1 MHz, as a C128 needs; the clock goes back as it was after it
+ * (src/hal/sys128.c, sys128_speed()). */
 __asm nh_map
 {
 		sta nh_bank
@@ -1207,8 +1209,14 @@ cnt:	lda nh_window
 		sta $df03
 		lda #$40
 		sta $df08
+		lda $d030
+		pha
+		and #$fe
+		sta $d030
 		lda #$91
 		sta $df01
+		pla
+		sta $d030
 on:		rts
 }
 """
@@ -1220,7 +1228,8 @@ NH_MAP_C128_IO_OUT = r"""
  * register or start the REU's DMA, then the MMU at $3B (the cartridge at $8000-$BFFF, banks
  * 1-63) or $3F (all RAM: an REU bank, 64 on, in the RAM there).  This code is in section
  * nhio, which lies below $8000: code at $D000-$DFFF can't switch the I/O in under itself.
- * nh_cartoff: 1 while the MMU is at $3F. */
+ * nh_cartoff: 1 while the MMU is at $3F.  The REU's DMA starts with the CPU at 1 MHz, as a
+ * C128 needs; the clock goes back as it was after it (src/hal/sys128.c, sys128_speed()). */
 __asm nh_map
 {
 		sta nh_bank
@@ -1268,8 +1277,14 @@ cnt:	lda nh_window
 		sta $df03
 		lda #$40
 		sta $df08
+		lda $d030
+		pha
+		and #$fe
+		sta $d030
 		lda #$91
 		sta $df01
+		pla
+		sta $d030
 on:		lda #$3f
 		sta $ff00
 		rts

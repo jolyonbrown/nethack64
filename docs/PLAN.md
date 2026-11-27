@@ -118,7 +118,9 @@ Exit: `make test` includes a "walk downstairs" test on the real game.
       `#loot`, scrolls, potions, a fountain, a wand engraved with and zapped, prayer, the pet
 - [ ] Encyclopedia, rumors, oracles, quest text through dlb
 - [ ] Performance: keystroke-to-screen under ~1 s on common commands
-      — not measured on the C128 game yet; it does not use the C128's 2 MHz mode yet
+      — 2026-11-27: the C128 game at 2 MHz (fc51), each REU DMA at 1 MHz: the first level 61.9 s
+      against 80.7 s at 1 MHz, the Dlvl 2 replay 577 s against 653 s. Most of what is left is
+      REU bank loads, 1,681 of 16 KB for the first level (`docs/data/speed-c128-2026-11-27.txt`)
 - [ ] Long games by a NetHack-playing AI agent (Jolyon's suggestion, 2026-11-13: one
       such agent has reportedly ascended), driving VICE through `tools/vice.py`; and the
       same games recorded on the host build and replayed seed for seed on the C64 build,

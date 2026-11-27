@@ -119,6 +119,15 @@ everywhere, no ROM and no I/O; code sets `$3E` around each chip access. All seve
   timer ticks (36 a byte; Oscar64's C routine switches the MMU for every byte).
 - **REU:** works from bank 0. 16 KB DMA in 17,532 ticks at 1 MHz (1.07 a byte), 16,438 with
   the CPU at 2 MHz. (On a real C128 the REU may need the CPU at 1 MHz during DMA; not checked.)
+  2026-11-27: the game runs at 2 MHz and starts each DMA at 1 MHz, putting the clock back
+  after (`sys128_speed()` in `src/hal/sys128.c`; the bank call routine, the far runtime and
+  the RAM disk). The only written source found: a 1750 clone's guide, "The C128 MUST be in
+  1 Mhz (SLOW) mode when a DMA is requested"
+  (<https://ar.c64.org/wiki/1750_RAM_Expansion_Clone_Users_Guide_Project64.txt>). A reading
+  of the C128's schematics on the Commodore 128 Alive! forum ("REU & 2MHz?", untested) has
+  DMA at 1 MHz anyway, since the 2 MHz line does not reach the expansion port. VICE runs the
+  REU at either speed, so this is for real hardware. The cartridge's ROM is read at 2 MHz
+  too: a Magic Desk 128 needs ROM fast enough for that.
 - **VDC:** bytes written to its RAM read back; a screen's 2,000 bytes take 12,669 ticks
   (about 13 ms, 6.3 a byte, through its register port).
 - **2 MHz** (`$D030` bit 0): a loop takes 11,479 ticks against 23,419, 2.04 times faster.

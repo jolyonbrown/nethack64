@@ -24,6 +24,7 @@
 #define CIA1_TBHI	(*(volatile char *)0xdc07)
 #define CIA1_CRB	(*(volatile char *)0xdc0f)
 #define VIC_KEYS	(*(volatile char *)0xd02f)	/* the C128's extra keyboard lines K0-K2 */
+#define VIC_CLKRATE	(*(volatile char *)0xd030)	/* bit 0: the CPU at 2 MHz */
 
 #define KEYD		((volatile char *)0x034a)
 #define NDX			(*(volatile char *)0x00d0)
@@ -38,6 +39,18 @@ void sys_init(void)
 	CIA1_DDRA = 0xff;					/* columns out */
 	CIA1_DDRB = 0x00;					/* rows in */
 	VIC_KEYS = 0xff;					/* no extra line selected */
+	IO_OUT();
+}
+
+/* The CPU at 2 MHz (fast != 0) or 1 MHz. The game runs at 2 MHz: it draws on the VDC, so the
+ * VIC-II's 40 columns, which show nothing useful at 2 MHz, are not missed; the CIAs' timers
+ * count at 1 MHz whatever the CPU's clock (settle()). Each REU transfer drops to 1 MHz for its DMA
+ * (tools/bank/bankgen.py, tools/bank/farrt.py, port/sys/c64/c64sys.c): "The C128 MUST be in
+ * 1 Mhz (SLOW) mode when a DMA is requested" (1750 clone user's guide, HARDWARE.md). */
+void sys128_speed(char fast)
+{
+	IO_IN();
+	VIC_CLKRATE = fast ? 0x01 : 0x00;
 	IO_OUT();
 }
 

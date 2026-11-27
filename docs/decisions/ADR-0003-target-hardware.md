@@ -76,6 +76,8 @@ register `$DE00`, the EasyFlash layout's window) is, with the REU beside it (HAR
 **Open, for real hardware later.**
 - How an EasyFlash behaves in C128 mode: per its documentation, 8 KB mirrored at `$8000`
   and 8 KB at `$C000`, so a different bank layout; switching through `$DE00` is not stated.
-- Whether the REU needs the CPU at 1 MHz during DMA on a real C128.
+- Whether the REU needs the CPU at 1 MHz during DMA on a real C128. 2026-11-27: the game
+  assumes it does and drops to 1 MHz for each DMA, at a few cycles a transfer
+  (HARDWARE.md, "The C128, measured"), so either answer works.
 - Which cartridge to build or buy: real Magic Desk 128 hardware is mentioned but not yet
   found; ytmytm's 32 KB-bank C128 cartridge is buildable but not emulated.

@@ -826,8 +826,11 @@ Add new tasks at the bottom of the right section.
       Next: that crash, then the boot.
       — 2026-11-23: the first level plays (9c127a4). 2026-11-24: saves, restores, level
       changes (78f6511). 2026-11-25: the VDC's text no longer black on black (r92, fc49).
-      2026-11-26: the keypad, ESC, HELP and a joystick in port 2 (fc50). Left: 2 MHz (not switched on yet), a
-      `make test` case for the whole game, the stick on real hardware.
+      2026-11-26: the keypad, ESC, HELP and a joystick in port 2 (fc50). 2026-11-27: 2 MHz,
+      each REU DMA at 1 MHz (fc51; self-test check 10; `docs/data/speed-c128-2026-11-27.txt`):
+      the first level 1.3 times as fast, the same replay to Dlvl 2. Left: the bank plan for
+      speed (1,681 REU bank loads while the first level is made), a `make test` case for the
+      whole game, the stick on real hardware.
 - [x] T2.14 The heap far (ADR-0009 point 7: "`mons[]`, `objects[]` and the heap first"). The
       C128's fc3 link leaves the resident side 2 KB over with no heap, and the near heap peaks
       at 11-24 KB in C64 bytes in host games (`docs/data/heap-peak-2026-11-22.txt`: up to 201

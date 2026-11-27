@@ -1,0 +1,27 @@
+The C128 game at 1 MHz (fc50) and at 2 MHz with each REU DMA at 1 MHz (fc51), 2026-11-27.
+VICE 3.7.1 x128 at real speed (no warp), Magic Desk 128 + 4 MB REU, a fresh REU image each.
+Wall-clock seconds; the replay's keys go through tools/vice.py, which polls the screen
+(about 0.7 s a look, the same for both builds), so its times include that overhead.
+
+                                         fc50 (1 MHz)   fc51 (2 MHz)   ratio
+launch to "Who are you?"                     15.4           15.4        1.00
+the last role key to the first "--More--"    80.7           61.9        1.30
+  (u_init and the first level's creation)
+the replay to Dlvl 2 (about 400 turns)      652.7          576.8        1.13
+
+The replay's last screen is the same for both builds (diffed).
+
+Why not 2x: if T = C/k + D (C the CPU's share at 1 MHz, D what the clock does not change),
+level creation gives C = 37.6 s and D = 43.1 s. Counters read through the binary monitor
+on fc51 (nh_fetches: REU bank loads into the window, 16 KB each, about 16.6 ms at 1 MHz;
+nh_faults / nh_writebacks: far pages):
+
+                                 nh_fetches   nh_faults   nh_writebacks
+at "Who are you?"                      534          17            17
+before the last role key              2091         168           168
+at the first "--More--"               3772        3733          3733
+
+1,681 bank loads while the first level is made: about 28 s of DMA, two thirds of D. The
+character menus cost 1,557 more. Every fault also wrote a page back (faults = writebacks).
+Next for speed: the bank plan for level creation and the menus (which functions make the
+window reload), and whether a clean far page needs writing back.

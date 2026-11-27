@@ -48,7 +48,8 @@ FAILS = {1: "timeout (limitcycles reached)", 2: "walk", 3: "wall blocking",
          4: "REU DMA", 5: "REU restore mismatch", 6: "lrand48 differs from glibc",
          7: "REU size probe changed the REU or its answer",
          8: "s80_putca did not write the character or its colour",
-         9: "the keyboard buffer's PETSCII did not map to the game's keys"}
+         9: "the keyboard buffer's PETSCII did not map to the game's keys",
+         10: "the C128 did not run at 2 MHz, or did not come back to 1 MHz"}
 
 
 def run_case(name, image, kind, reu):

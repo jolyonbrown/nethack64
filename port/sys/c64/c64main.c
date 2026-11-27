@@ -14,6 +14,9 @@
 #include "dlb.h"
 
 extern void sys_init(void);		/* src/hal/sys128.c */
+#ifdef __C128__
+extern void sys128_speed(char);	/* src/hal/sys128.c: 2 MHz; each REU transfer drops to 1 */
+#endif
 extern void s80_init(char, char);	/* src/hal/vdc80.c: the VDC's font, colours, a clear screen */
 extern void nh_far_init(void);		/* the far runtime (tools/bank/farrt.py) */
 
@@ -25,6 +28,9 @@ int
 main(void)
 {
 	sys_init();
+#ifdef __C128__
+	sys128_speed(1);
+#endif
 	nh_far_init();
 	s80_init(15, 0);	/* light grey on black, as src/main.c's demo (a banked function) */
 	nh_c64_start();

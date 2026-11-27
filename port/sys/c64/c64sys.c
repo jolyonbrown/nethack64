@@ -127,7 +127,17 @@ nh_dma(unsigned char cmd, unsigned char *p, unsigned long a, unsigned n)
 	*(volatile unsigned char *) 0xdf07 = (unsigned char) n;
 	*(volatile unsigned char *) 0xdf08 = (unsigned char) (n >> 8);
 	*(volatile unsigned char *) 0xdf0a = 0;
+#ifdef __C128__
+	{
+		/* the DMA at 1 MHz, then the clock as it was (sys128_speed() in src/hal/sys128.c) */
+		unsigned char clk = *(volatile unsigned char *) 0xd030;
+		*(volatile unsigned char *) 0xd030 = clk & 0xfe;
+		*(volatile unsigned char *) 0xdf01 = cmd;
+		*(volatile unsigned char *) 0xd030 = clk;
+	}
+#else
 	*(volatile unsigned char *) 0xdf01 = cmd;
+#endif
 	IO_OUT();
 }
 
