@@ -143,12 +143,16 @@ STATIC_OVL void
 expulsion(boolean seal)
 {
     branch *br;
-    d_level *dest;
+    d_level *dest, e;	/* e: a near copy of br's other end (dungeon.h); schedule_goto() copies it */
     struct trap_s *t;
     int portal_flag;
 
     br = dungeon_branch("The Quest");
-    dest = (br->end1.dnum == u.uz.dnum) ? &br->end2 : &br->end1;
+    if (br->end1.dnum == u.uz.dnum)
+	e = br->end2;
+    else
+	e = br->end1;
+    dest = &e;
     portal_flag = u.uevent.qexpelled ? 0 :	/* returned via artifact? */
 		  !seal ? 1 : -1;
     schedule_goto(dest, FALSE, FALSE, portal_flag, (char *)0, (char *)0);

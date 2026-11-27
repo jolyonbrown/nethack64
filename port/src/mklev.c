@@ -635,7 +635,12 @@ makelevel(void)
 	    if (slev)
 #endif
 	    {
-		    makemaz(slev->proto);
+		    char pbuf[sizeof (slev->proto)];	/* out of its far block (dungeon.h) */
+		    int i = 0;
+
+		    while ((pbuf[i] = slev->proto[i]) != '\0')
+			i++;
+		    makemaz(pbuf);
 		    return;
 	    } else if (dungeons[u.uz.dnum].proto[0]) {
 		    makemaz("");
@@ -1069,6 +1074,7 @@ place_branch(branch *br, xchar x, xchar y)
 {
 	coord	      m;
 	d_level	      *dest;
+	d_level	      e1, e2;	/* near copies of br's ends (dungeon.h) */
 	boolean	      make_stairs;
 	struct mkroom_s *br_room;
 
@@ -1088,14 +1094,15 @@ place_branch(branch *br, xchar x, xchar y)
 	    br_room = pos_to_room(x, y);
 	}
 
-	if (on_level(&br->end1, &u.uz)) {
+	e1 = br->end1, e2 = br->end2;
+	if (on_level(&e1, &u.uz)) {
 	    /* we're on end1 */
 	    make_stairs = br->type != BR_NO_END1;
-	    dest = &br->end2;
+	    dest = &e2;
 	} else {
 	    /* we're on end2 */
 	    make_stairs = br->type != BR_NO_END2;
-	    dest = &br->end1;
+	    dest = &e1;
 	}
 
 	if (br->type == BR_PORTAL) {
@@ -1103,7 +1110,7 @@ place_branch(branch *br, xchar x, xchar y)
 	} else if (make_stairs) {
 	    sstairs.sx = x;
 	    sstairs.sy = y;
-	    sstairs.up = (char) on_level(&br->end1, &u.uz) ?
+	    sstairs.up = (char) on_level(&e1, &u.uz) ?
 					    br->end1_up : !br->end1_up;
 	    assign_level(&sstairs.tolev, dest);
 	    sstairs_room = br_room;
@@ -1539,18 +1546,19 @@ STATIC_OVL void
 mk_knox_portal(xchar x, xchar y)
 {
 	extern int n_dgns;		/* from dungeon.c */
-	d_level *source;
+	d_level *source, e1, e2;	/* near copies of br's ends (dungeon.h) */
 	branch *br;
 	schar u_depth;
 
 	br = dungeon_branch("Fort Ludios");
-	if (on_level(&knox_level, &br->end1)) {
-	    source = &br->end2;
+	e1 = br->end1, e2 = br->end2;
+	if (on_level(&knox_level, &e1)) {
+	    source = &e2;
 	} else {
 	    /* disallow Knox branch on a level with one branch already */
 	    if(Is_branchlev(&u.uz))
 		return;
-	    source = &br->end1;
+	    source = &e1;
 	}
 
 	/* Already set or 2/3 chance of deferring until a later level. */
@@ -1568,6 +1576,10 @@ mk_knox_portal(xchar x, xchar y)
 
 	/* Adjust source to be current level and re-insert branch. */
 	*source = u.uz;
+	if (source == &e2)		/* and into br itself */
+	    br->end2 = u.uz;
+	else
+	    br->end1 = u.uz;
 	insert_branch(br, TRUE);
 
 #ifdef DEBUG

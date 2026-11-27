@@ -217,7 +217,7 @@ extern void nh_setbuf(FILE *, char *);
  * heap peaks at 11-24 KB in C64 bytes (monsters 16 KB in one game, 201 of them), against a
  * resident side already 2 KB short without one (docs/data/heap-peak-2026-11-22.txt). */
 #pragma farspace(7, monst_s, epri, emin, eshk_s, bill_x, egd, fakecorridor, edog_s)
-#pragma farspace(8, obj_s, tty_mi, tty_msg)	/* and the tty port's menu items and message history (wintty.h) */
+#pragma farspace(8, obj_s, tty_mi, tty_msg, s_level_s, branch_s)	/* and the tty port's menu items and message history (wintty.h), the dungeon's special levels and branches (dungeon.h) */
 /* sections with nothing linked into them, so that the far runtime (farrt.py
  * --from-headers) gives the spaces their page tables and REU banks: bank 142 is REU 64 KB
  * bank 19 at $8000, bank 146 REU 64 KB bank 20 at $8000 (both past the code banks) */

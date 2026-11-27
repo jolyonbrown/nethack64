@@ -20,3 +20,12 @@ So fc52's 2,808 bytes leave about 460 at the first level's creation, less if a p
 between polls; fc50's 1,588 in use on Dlvl 2 (README) is use at rest, not the peak.
 What holds it there is not yet known (the far heap, spaces 7 and 8, takes monsters and
 objects; the near heap has the rest of NetHack's malloc()s).
+
+fc57 (later the same day, T2.15): the tty port's text and menu window lines and the
+dungeon's special-level and branch lists moved to the far heap. The same recording over a
+new game: at least 2,036 of 2,768 bytes free (in use at most 732, in the character menus).
+At rest after a minute of play: 1,508 bytes in use before (fc53L's block dump: 33 special
+levels of 24 bytes, 27 blocks of 16 most of them branches, two 84-byte status lines,
+window records), about 640 after. In wizard mode (flags.debug set through the monitor),
+level teleports: the Oracle (9) and Dlvl 18 load, 2,124 and 2,100 bytes free at rest; fc55
+(before the lists moved) ran out at the Oracle with 12 bytes free, "cannot get 14 bytes".

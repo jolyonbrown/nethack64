@@ -803,9 +803,9 @@ savelevchn(int fd, int mode)
 	for (tmplev = sp_levchn; tmplev; tmplev = tmplev2) {
 	    tmplev2 = tmplev->next;
 	    if (perform_bwrite(mode))
-		bwrite(fd, (genericptr_t) tmplev, sizeof(s_level));
+		NH_HBWRITE(fd, tmplev, 8, sizeof(s_level));
 	    if (release_data(mode))
-		free((genericptr_t) tmplev);
+		NH_DGNFREE(tmplev, s_level);
 	}
 	if (release_data(mode))
 	    sp_levchn = 0;

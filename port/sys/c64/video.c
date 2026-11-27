@@ -110,6 +110,33 @@ xputs(const char *s)
 		xputc(*s++);
 }
 
+/* puts() for the tty port's raw prints (tty_raw_print: the start-up and panic messages):
+ * the string, then the start of the next row, as C's puts() ends its line; a '\r' or '\n'
+ * inside moves the cursor too ("\r\nOops...").  xputc() leaves both to cmov(), as
+ * MS-DOS's does, whose raw prints went to the console instead (msmsg): without this every
+ * raw print overwrote the last on one row and "\r" showed as a character. */
+static void
+xnewline(void)
+{
+	s80_cx = 0;
+	if (s80_cy < S80_ROWS - 1)
+		s80_cy++;
+}
+
+void
+xputline(const char *s)
+{
+	for (; *s; s++) {
+		if (*s == '\r')
+			s80_cx = 0;
+		else if (*s == '\n')
+			xnewline();
+		else
+			xputc(*s);
+	}
+	xnewline();
+}
+
 void
 cmov(int x, int y)
 {

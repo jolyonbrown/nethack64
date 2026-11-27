@@ -7,9 +7,12 @@ first draft survives as the acceptance checklist in `docs/FEATURES.md`.
 
 Each phase has exit criteria that can be checked by running something.
 
-**Where we are (2026-11-26):** the whole game plays on the C128 in x128 (Magic Desk 128 +
+**Where we are (2026-11-27):** the whole game plays on the C128 in x128 (Magic Desk 128 +
 REU; first level 2026-11-23, saves and level changes 2026-11-24). Phases 2 and 3 are done
-for the C128 apart from the items left open below; Phase 4's play-testing is under way.
+for the C128 apart from the items left open below; Phase 4's play-testing is under way:
+2026-11-27, the start-up and first level several times faster (the bank plan), and the
+near heap's panics on long texts and the first special levels fixed (T2.15); Medusa's
+level is the next failure.
 The C64 squeeze follows (ADR-0003, amendment of 2026-11-21). The README carries the same
 summary; keep the two in step.
 
@@ -126,7 +129,8 @@ Exit: `make test` includes a "walk downstairs" test on the real game.
       (15.4), the first level 29.0 s (61.9), the replay 507 s (577). fc53: the save path
       (each level change writes the old level) and small hot callees too: 1.9 s, 24.5 s, 408 s.
       The plan's "cartridge" list keeps this code off the REU when the plan tools re-plan.
-      Next: the loads in play
+      fc57: warmplan.py over the whole plan (the HAL and the port's code kept in place),
+      the replay 388 s. Next: the loads in play
 - [ ] Long games by a NetHack-playing AI agent (Jolyon's suggestion, 2026-11-13: one
       such agent has reportedly ascended), driving VICE through `tools/vice.py`; and the
       same games recorded on the host build and replayed seed for seed on the C64 build,
@@ -160,8 +164,10 @@ Exit: FEATURES.md checklist ticked by scripted or manual play.
 
 1. **RAM for dynamic state** (45-60 KB needed, 30 KB resident) — Phase 2. Solved on the C128
    by far data (ADR-0009, ADR-0010); the C64 has about 12 KB less near memory than that.
-   2026-11-27: the C128's near heap peaks at 2,344 bytes or more of its 2,808 while a level
-   is made (`docs/data/heap-c128-2026-11-27.txt`), and a failed malloc() is a panic.
+   2026-11-27: the C128's near heap peaked at 2,344 bytes or more of its 2,808 while a level
+   was made, and a failed malloc() is a panic: the help text and the Oracle's level did
+   (`docs/data/heap-c128-2026-11-27.txt`). fc57 (T2.15) moved the text windows' lines and
+   the dungeon's lists far: at most about 730 in use over a new game.
 2. **Code size vs 1 MB flash** (~1.2 MB code, measured 2026-11-14, + data) — compression, REU (docs/BANKING-SPIKE.md).
    Solved by REU banks (ADR-0008): the C128 game uses 137 banks, 74 of them from the REU.
 3. **Oscar64 maturity on 130K lines** — repros, upstream issues, pinned version.

@@ -44,6 +44,35 @@ static_assert(sizeof (anything) == sizeof (genericptr_t),
 #define NH_MIALLOC(n)	nh_mialloc((unsigned) (n))
 #define NH_MIFREE(p)	nh_mifree((p), (unsigned) (sizeof(tty_menu_item) + strlen_mi(p)))
 
+/* A text or menu window's lines (tty_putstr): far heap blocks too, kept in data[] as their
+ * addresses as the message history's are (topl.c), the attribute byte first. One page of
+ * the help file (24 lines of up to 80) is more than the near heap has free (fc53: "?", "a"
+ * panicked), and a menu window used for text (discoveries, ^X) is not paged at all. */
+extern struct tty_msg *FDECL(nh_msgalloc, (unsigned));
+#define TXT_FAR(p)	((struct tty_msg *) (unsigned) (p))
+
+/* The block's length: the attribute byte and the characters.  These take the far address
+ * as a number: bankgen.py's trampoline for a call from another bank copies a char *
+ * argument that points into the bank window ($8000-$BFFF) to a buffer and passes that
+ * instead (a far address there is no string), so free_window_info() freed $0600 (fc57) */
+static unsigned
+txtlen(unsigned a)
+{
+    struct tty_msg *m = TXT_FAR(a);
+    unsigned n = 0;
+
+    while (m->s[n])
+	n++;
+    return n;
+}
+
+/* allocated as the line it holds and its nul (tty_putstr) */
+static void
+txtfree(unsigned a)
+{
+    nh_msgfree(TXT_FAR(a), txtlen(a) + 1);
+}
+
 /* a far item's string by index: it has no near address */
 static unsigned
 strlen_mi(tty_menu_item *p)
@@ -957,6 +986,8 @@ free_window_info(struct WinDesc *cw, boolean free_data)
 		if (cw->type == NHW_MESSAGE)	/* far heap blocks (topl.c) */
 		    nh_msgfree((struct tty_msg *) (unsigned) cw->data[i],
 			       (unsigned) cw->datlen[i]);
+		else if (cw->type == NHW_TEXT || cw->type == NHW_MENU)
+		    txtfree((unsigned) cw->data[i]);	/* far heap blocks (tty_putstr) */
 		else
 #endif
 		free((genericptr_t)cw->data[i]);
@@ -1475,7 +1506,22 @@ process_text_window(winid window, struct WinDesc *cw)
 	tty_curs(window, 1, n++);
 	if (cw->offx) cl_end();
 	if (cw->data[i]) {
+#ifdef NH_FAR_HEAP_SPACES
+	    struct tty_msg *m = TXT_FAR(cw->data[i]);
+	    int k;
+
+	    attr = m->s[0] - 1;
+	    if (cw->offx) {
+		(void) putchar(' '); ++ttyDisplay->curx;
+	    }
+	    term_start_attr(attr);
+	    for (k = 1; m->s[k] && (int) ++ttyDisplay->curx < (int) ttyDisplay->cols; k++)
+		(void) putchar(m->s[k]);
+	    term_end_attr(attr);
+	    continue;
+#else
 	    attr = cw->data[i][0] - 1;
+#endif
 	    if (cw->offx) {
 		(void) putchar(' '); ++ttyDisplay->curx;
 	    }
@@ -1854,7 +1900,11 @@ tty_putstr(winid window, int attr, const char *str)
 	    tty_display_nhwindow(window, TRUE);
 	    for(i=0; i<cw->maxrow; i++)
 		if(cw->data[i]){
+#ifdef NH_FAR_HEAP_SPACES
+		    txtfree((unsigned) cw->data[i]);
+#else
 		    free((genericptr_t)cw->data[i]);
+#endif
 		    cw->data[i] = 0;
 		}
 	    cw->maxrow = cw->cury = 0;
@@ -1874,6 +1924,38 @@ tty_putstr(winid window, int attr, const char *str)
 	    for(i=cw->maxrow; i<cw->rows; i++)
 		cw->data[i] = 0;
 	}
+#ifdef NH_FAR_HEAP_SPACES
+	if(cw->data[cw->cury])
+	    txtfree((unsigned) cw->data[cw->cury]);
+	n0 = strlen(str) + 1;
+	{
+	    /* the line as the code below leaves it: broken at the last space before column
+	     * CO, the rest put as a line of its own; worked out first, so that the block is
+	     * the size of what it keeps and txtfree() can tell that size from it */
+	    struct tty_msg *m;
+	    int k = n0 - 1, brk = 0;
+
+	    if (n0 > CO) {
+		for (i = CO-1; i && str[i] != ' ' && str[i] != '\n';)
+		    i--;
+		if (i)
+		    k = i, brk = i + 1;
+	    }
+	    m = nh_msgalloc((unsigned) k + 2);
+	    m->s[0] = (char)(attr + 1);	/* avoid nuls, for convenience */
+	    for (j = 0; j < k; j++)
+		m->s[j + 1] = str[j];
+	    m->s[k + 1] = '\0';
+	    cw->data[cw->cury] = (char *) (unsigned) m;
+	    if(n0 > cw->maxcol)
+		cw->maxcol = n0;
+	    if(++cw->cury > cw->maxrow)
+		cw->maxrow = cw->cury;
+	    if (brk)
+		tty_putstr(window, attr, &str[brk]);
+	}
+	break;
+#else
 	if(cw->data[cw->cury])
 	    free((genericptr_t)cw->data[cw->cury]);
 	n0 = strlen(str) + 1;
@@ -1896,6 +1978,7 @@ tty_putstr(winid window, int attr, const char *str)
 
 	}
 	break;
+#endif
     }
 }
 

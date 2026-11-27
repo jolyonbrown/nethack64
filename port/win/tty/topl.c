@@ -27,8 +27,10 @@ extern struct tty_msg *FDECL(nh_msgalloc, (unsigned));
 extern void FDECL(nh_msgfree, (struct tty_msg *, unsigned));
 #define MSG_FAR(p)	((struct tty_msg *) (unsigned) (p))
 
+/* p is the far address as a number: a char * into the bank window would be copied by the
+ * trampoline of a call from another bank (bankgen.py), as txtfree()'s was (wintty.c) */
 STATIC_OVL char *
-msgline(char *p, char *buf)
+msgline(unsigned p, char *buf)
 {
     struct tty_msg *m = MSG_FAR(p);
     int n = 0;
@@ -40,7 +42,7 @@ msgline(char *p, char *buf)
 }
 
 STATIC_OVL void
-msgput(char *p, const char *s)
+msgput(unsigned p, const char *s)
 {
     struct tty_msg *m = MSG_FAR(p);
     int n = 0;
@@ -48,10 +50,10 @@ msgput(char *p, const char *s)
     while ((m->s[n] = s[n]) != '\0')
 	n++;
 }
-#define MSGLINE(p, buf)	msgline((p), (buf))
+#define MSGLINE(p, buf)	msgline((unsigned) (p), (buf))
 #define MSGALLOC(n)	((char *) (unsigned) nh_msgalloc((unsigned) (n)))
 #define MSGFREE(p, n)	nh_msgfree(MSG_FAR(p), (unsigned) (n))
-#define MSGPUT(p, s)	msgput((p), (s))
+#define MSGPUT(p, s)	msgput((unsigned) (p), (s))
 #else
 #define MSGLINE(p, buf)	((void) (buf), (p))
 #define MSGALLOC(n)	((char *) alloc((unsigned) (n)))

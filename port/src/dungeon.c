@@ -155,6 +155,27 @@ dumpit(void)
 }
 #endif
 
+/* A special level's prototype name, copied out of its block and into it by index: on the
+ * C64 and C128 the block is on the far heap, where proto has no near address (dungeon.h) */
+static char *
+lev_proto(s_level *lev, char *buf)
+{
+    int i = 0;
+
+    while ((buf[i] = lev->proto[i]) != '\0')
+	i++;
+    return buf;
+}
+
+static void
+set_lev_proto(s_level *lev, const char *s)
+{
+    int i = 0;
+
+    while ((lev->proto[i] = s[i]) != '\0')
+	i++;
+}
+
 /* Save the dungeon structures. */
 void
 save_dungeon(int fd, boolean perform_write, boolean free_data)
@@ -173,7 +194,7 @@ save_dungeon(int fd, boolean perform_write, boolean free_data)
 	bwrite(fd, (genericptr_t) &count, sizeof(count));
 
 	for (curr = branches; curr; curr = curr->next)
-	    bwrite(fd, (genericptr_t) curr, sizeof (branch));
+	    NH_HBWRITE(fd, curr, 8, sizeof (branch));
 
 	count = maxledgerno();
 	bwrite(fd, (genericptr_t) &count, sizeof(count));
@@ -190,7 +211,7 @@ save_dungeon(int fd, boolean perform_write, boolean free_data)
     if (free_data) {
 	for (curr = branches; curr; curr = next) {
 	    next = curr->next;
-	    free((genericptr_t) curr);
+	    NH_DGNFREE(curr, branch);
 	}
 	branches = 0;
     }
@@ -212,8 +233,8 @@ restore_dungeon(int fd)
 
     mread(fd, (genericptr_t) &count, sizeof(count));
     for (i = 0; i < count; i++) {
-	curr = (branch *) alloc(sizeof(branch));
-	mread(fd, (genericptr_t) curr, sizeof(branch));
+	curr = NH_DGNALLOC(branch);
+	NH_HMREAD(fd, curr, 8, sizeof(branch));
 	curr->next = (branch *) 0;
 	if (last)
 	    last->next = curr;
@@ -263,8 +284,10 @@ s_level *
 find_level(const char *s)
 {
 	s_level *curr;
+	char pbuf[sizeof (curr->proto)];
+
 	for(curr = sp_levchn; curr; curr = curr->next)
-	    if (!strcmpi(s, curr->proto)) break;
+	    if (!strcmpi(s, lev_proto(curr, pbuf))) break;
 	return curr;
 }
 
@@ -290,7 +313,13 @@ find_branch(const char *s, struct proto_dungeon *pd)
 			(!strncmpi(dnam, "The ", 4) && !strcmpi(dnam + 4, s)))
 		    break;
 	    }
-	    i = br ? ((ledger_no(&br->end1) << 8) | ledger_no(&br->end2)) : -1;
+	    if (br) {
+		d_level e1, e2;		/* near copies (dungeon.h) */
+
+		e1 = br->end1, e2 = br->end2;
+		i = (ledger_no(&e1) << 8) | ledger_no(&e2);
+	    } else
+		i = -1;
 	}
 	return i;
 }
@@ -463,7 +492,7 @@ add_branch(int dgn, int child_entry_level, struct proto_dungeon *pd)
     branch *new_branch;
 
     branch_num = find_branch(dungeons[dgn].dname,pd);
-    new_branch = (branch *) alloc(sizeof(branch));
+    new_branch = NH_DGNALLOC(branch);
     new_branch->next = (branch *) 0;
     new_branch->id = branch_id++;
     new_branch->type = correct_branch_type(&pd->tmpbranch[branch_num]);
@@ -516,10 +545,9 @@ init_level(int dgn, int proto_index, struct proto_dungeon *pd)
 #endif
 	    if (tlevel->chance <= rn2(100)) return;
 
-	pd->final_lev[proto_index] = new_level =
-					(s_level *) alloc(sizeof(s_level));
+	pd->final_lev[proto_index] = new_level = NH_DGNALLOC(s_level);
 	/* load new level with data */
-	Strcpy(new_level->proto, NH_DGNAME(tlevel->name, 0));
+	set_lev_proto(new_level, NH_DGNAME(tlevel->name, 0));
 	new_level->boneid = tlevel->boneschar;
 	new_level->dlevel.dnum = dgn;
 	new_level->dlevel.dlevel = 0;	/* for now */
@@ -802,10 +830,16 @@ init_dungeons(void) /* initialize the "dungeon" structs */
 
 		/* Get the depth of the connecting end. */
 		if (br->end1.dnum == i) {
-		    from_depth = depth(&br->end2);
+		    d_level e2;		/* a near copy (dungeon.h) */
+
+		    e2 = br->end2;
+		    from_depth = depth(&e2);
 		    from_up = !br->end1_up;
 		} else {
-		    from_depth = depth(&br->end1);
+		    d_level e1;
+
+		    e1 = br->end1;
+		    from_depth = depth(&e1);
 		    from_up = br->end1_up;
 		}
 
@@ -879,12 +913,18 @@ init_dungeons(void) /* initialize the "dungeon" structs */
 	for (lev_map = level_map; lev_map->lev_name[0]; lev_map++) {
 		x = find_level(lev_map->lev_name);
 		if (x) {
-			assign_level(lev_map->lev_spec, &x->dlevel);
+			d_level xl;	/* a near copy (dungeon.h) */
+
+			xl = x->dlevel;
+			assign_level(lev_map->lev_spec, &xl);
 			if (!strncmp(lev_map->lev_name, "x-", 2)) {
 				/* This is where the name substitution on the
 				 * levels of the quest dungeon occur.
 				 */
-				Sprintf(x->proto, "%s%s", NH_RNAME(urole.filecode), &lev_map->lev_name[1]);
+				char pbuf[sizeof (x->proto)];
+
+				Sprintf(pbuf, "%s%s", NH_RNAME(urole.filecode), &lev_map->lev_name[1]);
+				set_lev_proto(x, pbuf);
 			} else if (lev_map->lev_spec == &knox_level) {
 				branch *br;
 				/*
@@ -893,8 +933,12 @@ init_dungeons(void) /* initialize the "dungeon" structs */
 				 * its entrance (end1) has a bogus dnum, namely
 				 * n_dgns.
 				 */
-				for (br = branches; br; br = br->next)
-				    if (on_level(&br->end2, &knox_level)) break;
+				for (br = branches; br; br = br->next) {
+				    d_level e2;
+
+				    e2 = br->end2;
+				    if (on_level(&e2, &knox_level)) break;
+				}
 
 				if (br) br->end1.dnum = n_dgns;
 				/* adjust the branch's position on the list */
@@ -912,12 +956,15 @@ init_dungeons(void) /* initialize the "dungeon" structs */
 
 	/* one special fixup for dummy surface level */
 	if ((x = find_level("dummy")) != 0) {
+	    d_level xl;		/* a near copy (dungeon.h) */
+
+	    xl = x->dlevel;
 	    i = x->dlevel.dnum;
 	    /* the code above puts earth one level above dungeon level #1,
 	       making the dummy level overlay level 1; but the whole reason
 	       for having the dummy level is to make earth have depth -1
 	       instead of 0, so adjust the start point to shift endgame up */
-	    if (dunlevs_in_dungeon(&x->dlevel) > 1 - dungeons[i].depth_start)
+	    if (dunlevs_in_dungeon(&xl) > 1 - dungeons[i].depth_start)
 		dungeons[i].depth_start -= 1;
 	    /* TO DO: strip "dummy" out all the way here,
 	       so that it's hidden from <ctrl/O> feedback. */
@@ -1050,8 +1097,12 @@ Is_special(d_level *lev)
 {
 	s_level *levtmp;
 
-	for (levtmp = sp_levchn; levtmp; levtmp = levtmp->next)
-	    if (on_level(lev, &levtmp->dlevel)) return(levtmp);
+	for (levtmp = sp_levchn; levtmp; levtmp = levtmp->next) {
+	    d_level dl;		/* a near copy (dungeon.h) */
+
+	    dl = levtmp->dlevel;
+	    if (on_level(lev, &dl)) return(levtmp);
+	}
 
 	return((s_level *)0);
 }
@@ -1066,7 +1117,10 @@ Is_branchlev(d_level *lev)
 	branch *curr;
 
 	for (curr = branches; curr; curr = curr->next) {
-	    if (on_level(lev, &curr->end1) || on_level(lev, &curr->end2))
+	    d_level e1, e2;	/* near copies (dungeon.h) */
+
+	    e1 = curr->end1, e2 = curr->end2;
+	    if (on_level(lev, &e1) || on_level(lev, &e2))
 		return curr;
 	}
 	return (branch *) 0;
@@ -1332,8 +1386,11 @@ at_dgn_entrance(const char *s)
 {
     branch *br;
 
+    d_level e1;		/* a near copy (dungeon.h) */
+
     br = dungeon_branch(s);
-    return((boolean)(on_level(&u.uz, &br->end1) ? TRUE : FALSE));
+    e1 = br->end1;
+    return((boolean)(on_level(&u.uz, &e1) ? TRUE : FALSE));
 }
 
 boolean
@@ -1498,7 +1555,7 @@ lev_by_name(const char *nam)
 	     wizard ||
 #endif
 		(level_info[idx].flags & (FORGOTTEN|VISITED)) == VISITED)) {
-	    lev = depth(&slev->dlevel);
+	    lev = depth(&dlev);
 	}
     } else {	/* not a specific level; try branch names */
 	idx = find_branch(nam, (struct proto_dungeon *)0);
@@ -1557,14 +1614,17 @@ print_branch(winid win,
     for (br = branches; br; br = br->next) {
 	if (br->end1.dnum == dnum && lower_bound < br->end1.dlevel &&
 					br->end1.dlevel <= upper_bound) {
+	    d_level e1;		/* a near copy (dungeon.h) */
+
+	    e1 = br->end1;
 	    Sprintf(buf,"   %s to %s: %d",
 		    br_string(br->type),
 		    dungeons[br->end2.dnum].dname,
-		    depth(&br->end1));
+		    depth(&e1));
 	    if (bymenu) {
 		lchoices->lev[lchoices->idx] = br->end1.dlevel;
 		lchoices->dgn[lchoices->idx] = br->end1.dnum;
-		lchoices->playerlev[lchoices->idx] = depth(&br->end1);
+		lchoices->playerlev[lchoices->idx] = depth(&e1);
 		any.a_void = 0;
 		any.a_int = lchoices->idx + 1;
 		add_menu(win, NO_GLYPH, &any, lchoices->menuletter,
@@ -1625,13 +1685,17 @@ print_dungeon(boolean bymenu, schar *rlev, xchar *rdgn)
 	 * this dungeon.
 	 */
 	for (slev = sp_levchn, last_level = 0; slev; slev = slev->next) {
+	    d_level sl;		/* a near copy (dungeon.h) */
+	    char pbuf[sizeof (slev->proto)];
+
 	    if (slev->dlevel.dnum != i) continue;
+	    sl = slev->dlevel;
 
 	    /* print any branches before this level */
 	    print_branch(win, i, last_level, slev->dlevel.dlevel, bymenu, &lchoices);
 
-	    Sprintf(buf, "   %s: %d", slev->proto, depth(&slev->dlevel));
-	    if (Is_stronghold(&slev->dlevel))
+	    Sprintf(buf, "   %s: %d", lev_proto(slev, pbuf), depth(&sl));
+	    if (Is_stronghold(&sl))
 		Sprintf(eos(buf), " (tune %s)", tune);
 	    if (bymenu) {
 	    	/* If other floating branches are added, this will need to change */
@@ -1639,10 +1703,10 @@ print_dungeon(boolean bymenu, schar *rlev, xchar *rdgn)
 			lchoices.lev[lchoices.idx] = slev->dlevel.dlevel;
 			lchoices.dgn[lchoices.idx] = i;
 		} else {
-			lchoices.lev[lchoices.idx] = depth(&slev->dlevel);
+			lchoices.lev[lchoices.idx] = depth(&sl);
 			lchoices.dgn[lchoices.idx] = 0;
 		}
-		lchoices.playerlev[lchoices.idx] = depth(&slev->dlevel);
+		lchoices.playerlev[lchoices.idx] = depth(&sl);
 		any.a_void = 0;
 		any.a_int = lchoices.idx + 1;
 		add_menu(win, NO_GLYPH, &any, lchoices.menuletter,

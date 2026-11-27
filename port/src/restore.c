@@ -133,8 +133,8 @@ restlevchn(int fd)
 	mread(fd, (genericptr_t) &cnt, sizeof(int));
 	for(; cnt > 0; cnt--) {
 
-	    tmplev = (s_level *)alloc(sizeof(s_level));
-	    mread(fd, (genericptr_t) tmplev, sizeof(s_level));
+	    tmplev = NH_DGNALLOC(s_level);
+	    NH_HMREAD(fd, tmplev, 8, sizeof(s_level));
 	    if(!sp_levchn) sp_levchn = tmplev;
 	    else {
 
@@ -854,12 +854,13 @@ getlev(int fd, int pid, xchar lev, boolean ghostly)
 
 	    br = Is_branchlev(&u.uz);
 	    if (br && u.uz.dlevel == 1) {
-		d_level ltmp;
+		d_level ltmp, e1;	/* e1: a near copy (dungeon.h) */
 
-		if (on_level(&u.uz, &br->end1))
-		    assign_level(&ltmp, &br->end2);
+		e1 = br->end1;
+		if (on_level(&u.uz, &e1))
+		    ltmp = br->end2;
 		else
-		    assign_level(&ltmp, &br->end1);
+		    ltmp = e1;
 
 		switch(br->type) {
 		case BR_STAIR:

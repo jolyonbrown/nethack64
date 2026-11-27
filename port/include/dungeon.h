@@ -77,6 +77,20 @@ typedef struct branch_s {
     boolean	  end1_up;	/* does end1 go up? */
 } branch;
 
+/* The special levels' and the branches' lists live on the far heap on the C64 and C128
+ * (sys/c64/c64heap.c; c64conf.h names the types in far space 8), where a pointer to one
+ * is a far pointer: a field's address is not a near one, so a d_level or a name inside
+ * one is copied out before it is handed on (warning 2026 marks each place). */
+#ifdef NH_FAR_HEAP_SPACES
+extern unsigned nh_dgnalloc(unsigned);
+extern void nh_dgnfree(unsigned, unsigned);
+#define NH_DGNALLOC(t)		((t *) nh_dgnalloc((unsigned) sizeof (t)))
+#define NH_DGNFREE(p, t)	nh_dgnfree((unsigned) (p), (unsigned) sizeof (t))
+#else
+#define NH_DGNALLOC(t)		((t *) alloc((unsigned) sizeof (t)))
+#define NH_DGNFREE(p, t)	free((genericptr_t) (p))
+#endif
+
 /* branch types */
 #define BR_STAIR   0	/* "Regular" connection, 2 staircases. */
 #define BR_NO_END1 1	/* "Regular" connection.  However, no stair from  */

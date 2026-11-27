@@ -16,7 +16,10 @@ bank), and the prompt waited for. Loads that came faster than the polls are coun
 missed. Every 2 s the screen is read (the VDC's, bit 7 off so that reverse video counts)
 and, when the script's next prompt shows, its keys are typed; a --More-- that the script
 does not wait for gets a space (unless --keep-more).
-Every 20th poll also walks the near heap's free list: the least free seen is printed.
+Every 20th poll also walks the near heap's free list: the least free seen is printed
+(and with --heap-dump, the heap's blocks at that moment written out). A caller reached
+through a function pointer (windowprocs) and a resident trampoline is misnamed: the stack
+is not as the decoder expects there.
 The default script plays a new game to the welcome --More--, as tools/measure/trace/
 calls_game.py does on the host. A poll stops the CPU (the monitor), so the game runs
 slower than at real speed; the loads it makes are the same.
@@ -75,12 +78,11 @@ def decode(e, name):
 
 def record(a):
     syms, labels = symbols(a.build)
-    if "nh_flog" not in labels:
-        sys.exit("%s: no nh_flog (not a --load-log build)" % a.build)
+    has_ring = "nh_flog" in labels   # a --load-log build; otherwise the heap alone
     name = namer(syms)
     steps = [tuple(s.split("=", 1)) for s in a.script.split(";") if s]
     v = vice.Vice()
-    fl, fi, fc_at = labels["nh_flog"], labels["nh_flog_i"], labels["nh_fetches"]
+    fl, fi, fc_at = labels.get("nh_flog"), labels.get("nh_flog_i"), labels["nh_fetches"]
 
     def fetches():
         b = v.mem_get(fc_at, 2)
@@ -107,13 +109,36 @@ def record(a):
             total += (e[0] | e[1] << 8) - p
         return None
 
+    def heap_blocks():
+        """the near heap block by block: (address, size, used, first bytes); a used block at p
+        holds its end at p, its data from p + 2"""
+        hs, he = labels["HeapStart"], labels["HeapEnd"]
+        mem = v.mem_get(hs, he - hs)
+        def w(x):
+            return mem[x - hs] | mem[x - hs + 1] << 8
+        free, b = {}, v.mem_get(labels["HeapNode"], 2)
+        p = b[0] | b[1] << 8
+        while p and hs <= p < he and len(free) < 256:
+            free[p] = w(p + 2)
+            p = w(p)
+        rows, p = [], hs | 2
+        while p < he - 2:
+            e = free.get(p) or w(p)
+            if not p < e <= he:
+                break
+            rows.append((p, e - p, p not in free, bytes(mem[p + 2 - hs:min(e, p + 18) - hs])))
+            p = e
+        return rows
+
     out = open(a.out, "a" if a.append else "w")
     last, missed, step = None, 0, a.step
-    polls, low = 0, None
+    polls, low, step_low = 0, None, None
     t0 = tscr = time.time()
     while step < len(steps) and time.time() - t0 < a.minutes * 60:
         fc = fetches()
         if last is None:
+            last = fc
+        if fc != last and not has_ring:
             last = fc
         if fc != last:
             ring, i = v.mem_get(fl, RING), v.mem_get(fi, 1)[0]
@@ -133,8 +158,16 @@ def record(a):
         polls += 1
         if polls % 20 == 0:
             f = heap_free()
+            if f is not None and (step_low is None or f < step_low):
+                step_low = f
             if f is not None and (low is None or f < low):
                 low = f
+                if a.heap_dump:
+                    with open(a.heap_dump, "w") as hd:
+                        hd.write("near heap at %d bytes free (loads %d, before %r)\n" % (f, fc, steps[step][0]))
+                        for p, n, u, d in heap_blocks():
+                            hd.write("%04x %5d %s %s  %s\n" % (p, n, "used" if u else "free", d[:8].hex(),
+                                     "".join(chr(c) if 32 <= c < 127 else "." for c in d)))
         v.resume()
         if time.time() - tscr > 2:
             tscr = time.time()
@@ -142,8 +175,9 @@ def record(a):
             if "--More--" in scr and steps[step][0] != "--More--" and not a.keep_more:
                 v.keys(" ")     # a message the script did not wait for: on with the game
             elif steps[step][0] in scr:
-                print("%6.1f s  %5d loads, %d missed, near heap free %s at least: %s" % (
-                    time.time() - t0, fc, missed, low, steps[step][0]), flush=True)
+                print("%6.1f s  %5d loads, %d missed, near heap free %s at least (%s since the last "
+                      "prompt): %s" % (time.time() - t0, fc, missed, low, step_low, steps[step][0]), flush=True)
+                step_low = None
                 if steps[step][1]:
                     v.keys(steps[step][1])
                 step += 1
@@ -185,6 +219,7 @@ def main():
     r.add_argument("--step", type=int, default=0, help="start at this prompt of the script")
     r.add_argument("--append", action="store_true")
     r.add_argument("--minutes", type=float, default=20)
+    r.add_argument("--heap-dump", help="write the near heap's blocks here at each new low")
     r.add_argument("--keep-more", action="store_true",
                    help="do not answer a --More-- that the script does not name with a space")
     s = sub.add_parser("summary")

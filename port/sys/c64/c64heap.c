@@ -140,7 +140,7 @@ nh_hfree(int sp, unsigned a, unsigned n)
 	int c;
 
 	if (a < 0x8000)
-		panic("far heap %d: freeing a near block", sp + 7);
+		panic("far heap %d: freeing a near block (%04x, %u bytes)", sp + 7, a, n);
 	if (!n)
 		n = 1;
 	if (n <= 256) {
@@ -228,6 +228,25 @@ void
 nh_msgfree(struct tty_msg *m, unsigned n)
 {
 	nh_hfree(1, (unsigned) m, n);
+}
+
+/* the dungeon's special levels and branches (dungeon.h: NH_DGNALLOC), from the objects'
+ * space too: about 950 bytes for the whole game, which left the near heap too little to
+ * load a special level's description (fc55: the Oracle's, "cannot get 14 bytes") */
+unsigned
+nh_dgnalloc(unsigned n)
+{
+	unsigned a = nh_halloc(1, n);
+
+	if (!a)
+		panic("Object space full; cannot get %u bytes", n);
+	return a;
+}
+
+void
+nh_dgnfree(unsigned a, unsigned n)
+{
+	nh_hfree(1, a, n);
 }
 
 #endif /* NH_FAR_HEAP_SPACES */

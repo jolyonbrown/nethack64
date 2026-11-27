@@ -859,6 +859,22 @@ Add new tasks at the bottom of the right section.
       translations grew banked code by about 60 KB (more banks).
       — 2026-11-26: done. Monsters and objects in far spaces 7 and 8, the menu items and the
       message history too (2026-11-24); fc50's near heap has 1,240 of 2,828 bytes free.
+- [ ] T2.15 The near heap's peaks, and the special levels (found 2026-11-27). The C128's
+      near heap is 2.8 KB, and a failed malloc() is a panic. Measured with
+      `tools/measure/trace/loadlog.py record` (it walks Oscar64's free list) and a block
+      dump: at rest about 1.5 KB in use, 950 B of it the special levels' and branches' lists
+      (`docs/data/heap-c128-2026-11-27.txt`). Found: the long help text ("?", "a") panicked
+      (a tty text window keeps its page's lines on the heap); the Oracle's level panicked
+      ("cannot get 14 bytes", loading its description). Fixed in fc57: text and menu
+      window lines on the far heap (wintty.c, as the menu items and message history were);
+      the special levels' and branches' lists on the far heap (`dungeon.h` NH_DGNALLOC,
+      far space 8, near copies wherever a d_level or a name was handed on). fc57: at least
+      2,036 of 2,768 bytes free over a new game; the whole help file pages through; the
+      Oracle (9) and Dlvl 18 load, with 2,100 bytes free at rest. Also: raw prints (the
+      panic's lines) each on a row of their own (`video.c` xputline). Left: Medusa's level
+      (24) panics "reading special level with ysize too large" with xsize 75, ysize 20 read
+      right; `xstart`/`ystart` are far-default bytes, so a far-compiler suspect (fc57n has
+      them near, to tell); then the castle (26), Gehennom, the Mines and Sokoban.
 
 ## Phase 3 — first light
 

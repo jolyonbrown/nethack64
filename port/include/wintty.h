@@ -271,7 +271,8 @@ E void FDECL(video_update_positionbar, (char *));
   #undef puts
   #define putchar(x) xputc(x)
   #define putc(x) xputc(x)
-  #define puts(x) xputs(x)
+  #define puts(x) xputline(x)
+E void FDECL(xputline, (const char *));
 E void FDECL(cmov, (int, int));
 E void FDECL(nocmov, (int, int));
  #endif/*S80_VIDEO*/
