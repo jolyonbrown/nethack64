@@ -120,7 +120,10 @@ Exit: `make test` includes a "walk downstairs" test on the real game.
 - [ ] Performance: keystroke-to-screen under ~1 s on common commands
       — 2026-11-27: the C128 game at 2 MHz (fc51), each REU DMA at 1 MHz: the first level 61.9 s
       against 80.7 s at 1 MHz, the Dlvl 2 replay 577 s against 653 s. Most of what is left is
-      REU bank loads, 1,681 of 16 KB for the first level (`docs/data/speed-c128-2026-11-27.txt`)
+      REU bank loads, 1,681 of 16 KB for the first level (`docs/data/speed-c128-2026-11-27.txt`).
+      fc52: the port's own code (RAM disk, heap, tty) on cartridge banks, which the host-made
+      plan had put in the REU: 505 loads to the first level instead of 3,772, start-up 2.6 s
+      (15.4), the first level 29.0 s (61.9), the replay 507 s (577). Next: the loads in play
 - [ ] Long games by a NetHack-playing AI agent (Jolyon's suggestion, 2026-11-13: one
       such agent has reportedly ascended), driving VICE through `tools/vice.py`; and the
       same games recorded on the host build and replayed seed for seed on the C64 build,

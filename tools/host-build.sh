@@ -31,6 +31,10 @@
 #                                        tools/measure/trace/nh_trace.c (malloc and friends wrapped),
 #                                        installed to build/host-trace-install: which C64 data pages
 #                                        each turn touches (docs/RAM-PLAN.md; needs clang)
+#   tools/host-build.sh --calls          --video's build with every call and return written to
+#                                        $NH_CALLS_OUT (gcc -finstrument-functions, no inlining,
+#                                        tools/measure/trace/nh_calls.c), installed to
+#                                        build/host-calls-install, for tools/measure/trace/window.py
 #
 # Needs: gcc, make, ncurses headers, bison/yacc, flex/lex.
 set -euo pipefail
@@ -48,6 +52,10 @@ elif [ "${1:-}" = "--profile" ]; then
   SAN="-pg -fno-inline -fno-inline-functions-called-once -fno-optimize-sibling-calls"
 elif [ "${1:-}" = "--trace" ]; then
   H=build/host-trace; INSTALL=host-trace-install; TRACE=1
+elif [ "${1:-}" = "--calls" ]; then
+  # the C64's screen layer as --video, every call and return recorded: the bank window's
+  # loads are simulated from the calls (tools/measure/trace/window.py)
+  H=build/host-calls; INSTALL=host-calls-install; VIDEO=1; CALLS=1
 elif [ "${1:-}" = "--video" ]; then
   # the tty port without termcap (NO_TERMS), drawing through port/sys/c64/video.c, the
   # C64's screen layer, over tools/host-s80.c (screen80.h as a shadow plus ANSI)
@@ -82,6 +90,13 @@ if [ -n "${TRACE:-}" ]; then
   sed -i "1i CC = clang" src/Makefile
   sed -i "s|^CFLAGS = -O -g |CFLAGS = -O -g -fsanitize-coverage=edge,trace-loads,trace-stores -Wno-incompatible-function-pointer-types |; s|^LFLAGS =.*|LFLAGS = $wrap|; s|^LIBS =.*|LIBS = $(pwd)/nh_trace.o|" src/Makefile
   sed -i "s|^LFLAGS =.*|LFLAGS = $wrap $(pwd)/nh_trace.o|" util/Makefile
+fi
+if [ -n "${CALLS:-}" ]; then
+  # no inlining and no sibling calls, so that each C call is seen as the C64's would be;
+  # util/ links some of src/'s objects, so it gets the hooks too
+  gcc -O2 -c -o nh_calls.o "$ROOT/tools/measure/trace/nh_calls.c"
+  sed -i "s|^CFLAGS = -O -g |CFLAGS = -O -g -finstrument-functions -fno-inline -fno-optimize-sibling-calls |; s|^LIBS =.*|LIBS = $(pwd)/nh_calls.o|" src/Makefile
+  sed -i "s|^LFLAGS =.*|LFLAGS = $(pwd)/nh_calls.o|" util/Makefile
 fi
 sed -i 's|^WINTTYLIB = -ltermlib|WINTTYLIB = -lncurses|' src/Makefile
 if [ -n "${VIDEO:-}" ]; then

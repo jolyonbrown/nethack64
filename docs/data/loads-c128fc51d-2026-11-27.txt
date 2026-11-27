@@ -1,0 +1,101 @@
+REU bank loads by cause, C128 build fc51d (fc51 with a 16-entry ring of the bank call
+routine's REU loads: bank, call or return, target, stack bytes), 2026-11-27.
+x128 3.x at real speed, 4 MB REU, Magic Desk 128; a poller (binary monitor) read the ring
+and nh_fetches about every 5 ms and played Agent / n / v / h / n to the welcome --More--.
+Loads n 429-3,744 logged, 0 missed (the poller started at n 429, during start-up).
+A step names the prompt the loads came before.
+
+Totals (file layer: c64sys.c's RAM disk, nh_dma and the directory and FAT routines;
+other port-only: c64heap.c, c64tty.c, nh_dgnname):
+Who are you {'all': 106, 'file layer': 88, 'other port-only': 1}
+Shall I pick {'all': 1322, 'other port-only': 6, 'file layer': 1291}
+Pick a role {'all': 65, 'other port-only': 17}
+Pick the race {'all': 108, 'other port-only': 25}
+Pick the alignment {'all': 62, 'other port-only': 13}
+Is this ok {'all': 1653, 'other port-only': 134, 'file layer': 1173}
+
+Calls and returns that loaded a bank (caller (bank) -> callee (bank)):
+== before 'Who are you': 106 loads seen (n 429..534)
+     44  ?219e (83) -> nh_dma@proxy (92)
+     44  return to ?219e (83)
+      4  tty_putstr__b6 (6) -> xputc (144)
+      3  return to tty_init_nhwindows (132)
+      3  return to ?d1ae (132)
+      2  tty_init_nhwindows (132) -> setftty (133)
+      1  nh_c64_start (4) -> tty_init_nhwindows (132)
+      1  tty_init_nhwindows (132) -> gettty (140)
+      1  tty_init_nhwindows (132) -> add_menu_cmd_alias (78)
+      1  tty_clear_nhwindow (57) -> clear_screen (133)
+      1  return to tty_putstr__t132 (132)
+      1  tty_nhgetch (6) -> tgetch (105)
+  banks: 92: 44, 83: 44, 132: 8, 144: 4, 133: 3, 140: 1, 78: 1, 105: 1
+== before 'Shall I pick': 1322 loads seen (n 535..1856)
+    644  return to ?219e (83)
+    640  ?219e (83) -> nh_dma@proxy (92)
+     11  return to tty_askname (132)
+      6  tty_nhgetch (6) -> tgetch (105)
+      5  tty_askname (132) -> xputc (144)
+      2  nh_find__b4 (4) -> nh_dirget@proxy (83)
+      1  creat__t48 (48) -> creat__b108 (108)
+      1  open__b4 (4) -> nh_dirput (92)
+      1  return to ?eb79 (108)
+      1  write (4) -> nh_fdp (83)
+      1  nh_fatget (4) -> nh_dma (92)
+      1  close (4) -> nh_fdp (83)
+  banks: 83: 648, 92: 643, 132: 12, 144: 6, 105: 6, 129: 3, 108: 2, 67: 1, 119: 1
+== before 'Pick a role': 65 loads seen (n 1857..1921)
+     17  tty_add_menu__b17 (17) -> nh_halloc (87)
+     15  return to ?f36d (129)
+      8  cl_end (55) -> clear_line_from (121)
+      7  process_menu_window (55) -> xputc@proxy (144)
+      5  return to tty_player_selection (129)
+      2  return to tty_add_menu__t81 (81)
+      1  tty_putsym (55) -> xputc (144)
+      1  tty_clear_nhwindow (57) -> clear_screen (133)
+      1  tty_putstr__b6 (6) -> xputc (144)
+      1  return to tty_putstr__t129 (129)
+      1  tty_player_selection (129) -> tty_create_nhwindow (132)
+      1  tty_clear_nhwindow (57) -> free_window_info@proxy (132)
+  banks: 129: 22, 87: 17, 144: 9, 121: 8, 81: 4, 132: 3, 133: 1, 86: 1
+== before 'Pick the race': 108 loads seen (n 1922..2029)
+     18  cl_end (55) -> clear_line_from (121)
+     17  free_window_info (132) -> nh_hfree (155)
+     17  return to free_window_info (132)
+     16  process_menu_window (55) -> xputc@proxy (144)
+      6  tty_add_menu__b17 (17) -> nh_halloc (87)
+      5  return to tty_player_selection (129)
+      4  return to ?f36d (129)
+      2  dmore__t55 (55) -> dmore__b132 (132)
+      2  xputs__b55 (55) -> xputc (144)
+      2  return to xputs__t132 (132)
+      2  tty_nhgetch (6) -> tgetch (105)
+      2  return to tty_add_menu__t81 (81)
+  banks: 132: 28, 144: 20, 121: 18, 155: 17, 129: 11, 87: 6, 81: 4, 105: 2, 133: 1, 86: 1
+== before 'Pick the alignment': 62 loads seen (n 2030..2091)
+      8  cl_end (55) -> clear_line_from (121)
+      6  free_window_info (132) -> nh_hfree (155)
+      6  return to free_window_info (132)
+      6  tty_add_menu__b17 (17) -> nh_halloc (87)
+      6  process_menu_window (55) -> xputc@proxy (144)
+      5  return to tty_player_selection (129)
+      4  return to ?f36d (129)
+      2  return to tty_add_menu__t81 (81)
+      1  return to xwaitforspace__t132 (132)
+      1  set_item_state (132) -> xputc (144)
+      1  return to set_item_state (132)
+      1  return to erase_menu_or_text (132)
+  banks: 132: 15, 129: 11, 144: 9, 121: 8, 155: 6, 87: 6, 81: 4, 133: 1, 86: 1, 105: 1
+== before 'Is this ok': 1653 loads seen (n 2092..3744)
+    515  ?219e (83) -> nh_dma@proxy (92)
+    515  return to ?219e (83)
+     77  read (4) -> nh_fdp (83)
+     59  read (4) -> nh_dma (92)
+     45  tty_print_glyph (132) -> xputc (144)
+     45  return to tty_print_glyph (132)
+     32  init_level (48) -> nh_dgnname__x155 (155)
+     31  nh_objalloc (156) -> nh_halloc@proxy (87)
+     30  return to nh_objalloc (156)
+     20  dosdoor (56) -> add_door@proxy (109)
+     19  dosdoor (56) -> in_rooms__x98@proxy (98)
+     19  return to dodoor (140)
+  banks: 83: 600, 92: 577, 132: 74, 144: 62, 156: 50, 155: 46, 87: 34, 89: 23, 140: 23, 109: 22

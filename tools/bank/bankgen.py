@@ -409,6 +409,10 @@ def main():
     ap.add_argument("--far-chars", action="store_true",
                     help="far characters (ADR-0010, NH_FAR_CHARS): with --target c128, the regions above "
                          "the bank window hold code only")
+    ap.add_argument("--load-log", action="store_true",
+                    help="with --target c128 --io-out, for measuring only: the bank call routine keeps "
+                         "a ring of its last 16 REU loads, nh_flog (tools/measure/trace/loadlog.py "
+                         "reads it), which costs time on every load")
     ap.add_argument("files", nargs="+")
     a = ap.parse_args()
 
@@ -865,7 +869,8 @@ def main():
         sys.exit("--target c128 needs --linker-stubs")
     text = header(sorted(report["banks"]), kept_extern, a.linker_stubs, resident_glue,
                   slice_start if slice_plan else None, a.target,
-                  region_banks(a.inc) if a.target == "c128" else (), a.far_chars, a.io_out)
+                  region_banks(a.inc) if a.target == "c128" else (), a.far_chars, a.io_out,
+                  a.load_log)
     open(os.path.join(a.dir, "nhbank.h"), "w").write(text)
     # a far default (a plan's "far_default": {"near": [...]}; c64conf.h, NH_FAR_DEFAULT): every
     # other global of NetHack's files goes to far space 5, so what must stay near is named in
@@ -1341,8 +1346,47 @@ def region_banks(incs):
     return sorted(out)
 
 
+LOAD_LOG_VARS = """
+/* bankgen.py --load-log, for measuring: a ring of the last 16 REU loads, 16 bytes each: the
+ * bank, 1 for a call's load (0 for a return's), the call's target, then the stack from
+ * nh_map's return address on (a call: the saved bank at +4, the caller's return address
+ * less one at +5; a return: the caller's return address less one at +2).  nh_flog_i is the
+ * next entry's offset.  tools/measure/trace/loadlog.py reads it with nh_fetches. */
+volatile unsigned char nh_flog[256];
+#pragma align(nh_flog, 256)
+volatile unsigned char nh_flog_i, nh_flog_k, nh_flog_tlo, nh_flog_thi;
+"""
+
+LOAD_LOG_ENTRY = "".join("\t\tlda $01%02x, x\n\t\tsta nh_flog, y\n\t\tiny\n" % o for o in range(3, 15))
+
+
+def with_load_log(bc):
+    """The C128 bank call routine (--io-out) with the load ring of --load-log: nh_map writes
+    an entry with the MMU at $3F (all RAM: the ring may lie under the I/O), and nh_bankcall
+    says whether a load is a call's and to where"""
+    def once(text, old, new):
+        if text.count(old) != 1:
+            sys.exit("bankgen: --load-log does not fit the bank call routine (%r)" % old)
+        return text.replace(old, new)
+    bc = once(bc, "volatile unsigned nh_fetches;\n", "volatile unsigned nh_fetches;\n" + LOAD_LOG_VARS)
+    # the entry is too long for beq's reach
+    bc = once(bc, "\t\tbeq on\n\t\tsta nh_window\n", "\t\tbne fl_go\n\t\tjmp on\nfl_go:\tsta nh_window\n")
+    bc = once(bc, "cnt:\tlda nh_window\n",
+              "cnt:\ttxa\n\t\tpha\n\t\ttya\n\t\tpha\n\t\tlda #$3f\n\t\tsta $ff00\n\t\tldy nh_flog_i\n" +
+              "".join("\t\tlda %s\n\t\tsta nh_flog, y\n\t\tiny\n" % v
+                      for v in ("nh_window", "nh_flog_k", "nh_flog_tlo", "nh_flog_thi")) +
+              "\t\ttsx\n" + LOAD_LOG_ENTRY +
+              "\t\tsty nh_flog_i\n\t\tlda #$3e\n\t\tsta $ff00\n\t\tpla\n\t\ttay\n\t\tpla\n\t\ttax\n" +
+              "\t\tlda nh_window\n")
+    bc = once(bc, "\t\tldy #1\nl1:", "\t\tldy #1\n\t\tlda bjmp + 1\n\t\tsta nh_flog_tlo\n\t\tlda bjmp + 2\n"
+              "\t\tsta nh_flog_thi\n\t\tlda #1\n\t\tsta nh_flog_k\nl1:")
+    bc = once(bc, "bret:\tnop\n\t\tsta nh_bc_a\n\t\tpla\n",
+              "bret:\tnop\n\t\tsta nh_bc_a\n\t\tlda #0\n\t\tsta nh_flog_k\n\t\tpla\n")
+    return bc
+
+
 def header(banks, keep_extern={}, linker_stubs=False, resident_glue=(), slice_start=None, target="c64",
-           more_banks=(), far_chars=False, io_out=False):
+           more_banks=(), far_chars=False, io_out=False, load_log=False):
     """keep_extern: the extern keepers assigned somewhere, with their buffers' sizes"""
     bufs_decl = "\n".join("extern char nh_keep_%s[%d];" % (n, keep_extern[n]) for n in sorted(keep_extern))
     bufs_def = "\n".join("char nh_keep_%s[%d];" % (n, keep_extern[n]) for n in sorted(keep_extern))
@@ -1351,6 +1395,10 @@ def header(banks, keep_extern={}, linker_stubs=False, resident_glue=(), slice_st
         if target == "c128":
             i, j = bc.index("/* maps bank A;"), bc.index("__asm nh_bankcall")
             bc = bc[:i] + (NH_MAP_C128_IO_OUT if io_out else NH_MAP_C128).strip() + "\n\n" + bc[j:]
+            if load_log:
+                if not io_out:
+                    sys.exit("bankgen: --load-log is for --target c128 --io-out")
+                bc = with_load_log(bc)
             if io_out:
                 bc = "#pragma code( nhio )\n" + bc + "\n#pragma code( code )\n"
         bufs_def += "\n" + bc          # substituted, so no % escaping

@@ -25,3 +25,27 @@ at the first "--More--"               3772        3733          3733
 character menus cost 1,557 more. Every fault also wrote a page back (faults = writebacks).
 Next for speed: the bank plan for level creation and the menus (which functions make the
 window reload), and whether a clean far page needs writing back.
+
+fc52 (2026-11-27, later): fc51's plan with the port's own code on cartridge banks
+(docs/data/bankplan-2026-11-27-c128fc52.json): port/sys/c64/c64sys.c (the RAM disk) in
+bank 34 (its write() and decl.c's nh_farmread2 to bank 49 for room), c64heap.c, c64tty.c
+and dungeon.c's nh_dgnname in bank 48. The host game's profile, from which the plan was
+made, never runs that code (the host has libc's files and heap), so it had gone to REU
+banks: every directory entry the RAM disk read cost two bank loads, nh_dirget in bank 83
+calling nh_dma in bank 92 and back (docs/data/loads-c128fc51d-2026-11-27.txt: 2,552 of
+the 3,316 loads logged from start-up to the first --More--).
+
+                                         fc51           fc52         ratio
+launch to "Who are you?"                     15.4            2.6        5.9
+the last role key to the first "--More--"    61.9           29.0        2.1
+the replay to Dlvl 2 (about 400 turns)      576.8          506.5        1.14
+
+                                 nh_fetches (fc51 -> fc52)   nh_faults   nh_writebacks
+at "Who are you?"                      534 ->  17                17            17
+before the last role key              2091 -> 158               168           168
+at the first "--More--"               3772 -> 505              3733          3733
+
+The replay's last screen is the same as fc51's. The near heap is 16 bytes bigger
+(HeapStart $6508). What is left in the replay is play: its loads are next
+(tools/measure/trace/loadlog.py on a --load-log build), and tools/vice.py's look at the
+screen after each key, about 0.7 s, is part of every one of its times.

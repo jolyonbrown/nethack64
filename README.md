@@ -28,7 +28,7 @@ real hardware or with a real stick in VICE. Each game starts the same for now (t
 fixed), so a recorded game replays key for key: that is how each new build is checked. Next
 is longer play: deeper levels, shops, the special levels.
 
-How it fits (the C128 build, fc51):
+How it fits (the C128 build, fc52):
 
 | | |
 |---|---|
@@ -36,7 +36,7 @@ How it fits (the C128 build, fc51):
 | Code placement | 137 banks of 16 KB: 63 on the cartridge, 74 copied in from the REU (ADR-0008) |
 | Large data (monsters, objects, the heap) | far spaces in the REU, through typed far pointers added to the compiler (ADR-0009) |
 | Shared strings and `char` arrays | far characters in the C128's RAM bank 1, `$C100-$FBFF` (ADR-0010) |
-| Near heap | 2,792 bytes (fc51); on fc50, 1,588 of its 2,832 in use on Dlvl 2 |
+| Near heap | 2,808 bytes (fc52); on fc50, 1,588 of its 2,832 in use on Dlvl 2 |
 | Linking the whole game | one Oscar64 run, peak 13.7 GB of RAM, so it runs on a desktop |
 
 **The compiler.** Oscar64 is pinned at v1.32.273 plus 99 commits of fixes and features
@@ -47,9 +47,10 @@ the port is done.
 
 **Still to come.**
 - The rest of the game in play: special levels, the Mines, Sokoban, the quest, shops.
-- Speed. Since 2026-11-27 the game runs at 2 MHz, which made the first level 1.3 times as
-  fast, not 2 (`docs/data/speed-c128-2026-11-27.txt`). Most of the rest is loading REU banks
-  of code, 1,681 of them while the first level is made, so the bank plan is next.
+- Speed. Since 2026-11-27 the game runs at 2 MHz, and the port's own code (the RAM disk, the
+  heap) is on cartridge banks instead of REU banks it had to be copied from, 16 KB at a time:
+  start-up takes 2.6 s instead of 15.4, the first level 29 s instead of 81 at 1 MHz
+  (`docs/data/speed-c128-2026-11-27.txt`). Next is play itself, where most bank loads now are.
 - A real clock and seed (the decision is open in `docs/TO-DECIDE.md`), and
   persistence to disk.
 - Then the C64, with about 12 KB less near memory than the C128 has (ADR-0003). The C64 platform build

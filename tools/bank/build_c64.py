@@ -296,6 +296,8 @@ def main():
     ap.add_argument("--io-out", action="store_true",
                     help="with --target c128: the I/O out by default (bankgen.py --io-out), the far "
                          "runtime in section nhio")
+    ap.add_argument("--load-log", action="store_true",
+                    help="for measuring: the bank call routine logs its REU loads (bankgen.py --load-log)")
     ap.add_argument("--far-runtime", action="store_true",
                     help="the far runtime that pages from the REU (tools/bank/farrt.py, its spaces read "
                          "from the headers) in place of far_meas.c's identity stand-in (with --far)")
@@ -355,6 +357,7 @@ def main():
                            (["--cpp=-DNH_FAR_CHARS", "--far-chars"] if a.far_chars else []) +
                            (["--cpp=-DNH_FAR_HEAP"] if a.far_heap else []) +
                            (["--io-out"] if a.io_out else []) +
+                           (["--load-log"] if a.load_log else []) +
                            (["--linker-stubs"] if a.linker_stubs else []) +
                            (["--target", "c128"] if a.target == "c128" else []) +
                            files, capture_output=True, text=True)

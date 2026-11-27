@@ -176,6 +176,9 @@ void sys128_speed(char fast);					/* src/hal/sys128.c */
 static unsigned speed_ticks(void)
 {
 	volatile char *cia2 = (volatile char *)0xdd00;
+	/* no interrupts while timing: the KERNAL's IRQ landing in one loop and not the other
+	 * failed the check now and then (make test, 2026-11-27) */
+	__asm { sei }
 	cia2[0x0e] = 0x00;
 	cia2[0x04] = 0xff;
 	cia2[0x05] = 0xff;
@@ -183,6 +186,7 @@ static unsigned speed_ticks(void)
 	for (volatile unsigned i = 0; i < 500; i++)
 		;
 	cia2[0x0e] = 0x00;
+	__asm { cli }
 	return 0xffff - (cia2[0x04] | (cia2[0x05] << 8));
 }
 #endif
