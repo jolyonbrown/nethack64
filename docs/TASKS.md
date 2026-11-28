@@ -871,10 +871,21 @@ Add new tasks at the bottom of the right section.
       far space 8, near copies wherever a d_level or a name was handed on). fc57: at least
       2,036 of 2,768 bytes free over a new game; the whole help file pages through; the
       Oracle (9) and Dlvl 18 load, with 2,100 bytes free at rest. Also: raw prints (the
-      panic's lines) each on a row of their own (`video.c` xputline). Left: Medusa's level
-      (24) panics "reading special level with ysize too large" with xsize 75, ysize 20 read
-      right; `xstart`/`ystart` are far-default bytes, so a far-compiler suspect (fc57n has
-      them near, to tell); then the castle (26), Gehennom, the Mines and Sokoban.
+      panic's lines) each on a row of their own (`video.c` xputline).
+      2026-11-28: Medusa's level (24), the first maze-type special level reached, failed
+      three ways (a panic, "reading special level with ysize too large"; a `BRK`; MMU in the
+      ROMs). Two bugs, found with a canary on `nhio`'s code polled through the monitor, the
+      load ring and the listing: (1) compat #100, Oscar64 specialised `nh_farfill4()` for its
+      one call (`Map`, 1,680 bytes of far space 4) into a block fill translated once, which
+      cleared the RAM after Map's first cache frame (the far runtime, the bank call routine);
+      `decl.c`'s far fills now go a page at a time (fc58). (2) `c64scanf.c` called Oscar64's
+      own `fgetc()`, which reads through the KERNAL and so maps the C128's ROMs over the game:
+      the first `fscanf()` of a file (`tt_oname()`, naming Medusa's statues from the record
+      file) crashed; it uses the file layer's `nh_fgetc()` now (fc59), and the heap gained
+      176 bytes with Oscar64's I/O gone. fc59: Medusa's level loads (2,308 bytes free). Next:
+      the castle (26) panics "create_object: unexpected object class 'a'", with its
+      description read right (robjects "%)*[", 59 objects of classes -1 to -4, '(' and '/');
+      then Gehennom, the Mines and Sokoban.
 
 ## Phase 3 — first light
 

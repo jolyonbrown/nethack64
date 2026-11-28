@@ -48,7 +48,8 @@ the port is done.
 **Still to come.**
 - The rest of the game in play: special levels, the Mines, Sokoban, the quest, shops. The
   near heap used to run out on the first special level; since fc57 (T2.15) the Oracle's
-  level loads, but Medusa's does not yet ("reading special level with ysize too large").
+  level loads, since fc59 Medusa's too (a compiler bug in our far-data fork and a KERNAL
+  call, both fixed); the castle's does not yet.
 - Speed. Since 2026-11-27 the game runs at 2 MHz, and the port's own code (the RAM disk, the
   heap) is on cartridge banks instead of REU banks it had to be copied from, 16 KB at a time:
   start-up takes 1.9 s instead of 15.4, the first level 24.5 s instead of 81 at 1 MHz, and a

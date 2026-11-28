@@ -11,8 +11,9 @@ Each phase has exit criteria that can be checked by running something.
 REU; first level 2026-11-23, saves and level changes 2026-11-24). Phases 2 and 3 are done
 for the C128 apart from the items left open below; Phase 4's play-testing is under way:
 2026-11-27, the start-up and first level several times faster (the bank plan), and the
-near heap's panics on long texts and the first special levels fixed (T2.15); Medusa's
-level is the next failure.
+near heap's panics on long texts and the first special levels fixed (T2.15); 2026-11-28,
+Medusa's level loads (a far-fill compiler bug, compat #100, and a KERNAL call in the port's
+scanf); the castle's is the next failure.
 The C64 squeeze follows (ADR-0003, amendment of 2026-11-21). The README carries the same
 summary; keep the two in step.
 

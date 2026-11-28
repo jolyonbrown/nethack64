@@ -196,6 +196,21 @@ void nh_farmread##sp(int fd, struct nh_fb##sp *d, unsigned n) \
 		d += k; n -= k; \
 	} \
 }
+/* A page at a time: Oscar64 specialised nh_farfill4() for its one call (sp_lev.c's Map,
+ * 1,680 bytes) and made the loop a block fill, which the far-spaces compiler translates once,
+ * as for an object that keeps to a page: it cleared the 1,680 bytes of RAM after Map's first
+ * frame, the far runtime and the bank call routine among them, and Medusa's level crashed
+ * (fc57; docs/OSCAR64-COMPAT.md).  A fill inside one page is right however it is compiled. */
+#define NH_FARFILL(sp) \
+void nh_farfill##sp(struct nh_fb##sp *d, int c, unsigned n) \
+{ \
+	while (n) { \
+		unsigned k = 256 - ((unsigned) d & 0xff); \
+		if (k > n) k = n; \
+		n -= k; \
+		while (k--) (d++)->b = (unsigned char) c; \
+	} \
+}
 NH_FARW(2)
 NH_FARR(2)
 NH_FARW(3)
@@ -204,18 +219,10 @@ NH_FARR(3)
 NH_FARW(4)
 NH_FARR(4)
 
-void
-nh_farfill4(struct nh_fb4 *d, int c, unsigned n)
-{
-	while (n--) (d++)->b = (unsigned char) c;
-}
+NH_FARFILL(4)
 #endif
 
-void
-nh_farfill3(struct nh_fb3 *d, int c, unsigned n)
-{
-	while (n--) (d++)->b = (unsigned char) c;
-}
+NH_FARFILL(3)
 
 #ifdef NH_FAR_HEAP_SPACES
 NH_FARW(7)
@@ -223,11 +230,7 @@ NH_FARR(7)
 NH_FARW(8)
 NH_FARR(8)
 
-void
-nh_farfill7(struct nh_fb7 *d, int c, unsigned n)
-{
-	while (n--) (d++)->b = (unsigned char) c;
-}
+NH_FARFILL(7)
 
 #ifdef NH_FAR_DEFAULT
 /* T2.14: these are reached through near pointers (a name's copy as a char *, the chain

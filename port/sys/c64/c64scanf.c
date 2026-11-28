@@ -29,6 +29,14 @@ static int sc_scan(const char *, const char *, FILE *, va_list);
 #ifdef __OSCAR64C__
 int ungetc(int, FILE *);	/* Oscar64's stdio.h has none: the file layer's */
 #endif
+#if defined(__OSCAR64C__) && defined(NH_PORT_SYS)
+/* The file layer's, as c64conf.h renames NetHack's own calls (this file includes no game
+ * header): Oscar64's fgetc() reads through the KERNAL, which on the C128 maps the ROMs over
+ * the game's code, and the first fscanf() of a file crashed the game (fc58: tt_oname()
+ * reading the record file to name Medusa's statues; sc_peek() called Oscar64's fgetc). */
+int nh_fgetc(FILE *);
+#define fgetc	nh_fgetc
+#endif
 
 static FILE *sc_fp;		/* reading this file, or */
 /* this string; unsigned char, not char, so that bankgen.py keeps no copy of what is
